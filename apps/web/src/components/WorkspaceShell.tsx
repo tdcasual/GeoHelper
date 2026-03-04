@@ -1,10 +1,13 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { CanvasPanel } from "./CanvasPanel";
 import { ChatPanel } from "./ChatPanel";
 import { ModelModeSwitcher } from "./ModelModeSwitcher";
 import { TokenGateDialog } from "./TokenGateDialog";
-import { loginWithPresetToken } from "../services/api-client";
+import {
+  loginWithPresetToken,
+  revokeOfficialSessionToken
+} from "../services/api-client";
 import { useChatStore } from "../state/chat-store";
 import { useUIStore } from "../state/ui-store";
 
@@ -14,9 +17,11 @@ export const WorkspaceShell = () => {
   const mode = useChatStore((state) => state.mode);
   const messages = useChatStore((state) => state.messages);
   const isSending = useChatStore((state) => state.isSending);
+  const reauthRequired = useChatStore((state) => state.reauthRequired);
   const sessionToken = useChatStore((state) => state.sessionToken);
   const setMode = useChatStore((state) => state.setMode);
   const setSessionToken = useChatStore((state) => state.setSessionToken);
+  const acknowledgeReauth = useChatStore((state) => state.acknowledgeReauth);
   const send = useChatStore((state) => state.send);
   const [draft, setDraft] = useState("");
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
@@ -40,6 +45,27 @@ export const WorkspaceShell = () => {
     }
   };
 
+  useEffect(() => {
+    if (mode === "official" && reauthRequired) {
+      setTokenDialogOpen(true);
+      acknowledgeReauth();
+    }
+  }, [mode, reauthRequired, acknowledgeReauth]);
+
+  const handleOfficialLogout = async () => {
+    if (!sessionToken) {
+      return;
+    }
+
+    try {
+      await revokeOfficialSessionToken(sessionToken);
+    } catch {
+      // Even when revoke fails remotely, local session must be cleared.
+    }
+
+    setSessionToken(null);
+  };
+
   const handleSend = async (event: FormEvent) => {
     event.preventDefault();
     if (!draft.trim() || isSending) {
@@ -57,6 +83,11 @@ export const WorkspaceShell = () => {
         <h1>GeoHelper</h1>
         <div className="top-bar-actions">
           <ModelModeSwitcher mode={mode} onChange={handleModeChange} />
+          {mode === "official" && sessionToken ? (
+            <button type="button" onClick={handleOfficialLogout}>
+              退出官方会话
+            </button>
+          ) : null}
           <button type="button" onClick={toggleChat}>
             {chatVisible ? "Hide Chat" : "Show Chat"}
           </button>
@@ -100,6 +131,11 @@ export const WorkspaceShell = () => {
                   </article>
                 ))
               )}
+              {mode === "official" && !sessionToken ? (
+                <div className="session-warning" data-testid="session-warning">
+                  官方模式未登录或会话已过期，请输入 Token
+                </div>
+              ) : null}
             </div>
             <form className="chat-input-row" onSubmit={handleSend}>
               <input

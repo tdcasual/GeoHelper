@@ -50,4 +50,17 @@ EDGEONE_PROJECT_NAME=<project> EDGEONE_API_TOKEN=<token> VITE_GATEWAY_URL=https:
 LITELLM_ENDPOINT=<endpoint> LITELLM_API_KEY=<key> PRESET_TOKEN=<preset-token> pnpm smoke:live-model
 ```
 
+## Quality Benchmark
+
+```bash
+pnpm bench:quality -- --dry-run
+```
+
+Run against a live gateway:
+
+```bash
+GATEWAY_URL=http://127.0.0.1:8787 pnpm bench:quality
+```
+
 See deployment details: `docs/deploy/edgeone.md`.
+Beta release checklist: `docs/BETA_CHECKLIST.md`.

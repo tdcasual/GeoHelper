@@ -2,6 +2,7 @@ import Fastify, { FastifyInstance } from "fastify";
 import { fileURLToPath } from "node:url";
 
 import { loadConfig } from "./config";
+import { registerAdminRoutes } from "./routes/admin";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerCompileRoute } from "./routes/compile";
 import { registerHealthRoute } from "./routes/health";
@@ -51,6 +52,7 @@ export const buildServer = (
   });
 
   registerHealthRoute(app);
+  registerAdminRoutes(app, config);
   registerAuthRoutes(app, config);
   registerCompileRoute(app, config, services);
 

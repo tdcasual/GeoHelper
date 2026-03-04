@@ -10,6 +10,11 @@ import { compileWithMultiAgent } from "../services/multi-agent";
 import { verifySessionToken } from "../services/session";
 import { InvalidCommandBatchError } from "../services/verify-command-batch";
 import { consumeRateLimit } from "../services/rate-limit";
+import {
+  recordCompileFailure,
+  recordCompileRateLimited,
+  recordCompileSuccess
+} from "../services/metrics";
 
 const CompileBodySchema = z.object({
   message: z.string().min(1),
@@ -37,6 +42,7 @@ export const registerCompileRoute = (
     reply.header("x-ratelimit-remaining", String(limit.remaining));
     reply.header("x-ratelimit-reset", String(Math.floor(limit.resetAt / 1000)));
     if (!limit.allowed) {
+      recordCompileRateLimited();
       return reply.status(429).send({
         error: {
           code: "RATE_LIMITED",
@@ -96,6 +102,13 @@ export const registerCompileRoute = (
         deps.requestCommandBatch
       );
 
+      const retryCount = result.agent_steps.some(
+        (step) => step.name === "repair" && step.status === "ok"
+      )
+        ? 1
+        : 0;
+      recordCompileSuccess(retryCount);
+
       return reply.send({
         trace_id: `tr_${Date.now()}`,
         batch: result.batch,
@@ -103,6 +116,7 @@ export const registerCompileRoute = (
       });
     } catch (error) {
       if (error instanceof InvalidCommandBatchError) {
+        recordCompileFailure();
         return reply.status(422).send({
           error: {
             code: "INVALID_COMMAND_BATCH",
@@ -112,12 +126,13 @@ export const registerCompileRoute = (
         });
       }
 
+      recordCompileFailure();
       return reply.status(502).send({
         error: {
           code: "LITELLM_UPSTREAM_ERROR",
           message: "Failed to compile with upstream model"
         }
       });
-      }
+    }
   });
 };

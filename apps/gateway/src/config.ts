@@ -6,6 +6,7 @@ export interface GatewayConfig {
   rateLimitMax: number;
   rateLimitWindowMs: number;
   alertWebhookUrl?: string;
+  adminMetricsToken?: string;
 }
 
 export const loadConfig = (
@@ -30,6 +31,7 @@ export const loadConfig = (
     rateLimitWindowMs: Number.isNaN(rateLimitWindowFromEnv)
       ? 60_000
       : rateLimitWindowFromEnv,
-    alertWebhookUrl: env.ALERT_WEBHOOK_URL
+    alertWebhookUrl: env.ALERT_WEBHOOK_URL,
+    adminMetricsToken: env.ADMIN_METRICS_TOKEN
   };
 };

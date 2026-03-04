@@ -7,7 +7,8 @@ import {
   AgentStep,
   ChatMode,
   compileChat,
-  CompileResponse
+  CompileResponse,
+  GatewayApiError
 } from "../services/api-client";
 
 export interface ChatMessage {
@@ -23,8 +24,10 @@ export interface ChatStoreState {
   sessionToken: string | null;
   messages: ChatMessage[];
   isSending: boolean;
+  reauthRequired: boolean;
   setMode: (mode: ChatMode) => void;
   setSessionToken: (sessionToken: string | null) => void;
+  acknowledgeReauth: () => void;
   send: (content: string) => Promise<void>;
 }
 
@@ -41,6 +44,7 @@ interface PersistedChatSnapshot {
   mode: ChatMode;
   sessionToken: string | null;
   messages: ChatMessage[];
+  reauthRequired: boolean;
 }
 
 const defaultDeps: ChatStoreDeps = {
@@ -65,7 +69,8 @@ const loadSnapshot = (): PersistedChatSnapshot => {
     return {
       mode: "byok",
       sessionToken: null,
-      messages: []
+      messages: [],
+      reauthRequired: false
     };
   }
 
@@ -75,7 +80,8 @@ const loadSnapshot = (): PersistedChatSnapshot => {
       return {
         mode: "byok",
         sessionToken: null,
-        messages: []
+        messages: [],
+        reauthRequired: false
       };
     }
 
@@ -83,13 +89,15 @@ const loadSnapshot = (): PersistedChatSnapshot => {
     return {
       mode: parsed.mode ?? "byok",
       sessionToken: parsed.sessionToken ?? null,
-      messages: Array.isArray(parsed.messages) ? parsed.messages : []
+      messages: Array.isArray(parsed.messages) ? parsed.messages : [],
+      reauthRequired: Boolean(parsed.reauthRequired)
     };
   } catch {
     return {
       mode: "byok",
       sessionToken: null,
-      messages: []
+      messages: [],
+      reauthRequired: false
     };
   }
 };
@@ -117,6 +125,7 @@ export const createChatStore = (
     sessionToken: initial.sessionToken,
     messages: initial.messages,
     isSending: false,
+    reauthRequired: initial.reauthRequired,
     setMode: (mode) =>
       set((state) => {
         const next = {
@@ -126,7 +135,8 @@ export const createChatStore = (
         persistSnapshot({
           mode: next.mode,
           sessionToken: next.sessionToken,
-          messages: next.messages
+          messages: next.messages,
+          reauthRequired: next.reauthRequired
         });
         return {
           mode
@@ -141,10 +151,28 @@ export const createChatStore = (
         persistSnapshot({
           mode: next.mode,
           sessionToken: next.sessionToken,
-          messages: next.messages
+          messages: next.messages,
+          reauthRequired: next.reauthRequired
         });
         return {
-          sessionToken
+          sessionToken,
+          reauthRequired: false
+        };
+      }),
+    acknowledgeReauth: () =>
+      set((state) => {
+        const next = {
+          ...state,
+          reauthRequired: false
+        };
+        persistSnapshot({
+          mode: next.mode,
+          sessionToken: next.sessionToken,
+          messages: next.messages,
+          reauthRequired: next.reauthRequired
+        });
+        return {
+          reauthRequired: false
         };
       }),
     send: async (content) => {
@@ -158,7 +186,8 @@ export const createChatStore = (
         persistSnapshot({
           mode: state.mode,
           sessionToken: state.sessionToken,
-          messages
+          messages,
+          reauthRequired: state.reauthRequired
         });
         return {
           messages,
@@ -186,29 +215,43 @@ export const createChatStore = (
           persistSnapshot({
             mode: state.mode,
             sessionToken: state.sessionToken,
-            messages
+            messages,
+            reauthRequired: state.reauthRequired
           });
           return {
             messages,
             isSending: false
           };
         });
-      } catch {
+      } catch (error) {
+        const isSessionExpired =
+          error instanceof GatewayApiError &&
+          (error.code === "SESSION_EXPIRED" ||
+            error.code === "MISSING_AUTH_HEADER") &&
+          get().mode === "official";
+
         const assistantMessage: ChatMessage = {
           id: makeId(),
           role: "assistant",
-          content: "生成失败，请重试"
+          content: isSessionExpired
+            ? "官方会话已过期，请重新输入 Token"
+            : "生成失败，请重试"
         };
         set((state) => {
           const messages = [...state.messages, assistantMessage];
+          const reauthRequired = isSessionExpired ? true : state.reauthRequired;
+          const sessionToken = isSessionExpired ? null : state.sessionToken;
           persistSnapshot({
             mode: state.mode,
-            sessionToken: state.sessionToken,
-            messages
+            sessionToken,
+            messages,
+            reauthRequired
           });
           return {
             messages,
-            isSending: false
+            isSending: false,
+            sessionToken,
+            reauthRequired
           };
         });
       }

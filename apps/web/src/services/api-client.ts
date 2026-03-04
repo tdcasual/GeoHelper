@@ -24,6 +24,24 @@ export interface CompileResponse {
   agent_steps?: AgentStep[];
 }
 
+export interface ApiErrorPayload {
+  error?: {
+    code?: string;
+    message?: string;
+  };
+}
+
+export class GatewayApiError extends Error {
+  code: string;
+  status: number;
+
+  constructor(code: string, message: string, status: number) {
+    super(message);
+    this.code = code;
+    this.status = status;
+  }
+}
+
 const getGatewayBaseUrl = (): string =>
   import.meta.env.VITE_GATEWAY_URL ?? "http://localhost:8787";
 
@@ -46,10 +64,38 @@ export const loginWithPresetToken = async (
   );
 
   if (!response.ok) {
-    throw new Error("AUTH_FAILED");
+    const payload = (await response
+      .json()
+      .catch(() => ({}))) as ApiErrorPayload;
+    const code = payload.error?.code ?? "AUTH_FAILED";
+    const message = payload.error?.message ?? "Authentication failed";
+    throw new GatewayApiError(code, message, response.status);
   }
 
   return response.json();
+};
+
+export const revokeOfficialSessionToken = async (
+  sessionToken: string
+): Promise<void> => {
+  const response = await fetch(
+    `${getGatewayBaseUrl()}/api/v1/auth/token/revoke`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${sessionToken}`
+      }
+    }
+  );
+
+  if (!response.ok) {
+    const payload = (await response
+      .json()
+      .catch(() => ({}))) as ApiErrorPayload;
+    const code = payload.error?.code ?? "REVOKE_FAILED";
+    const message = payload.error?.message ?? "Revoke failed";
+    throw new GatewayApiError(code, message, response.status);
+  }
 };
 
 export const compileChat = async (
@@ -82,7 +128,12 @@ export const compileChat = async (
   });
 
   if (!response.ok) {
-    throw new Error("COMPILE_FAILED");
+    const payload = (await response
+      .json()
+      .catch(() => ({}))) as ApiErrorPayload;
+    const code = payload.error?.code ?? "COMPILE_FAILED";
+    const message = payload.error?.message ?? "Compile failed";
+    throw new GatewayApiError(code, message, response.status);
   }
 
   return response.json();

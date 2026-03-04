@@ -6,7 +6,8 @@
     "test": "vitest",
     "typecheck": "tsc -p tsconfig.base.json --noEmit",
     "test:e2e": "playwright test",
-    "smoke:live-model": "bash scripts/smoke/live-model-chain.sh"
+    "smoke:live-model": "bash scripts/smoke/live-model-chain.sh",
+    "bench:quality": "node scripts/bench/run-quality-benchmark.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",

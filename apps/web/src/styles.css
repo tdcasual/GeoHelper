@@ -124,6 +124,15 @@ body {
   padding: 12px;
 }
 
+.session-warning {
+  border: 1px solid #ffd8b5;
+  background: #fff3e8;
+  color: #9a3412;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 13px;
+}
+
 .chat-message {
   max-width: 90%;
   padding: 10px;

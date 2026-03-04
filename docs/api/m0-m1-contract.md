@@ -166,3 +166,37 @@
   }
 }
 ```
+
+## GET /admin/metrics
+
+### Headers
+
+- Optional: `x-admin-token: <ADMIN_METRICS_TOKEN>` when gateway config enables admin token protection.
+
+### Response 200
+
+```json
+{
+  "started_at": "2026-03-05T01:00:00.000Z",
+  "compile": {
+    "total_requests": 12,
+    "success": 9,
+    "failed": 2,
+    "rate_limited": 1,
+    "success_rate": 0.75,
+    "rate_limited_ratio": 0.0833,
+    "average_retry_count": 0.1111
+  }
+}
+```
+
+### Error 403
+
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Admin token is invalid"
+  }
+}
+```

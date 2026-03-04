@@ -79,6 +79,7 @@ Optional deploy hook secret:
 - `RATE_LIMIT_MAX`
 - `RATE_LIMIT_WINDOW_MS`
 - optional: `ALERT_WEBHOOK_URL`
+- optional: `ADMIN_METRICS_TOKEN`
 
 ## E. Post-deploy Verification
 
@@ -100,3 +101,11 @@ Then open the web staging URL and verify:
 - chat panel hide/show works
 - official/byok mode switch works
 - compile pipeline returns rendered result
+
+Quality benchmark dry-run:
+
+```bash
+pnpm bench:quality -- --dry-run
+```
+
+Use `docs/BETA_CHECKLIST.md` as the final release gate before beta launch.
