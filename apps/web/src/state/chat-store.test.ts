@@ -51,4 +51,35 @@ describe("chat-store", () => {
     expect(store.getState().reauthRequired).toBe(true);
     expect(store.getState().messages.at(-1)?.content).toContain("会话已过期");
   });
+
+  it("isolates messages between conversations when switching", async () => {
+    const compile = vi.fn().mockResolvedValue({
+      batch: {
+        version: "1.0",
+        scene_id: "s1",
+        transaction_id: "t1",
+        commands: [],
+        post_checks: [],
+        explanations: []
+      },
+      agent_steps: []
+    });
+    const store = createChatStore({ compile });
+
+    const firstConversationId = store.getState().activeConversationId;
+    expect(firstConversationId).toEqual(expect.any(String));
+
+    const secondConversationId = store.getState().createConversation();
+    expect(secondConversationId).not.toBe(firstConversationId);
+
+    await store.getState().send("第二个会话消息");
+    expect(store.getState().messages.some((m) => m.content === "第二个会话消息")).toBe(
+      true
+    );
+
+    store.getState().selectConversation(firstConversationId!);
+    expect(store.getState().messages.some((m) => m.content === "第二个会话消息")).toBe(
+      false
+    );
+  });
 });

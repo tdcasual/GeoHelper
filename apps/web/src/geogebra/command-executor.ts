@@ -1,6 +1,6 @@
 import { CommandBatch } from "@geohelper/protocol";
 
-import { createNoopAdapter, GeoGebraAdapter } from "./adapter";
+import { getGeoGebraAdapter, GeoGebraAdapter } from "./adapter";
 import { opHandlers } from "./op-handlers";
 
 const opHandlerEntries = opHandlers as Record<
@@ -21,7 +21,7 @@ const ensureDependenciesResolved = (
 
 export const executeBatch = async (
   batch: CommandBatch,
-  adapter: GeoGebraAdapter = createNoopAdapter()
+  adapter: GeoGebraAdapter = getGeoGebraAdapter()
 ): Promise<void> => {
   const completed = new Set<string>();
 

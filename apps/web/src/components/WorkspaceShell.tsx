@@ -15,12 +15,18 @@ export const WorkspaceShell = () => {
   const chatVisible = useUIStore((state) => state.chatVisible);
   const toggleChat = useUIStore((state) => state.toggleChat);
   const mode = useChatStore((state) => state.mode);
+  const conversations = useChatStore((state) => state.conversations);
+  const activeConversationId = useChatStore(
+    (state) => state.activeConversationId
+  );
   const messages = useChatStore((state) => state.messages);
   const isSending = useChatStore((state) => state.isSending);
   const reauthRequired = useChatStore((state) => state.reauthRequired);
   const sessionToken = useChatStore((state) => state.sessionToken);
   const setMode = useChatStore((state) => state.setMode);
   const setSessionToken = useChatStore((state) => state.setSessionToken);
+  const createConversation = useChatStore((state) => state.createConversation);
+  const selectConversation = useChatStore((state) => state.selectConversation);
   const acknowledgeReauth = useChatStore((state) => state.acknowledgeReauth);
   const send = useChatStore((state) => state.send);
   const [draft, setDraft] = useState("");
@@ -66,6 +72,10 @@ export const WorkspaceShell = () => {
     setSessionToken(null);
   };
 
+  const activeConversation =
+    conversations.find((item) => item.id === activeConversationId) ??
+    conversations[0];
+
   const handleSend = async (event: FormEvent) => {
     event.preventDefault();
     if (!draft.trim() || isSending) {
@@ -96,57 +106,106 @@ export const WorkspaceShell = () => {
       <div className="workspace-content">
         <CanvasPanel />
         <ChatPanel visible={chatVisible}>
-          <div className="chat-body">
-            <div className="chat-messages">
-              {messages.length === 0 ? (
-                <div className="chat-empty">开始输入你的几何需求</div>
-              ) : (
-                messages.map((message) => (
-                  <article
-                    key={message.id}
-                    className={`chat-message chat-message-${message.role}`}
+          <div className="chat-shell">
+            <aside className="conversation-sidebar" data-testid="conversation-sidebar">
+              <div className="conversation-sidebar-header">
+                <button
+                  type="button"
+                  className="new-conversation-button"
+                  onClick={() => {
+                    createConversation();
+                    setDraft("");
+                  }}
+                >
+                  新建会话
+                </button>
+              </div>
+              <div className="conversation-list">
+                {conversations.map((conversation) => (
+                  <button
+                    key={conversation.id}
+                    type="button"
+                    data-testid="conversation-item"
+                    className={`conversation-item${
+                      conversation.id === activeConversationId
+                        ? " conversation-item-active"
+                        : ""
+                    }`}
+                    onClick={() => selectConversation(conversation.id)}
                   >
-                    {message.content}
-                    {message.role === "assistant" &&
-                    message.agentSteps &&
-                    message.agentSteps.length > 0 ? (
-                      <section className="agent-steps" data-testid="agent-steps">
-                        <h4>Agent Steps</h4>
-                        <ul>
-                          {message.agentSteps.map((step, index) => (
-                            <li
-                              key={`${message.id}_${step.name}_${index}`}
-                              className={`agent-step agent-step-${step.status}`}
-                            >
-                              <span className="agent-step-name">{step.name}</span>
-                              <span className="agent-step-status">{step.status}</span>
-                              <span className="agent-step-time">
-                                {step.duration_ms}ms
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      </section>
-                    ) : null}
-                  </article>
-                ))
-              )}
-              {mode === "official" && !sessionToken ? (
-                <div className="session-warning" data-testid="session-warning">
-                  官方模式未登录或会话已过期，请输入 Token
-                </div>
-              ) : null}
+                    <span className="conversation-item-title">
+                      {conversation.title}
+                    </span>
+                    <span className="conversation-item-meta">
+                      {new Date(conversation.updatedAt).toLocaleTimeString(
+                        "zh-CN",
+                        {
+                          hour: "2-digit",
+                          minute: "2-digit"
+                        }
+                      )}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </aside>
+            <div className="chat-body">
+              <div className="chat-thread-header">
+                <h3>{activeConversation?.title ?? "新会话"}</h3>
+              </div>
+              <div className="chat-messages">
+                {messages.length === 0 ? (
+                  <div className="chat-empty">开始输入你的几何需求</div>
+                ) : (
+                  messages.map((message) => (
+                    <article
+                      key={message.id}
+                      className={`chat-message chat-message-${message.role}`}
+                    >
+                      {message.content}
+                      {message.role === "assistant" &&
+                      message.agentSteps &&
+                      message.agentSteps.length > 0 ? (
+                        <section className="agent-steps" data-testid="agent-steps">
+                          <h4>Agent Steps</h4>
+                          <ul>
+                            {message.agentSteps.map((step, index) => (
+                              <li
+                                key={`${message.id}_${step.name}_${index}`}
+                                className={`agent-step agent-step-${step.status}`}
+                              >
+                                <span className="agent-step-name">{step.name}</span>
+                                <span className="agent-step-status">
+                                  {step.status}
+                                </span>
+                                <span className="agent-step-time">
+                                  {step.duration_ms}ms
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      ) : null}
+                    </article>
+                  ))
+                )}
+                {mode === "official" && !sessionToken ? (
+                  <div className="session-warning" data-testid="session-warning">
+                    官方模式未登录或会话已过期，请输入 Token
+                  </div>
+                ) : null}
+              </div>
+              <form className="chat-input-row" onSubmit={handleSend}>
+                <input
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder="例如：过点A和B作垂直平分线"
+                />
+                <button type="submit" disabled={isSending}>
+                  {isSending ? "生成中..." : "发送"}
+                </button>
+              </form>
             </div>
-            <form className="chat-input-row" onSubmit={handleSend}>
-              <input
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                placeholder="例如：过点A和B作垂直平分线"
-              />
-              <button type="submit" disabled={isSending}>
-                {isSending ? "生成中..." : "发送"}
-              </button>
-            </form>
           </div>
         </ChatPanel>
       </div>

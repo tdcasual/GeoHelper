@@ -19,14 +19,26 @@ export interface ChatMessage {
   agentSteps?: AgentStep[];
 }
 
+export interface ConversationThread {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messages: ChatMessage[];
+}
+
 export interface ChatStoreState {
   mode: ChatMode;
   sessionToken: string | null;
+  conversations: ConversationThread[];
+  activeConversationId: string | null;
   messages: ChatMessage[];
   isSending: boolean;
   reauthRequired: boolean;
   setMode: (mode: ChatMode) => void;
   setSessionToken: (sessionToken: string | null) => void;
+  createConversation: () => string;
+  selectConversation: (conversationId: string) => void;
   acknowledgeReauth: () => void;
   send: (content: string) => Promise<void>;
 }
@@ -43,6 +55,8 @@ export interface ChatStoreDeps {
 interface PersistedChatSnapshot {
   mode: ChatMode;
   sessionToken: string | null;
+  conversations: ConversationThread[];
+  activeConversationId: string | null;
   messages: ChatMessage[];
   reauthRequired: boolean;
 }
@@ -59,17 +73,61 @@ const defaultDeps: ChatStoreDeps = {
 
 const makeId = (): string => `${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
 const CHAT_STORE_KEY = "geohelper.chat.snapshot";
+
+const buildConversationTitle = (content: string): string => {
+  const normalized = content.replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return "新会话";
+  }
+
+  return normalized.length > 20 ? `${normalized.slice(0, 20)}...` : normalized;
+};
+
+const createConversationThread = (title = "新会话"): ConversationThread => {
+  const now = Date.now();
+  return {
+    id: `conv_${makeId()}`,
+    title,
+    createdAt: now,
+    updatedAt: now,
+    messages: []
+  };
+};
+
+const getMessagesForConversation = (
+  conversations: ConversationThread[],
+  conversationId: string | null
+): ChatMessage[] => {
+  const active =
+    (conversationId
+      ? conversations.find((item) => item.id === conversationId)
+      : undefined) ?? conversations[0];
+  return active?.messages ?? [];
+};
+
+const moveConversationToTop = (
+  conversations: ConversationThread[],
+  updatedConversation: ConversationThread
+): ConversationThread[] => [
+  updatedConversation,
+  ...conversations.filter((item) => item.id !== updatedConversation.id)
+];
+
 const canUseStorage = (): boolean =>
   typeof localStorage !== "undefined" &&
   typeof localStorage.getItem === "function" &&
   typeof localStorage.setItem === "function";
 
 const loadSnapshot = (): PersistedChatSnapshot => {
+  const defaultConversation = createConversationThread();
+
   if (!canUseStorage()) {
     return {
       mode: "byok",
       sessionToken: null,
-      messages: [],
+      conversations: [defaultConversation],
+      activeConversationId: defaultConversation.id,
+      messages: defaultConversation.messages,
       reauthRequired: false
     };
   }
@@ -77,26 +135,79 @@ const loadSnapshot = (): PersistedChatSnapshot => {
   try {
     const raw = localStorage.getItem(CHAT_STORE_KEY);
     if (!raw) {
+      const fallbackConversation = createConversationThread();
       return {
         mode: "byok",
         sessionToken: null,
-        messages: [],
+        conversations: [fallbackConversation],
+        activeConversationId: fallbackConversation.id,
+        messages: fallbackConversation.messages,
         reauthRequired: false
       };
     }
 
-    const parsed = JSON.parse(raw) as PersistedChatSnapshot;
+    const parsed = JSON.parse(raw) as Partial<PersistedChatSnapshot> & {
+      conversations?: Array<Partial<ConversationThread>>;
+      messages?: ChatMessage[];
+    };
+
+    const parsedConversations = Array.isArray(parsed.conversations)
+      ? parsed.conversations
+          .filter((item) => item && typeof item.id === "string")
+          .map((item) => ({
+            id: String(item.id),
+            title:
+              typeof item.title === "string" && item.title.trim()
+                ? item.title
+                : "新会话",
+            createdAt:
+              typeof item.createdAt === "number"
+                ? item.createdAt
+                : Date.now(),
+            updatedAt:
+              typeof item.updatedAt === "number"
+                ? item.updatedAt
+                : Date.now(),
+            messages: Array.isArray(item.messages) ? item.messages : []
+          }))
+      : [];
+
+    const conversations =
+      parsedConversations.length > 0
+        ? parsedConversations
+        : Array.isArray(parsed.messages)
+          ? [
+              {
+                ...createConversationThread(
+                  buildConversationTitle(parsed.messages[0]?.content ?? "")
+                ),
+                messages: parsed.messages
+              }
+            ]
+          : [createConversationThread()];
+
+    const activeConversationId =
+      typeof parsed.activeConversationId === "string" &&
+      conversations.some((item) => item.id === parsed.activeConversationId)
+        ? parsed.activeConversationId
+        : conversations[0]?.id ?? null;
+
     return {
       mode: parsed.mode ?? "byok",
       sessionToken: parsed.sessionToken ?? null,
-      messages: Array.isArray(parsed.messages) ? parsed.messages : [],
+      conversations,
+      activeConversationId,
+      messages: getMessagesForConversation(conversations, activeConversationId),
       reauthRequired: Boolean(parsed.reauthRequired)
     };
   } catch {
+    const fallbackConversation = createConversationThread();
     return {
       mode: "byok",
       sessionToken: null,
-      messages: [],
+      conversations: [fallbackConversation],
+      activeConversationId: fallbackConversation.id,
+      messages: fallbackConversation.messages,
       reauthRequired: false
     };
   }
@@ -123,6 +234,8 @@ export const createChatStore = (
   return createStore<ChatStoreState>((set, get) => ({
     mode: initial.mode,
     sessionToken: initial.sessionToken,
+    conversations: initial.conversations,
+    activeConversationId: initial.activeConversationId,
     messages: initial.messages,
     isSending: false,
     reauthRequired: initial.reauthRequired,
@@ -135,6 +248,8 @@ export const createChatStore = (
         persistSnapshot({
           mode: next.mode,
           sessionToken: next.sessionToken,
+          conversations: next.conversations,
+          activeConversationId: next.activeConversationId,
           messages: next.messages,
           reauthRequired: next.reauthRequired
         });
@@ -151,12 +266,63 @@ export const createChatStore = (
         persistSnapshot({
           mode: next.mode,
           sessionToken: next.sessionToken,
+          conversations: next.conversations,
+          activeConversationId: next.activeConversationId,
           messages: next.messages,
           reauthRequired: next.reauthRequired
         });
         return {
           sessionToken,
           reauthRequired: false
+        };
+      }),
+    createConversation: () => {
+      const conversation = createConversationThread();
+      set((state) => {
+        const conversations = [conversation, ...state.conversations];
+        const activeConversationId = conversation.id;
+        const messages = conversation.messages;
+        persistSnapshot({
+          mode: state.mode,
+          sessionToken: state.sessionToken,
+          conversations,
+          activeConversationId,
+          messages,
+          reauthRequired: state.reauthRequired
+        });
+        return {
+          conversations,
+          activeConversationId,
+          messages
+        };
+      });
+
+      return conversation.id;
+    },
+    selectConversation: (conversationId) =>
+      set((state) => {
+        const exists = state.conversations.some(
+          (item) => item.id === conversationId
+        );
+        if (!exists) {
+          return {};
+        }
+
+        const messages = getMessagesForConversation(
+          state.conversations,
+          conversationId
+        );
+        persistSnapshot({
+          mode: state.mode,
+          sessionToken: state.sessionToken,
+          conversations: state.conversations,
+          activeConversationId: conversationId,
+          messages,
+          reauthRequired: state.reauthRequired
+        });
+        return {
+          activeConversationId: conversationId,
+          messages
         };
       }),
     acknowledgeReauth: () =>
@@ -168,6 +334,8 @@ export const createChatStore = (
         persistSnapshot({
           mode: next.mode,
           sessionToken: next.sessionToken,
+          conversations: next.conversations,
+          activeConversationId: next.activeConversationId,
           messages: next.messages,
           reauthRequired: next.reauthRequired
         });
@@ -181,15 +349,57 @@ export const createChatStore = (
         role: "user",
         content
       };
+
+      let targetConversationId = "";
       set((state) => {
-        const messages = [...state.messages, userMessage];
+        const currentConversation =
+          (state.activeConversationId
+            ? state.conversations.find(
+                (item) => item.id === state.activeConversationId
+              )
+            : undefined) ??
+          state.conversations[0] ??
+          createConversationThread();
+        const activeConversationId = currentConversation.id;
+        targetConversationId = currentConversation.id;
+
+        const titled =
+          currentConversation.messages.length === 0
+            ? buildConversationTitle(content)
+            : currentConversation.title;
+        const updatedConversation: ConversationThread = {
+          ...currentConversation,
+          title: titled,
+          updatedAt: Date.now(),
+          messages: [...currentConversation.messages, userMessage]
+        };
+        const baseConversations = state.conversations.some(
+          (item) => item.id === currentConversation.id
+        )
+          ? state.conversations
+          : [currentConversation, ...state.conversations];
+        const conversations = moveConversationToTop(
+          baseConversations,
+          updatedConversation
+        );
+        const messages = getMessagesForConversation(
+          conversations,
+          state.activeConversationId ?? activeConversationId
+        );
+
         persistSnapshot({
           mode: state.mode,
           sessionToken: state.sessionToken,
+          conversations,
+          activeConversationId:
+            state.activeConversationId ?? activeConversationId,
           messages,
           reauthRequired: state.reauthRequired
         });
         return {
+          conversations,
+          activeConversationId:
+            state.activeConversationId ?? activeConversationId,
           messages,
           isSending: true
         };
@@ -211,14 +421,38 @@ export const createChatStore = (
           agentSteps: Array.isArray(agentSteps) ? agentSteps : []
         };
         set((state) => {
-          const messages = [...state.messages, assistantMessage];
+          const targetConversation = state.conversations.find(
+            (item) => item.id === targetConversationId
+          );
+          if (!targetConversation) {
+            return {
+              isSending: false
+            };
+          }
+
+          const updatedConversation: ConversationThread = {
+            ...targetConversation,
+            updatedAt: Date.now(),
+            messages: [...targetConversation.messages, assistantMessage]
+          };
+          const conversations = moveConversationToTop(
+            state.conversations,
+            updatedConversation
+          );
+          const messages = getMessagesForConversation(
+            conversations,
+            state.activeConversationId
+          );
           persistSnapshot({
             mode: state.mode,
             sessionToken: state.sessionToken,
+            conversations,
+            activeConversationId: state.activeConversationId,
             messages,
             reauthRequired: state.reauthRequired
           });
           return {
+            conversations,
             messages,
             isSending: false
           };
@@ -238,16 +472,35 @@ export const createChatStore = (
             : "生成失败，请重试"
         };
         set((state) => {
-          const messages = [...state.messages, assistantMessage];
+          const targetConversation = state.conversations.find(
+            (item) => item.id === targetConversationId
+          );
+          const updatedConversation = targetConversation
+            ? {
+                ...targetConversation,
+                updatedAt: Date.now(),
+                messages: [...targetConversation.messages, assistantMessage]
+              }
+            : undefined;
+          const conversations = updatedConversation
+            ? moveConversationToTop(state.conversations, updatedConversation)
+            : state.conversations;
+          const messages = getMessagesForConversation(
+            conversations,
+            state.activeConversationId
+          );
           const reauthRequired = isSessionExpired ? true : state.reauthRequired;
           const sessionToken = isSessionExpired ? null : state.sessionToken;
           persistSnapshot({
             mode: state.mode,
             sessionToken,
+            conversations,
+            activeConversationId: state.activeConversationId,
             messages,
             reauthRequired
           });
           return {
+            conversations,
             messages,
             isSending: false,
             sessionToken,

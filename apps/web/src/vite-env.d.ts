@@ -7,3 +7,17 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+declare global {
+  interface Window {
+    GGBApplet?: new (
+      parameters: Record<string, unknown>,
+      autoStart: boolean
+    ) => {
+      inject: (containerId: string) => void;
+      getAppletObject?: () => unknown;
+    };
+  }
+}
+
+export {};
