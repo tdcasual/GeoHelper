@@ -2,6 +2,13 @@ import { CommandBatch } from "@geohelper/protocol";
 
 export type ChatMode = "byok" | "official";
 
+export interface AgentStep {
+  name: string;
+  status: "ok" | "fallback" | "error" | "skipped";
+  duration_ms: number;
+  detail?: string;
+}
+
 export interface CompileRequest {
   message: string;
   mode: ChatMode;
@@ -14,6 +21,7 @@ export interface CompileRequest {
 export interface CompileResponse {
   trace_id?: string;
   batch: CommandBatch;
+  agent_steps?: AgentStep[];
 }
 
 const getGatewayBaseUrl = (): string =>

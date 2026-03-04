@@ -12,12 +12,21 @@ describe("chat-store", () => {
         commands: [],
         post_checks: [],
         explanations: []
-      }
+      },
+      agent_steps: [
+        {
+          name: "intent",
+          status: "ok",
+          duration_ms: 8
+        }
+      ]
     });
     const store = createChatStore({ compile });
 
     await store.getState().send("画一个圆");
 
-    expect(store.getState().messages.at(-1)?.role).toBe("assistant");
+    const message = store.getState().messages.at(-1);
+    expect(message?.role).toBe("assistant");
+    expect(message?.agentSteps?.[0]?.name).toBe("intent");
   });
 });

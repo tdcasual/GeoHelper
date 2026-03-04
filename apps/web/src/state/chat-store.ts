@@ -4,6 +4,7 @@ import { useStore } from "zustand";
 
 import { executeBatch } from "../geogebra/command-executor";
 import {
+  AgentStep,
   ChatMode,
   compileChat,
   CompileResponse
@@ -13,6 +14,8 @@ export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  traceId?: string;
+  agentSteps?: AgentStep[];
 }
 
 export interface ChatStoreState {
@@ -164,7 +167,7 @@ export const createChatStore = (
       });
 
       try {
-        const { batch } = await deps.compile({
+        const { batch, agent_steps: agentSteps, trace_id: traceId } = await deps.compile({
           message: content,
           mode: get().mode,
           sessionToken: get().sessionToken
@@ -174,7 +177,9 @@ export const createChatStore = (
         const assistantMessage: ChatMessage = {
           id: makeId(),
           role: "assistant",
-          content: `已生成 ${batch.commands.length} 条指令`
+          content: `已生成 ${batch.commands.length} 条指令`,
+          traceId,
+          agentSteps: Array.isArray(agentSteps) ? agentSteps : []
         };
         set((state) => {
           const messages = [...state.messages, assistantMessage];

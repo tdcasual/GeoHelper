@@ -76,6 +76,27 @@ export const WorkspaceShell = () => {
                     className={`chat-message chat-message-${message.role}`}
                   >
                     {message.content}
+                    {message.role === "assistant" &&
+                    message.agentSteps &&
+                    message.agentSteps.length > 0 ? (
+                      <section className="agent-steps" data-testid="agent-steps">
+                        <h4>Agent Steps</h4>
+                        <ul>
+                          {message.agentSteps.map((step, index) => (
+                            <li
+                              key={`${message.id}_${step.name}_${index}`}
+                              className={`agent-step agent-step-${step.status}`}
+                            >
+                              <span className="agent-step-name">{step.name}</span>
+                              <span className="agent-step-status">{step.status}</span>
+                              <span className="agent-step-time">
+                                {step.duration_ms}ms
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    ) : null}
                   </article>
                 ))
               )}
