@@ -1,0 +1,93 @@
+:root {
+  color: #0f172a;
+  background: #f4f6fb;
+  font-family: "Avenir Next", "Helvetica Neue", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.workspace-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.top-bar {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid #dbe3ef;
+  background: #ffffff;
+}
+
+.top-bar h1 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.top-bar button {
+  border: 1px solid #2e6cff;
+  background: #2e6cff;
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.workspace-content {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.canvas-panel {
+  flex: 1;
+  padding: 12px;
+}
+
+.canvas-placeholder {
+  height: 100%;
+  border-radius: 12px;
+  border: 1px solid #dbe3ef;
+  background: linear-gradient(135deg, #ecf4ff 0%, #e8fff8 100%);
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+}
+
+.chat-panel {
+  width: min(380px, 40vw);
+  border-left: 1px solid #dbe3ef;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.chat-panel-hidden {
+  display: none;
+}
+
+.chat-placeholder {
+  border: 1px dashed #a8b5c9;
+  border-radius: 10px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.workspace-shell.chat-collapsed .canvas-panel {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .chat-panel {
+    width: 48vw;
+  }
+}
