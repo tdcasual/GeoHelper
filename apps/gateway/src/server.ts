@@ -1,0 +1,47 @@
+import Fastify, { FastifyInstance } from "fastify";
+import { fileURLToPath } from "node:url";
+
+import { loadConfig } from "./config";
+import { registerAuthRoutes } from "./routes/auth";
+import { registerCompileRoute } from "./routes/compile";
+import { registerHealthRoute } from "./routes/health";
+import {
+  requestCommandBatch as defaultRequestCommandBatch,
+  RequestCommandBatch
+} from "./services/litellm-client";
+
+export interface GatewayServices {
+  requestCommandBatch: RequestCommandBatch;
+}
+
+export const buildServer = (
+  envOverrides: Partial<NodeJS.ProcessEnv> = {},
+  serviceOverrides: Partial<GatewayServices> = {}
+): FastifyInstance => {
+  const app = Fastify({ logger: false });
+  const config = loadConfig(envOverrides);
+  const services: GatewayServices = {
+    requestCommandBatch: defaultRequestCommandBatch,
+    ...serviceOverrides
+  };
+
+  registerHealthRoute(app);
+  registerAuthRoutes(app, config);
+  registerCompileRoute(app, config, services);
+
+  return app;
+};
+
+const isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
+
+if (isMainModule) {
+  const config = loadConfig();
+  const app = buildServer(process.env);
+
+  app
+    .listen({ host: "0.0.0.0", port: config.port })
+    .catch((err) => {
+      app.log.error(err);
+      process.exit(1);
+    });
+}
