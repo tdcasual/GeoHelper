@@ -2,7 +2,11 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import { GatewayConfig } from "../config";
-import { issueSessionToken } from "../services/session";
+import {
+  issueSessionToken,
+  revokeSessionToken,
+  verifySessionToken
+} from "../services/session";
 import { validatePresetToken } from "../services/token-auth";
 
 const AuthBodySchema = z.object({
@@ -41,6 +45,34 @@ export const registerAuthRoutes = (
       session_token: sessionToken,
       expires_in: config.sessionTtlSeconds,
       token_type: "Bearer"
+    });
+  });
+
+  app.post("/api/v1/auth/token/revoke", async (request, reply) => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+      return reply.status(401).send({
+        error: {
+          code: "MISSING_AUTH_HEADER",
+          message: "Authorization bearer token required"
+        }
+      });
+    }
+
+    const sessionToken = authHeader.slice("Bearer ".length);
+    const payload = verifySessionToken(sessionToken, config);
+    if (!payload) {
+      return reply.status(401).send({
+        error: {
+          code: "SESSION_EXPIRED",
+          message: "Session token is invalid or expired"
+        }
+      });
+    }
+
+    revokeSessionToken(sessionToken);
+    return reply.send({
+      revoked: true
     });
   });
 };

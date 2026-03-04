@@ -2,16 +2,14 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import { GatewayConfig } from "../config";
-import { compileToCommandBatch } from "../services/compile-agent";
 import {
   CompileMode,
   RequestCommandBatch
 } from "../services/litellm-client";
+import { compileWithMultiAgent } from "../services/multi-agent";
 import { verifySessionToken } from "../services/session";
-import {
-  InvalidCommandBatchError,
-  verifyCommandBatch
-} from "../services/verify-command-batch";
+import { InvalidCommandBatchError } from "../services/verify-command-batch";
+import { consumeRateLimit } from "../services/rate-limit";
 
 const CompileBodySchema = z.object({
   message: z.string().min(1),
@@ -29,6 +27,24 @@ export const registerCompileRoute = (
   deps: CompileRouteDeps
 ): void => {
   app.post("/api/v1/chat/compile", async (request, reply) => {
+    const rateKey = `${request.ip}:compile`;
+    const limit = consumeRateLimit(
+      rateKey,
+      config.rateLimitMax,
+      config.rateLimitWindowMs
+    );
+    reply.header("x-ratelimit-limit", String(limit.limit));
+    reply.header("x-ratelimit-remaining", String(limit.remaining));
+    reply.header("x-ratelimit-reset", String(Math.floor(limit.resetAt / 1000)));
+    if (!limit.allowed) {
+      return reply.status(429).send({
+        error: {
+          code: "RATE_LIMITED",
+          message: "Too many requests"
+        }
+      });
+    }
+
     const parsed = CompileBodySchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -68,7 +84,7 @@ export const registerCompileRoute = (
     const byokKey = request.headers["x-byok-key"];
 
     try {
-      const rawBatch = await compileToCommandBatch(
+      const result = await compileWithMultiAgent(
         {
           message: parsed.data.message,
           mode,
@@ -80,10 +96,10 @@ export const registerCompileRoute = (
         deps.requestCommandBatch
       );
 
-      const batch = verifyCommandBatch(rawBatch);
       return reply.send({
         trace_id: `tr_${Date.now()}`,
-        batch
+        batch: result.batch,
+        agent_steps: result.agent_steps
       });
     } catch (error) {
       if (error instanceof InvalidCommandBatchError) {
@@ -102,6 +118,6 @@ export const registerCompileRoute = (
           message: "Failed to compile with upstream model"
         }
       });
-    }
+      }
   });
 };

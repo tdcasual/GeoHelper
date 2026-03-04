@@ -5,7 +5,8 @@
   "scripts": {
     "test": "vitest",
     "typecheck": "tsc -p tsconfig.base.json --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "smoke:live-model": "bash scripts/smoke/live-model-chain.sh"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",

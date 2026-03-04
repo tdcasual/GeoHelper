@@ -5,7 +5,7 @@ GeoHelper is a static-deployable web app that uses LLMs to generate structured G
 ## Monorepo Structure
 
 - `apps/web`: React + Vite static frontend
-- `apps/gateway`: Fastify gateway for token auth and LiteLLM compile endpoint
+- `apps/gateway`: Fastify gateway for auth, multi-agent compile orchestration, and LiteLLM routing
 - `packages/protocol`: shared command schema and types
 
 ## Quick Start
@@ -16,10 +16,10 @@ pnpm --filter @geohelper/gateway dev
 pnpm --filter @geohelper/web dev
 ```
 
-Web app: `http://localhost:5173`
-Gateway: `http://localhost:8787`
+- Web: `http://localhost:5173`
+- Gateway: `http://localhost:8787`
 
-## Test
+## Tests
 
 ```bash
 pnpm --filter @geohelper/protocol test
@@ -28,6 +28,26 @@ pnpm --filter @geohelper/web test
 pnpm test:e2e
 ```
 
-## Deployment
+## Staging Deploy
 
-See `docs/deploy/edgeone.md`.
+1. Start local staging stack:
+
+```bash
+bash scripts/deploy/staging-up.sh
+```
+
+2. Deploy web to EdgeOne preview:
+
+```bash
+EDGEONE_PROJECT_NAME=<project> EDGEONE_API_TOKEN=<token> VITE_GATEWAY_URL=https://<staging-gateway> bash scripts/deploy/edgeone-deploy.sh
+```
+
+3. Gateway container image is published via GitHub Actions and can trigger your platform staging hook.
+
+## Live Model Smoke
+
+```bash
+LITELLM_ENDPOINT=<endpoint> LITELLM_API_KEY=<key> PRESET_TOKEN=<preset-token> pnpm smoke:live-model
+```
+
+See deployment details: `docs/deploy/edgeone.md`.

@@ -1,49 +1,102 @@
-# GeoHelper on EdgeOne (Static Deployment)
+# GeoHelper Deployment (Staging + EdgeOne)
 
-This project deploys the frontend as static assets to Tencent EdgeOne.
+## A. Local Staging Environment (recommended before remote deploy)
 
-## 1. Build static assets
-
-Run:
+Start local staging stack:
 
 ```bash
-pnpm install
-pnpm --filter @geohelper/web build
+bash scripts/deploy/staging-up.sh
 ```
 
-Output directory:
+The script auto-selects mode:
 
-- `apps/web/dist`
+- Docker compose mode (if Docker daemon is available)
+- Local process fallback mode (if Docker is unavailable)
 
-## 2. Configure EdgeOne site
+Endpoints:
 
-1. Create a static site in EdgeOne.
-2. Upload `apps/web/dist` as the publish directory.
-3. Set SPA fallback to `index.html`.
+- Web: `http://localhost:4173`
+- Gateway: `http://localhost:8787`
 
-## 3. Runtime environment
+Stop stack:
 
-For frontend:
+```bash
+bash scripts/deploy/staging-down.sh
+```
 
-- `VITE_GATEWAY_URL` = your gateway base URL (for example `https://api.example.com`)
+## B. EdgeOne Staging Deploy (Web)
 
-For gateway (separate deployment target):
+Required env vars:
 
+- `EDGEONE_PROJECT_NAME`
+- `EDGEONE_API_TOKEN`
+- `VITE_GATEWAY_URL`
+- optional: `EDGEONE_ENVIRONMENT` (default `preview`)
+
+Deploy command:
+
+```bash
+pnpm --filter @geohelper/web build
+EDGEONE_PROJECT_NAME=<project> \
+EDGEONE_API_TOKEN=<token> \
+VITE_GATEWAY_URL=https://<staging-gateway-domain> \
+bash scripts/deploy/edgeone-deploy.sh
+```
+
+GitHub Actions workflow:
+
+- `.github/workflows/deploy-web-edgeone-staging.yml`
+
+Secrets expected in repo settings:
+
+- `EDGEONE_PROJECT_NAME`
+- `EDGEONE_API_TOKEN`
+- `STAGING_GATEWAY_URL`
+
+## C. Gateway Staging Deploy
+
+Gateway is packaged as container image:
+
+- image: `ghcr.io/<owner>/geohelper-gateway:staging`
+
+Workflow:
+
+- `.github/workflows/deploy-gateway-staging.yml`
+
+Optional deploy hook secret:
+
+- `GATEWAY_STAGING_DEPLOY_HOOK_URL`
+
+## D. Runtime Environment for Gateway
+
+- `PORT`
 - `PRESET_TOKEN`
 - `SESSION_SECRET`
+- `SESSION_TTL_SECONDS`
 - `LITELLM_ENDPOINT`
 - `LITELLM_API_KEY`
-- `LITELLM_MODEL` (optional)
+- `LITELLM_MODEL`
+- `RATE_LIMIT_MAX`
+- `RATE_LIMIT_WINDOW_MS`
+- optional: `ALERT_WEBHOOK_URL`
 
-## 4. Local verification before deploy
+## E. Post-deploy Verification
 
 ```bash
-pnpm --filter @geohelper/web build
-pnpm --filter @geohelper/web preview
+curl -fsS https://<gateway-domain>/api/v1/health
 ```
 
-Then open `http://localhost:4173` and verify:
+Live model smoke (requires real LiteLLM credentials):
+
+```bash
+LITELLM_ENDPOINT=<endpoint> \
+LITELLM_API_KEY=<key> \
+PRESET_TOKEN=<preset-token> \
+pnpm smoke:live-model
+```
+
+Then open the web staging URL and verify:
 
 - chat panel hide/show works
-- canvas is full-screen when chat hidden
-- byok/official mode switch works
+- official/byok mode switch works
+- compile pipeline returns rendered result

@@ -5,6 +5,7 @@ import { loadConfig } from "./config";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerCompileRoute } from "./routes/compile";
 import { registerHealthRoute } from "./routes/health";
+import { sendAlert } from "./services/alerting";
 import {
   requestCommandBatch as defaultRequestCommandBatch,
   RequestCommandBatch
@@ -18,12 +19,36 @@ export const buildServer = (
   envOverrides: Partial<NodeJS.ProcessEnv> = {},
   serviceOverrides: Partial<GatewayServices> = {}
 ): FastifyInstance => {
-  const app = Fastify({ logger: false });
+  const app = Fastify({
+    logger: {
+      level: "info",
+      redact: {
+        paths: [
+          "req.headers.authorization",
+          "req.headers.x-byok-key",
+          "req.body.token",
+          "res.headers.authorization"
+        ],
+        remove: true
+      }
+    }
+  });
   const config = loadConfig(envOverrides);
   const services: GatewayServices = {
     requestCommandBatch: defaultRequestCommandBatch,
     ...serviceOverrides
   };
+
+  app.addHook("onResponse", async (request, reply) => {
+    if (reply.statusCode >= 500) {
+      await sendAlert(config.alertWebhookUrl, {
+        traceId: request.id,
+        path: request.url,
+        method: request.method,
+        statusCode: reply.statusCode
+      });
+    }
+  });
 
   registerHealthRoute(app);
   registerAuthRoutes(app, config);

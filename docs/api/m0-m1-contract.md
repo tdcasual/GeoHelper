@@ -1,4 +1,4 @@
-# GeoHelper API Contract (M0/M1)
+# GeoHelper API Contract (M0/M1 + security + M2 orchestration)
 
 ## Common
 
@@ -48,6 +48,31 @@
 }
 ```
 
+## POST /api/v1/auth/token/revoke
+
+### Headers
+
+- `Authorization: Bearer <session_token>`
+
+### Response 200
+
+```json
+{
+  "revoked": true
+}
+```
+
+### Error 401
+
+```json
+{
+  "error": {
+    "code": "SESSION_EXPIRED",
+    "message": "Session token is invalid or expired"
+  }
+}
+```
+
 ## POST /api/v1/chat/compile
 
 ### Headers
@@ -77,7 +102,34 @@
     "commands": [],
     "post_checks": [],
     "explanations": []
-  }
+  },
+  "agent_steps": [
+    {
+      "name": "intent",
+      "status": "ok",
+      "duration_ms": 18
+    },
+    {
+      "name": "planner",
+      "status": "ok",
+      "duration_ms": 25
+    },
+    {
+      "name": "command",
+      "status": "ok",
+      "duration_ms": 54
+    },
+    {
+      "name": "verifier",
+      "status": "ok",
+      "duration_ms": 1
+    },
+    {
+      "name": "repair",
+      "status": "skipped",
+      "duration_ms": 0
+    }
+  ]
 }
 ```
 
@@ -89,6 +141,17 @@
     "code": "INVALID_COMMAND_BATCH",
     "message": "Command batch validation failed",
     "details": []
+  }
+}
+```
+
+### Error 429
+
+```json
+{
+  "error": {
+    "code": "RATE_LIMITED",
+    "message": "Too many requests"
   }
 }
 ```

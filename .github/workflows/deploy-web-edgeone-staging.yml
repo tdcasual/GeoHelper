@@ -1,0 +1,29 @@
+name: Deploy Web Staging (EdgeOne)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "apps/web/**"
+      - "packages/protocol/**"
+      - "scripts/deploy/edgeone-deploy.sh"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - "pnpm-workspace.yaml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      EDGEONE_PROJECT_NAME: ${{ secrets.EDGEONE_PROJECT_NAME }}
+      EDGEONE_API_TOKEN: ${{ secrets.EDGEONE_API_TOKEN }}
+      EDGEONE_ENVIRONMENT: preview
+      VITE_GATEWAY_URL: ${{ secrets.STAGING_GATEWAY_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Deploy preview
+        run: bash scripts/deploy/edgeone-deploy.sh
