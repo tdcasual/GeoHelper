@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { ChatMode } from "../services/api-client";
 import {
@@ -6,6 +6,11 @@ import {
   OfficialPreset,
   useSettingsStore
 } from "../state/settings-store";
+import {
+  BACKUP_FILENAME,
+  exportCurrentAppBackup,
+  importAppBackupToLocalStorage
+} from "../storage/backup";
 
 interface SettingsDrawerProps {
   open: boolean;
@@ -158,6 +163,8 @@ export const SettingsDrawer = ({
   );
   const [savingByok, setSavingByok] = useState(false);
   const [savingOfficial, setSavingOfficial] = useState(false);
+  const [backupMessage, setBackupMessage] = useState<string | null>(null);
+  const backupInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!byokPresets.some((item) => item.id === selectedByokId)) {
@@ -202,6 +209,36 @@ export const SettingsDrawer = ({
   if (!open) {
     return null;
   }
+
+  const handleExportBackup = async () => {
+    const blob = await exportCurrentAppBackup();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = BACKUP_FILENAME;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setBackupMessage("备份已导出");
+  };
+
+  const handleImportBackup = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      await importAppBackupToLocalStorage(file);
+      setBackupMessage("备份导入成功，正在刷新");
+      setTimeout(() => {
+        window.location.reload();
+      }, 300);
+    } catch {
+      setBackupMessage("备份导入失败，请检查文件格式");
+    } finally {
+      event.target.value = "";
+    }
+  };
 
   return (
     <div className="settings-drawer-backdrop" onClick={onClose}>
@@ -700,6 +737,29 @@ export const SettingsDrawer = ({
               }
             />
           </label>
+        </section>
+
+        <section className="settings-section">
+          <h3>备份与恢复</h3>
+          <div className="settings-inline-actions">
+            <button type="button" onClick={handleExportBackup}>
+              导出备份
+            </button>
+            <button
+              type="button"
+              onClick={() => backupInputRef.current?.click()}
+            >
+              导入备份
+            </button>
+          </div>
+          <input
+            ref={backupInputRef}
+            type="file"
+            accept="application/json"
+            hidden
+            onChange={handleImportBackup}
+          />
+          {backupMessage ? <p className="settings-hint">{backupMessage}</p> : null}
         </section>
 
         <section className="settings-section">

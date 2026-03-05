@@ -118,7 +118,7 @@ interface SettingsStoreDeps {
   secretService: SecretService;
 }
 
-const SETTINGS_KEY = "geohelper.settings.snapshot";
+export const SETTINGS_KEY = "geohelper.settings.snapshot";
 const DEBUG_EVENT_LIMIT = 100;
 
 const clampNumber = (

@@ -7,7 +7,7 @@ export interface UIState {
   setChatVisible: (value: boolean) => void;
 }
 
-const UI_PREFS_KEY = "geohelper.ui.preferences";
+export const UI_PREFS_KEY = "geohelper.ui.preferences";
 const canUseStorage = (): boolean =>
   typeof localStorage !== "undefined" &&
   typeof localStorage.getItem === "function" &&

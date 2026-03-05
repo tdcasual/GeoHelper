@@ -107,7 +107,7 @@ const defaultDeps: ChatStoreDeps = {
 };
 
 const makeId = (): string => `${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
-const CHAT_STORE_KEY = "geohelper.chat.snapshot";
+export const CHAT_STORE_KEY = "geohelper.chat.snapshot";
 
 const buildConversationTitle = (content: string): string => {
   const normalized = content.replace(/\s+/g, " ").trim();
