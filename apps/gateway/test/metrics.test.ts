@@ -50,6 +50,8 @@ describe("GET /admin/metrics", () => {
     expect(payload.compile.rate_limited).toBe(1);
     expect(payload.compile.success_rate).toBe(0.5);
     expect(payload.compile.rate_limited_ratio).toBe(0.5);
+    expect(payload.compile.p95_latency_ms).toBeGreaterThanOrEqual(0);
+    expect(payload.compile.fallback_rate).toBeGreaterThanOrEqual(0);
   });
 
   it("requires admin token when configured", async () => {
@@ -113,5 +115,48 @@ describe("GET /admin/metrics", () => {
     expect(payload.compile.perf_sample_count).toBe(1);
     expect(payload.compile.perf_total_ms_avg).toBeGreaterThanOrEqual(0);
     expect(payload.compile.perf_upstream_ms_avg).toBeGreaterThanOrEqual(0);
+  });
+
+  it("tracks fallback count and fallback rate", async () => {
+    clearRateLimits();
+    resetGatewayMetrics();
+
+    const app = buildServer(
+      {},
+      {
+        requestCommandBatch: async (input) => {
+          if (input.message.startsWith("Intent extraction")) {
+            throw new Error("intent unavailable");
+          }
+          if (input.message.startsWith("Planner output")) {
+            throw new Error("planner unavailable");
+          }
+          return {
+            version: "1.0",
+            scene_id: "s1",
+            transaction_id: "t1",
+            commands: [],
+            post_checks: [],
+            explanations: []
+          };
+        }
+      }
+    );
+
+    await app.inject({
+      method: "POST",
+      url: "/api/v1/chat/compile",
+      payload: { message: "画一个圆", mode: "byok" }
+    });
+
+    const metrics = await app.inject({
+      method: "GET",
+      url: "/admin/metrics"
+    });
+
+    expect(metrics.statusCode).toBe(200);
+    const payload = JSON.parse(metrics.payload);
+    expect(payload.compile.fallback_count).toBe(1);
+    expect(payload.compile.fallback_rate).toBe(1);
   });
 });

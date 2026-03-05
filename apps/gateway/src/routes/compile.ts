@@ -119,7 +119,14 @@ export const registerCompileRoute = (
       )
         ? 1
         : 0;
-      recordCompileSuccess(retryCount);
+      const hadFallback = result.agent_steps.some(
+        (step) => step.status === "fallback"
+      );
+      recordCompileSuccess({
+        retryCount,
+        latencyMs: totalMs,
+        hadFallback
+      });
       if (samplePerf) {
         recordCompilePerfSample({
           totalMs,
@@ -135,8 +142,9 @@ export const registerCompileRoute = (
         agent_steps: result.agent_steps
       });
     } catch (error) {
+      const totalMs = Date.now() - totalStartedAt;
       if (error instanceof InvalidCommandBatchError) {
-        recordCompileFailure();
+        recordCompileFailure(totalMs);
         return reply.status(422).send({
           error: {
             code: "INVALID_COMMAND_BATCH",
@@ -148,7 +156,7 @@ export const registerCompileRoute = (
         });
       }
 
-      recordCompileFailure();
+      recordCompileFailure(totalMs);
       return reply.status(502).send({
         error: {
           code: "LITELLM_UPSTREAM_ERROR",
