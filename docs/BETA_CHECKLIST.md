@@ -28,7 +28,7 @@ Updated: 2026-03-05
 3. Session safety: rotate `SESSION_SECRET` to invalidate old sessions when incident involves token leakage.
 4. Traffic safety: reduce `RATE_LIMIT_MAX` temporarily to protect upstream model quota.
 5. Validation after rollback:
-   - `GET /healthz` returns `ok`.
+   - `GET /api/v1/health` returns `ok`.
    - official token login works and compile returns 200 for a smoke prompt.
    - `GET /admin/metrics` is reachable with valid admin token when enabled.
 
