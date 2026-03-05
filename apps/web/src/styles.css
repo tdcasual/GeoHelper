@@ -494,6 +494,22 @@ body {
   color: #607089;
 }
 
+.settings-warning {
+  border: 1px solid #f6c16f;
+  background: #fff8ea;
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-warning p {
+  margin: 0;
+  font-size: 13px;
+  color: #7d4c00;
+}
+
 .debug-log-panel {
   max-height: 220px;
   overflow: auto;

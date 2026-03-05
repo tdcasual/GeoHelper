@@ -13,7 +13,8 @@ import {
 import {
   appendDebugEventIfEnabled,
   CompileRuntimeOptions,
-  resolveCompileRuntimeOptions
+  resolveCompileRuntimeOptions,
+  settingsStore
 } from "./settings-store";
 
 export interface ChatMessage {
@@ -445,6 +446,56 @@ export const createChatStore = (
           conversationId: targetConversationId,
           mode: get().mode
         });
+
+        if (
+          get().mode === "byok" &&
+          runtime.byokRuntimeIssue?.code === "BYOK_KEY_DECRYPT_FAILED"
+        ) {
+          const issue = runtime.byokRuntimeIssue;
+          deps.logEvent({
+            level: "error",
+            message: `BYOK Key 恢复提示：${issue.presetName}`
+          });
+          settingsStore.getState().setDrawerOpen(true);
+          const assistantMessage: ChatMessage = {
+            id: makeId(),
+            role: "assistant",
+            content: `BYOK 密钥不可用（预设：${issue.presetName}）。请在设置中重新填写 API Key 后重试。`
+          };
+          set((state) => {
+            const targetConversation = state.conversations.find(
+              (item) => item.id === targetConversationId
+            );
+            const updatedConversation = targetConversation
+              ? {
+                  ...targetConversation,
+                  updatedAt: Date.now(),
+                  messages: [...targetConversation.messages, assistantMessage]
+                }
+              : undefined;
+            const conversations = updatedConversation
+              ? moveConversationToTop(state.conversations, updatedConversation)
+              : state.conversations;
+            const messages = getMessagesForConversation(
+              conversations,
+              state.activeConversationId
+            );
+            persistSnapshot({
+              mode: state.mode,
+              sessionToken: state.sessionToken,
+              conversations,
+              activeConversationId: state.activeConversationId,
+              messages,
+              reauthRequired: state.reauthRequired
+            });
+            return {
+              conversations,
+              messages,
+              isSending: false
+            };
+          });
+          return;
+        }
 
         deps.logEvent({
           level: "info",

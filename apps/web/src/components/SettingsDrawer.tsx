@@ -102,6 +102,7 @@ export const SettingsDrawer = ({
   const experimentFlags = useSettingsStore((state) => state.experimentFlags);
   const requestDefaults = useSettingsStore((state) => state.requestDefaults);
   const debugEvents = useSettingsStore((state) => state.debugEvents);
+  const byokRuntimeIssue = useSettingsStore((state) => state.byokRuntimeIssue);
   const setDefaultMode = useSettingsStore((state) => state.setDefaultMode);
   const upsertByokPreset = useSettingsStore((state) => state.upsertByokPreset);
   const removeByokPreset = useSettingsStore((state) => state.removeByokPreset);
@@ -127,6 +128,9 @@ export const SettingsDrawer = ({
   );
   const clearDebugEvents = useSettingsStore((state) => state.clearDebugEvents);
   const clearStoredSecrets = useSettingsStore((state) => state.clearStoredSecrets);
+  const setByokRuntimeIssue = useSettingsStore(
+    (state) => state.setByokRuntimeIssue
+  );
 
   const [selectedByokId, setSelectedByokId] = useState(defaultByokPresetId);
   const [selectedOfficialId, setSelectedOfficialId] = useState(
@@ -279,6 +283,23 @@ export const SettingsDrawer = ({
 
         <section className="settings-section" data-testid="settings-byok-section">
           <h3>BYOK 预设</h3>
+          {byokRuntimeIssue ? (
+            <article className="settings-warning" data-testid="byok-runtime-issue">
+              <p>{`检测到密钥不可用：${byokRuntimeIssue.presetName}`}</p>
+              <p>{byokRuntimeIssue.message}</p>
+              <div className="settings-inline-actions">
+                <button
+                  type="button"
+                  onClick={() => setSelectedByokId(byokRuntimeIssue.presetId)}
+                >
+                  定位到受影响预设
+                </button>
+                <button type="button" onClick={() => setByokRuntimeIssue(null)}>
+                  忽略提示
+                </button>
+              </div>
+            </article>
+          ) : null}
           <div className="settings-inline-actions">
             <select
               value={selectedByokId}
@@ -412,6 +433,12 @@ export const SettingsDrawer = ({
                   timeoutMs: Number(byokDraft.timeoutMs),
                   apiKey: byokDraft.apiKey
                 });
+                if (
+                  byokDraft.apiKey.trim() &&
+                  byokRuntimeIssue?.presetId === id
+                ) {
+                  setByokRuntimeIssue(null);
+                }
                 setSelectedByokId(id);
                 setSavingByok(false);
               }}

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { GatewayApiError } from "../services/api-client";
 import { createChatStore } from "./chat-store";
+import { settingsStore } from "./settings-store";
 
 describe("chat-store", () => {
   it("stores compile result and appends assistant message", async () => {
@@ -119,5 +120,37 @@ describe("chat-store", () => {
     expect(resolveCompileOptions).toHaveBeenCalledTimes(1);
     expect(compile).toHaveBeenCalledTimes(2);
     expect(store.getState().messages.at(-1)?.role).toBe("assistant");
+  });
+
+  it("blocks byok request and opens settings when key decrypt recovery is required", async () => {
+    settingsStore.getState().setDrawerOpen(false);
+    settingsStore.getState().setByokRuntimeIssue(null);
+
+    const compile = vi.fn();
+    const resolveCompileOptions = vi.fn().mockResolvedValue({
+      model: "gpt-4o-mini",
+      retryAttempts: 0,
+      extraHeaders: {},
+      byokRuntimeIssue: {
+        code: "BYOK_KEY_DECRYPT_FAILED",
+        presetId: "byok_1",
+        presetName: "OpenRouter",
+        message: "BYOK Key 解密失败，请重新填写 API Key"
+      }
+    });
+    const store = createChatStore({
+      compile,
+      resolveCompileOptions,
+      logEvent: vi.fn()
+    });
+
+    await store.getState().send("画一个圆");
+
+    expect(compile).not.toHaveBeenCalled();
+    expect(store.getState().messages.at(-1)?.content).toContain("BYOK 密钥不可用");
+    expect(settingsStore.getState().drawerOpen).toBe(true);
+
+    settingsStore.getState().setDrawerOpen(false);
+    settingsStore.getState().setByokRuntimeIssue(null);
   });
 });

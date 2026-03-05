@@ -50,6 +50,13 @@ export interface DebugEvent {
   message: string;
 }
 
+export interface ByokRuntimeIssue {
+  code: "BYOK_KEY_DECRYPT_FAILED";
+  presetId: string;
+  presetName: string;
+  message: string;
+}
+
 interface RequestDefaults {
   retryAttempts: number;
 }
@@ -69,7 +76,9 @@ interface PersistedSettingsSnapshot {
 
 export interface SettingsStoreState extends PersistedSettingsSnapshot {
   drawerOpen: boolean;
+  byokRuntimeIssue: ByokRuntimeIssue | null;
   setDrawerOpen: (open: boolean) => void;
+  setByokRuntimeIssue: (issue: ByokRuntimeIssue | null) => void;
   setDefaultMode: (mode: ChatMode) => void;
   upsertByokPreset: (input: {
     id?: string;
@@ -109,6 +118,7 @@ export interface CompileRuntimeOptions {
   model?: string;
   byokEndpoint?: string;
   byokKey?: string;
+  byokRuntimeIssue?: ByokRuntimeIssue;
   timeoutMs?: number;
   retryAttempts: number;
   extraHeaders: Record<string, string>;
@@ -323,9 +333,14 @@ export const createSettingsStore = (
   return createStore<SettingsStoreState>((set, get) => ({
     ...initial,
     drawerOpen: false,
+    byokRuntimeIssue: null,
     setDrawerOpen: (open) =>
       set(() => ({
         drawerOpen: open
+      })),
+    setByokRuntimeIssue: (issue) =>
+      set(() => ({
+        byokRuntimeIssue: issue
       })),
     setDefaultMode: (mode) =>
       set((state) => {
@@ -346,6 +361,9 @@ export const createSettingsStore = (
       const id = input.id ?? `byok_${makeId()}`;
 
       set((state) => {
+        const shouldClearRuntimeIssue =
+          Boolean(input.apiKey?.trim()) &&
+          state.byokRuntimeIssue?.presetId === id;
         const existing = state.byokPresets.find((item) => item.id === id);
         const merged = sanitizePresetNumeric({
           id,
@@ -371,7 +389,10 @@ export const createSettingsStore = (
         saveState(next);
         return {
           byokPresets,
-          defaultByokPresetId
+          defaultByokPresetId,
+          byokRuntimeIssue: shouldClearRuntimeIssue
+            ? null
+            : state.byokRuntimeIssue
         };
       });
 
@@ -627,7 +648,8 @@ export const createSettingsStore = (
         };
         saveState(next);
         return {
-          byokPresets
+          byokPresets,
+          byokRuntimeIssue: null
         };
       });
     }
@@ -679,6 +701,7 @@ export const resolveCompileRuntimeOptions = async (params: {
 
   let byokEndpoint: string | undefined;
   let byokKey: string | undefined;
+  let byokRuntimeIssue: ByokRuntimeIssue | undefined;
 
   if (params.mode === "byok") {
     const byokPreset = preset as ByokPreset;
@@ -686,7 +709,17 @@ export const resolveCompileRuntimeOptions = async (params: {
     if (byokPreset.apiKeyCipher) {
       try {
         byokKey = await browserSecretService.decrypt(byokPreset.apiKeyCipher);
+        if (state.byokRuntimeIssue?.presetId === byokPreset.id) {
+          settingsStore.getState().setByokRuntimeIssue(null);
+        }
       } catch {
+        byokRuntimeIssue = {
+          code: "BYOK_KEY_DECRYPT_FAILED",
+          presetId: byokPreset.id,
+          presetName: byokPreset.name,
+          message: "BYOK Key 解密失败，请重新填写 API Key"
+        };
+        settingsStore.getState().setByokRuntimeIssue(byokRuntimeIssue);
         settingsStore.getState().appendDebugEvent({
           level: "error",
           message: "BYOK Key 解密失败，已跳过本次 key 注入"
@@ -703,6 +736,7 @@ export const resolveCompileRuntimeOptions = async (params: {
     model: session.model ?? preset.model,
     byokEndpoint,
     byokKey,
+    byokRuntimeIssue,
     timeoutMs,
     retryAttempts: state.experimentFlags.autoRetryEnabled
       ? session.retryAttempts ?? state.requestDefaults.retryAttempts
