@@ -18,7 +18,8 @@ start_local_fallback() {
     pnpm --filter @geohelper/web build
 
   PRESET_TOKEN="${PRESET_TOKEN:-geohelper-staging-token}" \
-  SESSION_SECRET="${SESSION_SECRET:-geohelper-staging-secret}" \
+  APP_SECRET="${APP_SECRET:-geohelper-staging-app-secret}" \
+  SESSION_SECRET="${SESSION_SECRET:-}" \
   SESSION_TTL_SECONDS="${SESSION_TTL_SECONDS:-1800}" \
   LITELLM_ENDPOINT="${LITELLM_ENDPOINT:-}" \
   LITELLM_API_KEY="${LITELLM_API_KEY:-}" \

@@ -1,6 +1,9 @@
+import { hkdfSync } from "node:crypto";
+
 export interface GatewayConfig {
   port: number;
   presetToken: string;
+  appSecret: string;
   sessionSecret: string;
   sessionTtlSeconds: number;
   rateLimitMax: number;
@@ -9,6 +12,17 @@ export interface GatewayConfig {
   adminMetricsToken?: string;
   costPerRequestUsd: number;
 }
+
+const deriveSessionSecret = (appSecret: string): string =>
+  Buffer.from(
+    hkdfSync(
+      "sha256",
+      Buffer.from(appSecret, "utf8"),
+      Buffer.from("geohelper-session-salt-v1", "utf8"),
+      Buffer.from("geohelper-session-signing", "utf8"),
+      32
+    )
+  ).toString("base64url");
 
 export const loadConfig = (
   envOverrides: Partial<NodeJS.ProcessEnv> = {}
@@ -23,11 +37,15 @@ export const loadConfig = (
   const rateLimitMaxFromEnv = Number(env.RATE_LIMIT_MAX ?? 120);
   const rateLimitWindowFromEnv = Number(env.RATE_LIMIT_WINDOW_MS ?? 60_000);
   const costPerRequestFromEnv = Number(env.COST_PER_REQUEST_USD ?? 0);
+  const appSecret = env.APP_SECRET ?? "geohelper-dev-app-secret";
+  const sessionSecret =
+    env.SESSION_SECRET?.trim() || deriveSessionSecret(appSecret);
 
   return {
     port,
     presetToken: env.PRESET_TOKEN ?? "",
-    sessionSecret: env.SESSION_SECRET ?? "dev-session-secret",
+    appSecret,
+    sessionSecret,
     sessionTtlSeconds,
     rateLimitMax: Number.isNaN(rateLimitMaxFromEnv) ? 120 : rateLimitMaxFromEnv,
     rateLimitWindowMs: Number.isNaN(rateLimitWindowFromEnv)

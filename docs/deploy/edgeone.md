@@ -44,10 +44,8 @@ VITE_GATEWAY_URL=https://<staging-gateway-domain> \
 bash scripts/deploy/edgeone-deploy.sh
 ```
 
-GitHub Actions workflow:
-
-- `.github/workflows/deploy-web-edgeone-staging.yml`
-- Trigger policy: runs after `CI Quality Gate` succeeds on `main` (or manual dispatch).
+GitHub Actions auto deploy workflow is intentionally disabled.
+Deploy web manually from local or your own CI pipeline.
 
 Secrets expected in repo settings:
 
@@ -66,10 +64,7 @@ Gateway is packaged as container image:
 
 - image: `ghcr.io/<owner>/geohelper-gateway:staging`
 
-Workflow:
-
-- `.github/workflows/deploy-gateway-staging.yml`
-- Trigger policy: runs after `CI Quality Gate` succeeds on `main` (or manual dispatch).
+Gateway staging image/deploy is also manual by design.
 
 Optional deploy hook secret:
 
@@ -79,7 +74,8 @@ Optional deploy hook secret:
 
 - `PORT`
 - `PRESET_TOKEN`
-- `SESSION_SECRET`
+- `APP_SECRET`
+- optional: `SESSION_SECRET`
 - `SESSION_TTL_SECONDS`
 - `LITELLM_ENDPOINT`
 - `LITELLM_API_KEY`

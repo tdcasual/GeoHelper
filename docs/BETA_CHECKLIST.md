@@ -12,7 +12,8 @@ Updated: 2026-03-05
 ### Gateway (`apps/gateway`)
 
 - `PRESET_TOKEN` (required in official mode): Shared preset token for login gate.
-- `SESSION_SECRET` (required): Secret for signing short-lived session tokens.
+- `APP_SECRET` (required): Root secret for deriving session signing key.
+- `SESSION_SECRET` (optional): Explicit override for session signing key (only for compatibility/manual override).
 - `SESSION_TTL_SECONDS` (optional, default `3600`): Official session lifetime.
 - `RATE_LIMIT_MAX` (optional, default `30`): Max requests in rate-limit window.
 - `RATE_LIMIT_WINDOW_MS` (optional, default `60000`): Rate-limit window in ms.
@@ -26,7 +27,7 @@ Updated: 2026-03-05
 
 1. Web rollback: redeploy previous successful static artifact on EdgeOne.
 2. Gateway rollback: redeploy previous container/image tag and restart gateway pods.
-3. Session safety: rotate `SESSION_SECRET` to invalidate old sessions when incident involves token leakage.
+3. Session safety: rotate `APP_SECRET` (or `SESSION_SECRET` override if used) to invalidate old sessions when incident involves token leakage.
 4. Traffic safety: reduce `RATE_LIMIT_MAX` temporarily to protect upstream model quota.
 5. Validation after rollback:
    - `GET /api/v1/health` returns `ok`.

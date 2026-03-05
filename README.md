@@ -42,7 +42,7 @@ bash scripts/deploy/staging-up.sh
 EDGEONE_PROJECT_NAME=<project> EDGEONE_API_TOKEN=<token> VITE_GATEWAY_URL=https://<staging-gateway> bash scripts/deploy/edgeone-deploy.sh
 ```
 
-3. Gateway container image is published via GitHub Actions and can trigger your platform staging hook.
+3. Gateway/Web deploy is manual by design (no auto deploy workflow).
 
 ## Live Model Smoke
 
