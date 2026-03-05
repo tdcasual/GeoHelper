@@ -11,6 +11,8 @@ import { CHAT_STORE_KEY } from "../state/chat-store";
 import { SETTINGS_KEY } from "../state/settings-store";
 import { UI_PREFS_KEY } from "../state/ui-store";
 
+const TEMPLATE_STORE_KEY = "geohelper.templates.snapshot";
+
 const createMemoryStorage = (): Storage => {
   const map = new Map<string, string>();
   return {
@@ -86,11 +88,19 @@ describe("backup", () => {
         chatVisible: false
       })
     );
+    localStorage.setItem(
+      TEMPLATE_STORE_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        templates: [{ id: "tpl_1", title: "圆", prompt: "画一个圆", updatedAt: 1 }]
+      })
+    );
 
     const blob = await exportCurrentAppBackup();
     localStorage.removeItem(CHAT_STORE_KEY);
     localStorage.removeItem(SETTINGS_KEY);
     localStorage.removeItem(UI_PREFS_KEY);
+    localStorage.removeItem(TEMPLATE_STORE_KEY);
 
     await importAppBackupToLocalStorage(blob, { mode: "replace" });
 
@@ -99,10 +109,14 @@ describe("backup", () => {
       localStorage.getItem(SETTINGS_KEY) ?? "{}"
     );
     const uiPreferences = JSON.parse(localStorage.getItem(UI_PREFS_KEY) ?? "{}");
+    const templatesSnapshot = JSON.parse(
+      localStorage.getItem(TEMPLATE_STORE_KEY) ?? "{}"
+    );
 
     expect(chatSnapshot.conversations[0].id).toBe("conv_1");
     expect(settingsSnapshot.schemaVersion).toBe(2);
     expect(uiPreferences.chatVisible).toBe(false);
+    expect(templatesSnapshot.templates[0].id).toBe("tpl_1");
   });
 
   it("merges backup conversations by id and updatedAt", async () => {
@@ -153,6 +167,20 @@ describe("backup", () => {
       })
     );
     localStorage.setItem(UI_PREFS_KEY, JSON.stringify({ chatVisible: true }));
+    localStorage.setItem(
+      TEMPLATE_STORE_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        templates: [
+          {
+            id: "tpl_shared",
+            title: "shared_old",
+            prompt: "old",
+            updatedAt: 100
+          }
+        ]
+      })
+    );
 
     const blob = await exportBackup({
       conversations: [
@@ -224,6 +252,23 @@ describe("backup", () => {
         },
         ui_preferences: {
           chatVisible: false
+        },
+        templates_snapshot: {
+          schemaVersion: 1,
+          templates: [
+            {
+              id: "tpl_shared",
+              title: "shared_new",
+              prompt: "new",
+              updatedAt: 300
+            },
+            {
+              id: "tpl_backup",
+              title: "backup",
+              prompt: "backup",
+              updatedAt: 200
+            }
+          ]
         }
       }
     });
@@ -235,6 +280,9 @@ describe("backup", () => {
       localStorage.getItem(SETTINGS_KEY) ?? "{}"
     );
     const uiPreferences = JSON.parse(localStorage.getItem(UI_PREFS_KEY) ?? "{}");
+    const templatesSnapshot = JSON.parse(
+      localStorage.getItem(TEMPLATE_STORE_KEY) ?? "{}"
+    );
 
     expect(chatSnapshot.conversations.map((item: { id: string }) => item.id)).toEqual(
       ["conv_shared", "conv_from_backup", "conv_legacy"]
@@ -245,6 +293,11 @@ describe("backup", () => {
     expect(settingsSnapshot.byokPresets[0].name).toBe("preset_new");
     expect(settingsSnapshot.officialPresets[0].id).toBe("official_1");
     expect(uiPreferences.chatVisible).toBe(false);
+    expect(templatesSnapshot.templates.map((item: { id: string }) => item.id)).toEqual([
+      "tpl_shared",
+      "tpl_backup"
+    ]);
+    expect(templatesSnapshot.templates[0].prompt).toBe("new");
   });
 
   it("inspects schema direction for migration hint", async () => {

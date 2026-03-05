@@ -90,9 +90,24 @@
 {
   "message": "画一个半径为3的圆",
   "mode": "byok",
-  "model": "gpt-4o-mini"
+  "model": "gpt-4o-mini",
+  "context": {
+    "recentMessages": [
+      { "role": "user", "content": "先创建点A和点B" },
+      { "role": "assistant", "content": "已创建点A和点B" }
+    ],
+    "sceneTransactions": [
+      {
+        "sceneId": "s1",
+        "transactionId": "t1",
+        "commandCount": 2
+      }
+    ]
+  }
 }
 ```
+
+`context` is optional. It helps the gateway preserve conversational continuity and scene awareness.
 
 ### Response 200
 
@@ -197,6 +212,8 @@
     "average_retry_count": 0.1111,
     "fallback_count": 2,
     "fallback_rate": 0.1818,
+    "total_cost_usd": 0.364,
+    "cost_per_request_usd": 0.030333,
     "p95_latency_ms": 812.5,
     "perf_sample_count": 3,
     "perf_total_ms_avg": 124.3333,

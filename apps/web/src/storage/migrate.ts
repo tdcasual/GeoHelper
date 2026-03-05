@@ -3,6 +3,7 @@ export const STORAGE_SCHEMA_VERSION = 1;
 const CHAT_STORE_KEY = "geohelper.chat.snapshot";
 const SETTINGS_KEY = "geohelper.settings.snapshot";
 const UI_PREFS_KEY = "geohelper.ui.preferences";
+const TEMPLATE_STORE_KEY = "geohelper.templates.snapshot";
 const MIGRATION_VERSION_KEY = "geohelper.storage.migration.version";
 const CURRENT_MIGRATION_VERSION = 1;
 
@@ -179,10 +180,47 @@ const migrateUiPreferences = (source: unknown): Record<string, unknown> | null =
   };
 };
 
+const migrateTemplateSnapshot = (source: unknown): Record<string, unknown> | null => {
+  const raw = asObject(source);
+  if (!raw) {
+    return null;
+  }
+
+  const templates = Array.isArray(raw.templates)
+    ? raw.templates
+        .map((item) => asObject(item))
+        .filter((item): item is Record<string, unknown> => Boolean(item))
+        .map((item) => ({
+          id: String(item.id ?? ""),
+          title:
+            typeof item.title === "string" && item.title.trim()
+              ? item.title
+              : "未命名模板",
+          prompt:
+            typeof item.prompt === "string" && item.prompt.trim()
+              ? item.prompt
+              : "",
+          category:
+            typeof item.category === "string" && item.category.trim()
+              ? item.category
+              : "custom",
+          updatedAt:
+            typeof item.updatedAt === "number" ? item.updatedAt : Date.now()
+        }))
+        .filter((item) => item.id.length > 0 && item.prompt.length > 0)
+    : [];
+
+  return {
+    schemaVersion: 1,
+    templates
+  };
+};
+
 const migrateToVersion1 = (): void => {
   const chatState = readJsonState(CHAT_STORE_KEY);
   const settingsState = readJsonState(SETTINGS_KEY);
   const uiState = readJsonState(UI_PREFS_KEY);
+  const templateState = readJsonState(TEMPLATE_STORE_KEY);
 
   if (chatState.kind === "invalid") {
     localStorage.removeItem(CHAT_STORE_KEY);
@@ -208,6 +246,15 @@ const migrateToVersion1 = (): void => {
     const migrated = migrateUiPreferences(uiState.value);
     if (migrated) {
       writeJson(UI_PREFS_KEY, migrated);
+    }
+  }
+
+  if (templateState.kind === "invalid") {
+    localStorage.removeItem(TEMPLATE_STORE_KEY);
+  } else if (templateState.kind === "value") {
+    const migrated = migrateTemplateSnapshot(templateState.value);
+    if (migrated) {
+      writeJson(TEMPLATE_STORE_KEY, migrated);
     }
   }
 };

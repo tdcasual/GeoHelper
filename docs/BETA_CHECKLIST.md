@@ -20,6 +20,7 @@ Updated: 2026-03-05
 - `LITELLM_API_KEY` (required): API key for LiteLLM endpoint.
 - `ALERT_WEBHOOK_URL` (optional): Webhook for fallback/repair alerts.
 - `ADMIN_METRICS_TOKEN` (optional): Required `x-admin-token` for `/admin/metrics`.
+- `COST_PER_REQUEST_USD` (optional, default `0`): Estimated USD cost per upstream model request, used for ops metrics.
 
 ## Rollback Plan
 
@@ -42,11 +43,13 @@ Updated: 2026-03-05
 
 ## On-call & Contacts
 
-- Incident Owner: `@<owner-placeholder>`
-- Backup Owner: `@<backup-placeholder>`
-- Infra Escalation: `@<infra-placeholder>`
-- Product Escalation: `@<product-placeholder>`
-- Communication Channel: `<channel-placeholder>`
+- Incident Owner: `TBD_BEFORE_BETA_FREEZE`
+- Backup Owner: `TBD_BEFORE_BETA_FREEZE`
+- Infra Escalation: `TBD_BEFORE_BETA_FREEZE`
+- Product Escalation: `TBD_BEFORE_BETA_FREEZE`
+- Communication Channel: `TBD_BEFORE_BETA_FREEZE`
+
+Before release, replace every `TBD_BEFORE_BETA_FREEZE` with real handles/channels.
 
 ## Pre-Release Gate
 
@@ -56,3 +59,6 @@ Updated: 2026-03-05
 - [ ] E2E tests pass (`pnpm test:e2e`)
 - [ ] Benchmark dry-run passes (`pnpm bench:quality -- --dry-run`)
 - [ ] Deploy runbook reviewed (`docs/deploy/edgeone.md`)
+- [ ] Alert webhook smoke-tested (trigger one fallback/repair compile and verify webhook receives event)
+- [ ] Metrics contract checked (`/admin/metrics` includes `fallback_rate`, `p95_latency_ms`, `cost_per_request_usd`)
+- [ ] Template backup recovery checked (export + import preserves `geohelper.templates.snapshot`)

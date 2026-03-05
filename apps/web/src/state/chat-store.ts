@@ -61,6 +61,17 @@ export interface ChatStoreDeps {
     byokKey?: string;
     timeoutMs?: number;
     extraHeaders?: Record<string, string>;
+    context?: {
+      recentMessages?: Array<{
+        role: "user" | "assistant";
+        content: string;
+      }>;
+      sceneTransactions?: Array<{
+        sceneId: string;
+        transactionId: string;
+        commandCount: number;
+      }>;
+    };
   }) => Promise<CompileResponse>;
   execute: (batch: CommandBatch) => Promise<void>;
   resolveCompileOptions: (input: {
@@ -88,7 +99,8 @@ const defaultDeps: ChatStoreDeps = {
     byokEndpoint,
     byokKey,
     timeoutMs,
-    extraHeaders
+    extraHeaders,
+    context
   }) =>
     compileChat({
       message,
@@ -98,6 +110,7 @@ const defaultDeps: ChatStoreDeps = {
       byokKey,
       timeoutMs,
       extraHeaders,
+      context,
       sessionToken: sessionToken ?? undefined
     }),
   execute: (batch) => executeBatch(batch),
@@ -516,6 +529,24 @@ export const createChatStore = (
 
         for (let attempt = 0; attempt <= runtime.retryAttempts; attempt += 1) {
           try {
+            const targetConversation = get().conversations.find(
+              (item) => item.id === targetConversationId
+            );
+            const recentMessages =
+              targetConversation?.messages
+                .slice(-8)
+                .map((item) => ({
+                  role: item.role,
+                  content: item.content
+                })) ?? [];
+            const sceneTransactions = sceneStore
+              .getState()
+              .transactions.slice(0, 8)
+              .map((tx) => ({
+                sceneId: tx.sceneId,
+                transactionId: tx.transactionId,
+                commandCount: tx.commandCount
+              }));
             const response = await deps.compile({
               message: content,
               mode: get().mode,
@@ -524,7 +555,11 @@ export const createChatStore = (
               byokEndpoint: runtime.byokEndpoint,
               byokKey: runtime.byokKey,
               timeoutMs: runtime.timeoutMs,
-              extraHeaders: runtime.extraHeaders
+              extraHeaders: runtime.extraHeaders,
+              context: {
+                recentMessages,
+                sceneTransactions
+              }
             });
             compileResult = {
               batch: response.batch,

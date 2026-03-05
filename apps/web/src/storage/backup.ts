@@ -3,6 +3,8 @@ import { CHAT_STORE_KEY } from "../state/chat-store";
 import { SETTINGS_KEY } from "../state/settings-store";
 import { UI_PREFS_KEY } from "../state/ui-store";
 
+const TEMPLATE_STORE_KEY = "geohelper.templates.snapshot";
+
 export interface BackupPayload {
   conversations: Array<Record<string, unknown>>;
   settings: Record<string, unknown>;
@@ -205,8 +207,58 @@ const toPresetList = (
     .filter((item) => item.id.length > 0);
 };
 
+const toTemplateList = (
+  value: unknown
+): Array<Record<string, unknown> & { id: string; updatedAt: number }> => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => asObject(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .map((item) => ({
+      ...item,
+      id: String(item.id ?? ""),
+      title:
+        typeof item.title === "string" && item.title.trim()
+          ? item.title
+          : "未命名模板",
+      prompt:
+        typeof item.prompt === "string" && item.prompt.trim()
+          ? item.prompt
+          : "",
+      category:
+        typeof item.category === "string" && item.category.trim()
+          ? item.category
+          : "custom",
+      updatedAt:
+        typeof item.updatedAt === "number" ? item.updatedAt : Date.now()
+    }))
+    .filter((item) => item.id.length > 0 && item.prompt.length > 0);
+};
+
 const normalizeSettingsSnapshot = (value: unknown): Record<string, unknown> | null =>
   asObject(value);
+
+const normalizeTemplatesSnapshot = (value: unknown): Record<string, unknown> | null => {
+  if (Array.isArray(value)) {
+    return {
+      schemaVersion: 1,
+      templates: toTemplateList(value)
+    };
+  }
+
+  const snapshot = asObject(value);
+  if (!snapshot) {
+    return null;
+  }
+
+  return {
+    schemaVersion: 1,
+    templates: toTemplateList(snapshot.templates)
+  };
+};
 
 const mergeSettingsSnapshot = (
   currentRaw: unknown,
@@ -332,6 +384,32 @@ const mergeUiPreferences = (
   };
 };
 
+const mergeTemplatesSnapshot = (
+  currentRaw: unknown,
+  incomingRaw: unknown
+): Record<string, unknown> | null => {
+  const current = normalizeTemplatesSnapshot(currentRaw);
+  const incoming = normalizeTemplatesSnapshot(incomingRaw);
+
+  if (!current && !incoming) {
+    return null;
+  }
+  if (!current) {
+    return incoming;
+  }
+  if (!incoming) {
+    return current;
+  }
+
+  return {
+    schemaVersion: 1,
+    templates: mergeByIdAndUpdatedAt(
+      toTemplateList(current.templates),
+      toTemplateList(incoming.templates)
+    )
+  };
+};
+
 const writeSnapshotToStorage = (
   key: string,
   value: unknown,
@@ -420,6 +498,9 @@ export const exportCurrentAppBackup = async (): Promise<Blob> => {
   const uiPreferences = canUseStorage()
     ? parseJsonMaybe(localStorage.getItem(UI_PREFS_KEY))
     : null;
+  const templatesSnapshot = canUseStorage()
+    ? parseJsonMaybe(localStorage.getItem(TEMPLATE_STORE_KEY))
+    : null;
 
   return exportBackup({
     conversations: Array.isArray((chatSnapshot as { conversations?: unknown })?.conversations)
@@ -429,7 +510,8 @@ export const exportCurrentAppBackup = async (): Promise<Blob> => {
     settings: {
       ui_preferences: uiPreferences,
       chat_snapshot: chatSnapshot,
-      settings_snapshot: settingsSnapshot
+      settings_snapshot: settingsSnapshot,
+      templates_snapshot: templatesSnapshot
     }
   });
 };
@@ -449,7 +531,8 @@ export const importAppBackupToLocalStorage = async (
   const hasStructuredSettings =
     Object.prototype.hasOwnProperty.call(incomingSettings, "chat_snapshot") ||
     Object.prototype.hasOwnProperty.call(incomingSettings, "settings_snapshot") ||
-    Object.prototype.hasOwnProperty.call(incomingSettings, "ui_preferences");
+    Object.prototype.hasOwnProperty.call(incomingSettings, "ui_preferences") ||
+    Object.prototype.hasOwnProperty.call(incomingSettings, "templates_snapshot");
   const incomingChatSnapshot =
     incomingSettings.chat_snapshot ??
     (Array.isArray(envelope.conversations)
@@ -471,6 +554,7 @@ export const importAppBackupToLocalStorage = async (
     incomingSettings.settings_snapshot ??
     (hasStructuredSettings ? null : incomingSettings);
   const incomingUiPreferences = incomingSettings.ui_preferences;
+  const incomingTemplatesSnapshot = incomingSettings.templates_snapshot;
 
   if (mode === "replace") {
     writeSnapshotToStorage(CHAT_STORE_KEY, buildChatSnapshot(incomingChatSnapshot), mode);
@@ -480,6 +564,11 @@ export const importAppBackupToLocalStorage = async (
       mode
     );
     writeSnapshotToStorage(UI_PREFS_KEY, asObject(incomingUiPreferences), mode);
+    writeSnapshotToStorage(
+      TEMPLATE_STORE_KEY,
+      normalizeTemplatesSnapshot(incomingTemplatesSnapshot),
+      mode
+    );
     return envelope;
   }
 
@@ -488,6 +577,9 @@ export const importAppBackupToLocalStorage = async (
     localStorage.getItem(SETTINGS_KEY)
   );
   const currentUiPreferences = parseJsonMaybe(localStorage.getItem(UI_PREFS_KEY));
+  const currentTemplatesSnapshot = parseJsonMaybe(
+    localStorage.getItem(TEMPLATE_STORE_KEY)
+  );
 
   writeSnapshotToStorage(
     CHAT_STORE_KEY,
@@ -502,6 +594,11 @@ export const importAppBackupToLocalStorage = async (
   writeSnapshotToStorage(
     UI_PREFS_KEY,
     mergeUiPreferences(currentUiPreferences, incomingUiPreferences),
+    mode
+  );
+  writeSnapshotToStorage(
+    TEMPLATE_STORE_KEY,
+    mergeTemplatesSnapshot(currentTemplatesSnapshot, incomingTemplatesSnapshot),
     mode
   );
 

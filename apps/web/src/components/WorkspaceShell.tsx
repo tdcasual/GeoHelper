@@ -12,6 +12,7 @@ import {
 import { useChatStore } from "../state/chat-store";
 import { useSceneStore } from "../state/scene-store";
 import { useSettingsStore } from "../state/settings-store";
+import { useTemplateStore } from "../state/template-store";
 import { useUIStore } from "../state/ui-store";
 
 export const WorkspaceShell = () => {
@@ -43,8 +44,10 @@ export const WorkspaceShell = () => {
   const showAgentSteps = useSettingsStore(
     (state) => state.experimentFlags.showAgentSteps
   );
+  const templates = useTemplateStore((state) => state.templates);
   const [draft, setDraft] = useState("");
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
 
   const deviceId = useMemo(() => {
     const key = "geohelper.device.id";
@@ -237,6 +240,30 @@ export const WorkspaceShell = () => {
                 ) : null}
               </div>
               <form className="chat-input-row" onSubmit={handleSend}>
+                <label className="template-select-row">
+                  <span>模板</span>
+                  <select
+                    value={selectedTemplateId}
+                    onChange={(event) => {
+                      const nextId = event.target.value;
+                      setSelectedTemplateId(nextId);
+                      if (!nextId) {
+                        return;
+                      }
+                      const selected = templates.find((item) => item.id === nextId);
+                      if (selected) {
+                        setDraft(selected.prompt);
+                      }
+                    }}
+                  >
+                    <option value="">选择模板（可选）</option>
+                    {templates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <input
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}

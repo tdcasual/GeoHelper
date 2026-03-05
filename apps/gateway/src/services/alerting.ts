@@ -4,6 +4,9 @@ export interface GatewayAlertEvent {
   method: string;
   statusCode: number;
   error?: string;
+  event?: string;
+  detail?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export const sendAlert = async (
@@ -22,6 +25,7 @@ export const sendAlert = async (
       },
       body: JSON.stringify({
         source: "geohelper-gateway",
+        time: new Date().toISOString(),
         ...event
       })
     });

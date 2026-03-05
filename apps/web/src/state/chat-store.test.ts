@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { GatewayApiError } from "../services/api-client";
 import { createChatStore } from "./chat-store";
+import { sceneStore } from "./scene-store";
 import { settingsStore } from "./settings-store";
 
 describe("chat-store", () => {
@@ -152,5 +153,54 @@ describe("chat-store", () => {
 
     settingsStore.getState().setDrawerOpen(false);
     settingsStore.getState().setByokRuntimeIssue(null);
+  });
+
+  it("includes recent conversation and scene context in compile request", async () => {
+    sceneStore.getState().clearHistory();
+    sceneStore.getState().recordTransaction({
+      version: "1.0",
+      scene_id: "scene_ctx",
+      transaction_id: "tx_ctx",
+      commands: [],
+      post_checks: [],
+      explanations: []
+    });
+
+    const compile = vi.fn().mockResolvedValue({
+      batch: {
+        version: "1.0",
+        scene_id: "s1",
+        transaction_id: "t1",
+        commands: [],
+        post_checks: [],
+        explanations: []
+      },
+      agent_steps: []
+    });
+    const store = createChatStore({ compile });
+
+    await store.getState().send("先画一个圆");
+    await store.getState().send("再加一条切线");
+
+    const latestCall = compile.mock.calls.at(-1)?.[0] as {
+      context?: {
+        recentMessages?: Array<{ role: "user" | "assistant"; content: string }>;
+        sceneTransactions?: Array<{
+          sceneId: string;
+          transactionId: string;
+          commandCount: number;
+        }>;
+      };
+    };
+    expect(
+      latestCall.context?.recentMessages?.some((item) => item.content === "先画一个圆")
+    ).toBe(true);
+    expect(
+      latestCall.context?.sceneTransactions?.some(
+        (item) => item.transactionId === "tx_ctx"
+      )
+    ).toBe(true);
+
+    sceneStore.getState().clearHistory();
   });
 });

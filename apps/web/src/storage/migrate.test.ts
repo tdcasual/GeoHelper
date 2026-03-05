@@ -5,6 +5,7 @@ import { runMigrations } from "./migrate";
 const CHAT_STORE_KEY = "geohelper.chat.snapshot";
 const SETTINGS_KEY = "geohelper.settings.snapshot";
 const UI_PREFS_KEY = "geohelper.ui.preferences";
+const TEMPLATE_STORE_KEY = "geohelper.templates.snapshot";
 const MIGRATION_VERSION_KEY = "geohelper.storage.migration.version";
 
 const createMemoryStorage = (): Storage => {
@@ -65,12 +66,21 @@ describe("migrate", () => {
       })
     );
     localStorage.setItem(UI_PREFS_KEY, JSON.stringify({}));
+    localStorage.setItem(
+      TEMPLATE_STORE_KEY,
+      JSON.stringify({
+        templates: [{ id: "tpl_1", title: "圆", prompt: "画一个圆" }]
+      })
+    );
 
     await runMigrations();
 
     const chatSnapshot = JSON.parse(localStorage.getItem(CHAT_STORE_KEY) ?? "{}");
     const settingsSnapshot = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}");
     const uiSnapshot = JSON.parse(localStorage.getItem(UI_PREFS_KEY) ?? "{}");
+    const templateSnapshot = JSON.parse(
+      localStorage.getItem(TEMPLATE_STORE_KEY) ?? "{}"
+    );
 
     expect(chatSnapshot.conversations.length).toBe(1);
     expect(chatSnapshot.activeConversationId).toBe(chatSnapshot.conversations[0].id);
@@ -78,6 +88,8 @@ describe("migrate", () => {
     expect(settingsSnapshot.schemaVersion).toBe(2);
     expect(settingsSnapshot.defaultMode).toBe("official");
     expect(uiSnapshot.chatVisible).toBe(true);
+    expect(templateSnapshot.schemaVersion).toBe(1);
+    expect(templateSnapshot.templates[0].id).toBe("tpl_1");
     expect(localStorage.getItem(MIGRATION_VERSION_KEY)).toBe("1");
   });
 
@@ -85,12 +97,14 @@ describe("migrate", () => {
     localStorage.setItem(CHAT_STORE_KEY, "{invalid");
     localStorage.setItem(SETTINGS_KEY, "{invalid");
     localStorage.setItem(UI_PREFS_KEY, "{invalid");
+    localStorage.setItem(TEMPLATE_STORE_KEY, "{invalid");
 
     await runMigrations();
 
     expect(localStorage.getItem(CHAT_STORE_KEY)).toBeNull();
     expect(localStorage.getItem(SETTINGS_KEY)).toBeNull();
     expect(localStorage.getItem(UI_PREFS_KEY)).toBeNull();
+    expect(localStorage.getItem(TEMPLATE_STORE_KEY)).toBeNull();
     expect(localStorage.getItem(MIGRATION_VERSION_KEY)).toBe("1");
   });
 });

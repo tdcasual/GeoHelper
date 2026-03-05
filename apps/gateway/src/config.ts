@@ -7,6 +7,7 @@ export interface GatewayConfig {
   rateLimitWindowMs: number;
   alertWebhookUrl?: string;
   adminMetricsToken?: string;
+  costPerRequestUsd: number;
 }
 
 export const loadConfig = (
@@ -21,6 +22,7 @@ export const loadConfig = (
     : sessionTtlFromEnv;
   const rateLimitMaxFromEnv = Number(env.RATE_LIMIT_MAX ?? 120);
   const rateLimitWindowFromEnv = Number(env.RATE_LIMIT_WINDOW_MS ?? 60_000);
+  const costPerRequestFromEnv = Number(env.COST_PER_REQUEST_USD ?? 0);
 
   return {
     port,
@@ -32,6 +34,9 @@ export const loadConfig = (
       ? 60_000
       : rateLimitWindowFromEnv,
     alertWebhookUrl: env.ALERT_WEBHOOK_URL,
-    adminMetricsToken: env.ADMIN_METRICS_TOKEN
+    adminMetricsToken: env.ADMIN_METRICS_TOKEN,
+    costPerRequestUsd: Number.isNaN(costPerRequestFromEnv)
+      ? 0
+      : Math.max(0, costPerRequestFromEnv)
   };
 };

@@ -46,6 +46,7 @@ bash scripts/deploy/edgeone-deploy.sh
 GitHub Actions workflow:
 
 - `.github/workflows/deploy-web-edgeone-staging.yml`
+- Trigger policy: runs after `CI Quality Gate` succeeds on `main` (or manual dispatch).
 
 Secrets expected in repo settings:
 
@@ -62,6 +63,7 @@ Gateway is packaged as container image:
 Workflow:
 
 - `.github/workflows/deploy-gateway-staging.yml`
+- Trigger policy: runs after `CI Quality Gate` succeeds on `main` (or manual dispatch).
 
 Optional deploy hook secret:
 
@@ -80,6 +82,7 @@ Optional deploy hook secret:
 - `RATE_LIMIT_WINDOW_MS`
 - optional: `ALERT_WEBHOOK_URL`
 - optional: `ADMIN_METRICS_TOKEN`
+- optional: `COST_PER_REQUEST_USD`
 
 ## E. Post-deploy Verification
 

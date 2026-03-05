@@ -2,18 +2,17 @@ name: Deploy Web Staging (EdgeOne)
 
 on:
   workflow_dispatch:
-  push:
-    branches: ["main"]
-    paths:
-      - "apps/web/**"
-      - "packages/protocol/**"
-      - "scripts/deploy/edgeone-deploy.sh"
-      - "pnpm-lock.yaml"
-      - "package.json"
-      - "pnpm-workspace.yaml"
+  workflow_run:
+    workflows: ["CI Quality Gate"]
+    types: [completed]
 
 jobs:
   deploy:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     env:
       EDGEONE_PROJECT_NAME: ${{ secrets.EDGEONE_PROJECT_NAME }}
@@ -22,6 +21,8 @@ jobs:
       VITE_GATEWAY_URL: ${{ secrets.STAGING_GATEWAY_URL }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22

@@ -25,6 +25,7 @@ export interface MultiAgentResult {
   batch: CommandBatch;
   agent_steps: AgentStep[];
   upstream_ms: number;
+  upstream_calls: number;
 }
 
 const now = (): number => Date.now();
@@ -60,13 +61,40 @@ const safeObject = (value: unknown): Record<string, unknown> =>
     ? (value as Record<string, unknown>)
     : {};
 
+const buildContextSuffix = (input: CompileInput): string => {
+  const sections: string[] = [];
+  if (input.context?.recentMessages?.length) {
+    const lines = input.context.recentMessages
+      .slice(-8)
+      .map(
+        (item) =>
+          `${item.role === "assistant" ? "Assistant" : "User"}: ${item.content}`
+      );
+    sections.push(`Recent conversation:\n${lines.join("\n")}`);
+  }
+  if (input.context?.sceneTransactions?.length) {
+    const lines = input.context.sceneTransactions
+      .slice(0, 8)
+      .map(
+        (item) =>
+          `${item.sceneId}/${item.transactionId}: ${item.commandCount} commands`
+      );
+    sections.push(`Recent scene transactions:\n${lines.join("\n")}`);
+  }
+
+  return sections.length > 0 ? `\n\n${sections.join("\n\n")}` : "";
+};
+
 export const compileWithMultiAgent = async (
   input: CompileInput,
   requestCommandBatch: RequestCommandBatch
 ): Promise<MultiAgentResult> => {
+  const contextSuffix = buildContextSuffix(input);
   const steps: AgentStep[] = [];
   let upstreamMs = 0;
+  let upstreamCalls = 0;
   const requestWithTimer: RequestCommandBatch = async (nextInput) => {
+    upstreamCalls += 1;
     const startedAt = now();
     try {
       return await requestCommandBatch(nextInput);
@@ -85,7 +113,7 @@ export const compileWithMultiAgent = async (
       safeObject(
         await requestWithTimer({
           ...input,
-          message: `Intent extraction for geometry request: ${input.message}`
+          message: `Intent extraction for geometry request: ${input.message}${contextSuffix}`
         })
       )
     );
@@ -107,7 +135,7 @@ export const compileWithMultiAgent = async (
       safeObject(
         await requestWithTimer({
           ...input,
-          message: `Planner output as JSON. Intent: ${JSON.stringify(intent)}`
+          message: `Planner output as JSON. Intent: ${JSON.stringify(intent)}${contextSuffix}`
         })
       )
     );
@@ -125,7 +153,7 @@ export const compileWithMultiAgent = async (
       ...input,
       message: `Generate CommandBatch JSON only. User: ${input.message}. Plan: ${JSON.stringify(
         plan
-      )}`
+      )}${contextSuffix}`
     })
   );
 
@@ -141,7 +169,8 @@ export const compileWithMultiAgent = async (
     return {
       batch,
       agent_steps: steps,
-      upstream_ms: upstreamMs
+      upstream_ms: upstreamMs,
+      upstream_calls: upstreamCalls
     };
   } catch (error) {
     if (!(error instanceof InvalidCommandBatchError)) {
@@ -153,7 +182,7 @@ export const compileWithMultiAgent = async (
         ...input,
         message: `Repair invalid CommandBatch JSON. Issues: ${error.issues.join(
           "; "
-        )}. Original: ${JSON.stringify(rawBatch)}`
+        )}. Original: ${JSON.stringify(rawBatch)}${contextSuffix}`
       })
     );
 
@@ -164,7 +193,8 @@ export const compileWithMultiAgent = async (
     return {
       batch: repairedBatch,
       agent_steps: steps,
-      upstream_ms: upstreamMs
+      upstream_ms: upstreamMs,
+      upstream_calls: upstreamCalls
     };
   }
 };
@@ -187,6 +217,7 @@ export const compileWithSingleAgent = async (
         duration_ms: upstreamMs
       }
     ],
-    upstream_ms: upstreamMs
+    upstream_ms: upstreamMs,
+    upstream_calls: 1
   };
 };

@@ -52,6 +52,7 @@ describe("GET /admin/metrics", () => {
     expect(payload.compile.rate_limited_ratio).toBe(0.5);
     expect(payload.compile.p95_latency_ms).toBeGreaterThanOrEqual(0);
     expect(payload.compile.fallback_rate).toBeGreaterThanOrEqual(0);
+    expect(payload.compile.cost_per_request_usd).toBeGreaterThanOrEqual(0);
   });
 
   it("requires admin token when configured", async () => {
@@ -158,5 +159,42 @@ describe("GET /admin/metrics", () => {
     const payload = JSON.parse(metrics.payload);
     expect(payload.compile.fallback_count).toBe(1);
     expect(payload.compile.fallback_rate).toBe(1);
+  });
+
+  it("tracks cost_per_request using configured unit cost", async () => {
+    clearRateLimits();
+    resetGatewayMetrics();
+
+    const app = buildServer(
+      {
+        COST_PER_REQUEST_USD: "0.02"
+      },
+      {
+        requestCommandBatch: async () => ({
+          version: "1.0",
+          scene_id: "s1",
+          transaction_id: "t1",
+          commands: [],
+          post_checks: [],
+          explanations: []
+        })
+      }
+    );
+
+    await app.inject({
+      method: "POST",
+      url: "/api/v1/chat/compile",
+      payload: { message: "画一个圆", mode: "byok" }
+    });
+
+    const metrics = await app.inject({
+      method: "GET",
+      url: "/admin/metrics"
+    });
+
+    expect(metrics.statusCode).toBe(200);
+    const payload = JSON.parse(metrics.payload);
+    expect(payload.compile.total_cost_usd).toBeCloseTo(0.06, 4);
+    expect(payload.compile.cost_per_request_usd).toBeCloseTo(0.06, 4);
   });
 });

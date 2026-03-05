@@ -18,6 +18,17 @@ export interface CompileRequest {
   byokKey?: string;
   timeoutMs?: number;
   extraHeaders?: Record<string, string>;
+  context?: {
+    recentMessages?: Array<{
+      role: "user" | "assistant";
+      content: string;
+    }>;
+    sceneTransactions?: Array<{
+      sceneId: string;
+      transactionId: string;
+      commandCount: number;
+    }>;
+  };
 }
 
 export interface CompileResponse {
@@ -136,7 +147,8 @@ export const compileChat = async (
     body: JSON.stringify({
       message: request.message,
       mode: request.mode,
-      model: request.model
+      model: request.model,
+      context: request.context
     }),
     signal: controller?.signal
   }).finally(() => {

@@ -311,8 +311,24 @@ body {
 }
 
 .chat-input-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) 1fr auto;
   gap: 8px;
+}
+
+.template-select-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #55657d;
+}
+
+.template-select-row select {
+  border-radius: 8px;
+  border: 1px solid #d1d9e6;
+  padding: 10px;
+  background: #ffffff;
 }
 
 .chat-input-row input {
@@ -580,5 +596,9 @@ body {
 
   .settings-grid-4 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chat-input-row {
+    grid-template-columns: 1fr;
   }
 }

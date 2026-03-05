@@ -1,11 +1,24 @@
 export type CompileMode = "byok" | "official";
 
+export interface CompileContext {
+  recentMessages?: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }>;
+  sceneTransactions?: Array<{
+    sceneId: string;
+    transactionId: string;
+    commandCount: number;
+  }>;
+}
+
 export interface CompileInput {
   message: string;
   mode: CompileMode;
   model?: string;
   byokEndpoint?: string;
   byokKey?: string;
+  context?: CompileContext;
 }
 
 export type RequestCommandBatch = (input: CompileInput) => Promise<unknown>;
@@ -32,6 +45,33 @@ export const requestCommandBatch: RequestCommandBatch = async (input) => {
     throw new Error("LITELLM_ENDPOINT_MISSING");
   }
 
+  const contextLines: string[] = [];
+  if (input.context?.recentMessages?.length) {
+    const recent = input.context.recentMessages
+      .slice(-8)
+      .map(
+        (item) =>
+          `${item.role === "assistant" ? "Assistant" : "User"}: ${item.content}`
+      )
+      .join("\n");
+    contextLines.push(`Recent conversation:\n${recent}`);
+  }
+  if (input.context?.sceneTransactions?.length) {
+    const sceneSummary = input.context.sceneTransactions
+      .slice(0, 8)
+      .map(
+        (item) =>
+          `${item.sceneId}/${item.transactionId}: ${item.commandCount} commands`
+      )
+      .join("\n");
+    contextLines.push(`Recent scene transactions:\n${sceneSummary}`);
+  }
+
+  const userPrompt =
+    contextLines.length > 0
+      ? `${contextLines.join("\n\n")}\n\nCurrent request:\n${input.message}`
+      : input.message;
+
   const response = await fetch(`${endpoint}/chat/completions`, {
     method: "POST",
     headers: {
@@ -49,7 +89,7 @@ export const requestCommandBatch: RequestCommandBatch = async (input) => {
         },
         {
           role: "user",
-          content: input.message
+          content: userPrompt
         }
       ]
     })

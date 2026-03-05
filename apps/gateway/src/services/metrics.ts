@@ -5,6 +5,7 @@ interface CompileMetrics {
   rateLimited: number;
   totalRetryCount: number;
   totalFallbackCount: number;
+  totalCostUsd: number;
   latencySamplesMs: number[];
   perfSampleCount: number;
   perfTotalMsSum: number;
@@ -18,6 +19,7 @@ const metrics: CompileMetrics = {
   rateLimited: 0,
   totalRetryCount: 0,
   totalFallbackCount: 0,
+  totalCostUsd: 0,
   latencySamplesMs: [],
   perfSampleCount: 0,
   perfTotalMsSum: 0,
@@ -51,17 +53,23 @@ export const recordCompileSuccess = (sample: {
   retryCount: number;
   latencyMs: number;
   hadFallback: boolean;
+  costUsd?: number;
 }): void => {
   metrics.totalRequests += 1;
   metrics.success += 1;
   metrics.totalRetryCount += Math.max(0, sample.retryCount);
   metrics.totalFallbackCount += sample.hadFallback ? 1 : 0;
+  metrics.totalCostUsd += Math.max(0, sample.costUsd ?? 0);
   pushLatencySample(sample.latencyMs);
 };
 
-export const recordCompileFailure = (latencyMs: number): void => {
+export const recordCompileFailure = (
+  latencyMs: number,
+  costUsd = 0
+): void => {
   metrics.totalRequests += 1;
   metrics.failed += 1;
+  metrics.totalCostUsd += Math.max(0, costUsd);
   pushLatencySample(latencyMs);
 };
 
@@ -77,6 +85,7 @@ export const resetGatewayMetrics = (): void => {
   metrics.rateLimited = 0;
   metrics.totalRetryCount = 0;
   metrics.totalFallbackCount = 0;
+  metrics.totalCostUsd = 0;
   metrics.latencySamplesMs = [];
   metrics.perfSampleCount = 0;
   metrics.perfTotalMsSum = 0;
@@ -106,6 +115,8 @@ export const getGatewayMetricsSnapshot = () => {
     compileAttemptCount === 0
       ? 0
       : metrics.totalFallbackCount / compileAttemptCount;
+  const costPerRequestUsd =
+    compileAttemptCount === 0 ? 0 : metrics.totalCostUsd / compileAttemptCount;
   const p95LatencyMs = percentile(metrics.latencySamplesMs, 0.95);
   const perfTotalAvg =
     metrics.perfSampleCount === 0
@@ -128,6 +139,8 @@ export const getGatewayMetricsSnapshot = () => {
       average_retry_count: Number(averageRetryCount.toFixed(4)),
       fallback_count: metrics.totalFallbackCount,
       fallback_rate: Number(fallbackRate.toFixed(4)),
+      total_cost_usd: Number(metrics.totalCostUsd.toFixed(6)),
+      cost_per_request_usd: Number(costPerRequestUsd.toFixed(6)),
       p95_latency_ms: Number(p95LatencyMs.toFixed(4)),
       perf_sample_count: metrics.perfSampleCount,
       perf_total_ms_avg: Number(perfTotalAvg.toFixed(4)),

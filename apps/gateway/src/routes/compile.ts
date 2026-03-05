@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { GatewayConfig } from "../config";
 import {
+  CompileContext,
   CompileMode,
   RequestCommandBatch
 } from "../services/litellm-client";
@@ -19,11 +20,50 @@ import {
   recordCompileRateLimited,
   recordCompileSuccess
 } from "../services/metrics";
+import { sendAlert } from "../services/alerting";
 
 const CompileBodySchema = z.object({
   message: z.string().min(1),
   mode: z.enum(["byok", "official"]),
-  model: z.string().optional()
+  model: z.string().optional(),
+  context: z
+    .object({
+      recentMessages: z
+        .array(
+          z.object({
+            role: z.enum(["user", "assistant"]),
+            content: z.string().min(1)
+          })
+        )
+        .optional(),
+      recent_messages: z
+        .array(
+          z.object({
+            role: z.enum(["user", "assistant"]),
+            content: z.string().min(1)
+          })
+        )
+        .optional(),
+      sceneTransactions: z
+        .array(
+          z.object({
+            sceneId: z.string().min(1),
+            transactionId: z.string().min(1),
+            commandCount: z.number().int().nonnegative()
+          })
+        )
+        .optional(),
+      scene_transactions: z
+        .array(
+          z.object({
+            scene_id: z.string().min(1),
+            transaction_id: z.string().min(1),
+            command_count: z.number().int().nonnegative()
+          })
+        )
+        .optional()
+    })
+    .optional()
 });
 
 export interface CompileRouteDeps {
@@ -35,6 +75,32 @@ export const registerCompileRoute = (
   config: GatewayConfig,
   deps: CompileRouteDeps
 ): void => {
+  const normalizeContext = (
+    raw: z.infer<typeof CompileBodySchema>["context"]
+  ): CompileContext | undefined => {
+    if (!raw) {
+      return undefined;
+    }
+
+    const recentMessages = raw.recentMessages ?? raw.recent_messages;
+    const sceneTransactions =
+      raw.sceneTransactions ??
+      raw.scene_transactions?.map((item) => ({
+        sceneId: item.scene_id,
+        transactionId: item.transaction_id,
+        commandCount: item.command_count
+      }));
+
+    if (!recentMessages?.length && !sceneTransactions?.length) {
+      return undefined;
+    }
+
+    return {
+      recentMessages,
+      sceneTransactions
+    };
+  };
+
   app.post("/api/v1/chat/compile", async (request, reply) => {
     const totalStartedAt = Date.now();
     const rateKey = `${request.ip}:compile`;
@@ -107,7 +173,8 @@ export const registerCompileRoute = (
         model: parsed.data.model,
         byokEndpoint:
           typeof byokEndpoint === "string" ? byokEndpoint : undefined,
-        byokKey: typeof byokKey === "string" ? byokKey : undefined
+        byokKey: typeof byokKey === "string" ? byokKey : undefined,
+        context: normalizeContext(parsed.data.context)
       };
       const result = useSingleAgent
         ? await compileWithSingleAgent(compileInput, deps.requestCommandBatch)
@@ -122,10 +189,20 @@ export const registerCompileRoute = (
       const hadFallback = result.agent_steps.some(
         (step) => step.status === "fallback"
       );
+      const fallbackSteps = result.agent_steps.filter(
+        (step) => step.status === "fallback"
+      );
+      const repaired = result.agent_steps.some(
+        (step) => step.name === "repair" && step.status === "ok"
+      );
+      const estimatedCostUsd =
+        Math.max(0, config.costPerRequestUsd) *
+        Math.max(1, result.upstream_calls);
       recordCompileSuccess({
         retryCount,
         latencyMs: totalMs,
-        hadFallback
+        hadFallback,
+        costUsd: estimatedCostUsd
       });
       if (samplePerf) {
         recordCompilePerfSample({
@@ -134,6 +211,32 @@ export const registerCompileRoute = (
         });
         reply.header("x-perf-total-ms", String(totalMs));
         reply.header("x-perf-upstream-ms", String(result.upstream_ms));
+      }
+
+      if (fallbackSteps.length > 0) {
+        await sendAlert(config.alertWebhookUrl, {
+          traceId: request.id,
+          path: request.url,
+          method: request.method,
+          statusCode: 200,
+          event: "compile_fallback",
+          detail: fallbackSteps.map((step) => step.name).join(","),
+          metadata: {
+            fallback_steps: fallbackSteps.map((step) => step.name)
+          }
+        });
+      } else if (repaired) {
+        await sendAlert(config.alertWebhookUrl, {
+          traceId: request.id,
+          path: request.url,
+          method: request.method,
+          statusCode: 200,
+          event: "compile_repair",
+          detail: "repair agent produced a valid batch",
+          metadata: {
+            repair: true
+          }
+        });
       }
 
       return reply.send({
