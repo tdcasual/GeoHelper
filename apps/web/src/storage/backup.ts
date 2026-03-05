@@ -15,6 +15,20 @@ export interface BackupEnvelope extends BackupPayload {
   checksum: string;
 }
 
+export type BackupImportMode = "replace" | "merge";
+
+export interface BackupImportOptions {
+  mode?: BackupImportMode;
+}
+
+export interface BackupInspection {
+  schemaVersion: number;
+  createdAt: string;
+  appVersion: string;
+  conversationCount: number;
+  migrationHint: "compatible" | "older" | "newer";
+}
+
 export const BACKUP_FILENAME = "geochat-backup.json";
 
 const canUseStorage = (): boolean =>
@@ -31,6 +45,306 @@ const parseJsonMaybe = (raw: string | null): unknown => {
     return JSON.parse(raw);
   } catch {
     return null;
+  }
+};
+
+const asObject = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+
+const toConversationList = (
+  value: unknown
+): Array<Record<string, unknown> & { id: string; updatedAt: number }> => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => asObject(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .map((item) => ({
+      ...item,
+      id: String(item.id ?? ""),
+      updatedAt:
+        typeof item.updatedAt === "number"
+          ? item.updatedAt
+          : typeof item.createdAt === "number"
+            ? item.createdAt
+            : Date.now(),
+      createdAt:
+        typeof item.createdAt === "number"
+          ? item.createdAt
+          : typeof item.updatedAt === "number"
+            ? item.updatedAt
+            : Date.now(),
+      title:
+        typeof item.title === "string" && item.title.trim()
+          ? item.title
+          : "新会话",
+      messages: Array.isArray(item.messages) ? item.messages : []
+    }))
+    .filter((item) => item.id.length > 0);
+};
+
+const mergeByIdAndUpdatedAt = (
+  current: Array<Record<string, unknown> & { id: string; updatedAt: number }>,
+  incoming: Array<Record<string, unknown> & { id: string; updatedAt: number }>
+): Array<Record<string, unknown> & { id: string; updatedAt: number }> => {
+  const merged = new Map<string, Record<string, unknown> & { id: string; updatedAt: number }>();
+
+  for (const item of current) {
+    merged.set(item.id, item);
+  }
+
+  for (const item of incoming) {
+    const existing = merged.get(item.id);
+    if (!existing || item.updatedAt >= existing.updatedAt) {
+      merged.set(item.id, item);
+    }
+  }
+
+  return Array.from(merged.values()).sort((a, b) => b.updatedAt - a.updatedAt);
+};
+
+const buildChatSnapshot = (
+  value: unknown
+): Record<string, unknown> | null => {
+  const source = asObject(value);
+  if (!source) {
+    return null;
+  }
+
+  const conversations = toConversationList(source.conversations);
+  const activeConversationId =
+    typeof source.activeConversationId === "string" &&
+    conversations.some((item) => item.id === source.activeConversationId)
+      ? source.activeConversationId
+      : conversations[0]?.id ?? null;
+  const activeMessages = activeConversationId
+    ? (conversations.find((item) => item.id === activeConversationId)?.messages ??
+      [])
+    : [];
+
+  return {
+    mode: source.mode ?? "byok",
+    sessionToken:
+      typeof source.sessionToken === "string" ? source.sessionToken : null,
+    conversations,
+    activeConversationId,
+    messages: Array.isArray(activeMessages) ? activeMessages : [],
+    reauthRequired: Boolean(source.reauthRequired)
+  };
+};
+
+const mergeChatSnapshot = (
+  currentRaw: unknown,
+  incomingRaw: unknown
+): Record<string, unknown> | null => {
+  const current = buildChatSnapshot(currentRaw);
+  const incoming = buildChatSnapshot(incomingRaw);
+
+  if (!current && !incoming) {
+    return null;
+  }
+  if (!current) {
+    return incoming;
+  }
+  if (!incoming) {
+    return current;
+  }
+
+  const mergedConversations = mergeByIdAndUpdatedAt(
+    toConversationList(current.conversations),
+    toConversationList(incoming.conversations)
+  );
+  const currentActive =
+    typeof current.activeConversationId === "string"
+      ? current.activeConversationId
+      : undefined;
+  const incomingActive =
+    typeof incoming.activeConversationId === "string"
+      ? incoming.activeConversationId
+      : undefined;
+  const activeConversationId = [currentActive, incomingActive].find(
+    (candidate) =>
+      candidate &&
+      mergedConversations.some((item) => item.id === candidate)
+  );
+  const activeMessages = activeConversationId
+    ? (mergedConversations.find((item) => item.id === activeConversationId)
+        ?.messages ?? [])
+    : [];
+
+  return {
+    mode: current.mode ?? incoming.mode ?? "byok",
+    sessionToken: current.sessionToken ?? incoming.sessionToken ?? null,
+    conversations: mergedConversations,
+    activeConversationId: activeConversationId ?? mergedConversations[0]?.id ?? null,
+    messages: Array.isArray(activeMessages) ? activeMessages : [],
+    reauthRequired: Boolean(current.reauthRequired ?? incoming.reauthRequired)
+  };
+};
+
+const toPresetList = (
+  value: unknown
+): Array<Record<string, unknown> & { id: string; updatedAt: number }> => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => asObject(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .map((item) => ({
+      ...item,
+      id: String(item.id ?? ""),
+      updatedAt:
+        typeof item.updatedAt === "number"
+          ? item.updatedAt
+          : Date.now()
+    }))
+    .filter((item) => item.id.length > 0);
+};
+
+const normalizeSettingsSnapshot = (value: unknown): Record<string, unknown> | null =>
+  asObject(value);
+
+const mergeSettingsSnapshot = (
+  currentRaw: unknown,
+  incomingRaw: unknown
+): Record<string, unknown> | null => {
+  const current = normalizeSettingsSnapshot(currentRaw);
+  const incoming = normalizeSettingsSnapshot(incomingRaw);
+
+  if (!current && !incoming) {
+    return null;
+  }
+  if (!current) {
+    return incoming;
+  }
+  if (!incoming) {
+    return current;
+  }
+
+  const byokPresets = mergeByIdAndUpdatedAt(
+    toPresetList(current.byokPresets),
+    toPresetList(incoming.byokPresets)
+  );
+  const officialPresets = mergeByIdAndUpdatedAt(
+    toPresetList(current.officialPresets),
+    toPresetList(incoming.officialPresets)
+  );
+  const currentSessionOverrides = asObject(current.sessionOverrides) ?? {};
+  const incomingSessionOverrides = asObject(incoming.sessionOverrides) ?? {};
+  const currentExperimentFlags = asObject(current.experimentFlags) ?? {};
+  const incomingExperimentFlags = asObject(incoming.experimentFlags) ?? {};
+  const currentRequestDefaults = asObject(current.requestDefaults) ?? {};
+  const incomingRequestDefaults = asObject(incoming.requestDefaults) ?? {};
+  const currentDebugEvents = Array.isArray(current.debugEvents)
+    ? current.debugEvents
+    : [];
+  const incomingDebugEvents = Array.isArray(incoming.debugEvents)
+    ? incoming.debugEvents
+    : [];
+  const debugEvents = [...currentDebugEvents, ...incomingDebugEvents]
+    .map((item) => asObject(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .sort(
+      (a, b) =>
+        (Number(b.time ?? 0) || 0) - (Number(a.time ?? 0) || 0)
+    )
+    .slice(0, 100);
+
+  const currentDefaultByokPresetId =
+    typeof current.defaultByokPresetId === "string"
+      ? current.defaultByokPresetId
+      : undefined;
+  const incomingDefaultByokPresetId =
+    typeof incoming.defaultByokPresetId === "string"
+      ? incoming.defaultByokPresetId
+      : undefined;
+  const defaultByokPresetId = [incomingDefaultByokPresetId, currentDefaultByokPresetId].find(
+    (candidate) =>
+      candidate &&
+      byokPresets.some((item) => item.id === candidate)
+  );
+
+  const currentDefaultOfficialPresetId =
+    typeof current.defaultOfficialPresetId === "string"
+      ? current.defaultOfficialPresetId
+      : undefined;
+  const incomingDefaultOfficialPresetId =
+    typeof incoming.defaultOfficialPresetId === "string"
+      ? incoming.defaultOfficialPresetId
+      : undefined;
+  const defaultOfficialPresetId = [
+    incomingDefaultOfficialPresetId,
+    currentDefaultOfficialPresetId
+  ].find(
+    (candidate) =>
+      candidate &&
+      officialPresets.some((item) => item.id === candidate)
+  );
+
+  return {
+    ...current,
+    ...incoming,
+    byokPresets,
+    officialPresets,
+    defaultByokPresetId: defaultByokPresetId ?? byokPresets[0]?.id,
+    defaultOfficialPresetId:
+      defaultOfficialPresetId ?? officialPresets[0]?.id,
+    sessionOverrides: {
+      ...currentSessionOverrides,
+      ...incomingSessionOverrides
+    },
+    experimentFlags: {
+      ...currentExperimentFlags,
+      ...incomingExperimentFlags
+    },
+    requestDefaults: {
+      ...currentRequestDefaults,
+      ...incomingRequestDefaults
+    },
+    debugEvents
+  };
+};
+
+const mergeUiPreferences = (
+  currentRaw: unknown,
+  incomingRaw: unknown
+): Record<string, unknown> | null => {
+  const current = asObject(currentRaw);
+  const incoming = asObject(incomingRaw);
+
+  if (!current && !incoming) {
+    return null;
+  }
+  if (!current) {
+    return incoming;
+  }
+  if (!incoming) {
+    return current;
+  }
+
+  return {
+    ...current,
+    ...incoming
+  };
+};
+
+const writeSnapshotToStorage = (
+  key: string,
+  value: unknown,
+  mode: BackupImportMode
+): void => {
+  const snapshot = asObject(value);
+  if (snapshot) {
+    localStorage.setItem(key, JSON.stringify(snapshot));
+    return;
+  }
+
+  if (mode === "replace") {
+    localStorage.removeItem(key);
   }
 };
 
@@ -76,6 +390,26 @@ export const importBackup = async (blob: Blob): Promise<BackupEnvelope> => {
   return envelope;
 };
 
+export const inspectBackup = async (blob: Blob): Promise<BackupInspection> => {
+  const envelope = await importBackup(blob);
+  const migrationHint =
+    envelope.schema_version === STORAGE_SCHEMA_VERSION
+      ? "compatible"
+      : envelope.schema_version < STORAGE_SCHEMA_VERSION
+        ? "older"
+        : "newer";
+
+  return {
+    schemaVersion: envelope.schema_version,
+    createdAt: envelope.created_at,
+    appVersion: envelope.app_version,
+    conversationCount: Array.isArray(envelope.conversations)
+      ? envelope.conversations.length
+      : 0,
+    migrationHint
+  };
+};
+
 export const exportCurrentAppBackup = async (): Promise<Blob> => {
   const chatSnapshot = canUseStorage()
     ? parseJsonMaybe(localStorage.getItem(CHAT_STORE_KEY))
@@ -101,27 +435,75 @@ export const exportCurrentAppBackup = async (): Promise<Blob> => {
 };
 
 export const importAppBackupToLocalStorage = async (
-  blob: Blob
+  blob: Blob,
+  options: BackupImportOptions = {}
 ): Promise<BackupEnvelope> => {
   const envelope = await importBackup(blob);
+  const mode: BackupImportMode = options.mode ?? "replace";
 
   if (!canUseStorage()) {
     return envelope;
   }
 
-  const chatSnapshot = envelope.settings.chat_snapshot;
-  const settingsSnapshot = envelope.settings.settings_snapshot;
-  const uiPreferences = envelope.settings.ui_preferences;
+  const incomingSettings = asObject(envelope.settings) ?? {};
+  const hasStructuredSettings =
+    Object.prototype.hasOwnProperty.call(incomingSettings, "chat_snapshot") ||
+    Object.prototype.hasOwnProperty.call(incomingSettings, "settings_snapshot") ||
+    Object.prototype.hasOwnProperty.call(incomingSettings, "ui_preferences");
+  const incomingChatSnapshot =
+    incomingSettings.chat_snapshot ??
+    (Array.isArray(envelope.conversations)
+      ? {
+          mode: "byok",
+          sessionToken: null,
+          conversations: envelope.conversations,
+          activeConversationId:
+            typeof envelope.conversations[0]?.id === "string"
+              ? String(envelope.conversations[0].id)
+              : null,
+          messages: Array.isArray(envelope.conversations[0]?.messages)
+            ? envelope.conversations[0].messages
+            : [],
+          reauthRequired: false
+        }
+      : null);
+  const incomingSettingsSnapshot =
+    incomingSettings.settings_snapshot ??
+    (hasStructuredSettings ? null : incomingSettings);
+  const incomingUiPreferences = incomingSettings.ui_preferences;
 
-  if (chatSnapshot && typeof chatSnapshot === "object") {
-    localStorage.setItem(CHAT_STORE_KEY, JSON.stringify(chatSnapshot));
+  if (mode === "replace") {
+    writeSnapshotToStorage(CHAT_STORE_KEY, buildChatSnapshot(incomingChatSnapshot), mode);
+    writeSnapshotToStorage(
+      SETTINGS_KEY,
+      normalizeSettingsSnapshot(incomingSettingsSnapshot),
+      mode
+    );
+    writeSnapshotToStorage(UI_PREFS_KEY, asObject(incomingUiPreferences), mode);
+    return envelope;
   }
-  if (settingsSnapshot && typeof settingsSnapshot === "object") {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settingsSnapshot));
-  }
-  if (uiPreferences && typeof uiPreferences === "object") {
-    localStorage.setItem(UI_PREFS_KEY, JSON.stringify(uiPreferences));
-  }
+
+  const currentChatSnapshot = parseJsonMaybe(localStorage.getItem(CHAT_STORE_KEY));
+  const currentSettingsSnapshot = parseJsonMaybe(
+    localStorage.getItem(SETTINGS_KEY)
+  );
+  const currentUiPreferences = parseJsonMaybe(localStorage.getItem(UI_PREFS_KEY));
+
+  writeSnapshotToStorage(
+    CHAT_STORE_KEY,
+    mergeChatSnapshot(currentChatSnapshot, incomingChatSnapshot),
+    mode
+  );
+  writeSnapshotToStorage(
+    SETTINGS_KEY,
+    mergeSettingsSnapshot(currentSettingsSnapshot, incomingSettingsSnapshot),
+    mode
+  );
+  writeSnapshotToStorage(
+    UI_PREFS_KEY,
+    mergeUiPreferences(currentUiPreferences, incomingUiPreferences),
+    mode
+  );
 
   return envelope;
 };

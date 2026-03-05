@@ -8,7 +8,10 @@ import {
 } from "../state/settings-store";
 import {
   BACKUP_FILENAME,
+  BackupImportMode,
+  BackupInspection,
   exportCurrentAppBackup,
+  inspectBackup,
   importAppBackupToLocalStorage
 } from "../storage/backup";
 
@@ -168,6 +171,10 @@ export const SettingsDrawer = ({
   const [savingByok, setSavingByok] = useState(false);
   const [savingOfficial, setSavingOfficial] = useState(false);
   const [backupMessage, setBackupMessage] = useState<string | null>(null);
+  const [pendingBackupFile, setPendingBackupFile] = useState<File | null>(null);
+  const [backupInspection, setBackupInspection] =
+    useState<BackupInspection | null>(null);
+  const [importingBackup, setImportingBackup] = useState(false);
   const backupInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -225,22 +232,48 @@ export const SettingsDrawer = ({
     setBackupMessage("备份已导出");
   };
 
-  const handleImportBackup = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleImportBackupSelect = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) {
       return;
     }
 
     try {
-      await importAppBackupToLocalStorage(file);
-      setBackupMessage("备份导入成功，正在刷新");
+      const inspected = await inspectBackup(file);
+      setPendingBackupFile(file);
+      setBackupInspection(inspected);
+      setBackupMessage("已读取备份文件，请选择导入策略");
+    } catch {
+      setPendingBackupFile(null);
+      setBackupInspection(null);
+      setBackupMessage("备份读取失败，请检查文件格式");
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const handleImportBackup = async (mode: BackupImportMode) => {
+    if (!pendingBackupFile) {
+      return;
+    }
+
+    setImportingBackup(true);
+    try {
+      await importAppBackupToLocalStorage(pendingBackupFile, { mode });
+      setBackupMessage(
+        mode === "merge"
+          ? "备份合并导入成功，正在刷新"
+          : "备份覆盖导入成功，正在刷新"
+      );
       setTimeout(() => {
         window.location.reload();
       }, 300);
     } catch {
       setBackupMessage("备份导入失败，请检查文件格式");
     } finally {
-      event.target.value = "";
+      setImportingBackup(false);
     }
   };
 
@@ -779,12 +812,60 @@ export const SettingsDrawer = ({
               导入备份
             </button>
           </div>
+          {pendingBackupFile && backupInspection ? (
+            <article className="settings-import-preview">
+              <p>{`文件：${pendingBackupFile.name}`}</p>
+              <p>{`schema：v${backupInspection.schemaVersion}`}</p>
+              <p>{`创建时间：${new Date(backupInspection.createdAt).toLocaleString(
+                "zh-CN"
+              )}`}</p>
+              <p>{`会话数：${backupInspection.conversationCount}`}</p>
+              <p>{`来源版本：${backupInspection.appVersion}`}</p>
+              {backupInspection.migrationHint === "older" ? (
+                <p className="settings-warning-text">
+                  备份版本较旧，将按兼容方式导入
+                </p>
+              ) : null}
+              {backupInspection.migrationHint === "newer" ? (
+                <p className="settings-warning-text">
+                  备份版本高于当前应用，导入后可能存在字段降级
+                </p>
+              ) : null}
+              <div className="settings-inline-actions">
+                <button
+                  type="button"
+                  disabled={importingBackup}
+                  onClick={() => handleImportBackup("merge")}
+                >
+                  合并导入（推荐）
+                </button>
+                <button
+                  type="button"
+                  disabled={importingBackup}
+                  onClick={() => handleImportBackup("replace")}
+                >
+                  覆盖导入
+                </button>
+                <button
+                  type="button"
+                  disabled={importingBackup}
+                  onClick={() => {
+                    setPendingBackupFile(null);
+                    setBackupInspection(null);
+                    setBackupMessage("已取消本次导入");
+                  }}
+                >
+                  取消
+                </button>
+              </div>
+            </article>
+          ) : null}
           <input
             ref={backupInputRef}
             type="file"
             accept="application/json"
             hidden
-            onChange={handleImportBackup}
+            onChange={handleImportBackupSelect}
           />
           {backupMessage ? <p className="settings-hint">{backupMessage}</p> : null}
         </section>

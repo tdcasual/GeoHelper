@@ -4,7 +4,8 @@ import {
   exportBackup,
   exportCurrentAppBackup,
   importAppBackupToLocalStorage,
-  importBackup
+  importBackup,
+  inspectBackup
 } from "./backup";
 import { CHAT_STORE_KEY } from "../state/chat-store";
 import { SETTINGS_KEY } from "../state/settings-store";
@@ -91,7 +92,7 @@ describe("backup", () => {
     localStorage.removeItem(SETTINGS_KEY);
     localStorage.removeItem(UI_PREFS_KEY);
 
-    await importAppBackupToLocalStorage(blob);
+    await importAppBackupToLocalStorage(blob, { mode: "replace" });
 
     const chatSnapshot = JSON.parse(localStorage.getItem(CHAT_STORE_KEY) ?? "{}");
     const settingsSnapshot = JSON.parse(
@@ -102,5 +103,158 @@ describe("backup", () => {
     expect(chatSnapshot.conversations[0].id).toBe("conv_1");
     expect(settingsSnapshot.schemaVersion).toBe(2);
     expect(uiPreferences.chatVisible).toBe(false);
+  });
+
+  it("merges backup conversations by id and updatedAt", async () => {
+    localStorage.setItem(
+      CHAT_STORE_KEY,
+      JSON.stringify({
+        mode: "byok",
+        sessionToken: null,
+        activeConversationId: "conv_legacy",
+        reauthRequired: false,
+        messages: [{ id: "m2", role: "user", content: "legacy" }],
+        conversations: [
+          {
+            id: "conv_shared",
+            title: "shared_old",
+            createdAt: 1,
+            updatedAt: 100,
+            messages: [{ id: "m1", role: "user", content: "old" }]
+          },
+          {
+            id: "conv_legacy",
+            title: "legacy",
+            createdAt: 2,
+            updatedAt: 200,
+            messages: [{ id: "m2", role: "user", content: "legacy" }]
+          }
+        ]
+      })
+    );
+    localStorage.setItem(
+      SETTINGS_KEY,
+      JSON.stringify({
+        schemaVersion: 2,
+        defaultMode: "byok",
+        byokPresets: [
+          {
+            id: "preset_1",
+            name: "preset_old",
+            model: "gpt-4o-mini",
+            endpoint: "",
+            temperature: 0.2,
+            maxTokens: 1200,
+            timeoutMs: 20000,
+            updatedAt: 100
+          }
+        ],
+        officialPresets: []
+      })
+    );
+    localStorage.setItem(UI_PREFS_KEY, JSON.stringify({ chatVisible: true }));
+
+    const blob = await exportBackup({
+      conversations: [
+        {
+          id: "conv_shared",
+          title: "shared_new",
+          createdAt: 1,
+          updatedAt: 300,
+          messages: [{ id: "m3", role: "assistant", content: "new" }]
+        },
+        {
+          id: "conv_from_backup",
+          title: "backup",
+          createdAt: 3,
+          updatedAt: 250,
+          messages: []
+        }
+      ],
+      settings: {
+        chat_snapshot: {
+          mode: "byok",
+          sessionToken: null,
+          activeConversationId: "conv_from_backup",
+          reauthRequired: false,
+          messages: [],
+          conversations: [
+            {
+              id: "conv_shared",
+              title: "shared_new",
+              createdAt: 1,
+              updatedAt: 300,
+              messages: [{ id: "m3", role: "assistant", content: "new" }]
+            },
+            {
+              id: "conv_from_backup",
+              title: "backup",
+              createdAt: 3,
+              updatedAt: 250,
+              messages: []
+            }
+          ]
+        },
+        settings_snapshot: {
+          schemaVersion: 2,
+          defaultMode: "official",
+          byokPresets: [
+            {
+              id: "preset_1",
+              name: "preset_new",
+              model: "gpt-4o-mini",
+              endpoint: "",
+              temperature: 0.2,
+              maxTokens: 1200,
+              timeoutMs: 20000,
+              updatedAt: 300
+            }
+          ],
+          officialPresets: [
+            {
+              id: "official_1",
+              name: "official",
+              model: "gpt-4o-mini",
+              temperature: 0.2,
+              maxTokens: 1200,
+              timeoutMs: 20000,
+              updatedAt: 150
+            }
+          ]
+        },
+        ui_preferences: {
+          chatVisible: false
+        }
+      }
+    });
+
+    await importAppBackupToLocalStorage(blob, { mode: "merge" });
+
+    const chatSnapshot = JSON.parse(localStorage.getItem(CHAT_STORE_KEY) ?? "{}");
+    const settingsSnapshot = JSON.parse(
+      localStorage.getItem(SETTINGS_KEY) ?? "{}"
+    );
+    const uiPreferences = JSON.parse(localStorage.getItem(UI_PREFS_KEY) ?? "{}");
+
+    expect(chatSnapshot.conversations.map((item: { id: string }) => item.id)).toEqual(
+      ["conv_shared", "conv_from_backup", "conv_legacy"]
+    );
+    expect(chatSnapshot.conversations[0].title).toBe("shared_new");
+    expect(chatSnapshot.activeConversationId).toBe("conv_legacy");
+    expect(chatSnapshot.messages[0].content).toBe("legacy");
+    expect(settingsSnapshot.byokPresets[0].name).toBe("preset_new");
+    expect(settingsSnapshot.officialPresets[0].id).toBe("official_1");
+    expect(uiPreferences.chatVisible).toBe(false);
+  });
+
+  it("inspects schema direction for migration hint", async () => {
+    const blob = await exportBackup({
+      conversations: [],
+      settings: {}
+    });
+
+    const inspected = await inspectBackup(blob);
+    expect(inspected.schemaVersion).toBeGreaterThan(0);
+    expect(inspected.migrationHint).toBe("compatible");
   });
 });

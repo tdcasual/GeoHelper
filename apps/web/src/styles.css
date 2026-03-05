@@ -510,6 +510,26 @@ body {
   color: #7d4c00;
 }
 
+.settings-import-preview {
+  border: 1px dashed #c6d4ec;
+  background: #f8fbff;
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-import-preview p {
+  margin: 0;
+  font-size: 13px;
+  color: #33445f;
+}
+
+.settings-warning-text {
+  color: #9a5a00 !important;
+}
+
 .debug-log-panel {
   max-height: 220px;
   overflow: auto;
