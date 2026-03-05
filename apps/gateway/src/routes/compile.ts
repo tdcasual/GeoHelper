@@ -6,11 +6,15 @@ import {
   CompileMode,
   RequestCommandBatch
 } from "../services/litellm-client";
-import { compileWithMultiAgent } from "../services/multi-agent";
+import {
+  compileWithMultiAgent,
+  compileWithSingleAgent
+} from "../services/multi-agent";
 import { verifySessionToken } from "../services/session";
 import { InvalidCommandBatchError } from "../services/verify-command-batch";
 import { consumeRateLimit } from "../services/rate-limit";
 import {
+  recordCompilePerfSample,
   recordCompileFailure,
   recordCompileRateLimited,
   recordCompileSuccess
@@ -32,6 +36,7 @@ export const registerCompileRoute = (
   deps: CompileRouteDeps
 ): void => {
   app.post("/api/v1/chat/compile", async (request, reply) => {
+    const totalStartedAt = Date.now();
     const rateKey = `${request.ip}:compile`;
     const limit = consumeRateLimit(
       rateKey,
@@ -88,19 +93,26 @@ export const registerCompileRoute = (
 
     const byokEndpoint = request.headers["x-byok-endpoint"];
     const byokKey = request.headers["x-byok-key"];
+    const fallbackSingleAgent = request.headers["x-client-fallback-single-agent"];
+    const performanceSampling = request.headers["x-client-performance-sampling"];
+    const strictValidation = request.headers["x-client-strict-validation"];
+    const useSingleAgent = fallbackSingleAgent === "1";
+    const samplePerf = performanceSampling === "1";
+    const strictMode = strictValidation === "1";
 
     try {
-      const result = await compileWithMultiAgent(
-        {
-          message: parsed.data.message,
-          mode,
-          model: parsed.data.model,
-          byokEndpoint:
-            typeof byokEndpoint === "string" ? byokEndpoint : undefined,
-          byokKey: typeof byokKey === "string" ? byokKey : undefined
-        },
-        deps.requestCommandBatch
-      );
+      const compileInput = {
+        message: parsed.data.message,
+        mode,
+        model: parsed.data.model,
+        byokEndpoint:
+          typeof byokEndpoint === "string" ? byokEndpoint : undefined,
+        byokKey: typeof byokKey === "string" ? byokKey : undefined
+      };
+      const result = useSingleAgent
+        ? await compileWithSingleAgent(compileInput, deps.requestCommandBatch)
+        : await compileWithMultiAgent(compileInput, deps.requestCommandBatch);
+      const totalMs = Date.now() - totalStartedAt;
 
       const retryCount = result.agent_steps.some(
         (step) => step.name === "repair" && step.status === "ok"
@@ -108,6 +120,14 @@ export const registerCompileRoute = (
         ? 1
         : 0;
       recordCompileSuccess(retryCount);
+      if (samplePerf) {
+        recordCompilePerfSample({
+          totalMs,
+          upstreamMs: result.upstream_ms
+        });
+        reply.header("x-perf-total-ms", String(totalMs));
+        reply.header("x-perf-upstream-ms", String(result.upstream_ms));
+      }
 
       return reply.send({
         trace_id: `tr_${Date.now()}`,
@@ -120,7 +140,9 @@ export const registerCompileRoute = (
         return reply.status(422).send({
           error: {
             code: "INVALID_COMMAND_BATCH",
-            message: "Command batch validation failed",
+            message: strictMode
+              ? "Command batch validation failed (strict)"
+              : "Command batch validation failed",
             details: error.issues
           }
         });

@@ -79,6 +79,10 @@
 
 - Official mode: `Authorization: Bearer <session_token>`
 - BYOK mode: optional `x-byok-endpoint`, `x-byok-key`
+- Optional runtime flags:
+  - `x-client-strict-validation: 1`
+  - `x-client-fallback-single-agent: 1`
+  - `x-client-performance-sampling: 1`
 
 ### Request
 
@@ -133,6 +137,11 @@
 }
 ```
 
+### Response Headers (when `x-client-performance-sampling: 1`)
+
+- `x-perf-total-ms`: end-to-end compile latency on gateway
+- `x-perf-upstream-ms`: accumulated upstream model request latency
+
 ### Error 422
 
 ```json
@@ -185,7 +194,10 @@
     "rate_limited": 1,
     "success_rate": 0.75,
     "rate_limited_ratio": 0.0833,
-    "average_retry_count": 0.1111
+    "average_retry_count": 0.1111,
+    "perf_sample_count": 3,
+    "perf_total_ms_avg": 124.3333,
+    "perf_upstream_ms_avg": 97.6667
   }
 }
 ```

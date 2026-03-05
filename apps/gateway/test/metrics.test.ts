@@ -75,4 +75,43 @@ describe("GET /admin/metrics", () => {
     });
     expect(allowed.statusCode).toBe(200);
   });
+
+  it("records sampled performance stats", async () => {
+    clearRateLimits();
+    resetGatewayMetrics();
+
+    const app = buildServer(
+      {},
+      {
+        requestCommandBatch: async () => ({
+          version: "1.0",
+          scene_id: "s1",
+          transaction_id: "t1",
+          commands: [],
+          post_checks: [],
+          explanations: []
+        })
+      }
+    );
+
+    await app.inject({
+      method: "POST",
+      url: "/api/v1/chat/compile",
+      headers: {
+        "x-client-performance-sampling": "1"
+      },
+      payload: { message: "画一个圆", mode: "byok" }
+    });
+
+    const metrics = await app.inject({
+      method: "GET",
+      url: "/admin/metrics"
+    });
+
+    expect(metrics.statusCode).toBe(200);
+    const payload = JSON.parse(metrics.payload);
+    expect(payload.compile.perf_sample_count).toBe(1);
+    expect(payload.compile.perf_total_ms_avg).toBeGreaterThanOrEqual(0);
+    expect(payload.compile.perf_upstream_ms_avg).toBeGreaterThanOrEqual(0);
+  });
 });

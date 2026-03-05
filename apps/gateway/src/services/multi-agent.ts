@@ -24,6 +24,7 @@ export interface AgentStep {
 export interface MultiAgentResult {
   batch: CommandBatch;
   agent_steps: AgentStep[];
+  upstream_ms: number;
 }
 
 const now = (): number => Date.now();
@@ -64,6 +65,15 @@ export const compileWithMultiAgent = async (
   requestCommandBatch: RequestCommandBatch
 ): Promise<MultiAgentResult> => {
   const steps: AgentStep[] = [];
+  let upstreamMs = 0;
+  const requestWithTimer: RequestCommandBatch = async (nextInput) => {
+    const startedAt = now();
+    try {
+      return await requestCommandBatch(nextInput);
+    } finally {
+      upstreamMs += now() - startedAt;
+    }
+  };
   const intentFallback = {
     goal: input.message,
     constraints: []
@@ -73,7 +83,7 @@ export const compileWithMultiAgent = async (
   try {
     intent = await measure("intent", steps, async () =>
       safeObject(
-        await requestCommandBatch({
+        await requestWithTimer({
           ...input,
           message: `Intent extraction for geometry request: ${input.message}`
         })
@@ -95,7 +105,7 @@ export const compileWithMultiAgent = async (
   try {
     plan = await measure("planner", steps, async () =>
       safeObject(
-        await requestCommandBatch({
+        await requestWithTimer({
           ...input,
           message: `Planner output as JSON. Intent: ${JSON.stringify(intent)}`
         })
@@ -111,7 +121,7 @@ export const compileWithMultiAgent = async (
   }
 
   const rawBatch = await measure("command", steps, async () =>
-    requestCommandBatch({
+    requestWithTimer({
       ...input,
       message: `Generate CommandBatch JSON only. User: ${input.message}. Plan: ${JSON.stringify(
         plan
@@ -130,7 +140,8 @@ export const compileWithMultiAgent = async (
     });
     return {
       batch,
-      agent_steps: steps
+      agent_steps: steps,
+      upstream_ms: upstreamMs
     };
   } catch (error) {
     if (!(error instanceof InvalidCommandBatchError)) {
@@ -138,7 +149,7 @@ export const compileWithMultiAgent = async (
     }
 
     const repairedRaw = await measure("repair", steps, async () =>
-      requestCommandBatch({
+      requestWithTimer({
         ...input,
         message: `Repair invalid CommandBatch JSON. Issues: ${error.issues.join(
           "; "
@@ -152,7 +163,30 @@ export const compileWithMultiAgent = async (
 
     return {
       batch: repairedBatch,
-      agent_steps: steps
+      agent_steps: steps,
+      upstream_ms: upstreamMs
     };
   }
+};
+
+export const compileWithSingleAgent = async (
+  input: CompileInput,
+  requestCommandBatch: RequestCommandBatch
+): Promise<MultiAgentResult> => {
+  const startedAt = now();
+  const raw = await requestCommandBatch(input);
+  const upstreamMs = now() - startedAt;
+
+  const verified = verifyCommandBatch(raw);
+  return {
+    batch: verified,
+    agent_steps: [
+      {
+        name: "command",
+        status: "ok",
+        duration_ms: upstreamMs
+      }
+    ],
+    upstream_ms: upstreamMs
+  };
 };
