@@ -2,6 +2,7 @@ import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
 
 import { ChatMode } from "../services/api-client";
+import { persistSettingsSnapshotToIndexedDb } from "../storage/indexed-sync";
 import {
   browserSecretService,
   EncryptedSecret,
@@ -208,6 +209,9 @@ const persistSnapshot = (state: PersistedSettingsSnapshot): void => {
   }
 
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(state));
+  void persistSettingsSnapshotToIndexedDb(
+    state as unknown as Record<string, unknown>
+  );
 };
 
 const normalizeSnapshot = (

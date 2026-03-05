@@ -3,6 +3,7 @@ import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
 
 import { executeBatch } from "../geogebra/command-executor";
+import { persistChatSnapshotToIndexedDb } from "../storage/indexed-sync";
 import {
   AgentStep,
   ChatMode,
@@ -255,6 +256,7 @@ const persistSnapshot = (snapshot: PersistedChatSnapshot): void => {
   }
 
   localStorage.setItem(CHAT_STORE_KEY, JSON.stringify(snapshot));
+  void persistChatSnapshotToIndexedDb(snapshot as unknown as Record<string, unknown>);
 };
 
 export const createChatStore = (

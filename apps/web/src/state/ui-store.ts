@@ -1,6 +1,8 @@
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
 
+import { persistUiPrefsToIndexedDb } from "../storage/indexed-sync";
+
 export interface UIState {
   chatVisible: boolean;
   toggleChat: () => void;
@@ -36,12 +38,11 @@ const persistChatVisible = (chatVisible: boolean): void => {
     return;
   }
 
-  localStorage.setItem(
-    UI_PREFS_KEY,
-    JSON.stringify({
-      chatVisible
-    })
-  );
+  const snapshot = {
+    chatVisible
+  };
+  localStorage.setItem(UI_PREFS_KEY, JSON.stringify(snapshot));
+  void persistUiPrefsToIndexedDb(snapshot);
 };
 
 export const createUIStore = () =>
