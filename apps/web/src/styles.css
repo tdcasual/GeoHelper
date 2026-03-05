@@ -193,11 +193,20 @@ body {
 .chat-thread-header {
   border-bottom: 1px solid #edf1f8;
   padding-bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .chat-thread-header h3 {
   margin: 0;
   font-size: 14px;
+}
+
+.scene-transaction-count {
+  font-size: 12px;
+  color: #607089;
 }
 
 .chat-messages {

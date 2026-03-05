@@ -23,6 +23,13 @@ export const executeBatch = async (
   batch: CommandBatch,
   adapter: GeoGebraAdapter = getGeoGebraAdapter()
 ): Promise<void> => {
+  await executeBatchWithAdapter(batch, adapter);
+};
+
+export const executeBatchWithAdapter = async (
+  batch: CommandBatch,
+  adapter: GeoGebraAdapter
+): Promise<void> => {
   const completed = new Set<string>();
 
   for (const command of batch.commands) {

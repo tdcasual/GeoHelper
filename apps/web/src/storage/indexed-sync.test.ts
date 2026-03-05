@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   persistChatSnapshotToIndexedDb,
+  persistSceneSnapshotToIndexedDb,
   persistSettingsSnapshotToIndexedDb,
   persistUiPrefsToIndexedDb,
   syncLocalSnapshotsWithIndexedDb
@@ -75,6 +76,9 @@ describe("indexed-sync", () => {
     ).resolves.toBeUndefined();
     await expect(
       persistUiPrefsToIndexedDb({ chatVisible: true })
+    ).resolves.toBeUndefined();
+    await expect(
+      persistSceneSnapshotToIndexedDb({ transactions: [] })
     ).resolves.toBeUndefined();
   });
 });

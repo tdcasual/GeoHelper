@@ -17,6 +17,7 @@ import {
   resolveCompileRuntimeOptions,
   settingsStore
 } from "./settings-store";
+import { sceneStore } from "./scene-store";
 
 export interface ChatMessage {
   id: string;
@@ -558,6 +559,7 @@ export const createChatStore = (
 
         const { batch, agentSteps, traceId } = compileResult;
         await deps.execute(batch);
+        sceneStore.getState().recordTransaction(batch);
 
         const assistantMessage: ChatMessage = {
           id: makeId(),

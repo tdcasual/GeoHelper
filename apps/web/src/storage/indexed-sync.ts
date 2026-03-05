@@ -1,9 +1,11 @@
 const CHAT_STORE_KEY = "geohelper.chat.snapshot";
 const SETTINGS_KEY = "geohelper.settings.snapshot";
 const UI_PREFS_KEY = "geohelper.ui.preferences";
+const SCENE_STORE_KEY = "geohelper.scene.snapshot";
 const DB_CHAT_SNAPSHOT_KEY = "snapshot.chat";
 const DB_SETTINGS_SNAPSHOT_KEY = "snapshot.settings";
 const DB_UI_PREFS_KEY = "snapshot.ui";
+const DB_SCENE_SNAPSHOT_KEY = "snapshot.scene";
 
 const canUseStorage = (): boolean =>
   typeof localStorage !== "undefined" &&
@@ -82,7 +84,8 @@ const hasAnyLocalSnapshot = (): boolean =>
   Boolean(
     localStorage.getItem(CHAT_STORE_KEY) ||
       localStorage.getItem(SETTINGS_KEY) ||
-      localStorage.getItem(UI_PREFS_KEY)
+      localStorage.getItem(UI_PREFS_KEY) ||
+      localStorage.getItem(SCENE_STORE_KEY)
   );
 
 export const syncLocalSnapshotsWithIndexedDb = async (): Promise<void> => {
@@ -96,6 +99,7 @@ export const syncLocalSnapshotsWithIndexedDb = async (): Promise<void> => {
     const chat = readLocalSnapshot(CHAT_STORE_KEY);
     const settings = readLocalSnapshot(SETTINGS_KEY);
     const ui = readLocalSnapshot(UI_PREFS_KEY);
+    const scene = readLocalSnapshot(SCENE_STORE_KEY);
 
     if (chat) {
       await writeDbSnapshot(DB_CHAT_SNAPSHOT_KEY, chat);
@@ -106,13 +110,17 @@ export const syncLocalSnapshotsWithIndexedDb = async (): Promise<void> => {
     if (ui) {
       await writeDbSnapshot(DB_UI_PREFS_KEY, ui);
     }
+    if (scene) {
+      await writeDbSnapshot(DB_SCENE_SNAPSHOT_KEY, scene);
+    }
     return;
   }
 
-  const [chatFromDb, settingsFromDb, uiFromDb] = await Promise.all([
+  const [chatFromDb, settingsFromDb, uiFromDb, sceneFromDb] = await Promise.all([
     readDbSnapshot(DB_CHAT_SNAPSHOT_KEY),
     readDbSnapshot(DB_SETTINGS_SNAPSHOT_KEY),
-    readDbSnapshot(DB_UI_PREFS_KEY)
+    readDbSnapshot(DB_UI_PREFS_KEY),
+    readDbSnapshot(DB_SCENE_SNAPSHOT_KEY)
   ]);
 
   if (chatFromDb) {
@@ -123,6 +131,9 @@ export const syncLocalSnapshotsWithIndexedDb = async (): Promise<void> => {
   }
   if (uiFromDb) {
     writeLocalSnapshot(UI_PREFS_KEY, uiFromDb);
+  }
+  if (sceneFromDb) {
+    writeLocalSnapshot(SCENE_STORE_KEY, sceneFromDb);
   }
 };
 
@@ -151,4 +162,13 @@ export const persistUiPrefsToIndexedDb = async (
     return;
   }
   await writeDbSnapshot(DB_UI_PREFS_KEY, snapshot);
+};
+
+export const persistSceneSnapshotToIndexedDb = async (
+  snapshot: Record<string, unknown>
+): Promise<void> => {
+  if (!snapshot || !canUseIndexedDb()) {
+    return;
+  }
+  await writeDbSnapshot(DB_SCENE_SNAPSHOT_KEY, snapshot);
 };

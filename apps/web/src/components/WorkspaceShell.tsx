@@ -10,6 +10,7 @@ import {
   revokeOfficialSessionToken
 } from "../services/api-client";
 import { useChatStore } from "../state/chat-store";
+import { useSceneStore } from "../state/scene-store";
 import { useSettingsStore } from "../state/settings-store";
 import { useUIStore } from "../state/ui-store";
 
@@ -31,6 +32,12 @@ export const WorkspaceShell = () => {
   const selectConversation = useChatStore((state) => state.selectConversation);
   const acknowledgeReauth = useChatStore((state) => state.acknowledgeReauth);
   const send = useChatStore((state) => state.send);
+  const sceneTransactionCount = useSceneStore(
+    (state) => state.transactions.length
+  );
+  const isSceneRollingBack = useSceneStore((state) => state.isRollingBack);
+  const rollbackLastScene = useSceneStore((state) => state.rollbackLast);
+  const clearScene = useSceneStore((state) => state.clearScene);
   const settingsOpen = useSettingsStore((state) => state.drawerOpen);
   const setSettingsOpen = useSettingsStore((state) => state.setDrawerOpen);
   const showAgentSteps = useSettingsStore(
@@ -103,6 +110,26 @@ export const WorkspaceShell = () => {
           <button type="button" onClick={() => setSettingsOpen(true)}>
             设置
           </button>
+          <button
+            type="button"
+            disabled={
+              isSending || isSceneRollingBack || sceneTransactionCount === 0
+            }
+            onClick={() => {
+              void rollbackLastScene();
+            }}
+          >
+            回滚上一步
+          </button>
+          <button
+            type="button"
+            disabled={isSending || isSceneRollingBack}
+            onClick={() => {
+              void clearScene();
+            }}
+          >
+            清空画布
+          </button>
           {mode === "official" && sessionToken ? (
             <button type="button" onClick={handleOfficialLogout}>
               退出官方会话
@@ -162,6 +189,9 @@ export const WorkspaceShell = () => {
             <div className="chat-body">
               <div className="chat-thread-header">
                 <h3>{activeConversation?.title ?? "新会话"}</h3>
+                <span className="scene-transaction-count">
+                  事务数: {sceneTransactionCount}
+                </span>
               </div>
               <div className="chat-messages">
                 {messages.length === 0 ? (
