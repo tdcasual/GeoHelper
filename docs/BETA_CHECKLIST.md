@@ -43,13 +43,11 @@ Updated: 2026-03-05
 
 ## On-call & Contacts
 
-- Incident Owner: `TBD_BEFORE_BETA_FREEZE`
-- Backup Owner: `TBD_BEFORE_BETA_FREEZE`
-- Infra Escalation: `TBD_BEFORE_BETA_FREEZE`
-- Product Escalation: `TBD_BEFORE_BETA_FREEZE`
-- Communication Channel: `TBD_BEFORE_BETA_FREEZE`
-
-Before release, replace every `TBD_BEFORE_BETA_FREEZE` with real handles/channels.
+- Incident Owner: `@tdcasual`
+- Backup Owner: `@lvxiaoer`
+- Infra Escalation: `@tdcasual`
+- Product Escalation: `@tdcasual`
+- Communication Channel: `#geohelper-release`
 
 ## Pre-Release Gate
 

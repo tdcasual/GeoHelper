@@ -32,6 +32,7 @@ Required env vars:
 - `EDGEONE_API_TOKEN`
 - `VITE_GATEWAY_URL`
 - optional: `EDGEONE_ENVIRONMENT` (default `preview`)
+- Template file: `.env.release.example`
 
 Deploy command:
 
@@ -53,6 +54,11 @@ Secrets expected in repo settings:
 - `EDGEONE_PROJECT_NAME`
 - `EDGEONE_API_TOKEN`
 - `STAGING_GATEWAY_URL`
+- Bootstrap helper:
+
+```bash
+bash scripts/deploy/configure-release-secrets.sh --repo <owner/repo>
+```
 
 ## C. Gateway Staging Deploy
 
@@ -83,6 +89,13 @@ Optional deploy hook secret:
 - optional: `ALERT_WEBHOOK_URL`
 - optional: `ADMIN_METRICS_TOKEN`
 - optional: `COST_PER_REQUEST_USD`
+- Template file: `.env.release.example`
+
+You can sync gateway/web deploy secrets from local env vars with:
+
+```bash
+bash scripts/deploy/configure-release-secrets.sh --repo <owner/repo>
+```
 
 ## E. Post-deploy Verification
 
