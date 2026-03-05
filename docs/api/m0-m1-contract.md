@@ -195,6 +195,9 @@
     "success_rate": 0.75,
     "rate_limited_ratio": 0.0833,
     "average_retry_count": 0.1111,
+    "fallback_count": 2,
+    "fallback_rate": 0.1818,
+    "p95_latency_ms": 812.5,
     "perf_sample_count": 3,
     "perf_total_ms_avg": 124.3333,
     "perf_upstream_ms_avg": 97.6667
