@@ -1,7 +1,12 @@
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
 
-import { ChatMode } from "../services/api-client";
+import {
+  ChatMode,
+  RuntimeCapabilities,
+  RuntimeTarget,
+  runtimeCapabilitiesByTarget
+} from "../runtime/types";
 import { persistSettingsSnapshotToIndexedDb } from "../storage/indexed-sync";
 import {
   browserSecretService,
@@ -62,9 +67,19 @@ interface RequestDefaults {
   retryAttempts: number;
 }
 
+export interface RuntimeProfile {
+  id: string;
+  name: string;
+  target: RuntimeTarget;
+  baseUrl: string;
+  updatedAt: number;
+}
+
 interface PersistedSettingsSnapshot {
-  schemaVersion: 2;
+  schemaVersion: 3;
   defaultMode: ChatMode;
+  runtimeProfiles: RuntimeProfile[];
+  defaultRuntimeProfileId: string;
   byokPresets: ByokPreset[];
   officialPresets: OfficialPreset[];
   defaultByokPresetId: string;
@@ -80,6 +95,13 @@ export interface SettingsStoreState extends PersistedSettingsSnapshot {
   byokRuntimeIssue: ByokRuntimeIssue | null;
   setDrawerOpen: (open: boolean) => void;
   setByokRuntimeIssue: (issue: ByokRuntimeIssue | null) => void;
+  upsertRuntimeProfile: (input: {
+    id?: string;
+    name: string;
+    target: RuntimeTarget;
+    baseUrl: string;
+  }) => string;
+  setDefaultRuntimeProfile: (id: string) => void;
   setDefaultMode: (mode: ChatMode) => void;
   upsertByokPreset: (input: {
     id?: string;
@@ -116,6 +138,9 @@ export interface SettingsStoreState extends PersistedSettingsSnapshot {
 }
 
 export interface CompileRuntimeOptions {
+  runtimeTarget: RuntimeTarget;
+  runtimeBaseUrl?: string;
+  runtimeCapabilities: RuntimeCapabilities;
   model?: string;
   byokEndpoint?: string;
   byokKey?: string;
@@ -147,6 +172,46 @@ const clampNumber = (
 };
 
 const makeId = (): string => `${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+
+const readGatewayBaseUrlFromEnv = (): string =>
+  (
+    (typeof import.meta !== "undefined" && import.meta.env
+      ? import.meta.env.VITE_GATEWAY_URL
+      : undefined) ??
+    process.env.VITE_GATEWAY_URL ??
+    ""
+  )
+    .trim()
+    .replace(/\/+$/, "");
+
+const createDefaultRuntimeProfiles = (): {
+  runtimeProfiles: RuntimeProfile[];
+  defaultRuntimeProfileId: string;
+} => {
+  const now = Date.now();
+  const gatewayBaseUrl = readGatewayBaseUrlFromEnv();
+  const gatewayProfile: RuntimeProfile = {
+    id: "runtime_gateway",
+    name: "Gateway",
+    target: "gateway",
+    baseUrl: gatewayBaseUrl,
+    updatedAt: now
+  };
+  const directProfile: RuntimeProfile = {
+    id: "runtime_direct",
+    name: "Direct BYOK",
+    target: "direct",
+    baseUrl: "",
+    updatedAt: now
+  };
+
+  return {
+    runtimeProfiles: [gatewayProfile, directProfile],
+    defaultRuntimeProfileId: gatewayBaseUrl
+      ? gatewayProfile.id
+      : directProfile.id
+  };
+};
 
 const createDefaultByokPreset = (): ByokPreset => ({
   id: `byok_${makeId()}`,
@@ -185,11 +250,14 @@ const canUseStorage = (): boolean =>
   typeof localStorage.setItem === "function";
 
 const makeDefaultSnapshot = (): PersistedSettingsSnapshot => {
+  const runtime = createDefaultRuntimeProfiles();
   const byok = createDefaultByokPreset();
   const official = createDefaultOfficialPreset();
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     defaultMode: "byok",
+    runtimeProfiles: runtime.runtimeProfiles,
+    defaultRuntimeProfileId: runtime.defaultRuntimeProfileId,
     byokPresets: [byok],
     officialPresets: [official],
     defaultByokPresetId: byok.id,
@@ -218,6 +286,27 @@ const normalizeSnapshot = (
   raw: Partial<PersistedSettingsSnapshot> | null | undefined
 ): PersistedSettingsSnapshot => {
   const fallback = makeDefaultSnapshot();
+  const runtimeProfiles =
+    Array.isArray(raw?.runtimeProfiles) && raw?.runtimeProfiles.length > 0
+      ? raw.runtimeProfiles
+          .map((item) => ({
+            id: String(item.id ?? ""),
+            name:
+              typeof item.name === "string" && item.name.trim()
+                ? item.name
+                : item.target === "gateway"
+                  ? "Gateway"
+                  : "Direct BYOK",
+            target: item.target === "gateway" ? "gateway" : "direct",
+            baseUrl:
+              typeof item.baseUrl === "string"
+                ? item.baseUrl.trim().replace(/\/+$/, "")
+                : "",
+            updatedAt:
+              typeof item.updatedAt === "number" ? item.updatedAt : Date.now()
+          }))
+          .filter((item) => item.id.length > 0)
+      : fallback.runtimeProfiles;
   const byokPresets =
     Array.isArray(raw?.byokPresets) && raw?.byokPresets.length > 0
       ? raw.byokPresets
@@ -236,10 +325,19 @@ const normalizeSnapshot = (
   )
     ? (raw?.defaultOfficialPresetId as string)
     : officialPresets[0].id;
+  const defaultRuntimeProfileId = runtimeProfiles.some(
+    (item) => item.id === raw?.defaultRuntimeProfileId
+  )
+    ? (raw?.defaultRuntimeProfileId as string)
+    : runtimeProfiles.some((item) => item.id === fallback.defaultRuntimeProfileId)
+      ? fallback.defaultRuntimeProfileId
+      : runtimeProfiles[0].id;
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     defaultMode: raw?.defaultMode === "official" ? "official" : "byok",
+    runtimeProfiles,
+    defaultRuntimeProfileId,
     byokPresets,
     officialPresets,
     defaultByokPresetId,
@@ -321,8 +419,10 @@ export const createSettingsStore = (
     }
   ) => {
     persistSnapshot({
-      schemaVersion: 2,
+      schemaVersion: 3,
       defaultMode: state.defaultMode,
+      runtimeProfiles: state.runtimeProfiles,
+      defaultRuntimeProfileId: state.defaultRuntimeProfileId,
       byokPresets: state.byokPresets,
       officialPresets: state.officialPresets,
       defaultByokPresetId: state.defaultByokPresetId,
@@ -346,6 +446,52 @@ export const createSettingsStore = (
       set(() => ({
         byokRuntimeIssue: issue
       })),
+    upsertRuntimeProfile: (input) => {
+      const id = input.id ?? `runtime_${makeId()}`;
+      set((state) => {
+        const existing = state.runtimeProfiles.find((item) => item.id === id);
+        const merged: RuntimeProfile = {
+          id,
+          name:
+            input.name.trim() ||
+            (input.target === "gateway" ? "Gateway" : "Direct BYOK"),
+          target: input.target,
+          baseUrl: input.baseUrl.trim().replace(/\/+$/, ""),
+          updatedAt: Date.now()
+        };
+        const runtimeProfiles = existing
+          ? state.runtimeProfiles.map((item) => (item.id === id ? merged : item))
+          : [merged, ...state.runtimeProfiles];
+        const defaultRuntimeProfileId =
+          state.defaultRuntimeProfileId || runtimeProfiles[0].id;
+        const next = {
+          ...state,
+          runtimeProfiles,
+          defaultRuntimeProfileId
+        };
+        saveState(next);
+        return {
+          runtimeProfiles,
+          defaultRuntimeProfileId
+        };
+      });
+
+      return id;
+    },
+    setDefaultRuntimeProfile: (id) =>
+      set((state) => {
+        if (!state.runtimeProfiles.some((item) => item.id === id)) {
+          return {};
+        }
+        const next = {
+          ...state,
+          defaultRuntimeProfileId: id
+        };
+        saveState(next);
+        return {
+          defaultRuntimeProfileId: id
+        };
+      }),
     setDefaultMode: (mode) =>
       set((state) => {
         const next = {
@@ -695,11 +841,35 @@ const getDefaultPreset = (mode: ChatMode, state: SettingsStoreState) => {
   );
 };
 
+const getDefaultRuntimeProfile = (
+  state: SettingsStoreState
+): RuntimeProfile => {
+  const preferred = state.runtimeProfiles.find(
+    (item) => item.id === state.defaultRuntimeProfileId
+  );
+  return preferred ?? state.runtimeProfiles[0];
+};
+
+export const resolveRuntimeProfile = (): {
+  profile: RuntimeProfile;
+  capabilities: RuntimeCapabilities;
+} => {
+  const state = settingsStore.getState();
+  const profile = getDefaultRuntimeProfile(state);
+  return {
+    profile,
+    capabilities: runtimeCapabilitiesByTarget[profile.target]
+  };
+};
+
 export const resolveCompileRuntimeOptions = async (params: {
   conversationId: string;
   mode: ChatMode;
 }): Promise<CompileRuntimeOptions> => {
   const state = settingsStore.getState();
+  const runtimeProfile = getDefaultRuntimeProfile(state);
+  const runtimeCapabilities = runtimeCapabilitiesByTarget[runtimeProfile.target];
+  const runtimeBaseUrl = runtimeProfile.baseUrl || undefined;
   const preset = getDefaultPreset(params.mode, state);
   const session = state.sessionOverrides[params.conversationId] ?? {};
 
@@ -709,7 +879,11 @@ export const resolveCompileRuntimeOptions = async (params: {
 
   if (params.mode === "byok") {
     const byokPreset = preset as ByokPreset;
-    byokEndpoint = byokPreset.endpoint || undefined;
+    if (runtimeProfile.target === "direct") {
+      byokEndpoint = byokPreset.endpoint || runtimeBaseUrl;
+    } else {
+      byokEndpoint = byokPreset.endpoint || undefined;
+    }
     if (byokPreset.apiKeyCipher) {
       try {
         byokKey = await browserSecretService.decrypt(byokPreset.apiKeyCipher);
@@ -737,6 +911,9 @@ export const resolveCompileRuntimeOptions = async (params: {
     : undefined;
 
   return {
+    runtimeTarget: runtimeProfile.target,
+    runtimeBaseUrl,
+    runtimeCapabilities,
     model: session.model ?? preset.model,
     byokEndpoint,
     byokKey,

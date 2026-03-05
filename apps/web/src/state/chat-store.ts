@@ -55,6 +55,8 @@ export interface ChatStoreDeps {
   compile: (input: {
     message: string;
     mode: ChatMode;
+    runtimeTarget?: "gateway" | "direct";
+    runtimeBaseUrl?: string;
     sessionToken: string | null;
     model?: string;
     byokEndpoint?: string;
@@ -94,6 +96,8 @@ const defaultDeps: ChatStoreDeps = {
   compile: ({
     message,
     mode,
+    runtimeTarget,
+    runtimeBaseUrl,
     sessionToken,
     model,
     byokEndpoint,
@@ -105,6 +109,8 @@ const defaultDeps: ChatStoreDeps = {
     compileChat({
       message,
       mode,
+      runtimeTarget,
+      runtimeBaseUrl,
       model,
       byokEndpoint,
       byokKey,
@@ -462,6 +468,49 @@ export const createChatStore = (
           conversationId: targetConversationId,
           mode: get().mode
         });
+        const runtimeSupportsOfficial =
+          runtime.runtimeCapabilities?.supportsOfficialAuth ?? true;
+
+        if (get().mode === "official" && !runtimeSupportsOfficial) {
+          const assistantMessage: ChatMessage = {
+            id: makeId(),
+            role: "assistant",
+            content: "当前运行时不支持 Official 模式，请切换到 Gateway 运行时或改用 BYOK。"
+          };
+          set((state) => {
+            const targetConversation = state.conversations.find(
+              (item) => item.id === targetConversationId
+            );
+            const updatedConversation = targetConversation
+              ? {
+                  ...targetConversation,
+                  updatedAt: Date.now(),
+                  messages: [...targetConversation.messages, assistantMessage]
+                }
+              : undefined;
+            const conversations = updatedConversation
+              ? moveConversationToTop(state.conversations, updatedConversation)
+              : state.conversations;
+            const messages = getMessagesForConversation(
+              conversations,
+              state.activeConversationId
+            );
+            persistSnapshot({
+              mode: state.mode,
+              sessionToken: state.sessionToken,
+              conversations,
+              activeConversationId: state.activeConversationId,
+              messages,
+              reauthRequired: state.reauthRequired
+            });
+            return {
+              conversations,
+              messages,
+              isSending: false
+            };
+          });
+          return;
+        }
 
         if (
           get().mode === "byok" &&
@@ -515,7 +564,7 @@ export const createChatStore = (
 
         deps.logEvent({
           level: "info",
-          message: `发送请求：mode=${get().mode} model=${runtime.model ?? "default"}`
+          message: `发送请求：target=${runtime.runtimeTarget} mode=${get().mode} model=${runtime.model ?? "default"}`
         });
 
         let lastError: unknown;
@@ -550,6 +599,8 @@ export const createChatStore = (
             const response = await deps.compile({
               message: content,
               mode: get().mode,
+              runtimeTarget: runtime.runtimeTarget,
+              runtimeBaseUrl: runtime.runtimeBaseUrl,
               sessionToken: get().sessionToken,
               model: runtime.model,
               byokEndpoint: runtime.byokEndpoint,

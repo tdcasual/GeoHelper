@@ -2,11 +2,13 @@ import { ChatMode } from "../services/api-client";
 
 interface ModelModeSwitcherProps {
   mode: ChatMode;
+  officialEnabled: boolean;
   onChange: (mode: ChatMode) => void;
 }
 
 export const ModelModeSwitcher = ({
   mode,
+  officialEnabled,
   onChange
 }: ModelModeSwitcherProps) => (
   <label className="mode-switcher">
@@ -16,7 +18,9 @@ export const ModelModeSwitcher = ({
       onChange={(event) => onChange(event.target.value as ChatMode)}
     >
       <option value="byok">BYOK</option>
-      <option value="official">Official</option>
+      <option value="official" disabled={!officialEnabled}>
+        Official
+      </option>
     </select>
   </label>
 );

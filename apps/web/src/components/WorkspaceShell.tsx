@@ -9,6 +9,7 @@ import {
   loginWithPresetToken,
   revokeOfficialSessionToken
 } from "../services/api-client";
+import { runtimeCapabilitiesByTarget } from "../runtime/types";
 import { useChatStore } from "../state/chat-store";
 import { useSceneStore } from "../state/scene-store";
 import { useSettingsStore } from "../state/settings-store";
@@ -41,6 +42,10 @@ export const WorkspaceShell = () => {
   const clearScene = useSceneStore((state) => state.clearScene);
   const settingsOpen = useSettingsStore((state) => state.drawerOpen);
   const setSettingsOpen = useSettingsStore((state) => state.setDrawerOpen);
+  const runtimeProfiles = useSettingsStore((state) => state.runtimeProfiles);
+  const defaultRuntimeProfileId = useSettingsStore(
+    (state) => state.defaultRuntimeProfileId
+  );
   const showAgentSteps = useSettingsStore(
     (state) => state.experimentFlags.showAgentSteps
   );
@@ -48,6 +53,16 @@ export const WorkspaceShell = () => {
   const [draft, setDraft] = useState("");
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const activeRuntimeProfile = useMemo(
+    () =>
+      runtimeProfiles.find((item) => item.id === defaultRuntimeProfileId) ??
+      runtimeProfiles[0],
+    [runtimeProfiles, defaultRuntimeProfileId]
+  );
+  const runtimeTarget = activeRuntimeProfile?.target ?? "direct";
+  const runtimeBaseUrl = activeRuntimeProfile?.baseUrl || undefined;
+  const runtimeCapabilities = runtimeCapabilitiesByTarget[runtimeTarget];
+  const runtimeSupportsOfficial = runtimeCapabilities.supportsOfficialAuth;
 
   const deviceId = useMemo(() => {
     const key = "geohelper.device.id";
@@ -62,6 +77,10 @@ export const WorkspaceShell = () => {
   }, []);
 
   const handleModeChange = (nextMode: "byok" | "official") => {
+    if (nextMode === "official" && !runtimeSupportsOfficial) {
+      setSettingsOpen(true);
+      return;
+    }
     setMode(nextMode);
     if (nextMode === "official" && !sessionToken) {
       setTokenDialogOpen(true);
@@ -69,11 +88,19 @@ export const WorkspaceShell = () => {
   };
 
   useEffect(() => {
-    if (mode === "official" && reauthRequired) {
+    if (mode === "official" && reauthRequired && runtimeSupportsOfficial) {
       setTokenDialogOpen(true);
       acknowledgeReauth();
     }
-  }, [mode, reauthRequired, acknowledgeReauth]);
+  }, [mode, reauthRequired, runtimeSupportsOfficial, acknowledgeReauth]);
+
+  useEffect(() => {
+    if (mode === "official" && !runtimeSupportsOfficial) {
+      setMode("byok");
+      setSessionToken(null);
+      setTokenDialogOpen(false);
+    }
+  }, [mode, runtimeSupportsOfficial, setMode, setSessionToken]);
 
   const handleOfficialLogout = async () => {
     if (!sessionToken) {
@@ -81,7 +108,10 @@ export const WorkspaceShell = () => {
     }
 
     try {
-      await revokeOfficialSessionToken(sessionToken);
+      await revokeOfficialSessionToken(sessionToken, {
+        runtimeTarget,
+        runtimeBaseUrl
+      });
     } catch {
       // Even when revoke fails remotely, local session must be cleared.
     }
@@ -109,7 +139,12 @@ export const WorkspaceShell = () => {
       <header className="top-bar">
         <h1>GeoHelper</h1>
         <div className="top-bar-actions">
-          <ModelModeSwitcher mode={mode} onChange={handleModeChange} />
+          <ModelModeSwitcher
+            mode={mode}
+            officialEnabled={runtimeSupportsOfficial}
+            onChange={handleModeChange}
+          />
+          <span className="runtime-tag">{`Runtime: ${activeRuntimeProfile?.name ?? runtimeTarget}`}</span>
           <button type="button" onClick={() => setSettingsOpen(true)}>
             设置
           </button>
@@ -133,7 +168,7 @@ export const WorkspaceShell = () => {
           >
             清空画布
           </button>
-          {mode === "official" && sessionToken ? (
+          {mode === "official" && sessionToken && runtimeSupportsOfficial ? (
             <button type="button" onClick={handleOfficialLogout}>
               退出官方会话
             </button>
@@ -278,10 +313,13 @@ export const WorkspaceShell = () => {
         </ChatPanel>
       </div>
       <TokenGateDialog
-        open={tokenDialogOpen}
+        open={tokenDialogOpen && runtimeSupportsOfficial}
         onClose={() => setTokenDialogOpen(false)}
         onSubmit={async (token) => {
-          const result = await loginWithPresetToken(token, deviceId);
+          const result = await loginWithPresetToken(token, deviceId, {
+            runtimeTarget,
+            runtimeBaseUrl
+          });
           setSessionToken(result.session_token);
           setTokenDialogOpen(false);
         }}

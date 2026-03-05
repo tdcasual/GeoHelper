@@ -7,7 +7,7 @@ Updated: 2026-03-05
 
 ### Web (`apps/web`)
 
-- `VITE_GATEWAY_URL` (required): Gateway base URL used by static web build.
+- `VITE_GATEWAY_URL` (optional): Gateway base URL used by static web build. If unset, app defaults to Direct BYOK runtime.
 
 ### Gateway (`apps/gateway`)
 
@@ -40,7 +40,7 @@ Updated: 2026-03-05
 - Benchmark runner executes sequentially to avoid false positives under strict rate limits.
 - `retry_count` currently estimates repair pass count from agent step signals, not full retry traces.
 - Web is local-first persistence only (IndexedDB/localStorage); cloud history sync is not in beta scope.
-- Official mode requires manual token re-entry after session expiry.
+- Official mode requires gateway runtime and manual token re-entry after session expiry.
 
 ## On-call & Contacts
 

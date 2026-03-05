@@ -30,7 +30,7 @@ Required env vars:
 
 - `EDGEONE_PROJECT_NAME`
 - `EDGEONE_API_TOKEN`
-- `VITE_GATEWAY_URL`
+- optional: `VITE_GATEWAY_URL` (when omitted, web runs in Direct BYOK-first mode)
 - optional: `EDGEONE_ENVIRONMENT` (default `preview`)
 - Template file: `.env.release.example`
 
@@ -41,6 +41,14 @@ pnpm --filter @geohelper/web build
 EDGEONE_PROJECT_NAME=<project> \
 EDGEONE_API_TOKEN=<token> \
 VITE_GATEWAY_URL=https://<staging-gateway-domain> \
+bash scripts/deploy/edgeone-deploy.sh
+```
+
+Direct BYOK-only deploy (no gateway URL at build time):
+
+```bash
+EDGEONE_PROJECT_NAME=<project> \
+EDGEONE_API_TOKEN=<token> \
 bash scripts/deploy/edgeone-deploy.sh
 ```
 
@@ -111,7 +119,8 @@ pnpm smoke:live-model
 Then open the web staging URL and verify:
 
 - chat panel hide/show works
-- official/byok mode switch works
+- runtime switch works (`Gateway` / `Direct BYOK`)
+- official mode is available only when gateway runtime is configured
 - compile pipeline returns rendered result
 
 Quality benchmark dry-run:

@@ -180,6 +180,15 @@ body {
   padding: 0 8px;
 }
 
+.runtime-tag {
+  font-size: 12px;
+  color: #1d3557;
+  background: #eaf2ff;
+  border: 1px solid #c9dafb;
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
 .chat-body {
   flex: 1;
   min-width: 0;

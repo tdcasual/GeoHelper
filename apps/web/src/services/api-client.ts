@@ -1,13 +1,23 @@
-import { CommandBatch } from "@geohelper/protocol";
+import { createDirectClient } from "../runtime/direct-client";
+import { createGatewayClient } from "../runtime/gateway-client";
+import {
+  createRuntimeOrchestrator,
+  RuntimeApiError
+} from "../runtime/orchestrator";
+import {
+  AgentStep,
+  ChatMode,
+  RuntimeCapabilities,
+  RuntimeCompileResponse,
+  RuntimeTarget
+} from "../runtime/types";
 
-export type ChatMode = "byok" | "official";
+const runtimeOrchestrator = createRuntimeOrchestrator({
+  gateway: createGatewayClient(),
+  direct: createDirectClient()
+});
 
-export interface AgentStep {
-  name: string;
-  status: "ok" | "fallback" | "error" | "skipped";
-  duration_ms: number;
-  detail?: string;
-}
+export type { AgentStep, ChatMode, RuntimeTarget, RuntimeCapabilities };
 
 export interface CompileRequest {
   message: string;
@@ -29,20 +39,11 @@ export interface CompileRequest {
       commandCount: number;
     }>;
   };
+  runtimeTarget?: RuntimeTarget;
+  runtimeBaseUrl?: string;
 }
 
-export interface CompileResponse {
-  trace_id?: string;
-  batch: CommandBatch;
-  agent_steps?: AgentStep[];
-}
-
-export interface ApiErrorPayload {
-  error?: {
-    code?: string;
-    message?: string;
-  };
-}
+export type CompileResponse = RuntimeCompileResponse;
 
 export class GatewayApiError extends Error {
   code: string;
@@ -55,116 +56,87 @@ export class GatewayApiError extends Error {
   }
 }
 
-const getGatewayBaseUrl = (): string =>
-  import.meta.env.VITE_GATEWAY_URL ?? "http://localhost:8787";
+const toGatewayError = (
+  error: unknown,
+  fallbackCode: string,
+  fallbackMessage: string,
+  fallbackStatus: number
+): GatewayApiError => {
+  if (error instanceof GatewayApiError) {
+    return error;
+  }
+
+  if (error instanceof RuntimeApiError) {
+    return new GatewayApiError(error.code, error.message, error.status);
+  }
+
+  if (error instanceof Error) {
+    return new GatewayApiError(fallbackCode, error.message, fallbackStatus);
+  }
+
+  return new GatewayApiError(fallbackCode, fallbackMessage, fallbackStatus);
+};
+
+export const getRuntimeCapabilities = (
+  runtimeTarget: RuntimeTarget
+): RuntimeCapabilities => runtimeOrchestrator.getCapabilities(runtimeTarget);
 
 export const loginWithPresetToken = async (
   token: string,
-  deviceId: string
-): Promise<{ session_token: string; expires_in: number; token_type: string }> => {
-  const response = await fetch(
-    `${getGatewayBaseUrl()}/api/v1/auth/token/login`,
-    {
-      method: "POST",
-      headers: {
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        token,
-        device_id: deviceId
-      })
-    }
-  );
-
-  if (!response.ok) {
-    const payload = (await response
-      .json()
-      .catch(() => ({}))) as ApiErrorPayload;
-    const code = payload.error?.code ?? "AUTH_FAILED";
-    const message = payload.error?.message ?? "Authentication failed";
-    throw new GatewayApiError(code, message, response.status);
+  deviceId: string,
+  options?: {
+    runtimeTarget?: RuntimeTarget;
+    runtimeBaseUrl?: string;
   }
-
-  return response.json();
+): Promise<{ session_token: string; expires_in: number; token_type: string }> => {
+  try {
+    return await runtimeOrchestrator.loginWithPresetToken({
+      target: options?.runtimeTarget ?? "gateway",
+      baseUrl: options?.runtimeBaseUrl,
+      token,
+      deviceId
+    });
+  } catch (error) {
+    throw toGatewayError(error, "AUTH_FAILED", "Authentication failed", 401);
+  }
 };
 
 export const revokeOfficialSessionToken = async (
-  sessionToken: string
+  sessionToken: string,
+  options?: {
+    runtimeTarget?: RuntimeTarget;
+    runtimeBaseUrl?: string;
+  }
 ): Promise<void> => {
-  const response = await fetch(
-    `${getGatewayBaseUrl()}/api/v1/auth/token/revoke`,
-    {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${sessionToken}`
-      }
-    }
-  );
-
-  if (!response.ok) {
-    const payload = (await response
-      .json()
-      .catch(() => ({}))) as ApiErrorPayload;
-    const code = payload.error?.code ?? "REVOKE_FAILED";
-    const message = payload.error?.message ?? "Revoke failed";
-    throw new GatewayApiError(code, message, response.status);
+  try {
+    await runtimeOrchestrator.revokeOfficialSessionToken({
+      target: options?.runtimeTarget ?? "gateway",
+      baseUrl: options?.runtimeBaseUrl,
+      sessionToken
+    });
+  } catch (error) {
+    throw toGatewayError(error, "REVOKE_FAILED", "Revoke failed", 400);
   }
 };
 
 export const compileChat = async (
   request: CompileRequest
 ): Promise<CompileResponse> => {
-  const headers: Record<string, string> = {
-    "content-type": "application/json"
-  };
-
-  if (request.mode === "official" && request.sessionToken) {
-    headers.authorization = `Bearer ${request.sessionToken}`;
-  }
-
-  if (request.byokEndpoint) {
-    headers["x-byok-endpoint"] = request.byokEndpoint;
-  }
-
-  if (request.byokKey) {
-    headers["x-byok-key"] = request.byokKey;
-  }
-
-  if (request.extraHeaders) {
-    Object.assign(headers, request.extraHeaders);
-  }
-
-  const controller =
-    typeof AbortController !== "undefined" ? new AbortController() : undefined;
-  const timeoutHandle =
-    controller && request.timeoutMs && request.timeoutMs > 0
-      ? setTimeout(() => controller.abort(), request.timeoutMs)
-      : undefined;
-
-  const response = await fetch(`${getGatewayBaseUrl()}/api/v1/chat/compile`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
+  try {
+    return await runtimeOrchestrator.compile({
+      target: request.runtimeTarget ?? "gateway",
+      baseUrl: request.runtimeBaseUrl,
       message: request.message,
       mode: request.mode,
       model: request.model,
-      context: request.context
-    }),
-    signal: controller?.signal
-  }).finally(() => {
-    if (timeoutHandle) {
-      clearTimeout(timeoutHandle);
-    }
-  });
-
-  if (!response.ok) {
-    const payload = (await response
-      .json()
-      .catch(() => ({}))) as ApiErrorPayload;
-    const code = payload.error?.code ?? "COMPILE_FAILED";
-    const message = payload.error?.message ?? "Compile failed";
-    throw new GatewayApiError(code, message, response.status);
+      byokEndpoint: request.byokEndpoint,
+      byokKey: request.byokKey,
+      timeoutMs: request.timeoutMs,
+      extraHeaders: request.extraHeaders,
+      context: request.context,
+      sessionToken: request.sessionToken
+    });
+  } catch (error) {
+    throw toGatewayError(error, "COMPILE_FAILED", "Compile failed", 502);
   }
-
-  return response.json();
 };

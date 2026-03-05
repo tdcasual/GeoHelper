@@ -44,6 +44,11 @@ EDGEONE_PROJECT_NAME=<project> EDGEONE_API_TOKEN=<token> VITE_GATEWAY_URL=https:
 
 3. Gateway/Web deploy is manual by design (no auto deploy workflow).
 
+Notes:
+
+- `VITE_GATEWAY_URL` is optional for pure Direct BYOK mode.
+- If `VITE_GATEWAY_URL` is unset, web defaults to `Direct BYOK` runtime and Official mode is unavailable until a Gateway runtime is configured in settings.
+
 ## Live Model Smoke
 
 ```bash

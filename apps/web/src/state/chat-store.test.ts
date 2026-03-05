@@ -34,6 +34,7 @@ describe("chat-store", () => {
   });
 
   it("marks reauth required when official session expires", async () => {
+    settingsStore.getState().setDefaultRuntimeProfile("runtime_gateway");
     const compile = vi
       .fn()
       .mockRejectedValue(
@@ -52,6 +53,7 @@ describe("chat-store", () => {
     expect(store.getState().sessionToken).toBeNull();
     expect(store.getState().reauthRequired).toBe(true);
     expect(store.getState().messages.at(-1)?.content).toContain("会话已过期");
+    settingsStore.getState().setDefaultRuntimeProfile("runtime_direct");
   });
 
   it("isolates messages between conversations when switching", async () => {
@@ -202,5 +204,35 @@ describe("chat-store", () => {
     ).toBe(true);
 
     sceneStore.getState().clearHistory();
+  });
+
+  it("skips compile when runtime does not support official mode", async () => {
+    const compile = vi.fn();
+    const resolveCompileOptions = vi.fn().mockResolvedValue({
+      runtimeTarget: "direct",
+      runtimeBaseUrl: undefined,
+      runtimeCapabilities: {
+        supportsOfficialAuth: false,
+        supportsAgentSteps: false,
+        supportsServerMetrics: false,
+        supportsRateLimitHeaders: false
+      },
+      model: "gpt-4o-mini",
+      retryAttempts: 0,
+      extraHeaders: {}
+    });
+    const store = createChatStore({
+      compile,
+      resolveCompileOptions,
+      logEvent: vi.fn()
+    });
+    store.getState().setMode("official");
+
+    await store.getState().send("画一个圆");
+
+    expect(compile).not.toHaveBeenCalled();
+    expect(store.getState().messages.at(-1)?.content).toContain(
+      "不支持 Official 模式"
+    );
   });
 });

@@ -4,6 +4,7 @@ import { ChatMode } from "../services/api-client";
 import {
   ByokPreset,
   OfficialPreset,
+  RuntimeProfile,
   useSettingsStore
 } from "../state/settings-store";
 import {
@@ -41,6 +42,13 @@ interface OfficialDraft {
   temperature: string;
   maxTokens: string;
   timeoutMs: string;
+}
+
+interface RuntimeDraft {
+  id: string;
+  name: string;
+  target: "gateway" | "direct";
+  baseUrl: string;
 }
 
 const fromByokPreset = (preset: ByokPreset | undefined): ByokDraft => ({
@@ -85,6 +93,13 @@ const makeEmptyOfficialDraft = (): OfficialDraft => ({
   timeoutMs: "20000"
 });
 
+const fromRuntimeProfile = (profile: RuntimeProfile | undefined): RuntimeDraft => ({
+  id: profile?.id ?? "runtime_direct",
+  name: profile?.name ?? "Direct BYOK",
+  target: profile?.target ?? "direct",
+  baseUrl: profile?.baseUrl ?? ""
+});
+
 export const SettingsDrawer = ({
   open,
   activeConversationId,
@@ -93,6 +108,10 @@ export const SettingsDrawer = ({
   onApplyMode
 }: SettingsDrawerProps) => {
   const defaultMode = useSettingsStore((state) => state.defaultMode);
+  const runtimeProfiles = useSettingsStore((state) => state.runtimeProfiles);
+  const defaultRuntimeProfileId = useSettingsStore(
+    (state) => state.defaultRuntimeProfileId
+  );
   const byokPresets = useSettingsStore((state) => state.byokPresets);
   const officialPresets = useSettingsStore((state) => state.officialPresets);
   const defaultByokPresetId = useSettingsStore(
@@ -106,6 +125,12 @@ export const SettingsDrawer = ({
   const requestDefaults = useSettingsStore((state) => state.requestDefaults);
   const debugEvents = useSettingsStore((state) => state.debugEvents);
   const byokRuntimeIssue = useSettingsStore((state) => state.byokRuntimeIssue);
+  const upsertRuntimeProfile = useSettingsStore(
+    (state) => state.upsertRuntimeProfile
+  );
+  const setDefaultRuntimeProfile = useSettingsStore(
+    (state) => state.setDefaultRuntimeProfile
+  );
   const setDefaultMode = useSettingsStore((state) => state.setDefaultMode);
   const upsertByokPreset = useSettingsStore((state) => state.upsertByokPreset);
   const removeByokPreset = useSettingsStore((state) => state.removeByokPreset);
@@ -139,12 +164,20 @@ export const SettingsDrawer = ({
   const [selectedOfficialId, setSelectedOfficialId] = useState(
     defaultOfficialPresetId
   );
+  const [selectedRuntimeId, setSelectedRuntimeId] = useState(
+    defaultRuntimeProfileId
+  );
   const [byokDraft, setByokDraft] = useState<ByokDraft>(
     fromByokPreset(byokPresets.find((item) => item.id === defaultByokPresetId))
   );
   const [officialDraft, setOfficialDraft] = useState<OfficialDraft>(
     fromOfficialPreset(
       officialPresets.find((item) => item.id === defaultOfficialPresetId)
+    )
+  );
+  const [runtimeDraft, setRuntimeDraft] = useState<RuntimeDraft>(
+    fromRuntimeProfile(
+      runtimeProfiles.find((item) => item.id === defaultRuntimeProfileId)
     )
   );
 
@@ -170,6 +203,7 @@ export const SettingsDrawer = ({
   );
   const [savingByok, setSavingByok] = useState(false);
   const [savingOfficial, setSavingOfficial] = useState(false);
+  const [savingRuntime, setSavingRuntime] = useState(false);
   const [backupMessage, setBackupMessage] = useState<string | null>(null);
   const [pendingBackupFile, setPendingBackupFile] = useState<File | null>(null);
   const [backupInspection, setBackupInspection] =
@@ -198,6 +232,17 @@ export const SettingsDrawer = ({
     const preset = officialPresets.find((item) => item.id === selectedOfficialId);
     setOfficialDraft(fromOfficialPreset(preset));
   }, [officialPresets, selectedOfficialId]);
+
+  useEffect(() => {
+    if (!runtimeProfiles.some((item) => item.id === selectedRuntimeId)) {
+      setSelectedRuntimeId(defaultRuntimeProfileId);
+    }
+  }, [runtimeProfiles, selectedRuntimeId, defaultRuntimeProfileId]);
+
+  useEffect(() => {
+    const profile = runtimeProfiles.find((item) => item.id === selectedRuntimeId);
+    setRuntimeDraft(fromRuntimeProfile(profile));
+  }, [runtimeProfiles, selectedRuntimeId]);
 
   useEffect(() => {
     setSessionModel(sessionOverride.model ?? "");
@@ -306,6 +351,104 @@ export const SettingsDrawer = ({
               <option value="official">Official</option>
             </select>
           </label>
+          <label>
+            默认运行时
+            <select
+              value={defaultRuntimeProfileId}
+              onChange={(event) => setDefaultRuntimeProfile(event.target.value)}
+            >
+              {runtimeProfiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {`${profile.name} (${profile.target})`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="settings-inline-actions">
+            <select
+              value={selectedRuntimeId}
+              onChange={(event) => setSelectedRuntimeId(event.target.value)}
+            >
+              {runtimeProfiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {`${profile.name} (${profile.target})`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <label>
+            运行时名称
+            <input
+              value={runtimeDraft.name}
+              onChange={(event) =>
+                setRuntimeDraft((prev) => ({
+                  ...prev,
+                  name: event.target.value
+                }))
+              }
+            />
+          </label>
+          <label>
+            运行时类型
+            <select
+              value={runtimeDraft.target}
+              onChange={(event) =>
+                setRuntimeDraft((prev) => ({
+                  ...prev,
+                  target: event.target.value as "gateway" | "direct"
+                }))
+              }
+              disabled={
+                runtimeDraft.id === "runtime_gateway" ||
+                runtimeDraft.id === "runtime_direct"
+              }
+            >
+              <option value="gateway">gateway</option>
+              <option value="direct">direct</option>
+            </select>
+          </label>
+          <label>
+            Base URL（gateway 必填，direct 可选）
+            <input
+              placeholder={
+                runtimeDraft.target === "gateway"
+                  ? "https://your-gateway-domain"
+                  : "https://openrouter.ai/api/v1"
+              }
+              value={runtimeDraft.baseUrl}
+              onChange={(event) =>
+                setRuntimeDraft((prev) => ({
+                  ...prev,
+                  baseUrl: event.target.value
+                }))
+              }
+            />
+          </label>
+          <div className="settings-inline-actions">
+            <button
+              type="button"
+              disabled={savingRuntime}
+              onClick={() => {
+                setSavingRuntime(true);
+                const id = upsertRuntimeProfile({
+                  id: runtimeDraft.id,
+                  name: runtimeDraft.name,
+                  target: runtimeDraft.target,
+                  baseUrl: runtimeDraft.baseUrl
+                });
+                setSelectedRuntimeId(id);
+                setSavingRuntime(false);
+              }}
+            >
+              保存运行时
+            </button>
+            <button
+              type="button"
+              onClick={() => setDefaultRuntimeProfile(selectedRuntimeId)}
+            >
+              设为默认运行时
+            </button>
+          </div>
           <div className="settings-inline-actions">
             <span>当前模式：{currentMode}</span>
             <button type="button" onClick={() => onApplyMode(defaultMode)}>

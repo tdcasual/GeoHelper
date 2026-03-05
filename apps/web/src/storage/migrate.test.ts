@@ -85,8 +85,10 @@ describe("migrate", () => {
     expect(chatSnapshot.conversations.length).toBe(1);
     expect(chatSnapshot.activeConversationId).toBe(chatSnapshot.conversations[0].id);
     expect(chatSnapshot.messages[0].content).toBe("legacy");
-    expect(settingsSnapshot.schemaVersion).toBe(2);
+    expect(settingsSnapshot.schemaVersion).toBe(3);
     expect(settingsSnapshot.defaultMode).toBe("official");
+    expect(Array.isArray(settingsSnapshot.runtimeProfiles)).toBe(true);
+    expect(typeof settingsSnapshot.defaultRuntimeProfileId).toBe("string");
     expect(uiSnapshot.chatVisible).toBe(true);
     expect(templateSnapshot.schemaVersion).toBe(1);
     expect(templateSnapshot.templates[0].id).toBe("tpl_1");

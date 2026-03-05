@@ -93,6 +93,46 @@ const normalizePresetList = (
     .filter((item) => item.id.length > 0);
 };
 
+const readGatewayBaseUrlFromEnv = (): string =>
+  (
+    (typeof import.meta !== "undefined" && import.meta.env
+      ? import.meta.env.VITE_GATEWAY_URL
+      : undefined) ??
+    process.env.VITE_GATEWAY_URL ??
+    ""
+  )
+    .trim()
+    .replace(/\/+$/, "");
+
+const buildDefaultRuntimeProfiles = (): {
+  runtimeProfiles: Array<Record<string, unknown>>;
+  defaultRuntimeProfileId: string;
+} => {
+  const now = Date.now();
+  const gatewayBaseUrl = readGatewayBaseUrlFromEnv();
+  const gatewayProfile = {
+    id: "runtime_gateway",
+    name: "Gateway",
+    target: "gateway",
+    baseUrl: gatewayBaseUrl,
+    updatedAt: now
+  };
+  const directProfile = {
+    id: "runtime_direct",
+    name: "Direct BYOK",
+    target: "direct",
+    baseUrl: "",
+    updatedAt: now
+  };
+
+  return {
+    runtimeProfiles: [gatewayProfile, directProfile],
+    defaultRuntimeProfileId: gatewayBaseUrl
+      ? gatewayProfile.id
+      : directProfile.id
+  };
+};
+
 const migrateChatSnapshot = (source: unknown): Record<string, unknown> | null => {
   const raw = asObject(source);
   if (!raw) {
@@ -153,10 +193,45 @@ const migrateSettingsSnapshot = (
     officialPresets.some((item) => item.id === raw.defaultOfficialPresetId)
       ? raw.defaultOfficialPresetId
       : officialPresets[0]?.id;
+  const runtimeDefaults = buildDefaultRuntimeProfiles();
+  const runtimeProfiles =
+    Array.isArray(raw.runtimeProfiles) && raw.runtimeProfiles.length > 0
+      ? raw.runtimeProfiles
+          .map((item) => asObject(item))
+          .filter((item): item is Record<string, unknown> => Boolean(item))
+          .map((item) => ({
+            id: String(item.id ?? ""),
+            name:
+              typeof item.name === "string" && item.name.trim()
+                ? item.name
+                : item.target === "gateway"
+                  ? "Gateway"
+                  : "Direct BYOK",
+            target: item.target === "gateway" ? "gateway" : "direct",
+            baseUrl:
+              typeof item.baseUrl === "string"
+                ? item.baseUrl.trim().replace(/\/+$/, "")
+                : "",
+            updatedAt:
+              typeof item.updatedAt === "number" ? item.updatedAt : Date.now()
+          }))
+          .filter((item) => item.id.length > 0)
+      : runtimeDefaults.runtimeProfiles;
+  const defaultRuntimeProfileId =
+    typeof raw.defaultRuntimeProfileId === "string" &&
+    runtimeProfiles.some((item) => item.id === raw.defaultRuntimeProfileId)
+      ? raw.defaultRuntimeProfileId
+      : runtimeProfiles.some(
+            (item) => item.id === runtimeDefaults.defaultRuntimeProfileId
+          )
+        ? runtimeDefaults.defaultRuntimeProfileId
+        : (runtimeProfiles[0]?.id ?? "runtime_direct");
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     defaultMode: raw.defaultMode === "official" ? "official" : "byok",
+    runtimeProfiles,
+    defaultRuntimeProfileId,
     byokPresets,
     officialPresets,
     defaultByokPresetId,

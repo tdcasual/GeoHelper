@@ -285,6 +285,10 @@ const mergeSettingsSnapshot = (
     toPresetList(current.officialPresets),
     toPresetList(incoming.officialPresets)
   );
+  const runtimeProfiles = mergeByIdAndUpdatedAt(
+    toPresetList(current.runtimeProfiles),
+    toPresetList(incoming.runtimeProfiles)
+  );
   const currentSessionOverrides = asObject(current.sessionOverrides) ?? {};
   const incomingSessionOverrides = asObject(incoming.sessionOverrides) ?? {};
   const currentExperimentFlags = asObject(current.experimentFlags) ?? {};
@@ -336,10 +340,29 @@ const mergeSettingsSnapshot = (
       candidate &&
       officialPresets.some((item) => item.id === candidate)
   );
+  const currentDefaultRuntimeProfileId =
+    typeof current.defaultRuntimeProfileId === "string"
+      ? current.defaultRuntimeProfileId
+      : undefined;
+  const incomingDefaultRuntimeProfileId =
+    typeof incoming.defaultRuntimeProfileId === "string"
+      ? incoming.defaultRuntimeProfileId
+      : undefined;
+  const defaultRuntimeProfileId = [
+    incomingDefaultRuntimeProfileId,
+    currentDefaultRuntimeProfileId
+  ].find(
+    (candidate) =>
+      candidate &&
+      runtimeProfiles.some((item) => item.id === candidate)
+  );
 
   return {
     ...current,
     ...incoming,
+    runtimeProfiles,
+    defaultRuntimeProfileId:
+      defaultRuntimeProfileId ?? runtimeProfiles[0]?.id,
     byokPresets,
     officialPresets,
     defaultByokPresetId: defaultByokPresetId ?? byokPresets[0]?.id,
