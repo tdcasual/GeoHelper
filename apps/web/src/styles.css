@@ -380,6 +380,146 @@ body {
   font-size: 13px;
 }
 
+.settings-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 19, 38, 0.28);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 40;
+}
+
+.settings-drawer {
+  width: min(520px, 92vw);
+  background: #fff;
+  border-left: 1px solid #d8e1ef;
+  height: 100%;
+  overflow: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-drawer-header h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.settings-drawer-header button {
+  border: 1px solid #c8d6ee;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.settings-section {
+  border: 1px solid #e6edf8;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-section h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.settings-section label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.settings-section input,
+.settings-section select {
+  height: 34px;
+  border: 1px solid #d3ddef;
+  border-radius: 8px;
+  padding: 0 10px;
+}
+
+.settings-inline-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.settings-inline-actions button {
+  border: 1px solid #b9c9e6;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #1d3557;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.settings-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settings-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settings-checkbox {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+}
+
+.settings-checkbox input {
+  width: auto;
+  height: auto;
+}
+
+.settings-hint {
+  margin: 0;
+  font-size: 13px;
+  color: #607089;
+}
+
+.debug-log-panel {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid #e6edf8;
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.debug-log-panel article {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.debug-log-info span {
+  color: #124469;
+}
+
+.debug-log-error span {
+  color: #b42318;
+}
+
 .workspace-shell.chat-collapsed .canvas-panel {
   width: 100%;
 }
@@ -391,5 +531,9 @@ body {
 
   .conversation-sidebar {
     width: 160px;
+  }
+
+  .settings-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

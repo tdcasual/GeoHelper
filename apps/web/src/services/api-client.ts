@@ -16,6 +16,8 @@ export interface CompileRequest {
   sessionToken?: string;
   byokEndpoint?: string;
   byokKey?: string;
+  timeoutMs?: number;
+  extraHeaders?: Record<string, string>;
 }
 
 export interface CompileResponse {
@@ -117,6 +119,17 @@ export const compileChat = async (
     headers["x-byok-key"] = request.byokKey;
   }
 
+  if (request.extraHeaders) {
+    Object.assign(headers, request.extraHeaders);
+  }
+
+  const controller =
+    typeof AbortController !== "undefined" ? new AbortController() : undefined;
+  const timeoutHandle =
+    controller && request.timeoutMs && request.timeoutMs > 0
+      ? setTimeout(() => controller.abort(), request.timeoutMs)
+      : undefined;
+
   const response = await fetch(`${getGatewayBaseUrl()}/api/v1/chat/compile`, {
     method: "POST",
     headers,
@@ -124,7 +137,12 @@ export const compileChat = async (
       message: request.message,
       mode: request.mode,
       model: request.model
-    })
+    }),
+    signal: controller?.signal
+  }).finally(() => {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
   });
 
   if (!response.ok) {

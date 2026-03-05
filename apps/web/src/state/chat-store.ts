@@ -10,6 +10,11 @@ import {
   CompileResponse,
   GatewayApiError
 } from "../services/api-client";
+import {
+  appendDebugEventIfEnabled,
+  CompileRuntimeOptions,
+  resolveCompileRuntimeOptions
+} from "./settings-store";
 
 export interface ChatMessage {
   id: string;
@@ -48,8 +53,18 @@ export interface ChatStoreDeps {
     message: string;
     mode: ChatMode;
     sessionToken: string | null;
+    model?: string;
+    byokEndpoint?: string;
+    byokKey?: string;
+    timeoutMs?: number;
+    extraHeaders?: Record<string, string>;
   }) => Promise<CompileResponse>;
   execute: (batch: CommandBatch) => Promise<void>;
+  resolveCompileOptions: (input: {
+    conversationId: string;
+    mode: ChatMode;
+  }) => Promise<CompileRuntimeOptions>;
+  logEvent: (event: { level: "info" | "error"; message: string }) => void;
 }
 
 interface PersistedChatSnapshot {
@@ -62,13 +77,33 @@ interface PersistedChatSnapshot {
 }
 
 const defaultDeps: ChatStoreDeps = {
-  compile: ({ message, mode, sessionToken }) =>
+  compile: ({
+    message,
+    mode,
+    sessionToken,
+    model,
+    byokEndpoint,
+    byokKey,
+    timeoutMs,
+    extraHeaders
+  }) =>
     compileChat({
       message,
       mode,
+      model,
+      byokEndpoint,
+      byokKey,
+      timeoutMs,
+      extraHeaders,
       sessionToken: sessionToken ?? undefined
     }),
-  execute: (batch) => executeBatch(batch)
+  execute: (batch) => executeBatch(batch),
+  resolveCompileOptions: ({ conversationId, mode }) =>
+    resolveCompileRuntimeOptions({
+      conversationId,
+      mode
+    }),
+  logEvent: (event) => appendDebugEventIfEnabled(event)
 };
 
 const makeId = (): string => `${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
@@ -406,11 +441,69 @@ export const createChatStore = (
       });
 
       try {
-        const { batch, agent_steps: agentSteps, trace_id: traceId } = await deps.compile({
-          message: content,
-          mode: get().mode,
-          sessionToken: get().sessionToken
+        const runtime = await deps.resolveCompileOptions({
+          conversationId: targetConversationId,
+          mode: get().mode
         });
+
+        deps.logEvent({
+          level: "info",
+          message: `发送请求：mode=${get().mode} model=${runtime.model ?? "default"}`
+        });
+
+        let lastError: unknown;
+        let compileResult:
+          | {
+              batch: CompileResponse["batch"];
+              agentSteps: CompileResponse["agent_steps"];
+              traceId: CompileResponse["trace_id"];
+            }
+          | undefined;
+
+        for (let attempt = 0; attempt <= runtime.retryAttempts; attempt += 1) {
+          try {
+            const response = await deps.compile({
+              message: content,
+              mode: get().mode,
+              sessionToken: get().sessionToken,
+              model: runtime.model,
+              byokEndpoint: runtime.byokEndpoint,
+              byokKey: runtime.byokKey,
+              timeoutMs: runtime.timeoutMs,
+              extraHeaders: runtime.extraHeaders
+            });
+            compileResult = {
+              batch: response.batch,
+              agentSteps: response.agent_steps,
+              traceId: response.trace_id
+            };
+            break;
+          } catch (error) {
+            lastError = error;
+            const isSessionExpired =
+              error instanceof GatewayApiError &&
+              (error.code === "SESSION_EXPIRED" ||
+                error.code === "MISSING_AUTH_HEADER") &&
+              get().mode === "official";
+            const shouldRetry =
+              !isSessionExpired && attempt < runtime.retryAttempts;
+            deps.logEvent({
+              level: shouldRetry ? "info" : "error",
+              message: shouldRetry
+                ? `请求失败，准备重试 (${attempt + 1}/${runtime.retryAttempts})`
+                : "请求失败，停止重试"
+            });
+            if (!shouldRetry) {
+              throw error;
+            }
+          }
+        }
+
+        if (!compileResult) {
+          throw lastError ?? new Error("Compile result is empty");
+        }
+
+        const { batch, agentSteps, traceId } = compileResult;
         await deps.execute(batch);
 
         const assistantMessage: ChatMessage = {

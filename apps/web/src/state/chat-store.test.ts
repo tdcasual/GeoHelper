@@ -82,4 +82,42 @@ describe("chat-store", () => {
       false
     );
   });
+
+  it("retries compile when runtime options enable retries", async () => {
+    const compile = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValue({
+        batch: {
+          version: "1.0",
+          scene_id: "s1",
+          transaction_id: "t1",
+          commands: [],
+          post_checks: [],
+          explanations: []
+        },
+        agent_steps: []
+      });
+    const resolveCompileOptions = vi.fn().mockResolvedValue({
+      model: "gpt-4o-mini",
+      byokEndpoint: "https://openrouter.ai/api/v1",
+      byokKey: "sk-test",
+      timeoutMs: 10_000,
+      retryAttempts: 1,
+      extraHeaders: {
+        "x-client-strict-validation": "1"
+      }
+    });
+    const store = createChatStore({
+      compile,
+      resolveCompileOptions,
+      logEvent: vi.fn()
+    });
+
+    await store.getState().send("画一个圆");
+
+    expect(resolveCompileOptions).toHaveBeenCalledTimes(1);
+    expect(compile).toHaveBeenCalledTimes(2);
+    expect(store.getState().messages.at(-1)?.role).toBe("assistant");
+  });
 });

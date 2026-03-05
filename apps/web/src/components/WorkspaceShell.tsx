@@ -3,12 +3,14 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CanvasPanel } from "./CanvasPanel";
 import { ChatPanel } from "./ChatPanel";
 import { ModelModeSwitcher } from "./ModelModeSwitcher";
+import { SettingsDrawer } from "./SettingsDrawer";
 import { TokenGateDialog } from "./TokenGateDialog";
 import {
   loginWithPresetToken,
   revokeOfficialSessionToken
 } from "../services/api-client";
 import { useChatStore } from "../state/chat-store";
+import { useSettingsStore } from "../state/settings-store";
 import { useUIStore } from "../state/ui-store";
 
 export const WorkspaceShell = () => {
@@ -29,6 +31,11 @@ export const WorkspaceShell = () => {
   const selectConversation = useChatStore((state) => state.selectConversation);
   const acknowledgeReauth = useChatStore((state) => state.acknowledgeReauth);
   const send = useChatStore((state) => state.send);
+  const settingsOpen = useSettingsStore((state) => state.drawerOpen);
+  const setSettingsOpen = useSettingsStore((state) => state.setDrawerOpen);
+  const showAgentSteps = useSettingsStore(
+    (state) => state.experimentFlags.showAgentSteps
+  );
   const [draft, setDraft] = useState("");
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
 
@@ -93,6 +100,9 @@ export const WorkspaceShell = () => {
         <h1>GeoHelper</h1>
         <div className="top-bar-actions">
           <ModelModeSwitcher mode={mode} onChange={handleModeChange} />
+          <button type="button" onClick={() => setSettingsOpen(true)}>
+            设置
+          </button>
           {mode === "official" && sessionToken ? (
             <button type="button" onClick={handleOfficialLogout}>
               退出官方会话
@@ -163,7 +173,8 @@ export const WorkspaceShell = () => {
                       className={`chat-message chat-message-${message.role}`}
                     >
                       {message.content}
-                      {message.role === "assistant" &&
+                      {showAgentSteps &&
+                      message.role === "assistant" &&
                       message.agentSteps &&
                       message.agentSteps.length > 0 ? (
                         <section className="agent-steps" data-testid="agent-steps">
@@ -217,6 +228,13 @@ export const WorkspaceShell = () => {
           setSessionToken(result.session_token);
           setTokenDialogOpen(false);
         }}
+      />
+      <SettingsDrawer
+        open={settingsOpen}
+        activeConversationId={activeConversationId}
+        currentMode={mode}
+        onClose={() => setSettingsOpen(false)}
+        onApplyMode={setMode}
       />
     </main>
   );
