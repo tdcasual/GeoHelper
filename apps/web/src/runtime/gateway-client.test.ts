@@ -75,17 +75,27 @@ describe("gateway runtime client", () => {
     );
   });
 
-  it("throws runtime configuration error when gateway base url is missing", async () => {
-    const client = createGatewayClient();
-
-    await expect(
-      client.compile({
-        target: "gateway",
-        mode: "byok",
-        message: "画一个圆"
+  it("falls back to same-origin api path when gateway base url is missing", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        batch: {
+          version: "1.0",
+          scene_id: "scene_1",
+          transaction_id: "tx_1",
+          commands: [],
+          post_checks: [],
+          explanations: []
+        }
       })
-    ).rejects.toMatchObject({
-      code: "RUNTIME_NOT_CONFIGURED"
     });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient();
+    await client.compile({
+      target: "gateway",
+      mode: "byok",
+      message: "画一个圆"
+    });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/chat/compile");
   });
 });

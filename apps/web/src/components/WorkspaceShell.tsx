@@ -66,6 +66,7 @@ export const WorkspaceShell = () => {
     (state) => state.experimentFlags.showAgentSteps
   );
   const templates = useTemplateStore((state) => state.templates);
+  const chatShellRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const [draftByConversationId, setDraftByConversationId] = useState<
     Record<string, string>
@@ -74,6 +75,7 @@ export const WorkspaceShell = () => {
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [chatShellWidth, setChatShellWidth] = useState(0);
   const activeRuntimeProfile = useMemo(
     () =>
       runtimeProfiles.find((item) => item.id === defaultRuntimeProfileId) ??
@@ -134,6 +136,20 @@ export const WorkspaceShell = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const node = chatShellRef.current;
+    if (!node || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const nextWidth = entries[0]?.contentRect.width ?? 0;
+      setChatShellWidth(nextWidth);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
   const handleOfficialLogout = async () => {
     if (!sessionToken) {
       return;
@@ -177,12 +193,24 @@ export const WorkspaceShell = () => {
       .slice(0, 8);
   }, [draft, slashQuery, templates]);
   const slashMenuVisible = draft.startsWith("/") && slashTemplates.length > 0;
+  const historyDrawerMaxWidth = useMemo(() => {
+    if (chatShellWidth <= 0) {
+      return 420;
+    }
+
+    const proportionalMax = Math.floor(chatShellWidth * 0.45);
+    return Math.min(420, Math.max(189, proportionalMax));
+  }, [chatShellWidth]);
+  const computedHistoryDrawerWidth = Math.min(
+    historyDrawerWidth,
+    historyDrawerMaxWidth
+  );
   const historyDrawerStyle = isMobileViewport
     ? {
         height: historyDrawerVisible ? 240 : 0
       }
     : {
-        width: historyDrawerVisible ? historyDrawerWidth : 0
+        width: historyDrawerVisible ? computedHistoryDrawerWidth : 0
       };
 
   useEffect(() => {
@@ -270,7 +298,7 @@ export const WorkspaceShell = () => {
 
     event.preventDefault();
     const startX = event.clientX;
-    const startWidth = historyDrawerWidth;
+    const startWidth = computedHistoryDrawerWidth;
     const onMove = (moveEvent: globalThis.PointerEvent) => {
       const delta = moveEvent.clientX - startX;
       setHistoryDrawerWidth(startWidth + delta);
@@ -333,7 +361,7 @@ export const WorkspaceShell = () => {
       <div className="workspace-content">
         <CanvasPanel />
         <ChatPanel visible={chatVisible}>
-          <div className="chat-shell">
+          <div ref={chatShellRef} className="chat-shell">
             <div
               className={`history-drawer${
                 historyDrawerVisible ? " history-drawer-open" : ""
@@ -535,7 +563,10 @@ export const WorkspaceShell = () => {
                     placeholder="例如：过点A和B作垂直平分线"
                     rows={2}
                   />
-                  <button type="submit" disabled={isSending || !draft.trim()}>
+                  <button
+                    type="submit"
+                    disabled={isSending || !draft.trim() || slashMenuVisible}
+                  >
                     {isSending ? "生成中..." : "发送"}
                   </button>
                 </div>

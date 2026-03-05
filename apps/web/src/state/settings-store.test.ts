@@ -57,7 +57,7 @@ describe("settings-store", () => {
     expect(store.getState().requestDefaults.retryAttempts).toBe(2);
   });
 
-  it("defaults runtime profile to direct when gateway env is absent", () => {
+  it("defaults runtime profile to gateway when gateway env is absent", () => {
     vi.unstubAllEnvs();
     const store = createSettingsStore();
 
@@ -67,7 +67,7 @@ describe("settings-store", () => {
         (item) => item.id === store.getState().defaultRuntimeProfileId
       );
 
-    expect(runtimeProfile?.target).toBe("direct");
+    expect(runtimeProfile?.target).toBe("gateway");
   });
 
   it("resolves runtime compile options with runtime target and capabilities", async () => {

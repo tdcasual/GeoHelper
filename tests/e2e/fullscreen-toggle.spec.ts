@@ -21,6 +21,10 @@ test("tablet history drawer opens with bounded width", async ({ page }) => {
   const box = await drawer.boundingBox();
   expect(box?.width ?? 0).toBeGreaterThan(150);
   expect(box?.width ?? 0).toBeLessThanOrEqual(420);
+
+  const chatBody = page.locator(".chat-body");
+  const chatBodyBox = await chatBody.boundingBox();
+  expect(chatBodyBox?.width ?? 0).toBeGreaterThanOrEqual(220);
 });
 
 test("mobile history opens as bottom sheet and keeps composer visible", async ({
@@ -34,6 +38,12 @@ test("mobile history opens as bottom sheet and keeps composer visible", async ({
   await expect(drawer).toBeVisible();
   await expect(page.getByTestId("chat-composer-input")).toBeVisible();
 
+  const overflow = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth
+  }));
+  expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.viewportWidth);
+
   const box = await drawer.boundingBox();
   expect(box).not.toBeNull();
   if (!box) {
@@ -42,4 +52,5 @@ test("mobile history opens as bottom sheet and keeps composer visible", async ({
 
   expect(box.height).toBeGreaterThan(120);
   expect(box.y).toBeGreaterThan(300);
+  expect(box.y + box.height).toBeLessThanOrEqual(844);
 });

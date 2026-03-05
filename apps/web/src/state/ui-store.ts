@@ -18,7 +18,7 @@ export const UI_PREFS_KEY = "geohelper.ui.preferences";
 const DEFAULT_CHAT_VISIBLE = true;
 const DEFAULT_HISTORY_VISIBLE = false;
 const DEFAULT_HISTORY_WIDTH = 280;
-const MIN_HISTORY_WIDTH = 180;
+const MIN_HISTORY_WIDTH = 189;
 const MAX_HISTORY_WIDTH = 420;
 const canUseStorage = (): boolean =>
   typeof localStorage !== "undefined" &&

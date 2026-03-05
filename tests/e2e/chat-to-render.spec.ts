@@ -71,9 +71,11 @@ test("slash command menu can apply template", async ({ page }) => {
   await composer.fill("/垂直");
 
   await expect(page.getByTestId("slash-command-menu")).toBeVisible();
+  await expect(page.getByRole("button", { name: "发送" })).toBeDisabled();
   await page.getByRole("button", { name: /垂直平分线/ }).click();
 
   await expect(composer).toHaveValue("过点A和B作线段AB的垂直平分线。");
+  await expect(page.getByRole("button", { name: "发送" })).toBeEnabled();
 });
 
 test("plus menu can apply template action", async ({ page }) => {

@@ -14,6 +14,8 @@ body {
 
 .workspace-shell {
   min-height: 100vh;
+  height: 100dvh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -37,6 +39,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
 .top-bar button {
@@ -52,6 +55,7 @@ body {
   display: flex;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 .canvas-panel {
@@ -90,6 +94,7 @@ body {
 
 .chat-panel {
   width: min(560px, 44vw);
+  flex: 0 0 min(560px, 44vw);
   border-left: 1px solid #dbe3ef;
   background: #ffffff;
   padding: 10px;
@@ -103,6 +108,7 @@ body {
   height: 100%;
   display: flex;
   min-width: 0;
+  min-height: 0;
 }
 
 .history-drawer {
@@ -111,7 +117,6 @@ body {
   flex: 0 0 auto;
   display: flex;
   overflow: hidden;
-  transition: width 0.2s ease, height 0.2s ease;
 }
 
 .history-drawer-open {
@@ -218,6 +223,7 @@ body {
 .chat-body {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   padding: 10px;
   height: 100%;
   display: flex;
@@ -707,27 +713,67 @@ body {
   color: #b42318;
 }
 
-.workspace-shell.chat-collapsed .canvas-panel {
-  width: 100%;
-}
-
 @media (max-width: 700px) {
+  .top-bar {
+    height: auto;
+    min-height: 56px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .top-bar h1 {
+    font-size: 16px;
+  }
+
+  .top-bar-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-start;
+  }
+
+  .top-bar button {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .runtime-tag {
+    display: none;
+  }
+
+  .mode-switcher {
+    font-size: 12px;
+  }
+
+  .mode-switcher select {
+    height: 28px;
+    max-width: 96px;
+  }
+
   .workspace-content {
     flex-direction: column;
   }
 
   .canvas-panel {
-    min-height: 44vh;
+    flex: 1 1 45%;
+    min-height: 0;
   }
 
   .chat-panel {
     width: 100%;
+    flex: 1 1 55%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
     border-left: none;
     border-top: 1px solid #dbe3ef;
     padding: 8px;
   }
 
   .chat-shell {
+    flex: 1;
     flex-direction: column;
   }
 
@@ -758,9 +804,14 @@ body {
   }
 }
 
-@media (max-width: 900px) {
+.workspace-shell.chat-collapsed .canvas-panel {
+  width: 100%;
+}
+
+@media (min-width: 701px) and (max-width: 900px) {
   .chat-panel {
     width: 52vw;
+    flex: 0 0 52vw;
   }
 
   .history-drawer {

@@ -38,14 +38,6 @@ const readGatewayBaseUrlFromEnv = (): string | undefined => {
 
 const resolveGatewayBaseUrl = (raw?: string): string => {
   const candidate = (raw ?? readGatewayBaseUrlFromEnv() ?? "").trim();
-  if (!candidate) {
-    throw new RuntimeApiError(
-      "RUNTIME_NOT_CONFIGURED",
-      "Gateway base URL is missing. Configure VITE_GATEWAY_URL or runtime gateway base URL.",
-      400
-    );
-  }
-
   return candidate.replace(/\/+$/, "");
 };
 

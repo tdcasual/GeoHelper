@@ -219,9 +219,7 @@ const createDefaultRuntimeProfiles = (): {
 
   return {
     runtimeProfiles: [gatewayProfile, directProfile],
-    defaultRuntimeProfileId: gatewayBaseUrl
-      ? gatewayProfile.id
-      : directProfile.id
+    defaultRuntimeProfileId: gatewayProfile.id
   };
 };
 
