@@ -1,5 +1,48 @@
 import { expect, test } from "@playwright/test";
 
+const checksumOf = (value: string): string => {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+};
+
+const createBackupFile = (input: {
+  schemaVersion?: number;
+  appVersion?: string;
+  createdAt?: string;
+  conversations?: Array<Record<string, unknown>>;
+  settings?: Record<string, unknown>;
+  invalidChecksum?: boolean;
+}) => {
+  const envelopeWithoutChecksum = {
+    schema_version: input.schemaVersion ?? 1,
+    created_at: input.createdAt ?? "2026-03-05T00:00:00.000Z",
+    app_version: input.appVersion ?? "0.0.1",
+    conversations: input.conversations ?? [],
+    settings: input.settings ?? {}
+  };
+  const checksum = input.invalidChecksum
+    ? "deadbeef"
+    : checksumOf(JSON.stringify(envelopeWithoutChecksum));
+  const body = JSON.stringify(
+    {
+      ...envelopeWithoutChecksum,
+      checksum
+    },
+    null,
+    2
+  );
+
+  return {
+    name: "geochat-backup.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(body, "utf-8")
+  };
+};
+
 test("opens settings drawer from top bar", async ({ page }) => {
   await page.goto("http://localhost:5173");
   await page.getByRole("button", { name: "设置" }).click();
@@ -71,4 +114,184 @@ test("applies byok preset config to compile request", async ({ page }) => {
   await expect.poll(() => capturedModel).toBe("openai/gpt-4o-mini");
   await expect.poll(() => capturedEndpoint).toBe("https://openrouter.ai/api/v1");
   await expect.poll(() => capturedByokKey).toBe("sk-e2e-byok");
+});
+
+test("shows newer-schema hint before import", async ({ page }) => {
+  await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "设置" }).click();
+
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles(createBackupFile({ schemaVersion: 99 }));
+
+  await expect(
+    page.getByText("备份版本高于当前应用，导入后可能存在字段降级")
+  ).toBeVisible();
+});
+
+test("shows checksum error when backup file is corrupted", async ({ page }) => {
+  await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "设置" }).click();
+
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles(createBackupFile({ invalidChecksum: true }));
+
+  await expect(page.getByText("备份读取失败，请检查文件格式")).toBeVisible();
+});
+
+test("merges backup by conversation id and updatedAt", async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      (window as { __reloadCalled?: boolean }).__reloadCalled = false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window.location as any).reload = () => {
+        (window as { __reloadCalled?: boolean }).__reloadCalled = true;
+      };
+    } catch {
+      // Ignore reload patch failure in browser sandbox.
+    }
+  });
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("__seeded_merge__") === "1") {
+      return;
+    }
+    sessionStorage.setItem("__seeded_merge__", "1");
+    localStorage.setItem(
+      "geohelper.chat.snapshot",
+      JSON.stringify({
+        mode: "byok",
+        sessionToken: null,
+        activeConversationId: "conv_local",
+        reauthRequired: false,
+        messages: [{ id: "m2", role: "user", content: "local" }],
+        conversations: [
+          {
+            id: "conv_shared",
+            title: "shared_old",
+            createdAt: 1,
+            updatedAt: 100,
+            messages: [{ id: "m1", role: "user", content: "old" }]
+          },
+          {
+            id: "conv_local",
+            title: "local",
+            createdAt: 2,
+            updatedAt: 200,
+            messages: [{ id: "m2", role: "user", content: "local" }]
+          }
+        ]
+      })
+    );
+  });
+
+  await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "设置" }).click();
+
+  await page.locator('input[type="file"]').setInputFiles(
+    createBackupFile({
+      conversations: [
+        {
+          id: "conv_shared",
+          title: "shared_new",
+          createdAt: 1,
+          updatedAt: 300,
+          messages: [{ id: "m3", role: "assistant", content: "new" }]
+        },
+        {
+          id: "conv_from_backup",
+          title: "backup",
+          createdAt: 3,
+          updatedAt: 250,
+          messages: []
+        }
+      ],
+      settings: {}
+    })
+  );
+
+  await expect(page.getByText("已读取备份文件，请选择导入策略")).toBeVisible();
+  await page.getByRole("button", { name: "合并导入（推荐）" }).click();
+  await expect(page.getByText("备份合并导入成功，正在刷新")).toBeVisible();
+
+  const snapshot = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}")
+  );
+  expect(snapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_shared",
+    "conv_from_backup",
+    "conv_local"
+  ]);
+  expect(snapshot.conversations[0].title).toBe("shared_new");
+  expect(snapshot.activeConversationId).toBe("conv_local");
+});
+
+test("replaces local snapshot when import mode is replace", async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      (window as { __reloadCalled?: boolean }).__reloadCalled = false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window.location as any).reload = () => {
+        (window as { __reloadCalled?: boolean }).__reloadCalled = true;
+      };
+    } catch {
+      // Ignore reload patch failure in browser sandbox.
+    }
+  });
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("__seeded_replace__") === "1") {
+      return;
+    }
+    sessionStorage.setItem("__seeded_replace__", "1");
+    localStorage.setItem(
+      "geohelper.chat.snapshot",
+      JSON.stringify({
+        mode: "byok",
+        sessionToken: null,
+        activeConversationId: "conv_local",
+        reauthRequired: false,
+        messages: [{ id: "m2", role: "user", content: "local" }],
+        conversations: [
+          {
+            id: "conv_local",
+            title: "local",
+            createdAt: 2,
+            updatedAt: 200,
+            messages: [{ id: "m2", role: "user", content: "local" }]
+          }
+        ]
+      })
+    );
+  });
+
+  await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "设置" }).click();
+
+  await page.locator('input[type="file"]').setInputFiles(
+    createBackupFile({
+      conversations: [
+        {
+          id: "conv_only_backup",
+          title: "backup",
+          createdAt: 3,
+          updatedAt: 400,
+          messages: [{ id: "m3", role: "assistant", content: "backup" }]
+        }
+      ],
+      settings: {}
+    })
+  );
+
+  await expect(page.getByText("已读取备份文件，请选择导入策略")).toBeVisible();
+  await page.getByRole("button", { name: "覆盖导入" }).click();
+  await expect(page.getByText("备份覆盖导入成功，正在刷新")).toBeVisible();
+
+  const snapshot = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}")
+  );
+  expect(snapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_only_backup"
+  ]);
+  expect(snapshot.activeConversationId).toBe("conv_only_backup");
+  expect(snapshot.messages[0].content).toBe("backup");
 });

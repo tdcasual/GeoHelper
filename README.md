@@ -64,3 +64,4 @@ GATEWAY_URL=http://127.0.0.1:8787 pnpm bench:quality
 
 See deployment details: `docs/deploy/edgeone.md`.
 Beta release checklist: `docs/BETA_CHECKLIST.md`.
+Settings backup/recovery guide: `docs/user/settings-backup-recovery.md`.
