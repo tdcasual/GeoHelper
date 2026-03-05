@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { GatewayApiError } from "../services/api-client";
+import { RuntimeApiError } from "../runtime/orchestrator";
 import { createChatStore } from "./chat-store";
 import { sceneStore } from "./scene-store";
 import { settingsStore } from "./settings-store";
@@ -38,7 +38,7 @@ describe("chat-store", () => {
     const compile = vi
       .fn()
       .mockRejectedValue(
-        new GatewayApiError(
+        new RuntimeApiError(
           "SESSION_EXPIRED",
           "Session token is invalid or expired",
           401

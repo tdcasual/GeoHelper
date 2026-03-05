@@ -1,4 +1,4 @@
-import { ChatMode } from "../services/api-client";
+import { ChatMode } from "../runtime/types";
 
 interface ModelModeSwitcherProps {
   mode: ChatMode;

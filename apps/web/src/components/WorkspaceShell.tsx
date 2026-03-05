@@ -6,9 +6,9 @@ import { ModelModeSwitcher } from "./ModelModeSwitcher";
 import { SettingsDrawer } from "./SettingsDrawer";
 import { TokenGateDialog } from "./TokenGateDialog";
 import {
-  loginWithPresetToken,
-  revokeOfficialSessionToken
-} from "../services/api-client";
+  loginWithRuntime,
+  revokeRuntimeSession
+} from "../runtime/runtime-service";
 import { runtimeCapabilitiesByTarget } from "../runtime/types";
 import { useChatStore } from "../state/chat-store";
 import { useSceneStore } from "../state/scene-store";
@@ -108,9 +108,10 @@ export const WorkspaceShell = () => {
     }
 
     try {
-      await revokeOfficialSessionToken(sessionToken, {
-        runtimeTarget,
-        runtimeBaseUrl
+      await revokeRuntimeSession({
+        target: runtimeTarget,
+        baseUrl: runtimeBaseUrl,
+        sessionToken
       });
     } catch {
       // Even when revoke fails remotely, local session must be cleared.
@@ -316,9 +317,11 @@ export const WorkspaceShell = () => {
         open={tokenDialogOpen && runtimeSupportsOfficial}
         onClose={() => setTokenDialogOpen(false)}
         onSubmit={async (token) => {
-          const result = await loginWithPresetToken(token, deviceId, {
-            runtimeTarget,
-            runtimeBaseUrl
+          const result = await loginWithRuntime({
+            target: runtimeTarget,
+            baseUrl: runtimeBaseUrl,
+            token,
+            deviceId
           });
           setSessionToken(result.session_token);
           setTokenDialogOpen(false);

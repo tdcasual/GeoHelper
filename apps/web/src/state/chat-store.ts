@@ -5,12 +5,15 @@ import { useStore } from "zustand";
 import { executeBatch } from "../geogebra/command-executor";
 import { persistChatSnapshotToIndexedDb } from "../storage/indexed-sync";
 import {
+  compileWithRuntime,
+  RuntimeApiError
+} from "../runtime/runtime-service";
+import {
   AgentStep,
   ChatMode,
-  compileChat,
-  CompileResponse,
-  GatewayApiError
-} from "../services/api-client";
+  RuntimeCompileResponse,
+  RuntimeTarget
+} from "../runtime/types";
 import {
   appendDebugEventIfEnabled,
   CompileRuntimeOptions,
@@ -55,7 +58,7 @@ export interface ChatStoreDeps {
   compile: (input: {
     message: string;
     mode: ChatMode;
-    runtimeTarget?: "gateway" | "direct";
+    runtimeTarget?: RuntimeTarget;
     runtimeBaseUrl?: string;
     sessionToken: string | null;
     model?: string;
@@ -74,7 +77,7 @@ export interface ChatStoreDeps {
         commandCount: number;
       }>;
     };
-  }) => Promise<CompileResponse>;
+  }) => Promise<RuntimeCompileResponse>;
   execute: (batch: CommandBatch) => Promise<void>;
   resolveCompileOptions: (input: {
     conversationId: string;
@@ -106,11 +109,11 @@ const defaultDeps: ChatStoreDeps = {
     extraHeaders,
     context
   }) =>
-    compileChat({
+    compileWithRuntime({
+      target: runtimeTarget ?? "gateway",
+      baseUrl: runtimeBaseUrl,
       message,
       mode,
-      runtimeTarget,
-      runtimeBaseUrl,
       model,
       byokEndpoint,
       byokKey,
@@ -570,9 +573,9 @@ export const createChatStore = (
         let lastError: unknown;
         let compileResult:
           | {
-              batch: CompileResponse["batch"];
-              agentSteps: CompileResponse["agent_steps"];
-              traceId: CompileResponse["trace_id"];
+              batch: RuntimeCompileResponse["batch"];
+              agentSteps: RuntimeCompileResponse["agent_steps"];
+              traceId: RuntimeCompileResponse["trace_id"];
             }
           | undefined;
 
@@ -621,7 +624,7 @@ export const createChatStore = (
           } catch (error) {
             lastError = error;
             const isSessionExpired =
-              error instanceof GatewayApiError &&
+              error instanceof RuntimeApiError &&
               (error.code === "SESSION_EXPIRED" ||
                 error.code === "MISSING_AUTH_HEADER") &&
               get().mode === "official";
@@ -693,7 +696,7 @@ export const createChatStore = (
         });
       } catch (error) {
         const isSessionExpired =
-          error instanceof GatewayApiError &&
+          error instanceof RuntimeApiError &&
           (error.code === "SESSION_EXPIRED" ||
             error.code === "MISSING_AUTH_HEADER") &&
           get().mode === "official";

@@ -1,6 +1,6 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import { ChatMode } from "../services/api-client";
+import { ChatMode } from "../runtime/types";
 import {
   ByokPreset,
   OfficialPreset,
