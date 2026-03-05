@@ -93,16 +93,27 @@ const normalizePresetList = (
     .filter((item) => item.id.length > 0);
 };
 
-const readGatewayBaseUrlFromEnv = (): string =>
-  (
-    (typeof import.meta !== "undefined" && import.meta.env
+const readGatewayBaseUrlFromEnv = (): string => {
+  const viteGatewayUrl =
+    typeof import.meta !== "undefined" && import.meta.env
       ? import.meta.env.VITE_GATEWAY_URL
-      : undefined) ??
-    process.env.VITE_GATEWAY_URL ??
-    ""
-  )
-    .trim()
-    .replace(/\/+$/, "");
+      : undefined;
+  const processGatewayUrl =
+    typeof globalThis !== "undefined" &&
+    "process" in globalThis &&
+    (
+      globalThis as {
+        process?: {
+          env?: {
+            VITE_GATEWAY_URL?: string;
+          };
+        };
+      }
+    ).process?.env?.VITE_GATEWAY_URL;
+  const rawValue = viteGatewayUrl ?? processGatewayUrl;
+  const normalized = typeof rawValue === "string" ? rawValue : "";
+  return normalized.trim().replace(/\/+$/, "");
+};
 
 const buildDefaultRuntimeProfiles = (): {
   runtimeProfiles: Array<Record<string, unknown>>;

@@ -20,7 +20,20 @@ const readGatewayBaseUrlFromEnv = (): string | undefined => {
     typeof import.meta !== "undefined" && import.meta.env
       ? import.meta.env.VITE_GATEWAY_URL
       : undefined;
-  return viteValue ?? process.env.VITE_GATEWAY_URL;
+  const processValue =
+    typeof globalThis !== "undefined" &&
+    "process" in globalThis &&
+    (
+      globalThis as {
+        process?: {
+          env?: {
+            VITE_GATEWAY_URL?: string;
+          };
+        };
+      }
+    ).process?.env?.VITE_GATEWAY_URL;
+  const value = viteValue ?? processValue;
+  return typeof value === "string" ? value : undefined;
 };
 
 const resolveGatewayBaseUrl = (raw?: string): string => {

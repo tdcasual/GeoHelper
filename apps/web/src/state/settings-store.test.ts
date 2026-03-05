@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -87,5 +88,13 @@ describe("settings-store", () => {
     expect(options.runtimeTarget).toBe("gateway");
     expect(options.runtimeBaseUrl).toBe("https://gateway.env.example.com");
     expect(options.runtimeCapabilities.supportsOfficialAuth).toBe(true);
+  });
+
+  it("avoids direct process.env access for gateway URL", async () => {
+    const code = await readFile(
+      new URL("./settings-store.ts", import.meta.url),
+      "utf-8"
+    );
+    expect(code).not.toContain("process.env.VITE_GATEWAY_URL");
   });
 });
