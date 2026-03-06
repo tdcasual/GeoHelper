@@ -40,15 +40,25 @@ test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
   await page.goto("http://localhost:5173");
   await expect(page.locator("[data-testid='geogebra-host']")).toBeVisible();
 
-  const injectedTo = await page.evaluate(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    () => (window as any).__geohelperGgbInjectedTo
-  );
-  expect(injectedTo).toBe("geogebra-container");
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          () => (window as any).__geohelperGgbInjectedTo
+        ),
+      { message: "GeoGebra applet should inject into the container" }
+    )
+    .toBe("geogebra-container");
 
-  const codebase = await page.evaluate(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    () => (window as any).__geohelperGgbCodebase
-  );
-  expect(codebase).toContain("/vendor/geogebra/current/HTML5/5.0/web3d/");
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          () => (window as any).__geohelperGgbCodebase
+        ),
+      { message: "GeoGebra applet should receive the local codebase path" }
+    )
+    .toContain("/vendor/geogebra/current/HTML5/5.0/web3d/");
 });
