@@ -87,6 +87,43 @@ describe("chat-store", () => {
     );
   });
 
+  it("stores image attachments on user messages and forwards them to compile", async () => {
+    const compile = vi.fn().mockResolvedValue({
+      batch: {
+        version: "1.0",
+        scene_id: "s1",
+        transaction_id: "t1",
+        commands: [],
+        post_checks: [],
+        explanations: []
+      },
+      agent_steps: []
+    });
+    const store = createChatStore({ compile });
+    const attachments = [
+      {
+        id: "img_1",
+        kind: "image" as const,
+        name: "triangle.png",
+        mimeType: "image/png",
+        size: 1234,
+        previewUrl: "blob:triangle",
+        transportPayload: "data:image/png;base64,AAAA"
+      }
+    ];
+
+    await store.getState().send({
+      content: "根据这张图画三角形",
+      attachments
+    } as never);
+
+    const userMessage = store
+      .getState()
+      .messages.find((message) => message.role === "user");
+    expect(userMessage?.attachments).toEqual(attachments);
+    expect(compile.mock.calls[0]?.[0]?.attachments).toEqual(attachments);
+  });
+
   it("retries compile when runtime options enable retries", async () => {
     const compile = vi
       .fn()
@@ -213,6 +250,7 @@ describe("chat-store", () => {
       runtimeBaseUrl: undefined,
       runtimeCapabilities: {
         supportsOfficialAuth: false,
+        supportsVision: true,
         supportsAgentSteps: false,
         supportsServerMetrics: false,
         supportsRateLimitHeaders: false

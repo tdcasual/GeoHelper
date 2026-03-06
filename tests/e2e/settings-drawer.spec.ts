@@ -9,6 +9,14 @@ const checksumOf = (value: string): string => {
   return (hash >>> 0).toString(16).padStart(8, "0");
 };
 
+const openSettingsSection = async (
+  page: import("@playwright/test").Page,
+  section: "模型与预设" | "数据与安全"
+) => {
+  await page.getByRole("button", { name: "设置" }).click();
+  await page.getByRole("button", { name: section, exact: true }).click();
+};
+
 const createBackupFile = (input: {
   schemaVersion?: number;
   appVersion?: string;
@@ -43,11 +51,29 @@ const createBackupFile = (input: {
   };
 };
 
-test("opens settings drawer from top bar", async ({ page }) => {
+test("opens settings as centered modal with section navigation", async ({ page }) => {
   await page.goto("http://localhost:5173");
   await page.getByRole("button", { name: "设置" }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
+
+  const modal = page.getByTestId("settings-modal");
+  await expect(modal).toBeVisible();
   await expect(page.getByRole("heading", { name: "设置" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "通用", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "模型与预设", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "当前会话", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "实验功能", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "数据与安全", exact: true })).toBeVisible();
+
+  const box = await modal.boundingBox();
+  expect(box?.x ?? 0).toBeGreaterThan(40);
+
+  await page.getByRole("button", { name: "模型与预设", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "BYOK 预设", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Official 预设", exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "数据与安全", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "备份与恢复", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "安全", exact: true })).toBeVisible();
 });
 
 test("applies byok preset config to compile request", async ({ page }) => {
@@ -97,7 +123,7 @@ test("applies byok preset config to compile request", async ({ page }) => {
   });
 
   await page.goto("http://localhost:5173");
-  await page.getByRole("button", { name: "设置" }).click();
+  await openSettingsSection(page, "模型与预设");
 
   await page.getByTestId("byok-model-input").fill("openai/gpt-4o-mini");
   await page
@@ -118,10 +144,11 @@ test("applies byok preset config to compile request", async ({ page }) => {
 
 test("shows newer-schema hint before import", async ({ page }) => {
   await page.goto("http://localhost:5173");
-  await page.getByRole("button", { name: "设置" }).click();
+  await openSettingsSection(page, "数据与安全");
 
   await page
-    .locator('input[type="file"]')
+    .getByTestId("settings-modal")
+    .locator('input[type="file"][accept="application/json"]')
     .setInputFiles(createBackupFile({ schemaVersion: 99 }));
 
   await expect(
@@ -131,10 +158,11 @@ test("shows newer-schema hint before import", async ({ page }) => {
 
 test("shows checksum error when backup file is corrupted", async ({ page }) => {
   await page.goto("http://localhost:5173");
-  await page.getByRole("button", { name: "设置" }).click();
+  await openSettingsSection(page, "数据与安全");
 
   await page
-    .locator('input[type="file"]')
+    .getByTestId("settings-modal")
+    .locator('input[type="file"][accept="application/json"]')
     .setInputFiles(createBackupFile({ invalidChecksum: true }));
 
   await expect(page.getByText("备份读取失败，请检查文件格式")).toBeVisible();
@@ -186,9 +214,9 @@ test("merges backup by conversation id and updatedAt", async ({ page }) => {
   });
 
   await page.goto("http://localhost:5173");
-  await page.getByRole("button", { name: "设置" }).click();
+  await openSettingsSection(page, "数据与安全");
 
-  await page.locator('input[type="file"]').setInputFiles(
+  await page.getByTestId("settings-modal").locator('input[type="file"][accept="application/json"]').setInputFiles(
     createBackupFile({
       conversations: [
         {
@@ -265,9 +293,9 @@ test("replaces local snapshot when import mode is replace", async ({ page }) => 
   });
 
   await page.goto("http://localhost:5173");
-  await page.getByRole("button", { name: "设置" }).click();
+  await openSettingsSection(page, "数据与安全");
 
-  await page.locator('input[type="file"]').setInputFiles(
+  await page.getByTestId("settings-modal").locator('input[type="file"][accept="application/json"]').setInputFiles(
     createBackupFile({
       conversations: [
         {

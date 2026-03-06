@@ -3,8 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   createSettingsStore,
-  settingsStore,
-  resolveCompileRuntimeOptions
+  inferModelSupportsVision,
+  resolveCompileRuntimeOptions,
+  resolveRuntimeCapabilitiesForModel,
+  settingsStore
 } from "./settings-store";
 
 describe("settings-store", () => {
@@ -68,6 +70,34 @@ describe("settings-store", () => {
       );
 
     expect(runtimeProfile?.target).toBe("gateway");
+  });
+
+  it("derives vision capability from runtime target and model", () => {
+    expect(
+      resolveRuntimeCapabilitiesForModel({
+        runtimeTarget: "direct",
+        model: "gpt-4.1-mini"
+      }).supportsVision
+    ).toBe(false);
+    expect(
+      resolveRuntimeCapabilitiesForModel({
+        runtimeTarget: "direct",
+        model: "gpt-4o"
+      }).supportsVision
+    ).toBe(true);
+    expect(
+      resolveRuntimeCapabilitiesForModel({
+        runtimeTarget: "gateway",
+        model: "gpt-4o"
+      }).supportsVision
+    ).toBe(false);
+  });
+
+  it("recognizes common multimodal model names", () => {
+    expect(inferModelSupportsVision("gpt-4o")).toBe(true);
+    expect(inferModelSupportsVision("claude-3.7-sonnet")).toBe(true);
+    expect(inferModelSupportsVision("gemini-2.0-flash")).toBe(true);
+    expect(inferModelSupportsVision("gpt-4.1-mini")).toBe(false);
   });
 
   it("resolves runtime compile options with runtime target and capabilities", async () => {

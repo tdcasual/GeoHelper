@@ -51,6 +51,21 @@ interface RuntimeDraft {
   baseUrl: string;
 }
 
+type SettingsSectionId =
+  | "general"
+  | "models"
+  | "session"
+  | "experiments"
+  | "data";
+
+const SETTINGS_SECTIONS: Array<{ id: SettingsSectionId; label: string }> = [
+  { id: "general", label: "通用" },
+  { id: "models", label: "模型与预设" },
+  { id: "session", label: "当前会话" },
+  { id: "experiments", label: "实验功能" },
+  { id: "data", label: "数据与安全" }
+];
+
 const fromByokPreset = (preset: ByokPreset | undefined): ByokDraft => ({
   id: preset?.id,
   name: preset?.name ?? "",
@@ -205,6 +220,8 @@ export const SettingsDrawer = ({
   const [savingOfficial, setSavingOfficial] = useState(false);
   const [savingRuntime, setSavingRuntime] = useState(false);
   const [backupMessage, setBackupMessage] = useState<string | null>(null);
+  const [activeSection, setActiveSection] =
+    useState<SettingsSectionId>("general");
   const [pendingBackupFile, setPendingBackupFile] = useState<File | null>(null);
   const [backupInspection, setBackupInspection] =
     useState<BackupInspection | null>(null);
@@ -243,6 +260,12 @@ export const SettingsDrawer = ({
     const profile = runtimeProfiles.find((item) => item.id === selectedRuntimeId);
     setRuntimeDraft(fromRuntimeProfile(profile));
   }, [runtimeProfiles, selectedRuntimeId]);
+
+  useEffect(() => {
+    if (open) {
+      setActiveSection("general");
+    }
+  }, [open]);
 
   useEffect(() => {
     setSessionModel(sessionOverride.model ?? "");
@@ -325,7 +348,8 @@ export const SettingsDrawer = ({
   return (
     <div className="settings-drawer-backdrop" onClick={onClose}>
       <aside
-        className="settings-drawer"
+        className="settings-drawer settings-modal"
+        data-testid="settings-modal"
         role="dialog"
         aria-modal="true"
         onClick={(event) => event.stopPropagation()}
@@ -336,7 +360,24 @@ export const SettingsDrawer = ({
             关闭
           </button>
         </header>
-
+        <div className="settings-modal-body">
+          <nav className="settings-nav" aria-label="设置分区">
+            {SETTINGS_SECTIONS.map((section) => (
+              <button
+                key={section.id}
+                type="button"
+                className={`settings-nav-button${
+                  activeSection === section.id ? " settings-nav-button-active" : ""
+                }`}
+                aria-pressed={activeSection === section.id}
+                onClick={() => setActiveSection(section.id)}
+              >
+                {section.label}
+              </button>
+            ))}
+          </nav>
+          <div className="settings-content">
+        {activeSection === "general" ? (
         <section className="settings-section">
           <h3>通用</h3>
           <label>
@@ -457,6 +498,10 @@ export const SettingsDrawer = ({
           </div>
         </section>
 
+        ) : null}
+
+        {activeSection === "models" ? (
+        <>
         <section className="settings-section" data-testid="settings-byok-section">
           <h3>BYOK 预设</h3>
           {byokRuntimeIssue ? (
@@ -763,6 +808,10 @@ export const SettingsDrawer = ({
           </div>
         </section>
 
+        </>
+        ) : null}
+
+        {activeSection === "session" ? (
         <section className="settings-section">
           <h3>会话覆盖（当前会话）</h3>
           {activeConversationId ? (
@@ -851,6 +900,9 @@ export const SettingsDrawer = ({
           )}
         </section>
 
+        ) : null}
+
+        {activeSection === "experiments" ? (
         <section className="settings-section">
           <h3>实验开关</h3>
           <label className="settings-checkbox">
@@ -942,6 +994,10 @@ export const SettingsDrawer = ({
           </label>
         </section>
 
+        ) : null}
+
+        {activeSection === "data" ? (
+        <>
         <section className="settings-section">
           <h3>备份与恢复</h3>
           <div className="settings-inline-actions">
@@ -1042,6 +1098,10 @@ export const SettingsDrawer = ({
             )}
           </div>
         </section>
+        </>
+        ) : null}
+          </div>
+        </div>
       </aside>
     </div>
   );

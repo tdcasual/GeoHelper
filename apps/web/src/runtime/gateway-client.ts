@@ -3,6 +3,7 @@ import { verifyCommandBatch } from "./compile-pipeline";
 
 const gatewayCapabilities = {
   supportsOfficialAuth: true,
+  supportsVision: false,
   supportsAgentSteps: true,
   supportsServerMetrics: true,
   supportsRateLimitHeaders: true
@@ -93,6 +94,7 @@ export const createGatewayClient = (): RuntimeClient => ({
         message: request.message,
         mode: request.mode,
         model: request.model,
+        attachments: request.attachments,
         context: request.context
       }),
       signal: controller?.signal

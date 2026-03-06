@@ -1,5 +1,82 @@
 import { expect, test } from "@playwright/test";
 
+const IMAGE_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF9sAAAAASUVORK5CYII=";
+
+const seedVisionDirectSettings = async (
+  page: import("@playwright/test").Page
+) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "geohelper.settings.snapshot",
+      JSON.stringify({
+        schemaVersion: 3,
+        defaultMode: "byok",
+        runtimeProfiles: [
+          {
+            id: "runtime_direct",
+            name: "Direct BYOK",
+            target: "direct",
+            baseUrl: "https://openrouter.ai/api/v1",
+            updatedAt: 1
+          },
+          {
+            id: "runtime_gateway",
+            name: "Gateway",
+            target: "gateway",
+            baseUrl: "https://gateway.example.com",
+            updatedAt: 1
+          }
+        ],
+        defaultRuntimeProfileId: "runtime_direct",
+        byokPresets: [
+          {
+            id: "byok_test",
+            name: "Vision",
+            model: "gpt-4o",
+            endpoint: "https://openrouter.ai/api/v1",
+            temperature: 0.2,
+            maxTokens: 1200,
+            timeoutMs: 20000,
+            updatedAt: 1
+          }
+        ],
+        officialPresets: [
+          {
+            id: "official_test",
+            name: "Official",
+            model: "gpt-4o-mini",
+            temperature: 0.2,
+            maxTokens: 1200,
+            timeoutMs: 20000,
+            updatedAt: 1
+          }
+        ],
+        defaultByokPresetId: "byok_test",
+        defaultOfficialPresetId: "official_test",
+        sessionOverrides: {},
+        experimentFlags: {
+          showAgentSteps: false,
+          autoRetryEnabled: false,
+          requestTimeoutEnabled: true,
+          strictValidationEnabled: false,
+          fallbackSingleAgentEnabled: false,
+          debugLogPanelEnabled: false,
+          performanceSamplingEnabled: false
+        },
+        requestDefaults: { retryAttempts: 1 },
+        debugEvents: []
+      })
+    );
+  });
+};
+
+const createImageFile = (name = "triangle.png") => ({
+  name,
+  mimeType: "image/png",
+  buffer: Buffer.from(IMAGE_BASE64, "base64")
+});
+
 const mockCompile = async (page: import("@playwright/test").Page) => {
   await page.route("**/api/v1/chat/compile", async (route) => {
     if (route.request().method() === "OPTIONS") {
@@ -88,4 +165,92 @@ test("plus menu can apply template action", async ({ page }) => {
   await expect(page.getByTestId("chat-composer-input")).toHaveValue(
     "过点A为圆心，半径为3作圆。"
   );
+});
+
+test("plus menu previews uploaded images when vision is supported", async ({ page }) => {
+  await seedVisionDirectSettings(page);
+
+  await page.goto("http://localhost:5173");
+  await page.getByTestId("plus-menu-button").click();
+  await page.getByRole("button", { name: "上传图片", exact: true }).click();
+  await page.getByTestId("composer-image-input").setInputFiles(createImageFile());
+
+  await expect(page.getByTestId("composer-attachment-item")).toHaveCount(1);
+  await expect(page.getByText("triangle.png")).toBeVisible();
+});
+
+test("dragging an image into composer adds an attachment", async ({ page }) => {
+  await seedVisionDirectSettings(page);
+
+  await page.goto("http://localhost:5173");
+  await page.getByTestId("chat-composer-shell").evaluate(
+    (node, payload) => {
+      const binary = atob(payload.base64);
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      const file = new File([bytes], payload.name, { type: payload.mimeType });
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      node.dispatchEvent(
+        new DragEvent("dragover", {
+          bubbles: true,
+          cancelable: true,
+          dataTransfer
+        })
+      );
+      node.dispatchEvent(
+        new DragEvent("drop", {
+          bubbles: true,
+          cancelable: true,
+          dataTransfer
+        })
+      );
+    },
+    {
+      base64: IMAGE_BASE64,
+      name: "triangle-drop.png",
+      mimeType: "image/png"
+    }
+  );
+
+  await expect(page.getByTestId("composer-attachment-item")).toHaveCount(1);
+  await expect(page.getByText("triangle-drop.png")).toBeVisible();
+});
+
+test("pasting an image into composer adds an attachment", async ({ page }) => {
+  await seedVisionDirectSettings(page);
+
+  await page.goto("http://localhost:5173");
+  await page.getByTestId("chat-composer-input").evaluate(
+    (node, payload) => {
+      const binary = atob(payload.base64);
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      const file = new File([bytes], payload.name, { type: payload.mimeType });
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: dataTransfer,
+        configurable: true
+      });
+      node.dispatchEvent(event);
+    },
+    {
+      base64: IMAGE_BASE64,
+      name: "triangle-paste.png",
+      mimeType: "image/png"
+    }
+  );
+
+  await expect(page.getByTestId("composer-attachment-item")).toHaveCount(1);
+  await expect(page.getByText("triangle-paste.png")).toBeVisible();
+});
+
+test("plus menu disables image upload when vision is unavailable", async ({ page }) => {
+  await page.goto("http://localhost:5173");
+  await page.getByTestId("plus-menu-button").click();
+
+  await expect(
+    page.getByRole("button", { name: "上传图片", exact: true })
+  ).toBeDisabled();
+  await expect(page.getByText("当前运行时或模型不支持图片输入")).toBeVisible();
 });

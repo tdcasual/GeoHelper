@@ -12,9 +12,20 @@ export interface AgentStep {
 
 export interface RuntimeCapabilities {
   supportsOfficialAuth: boolean;
+  supportsVision: boolean;
   supportsAgentSteps: boolean;
   supportsServerMetrics: boolean;
   supportsRateLimitHeaders: boolean;
+}
+
+export interface RuntimeAttachment {
+  id: string;
+  kind: "image";
+  name: string;
+  mimeType: string;
+  size: number;
+  previewUrl?: string;
+  transportPayload: string;
 }
 
 export const runtimeCapabilitiesByTarget: Record<
@@ -23,12 +34,14 @@ export const runtimeCapabilitiesByTarget: Record<
 > = {
   gateway: {
     supportsOfficialAuth: true,
+    supportsVision: false,
     supportsAgentSteps: true,
     supportsServerMetrics: true,
     supportsRateLimitHeaders: true
   },
   direct: {
     supportsOfficialAuth: false,
+    supportsVision: true,
     supportsAgentSteps: false,
     supportsServerMetrics: false,
     supportsRateLimitHeaders: false
@@ -46,6 +59,7 @@ export interface RuntimeCompileRequest {
   byokKey?: string;
   timeoutMs?: number;
   extraHeaders?: Record<string, string>;
+  attachments?: RuntimeAttachment[];
   context?: {
     recentMessages?: Array<{
       role: "user" | "assistant";

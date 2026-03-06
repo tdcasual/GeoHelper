@@ -3,6 +3,7 @@ import { parseJsonFromLlmContent, verifyCommandBatch } from "./compile-pipeline"
 
 const directCapabilities = {
   supportsOfficialAuth: false,
+  supportsVision: true,
   supportsAgentSteps: false,
   supportsServerMetrics: false,
   supportsRateLimitHeaders: false
@@ -51,6 +52,45 @@ const buildContextMessage = (input: {
   }
 
   return `${sections.join("\n\n")}\n\nCurrent request:\n${input.message}`;
+};
+
+const buildUserContent = (request: {
+  message: string;
+  attachments?: Array<{
+    transportPayload: string;
+  }>;
+  context?: {
+    recentMessages?: Array<{
+      role: "user" | "assistant";
+      content: string;
+    }>;
+    sceneTransactions?: Array<{
+      sceneId: string;
+      transactionId: string;
+      commandCount: number;
+    }>;
+  };
+}) => {
+  const message = buildContextMessage({
+    message: request.message,
+    context: request.context
+  });
+  if (!request.attachments || request.attachments.length === 0) {
+    return message;
+  }
+
+  return [
+    {
+      type: "text",
+      text: message
+    },
+    ...request.attachments.map((attachment) => ({
+      type: "image_url" as const,
+      image_url: {
+        url: attachment.transportPayload
+      }
+    }))
+  ];
 };
 
 export const createDirectClient = (): RuntimeClient => ({
@@ -107,10 +147,7 @@ export const createDirectClient = (): RuntimeClient => ({
             },
             {
               role: "user",
-              content: buildContextMessage({
-                message: request.message,
-                context: request.context
-              })
+              content: buildUserContent(request)
             }
           ]
         }),

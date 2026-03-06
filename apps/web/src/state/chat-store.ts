@@ -11,6 +11,7 @@ import {
 import {
   AgentStep,
   ChatMode,
+  RuntimeAttachment,
   RuntimeCompileResponse,
   RuntimeTarget
 } from "../runtime/types";
@@ -22,12 +23,20 @@ import {
 } from "./settings-store";
 import { sceneStore } from "./scene-store";
 
+export type ChatAttachment = RuntimeAttachment;
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  attachments?: ChatAttachment[];
   traceId?: string;
   agentSteps?: AgentStep[];
+}
+
+export interface ChatSendInput {
+  content: string;
+  attachments?: ChatAttachment[];
 }
 
 export interface ConversationThread {
@@ -51,12 +60,13 @@ export interface ChatStoreState {
   createConversation: () => string;
   selectConversation: (conversationId: string) => void;
   acknowledgeReauth: () => void;
-  send: (content: string) => Promise<void>;
+  send: (input: string | ChatSendInput) => Promise<void>;
 }
 
 export interface ChatStoreDeps {
   compile: (input: {
     message: string;
+    attachments?: ChatAttachment[];
     mode: ChatMode;
     runtimeTarget?: RuntimeTarget;
     runtimeBaseUrl?: string;
@@ -107,6 +117,7 @@ const defaultDeps: ChatStoreDeps = {
     byokKey,
     timeoutMs,
     extraHeaders,
+    attachments,
     context
   }) =>
     compileWithRuntime({
@@ -119,6 +130,7 @@ const defaultDeps: ChatStoreDeps = {
       byokKey,
       timeoutMs,
       extraHeaders,
+      attachments,
       context,
       sessionToken: sessionToken ?? undefined
     }),
@@ -134,13 +146,20 @@ const defaultDeps: ChatStoreDeps = {
 const makeId = (): string => `${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
 export const CHAT_STORE_KEY = "geohelper.chat.snapshot";
 
-const buildConversationTitle = (content: string): string => {
+const buildConversationTitle = (input: ChatSendInput | string): string => {
+  const content = typeof input === "string" ? input : input.content;
   const normalized = content.replace(/\s+/g, " ").trim();
-  if (!normalized) {
-    return "新会话";
+  if (normalized) {
+    return normalized.length > 20 ? `${normalized.slice(0, 20)}...` : normalized;
   }
 
-  return normalized.length > 20 ? `${normalized.slice(0, 20)}...` : normalized;
+  const attachmentCount =
+    typeof input === "string" ? 0 : input.attachments?.length ?? 0;
+  if (attachmentCount > 0) {
+    return attachmentCount > 1 ? `图片消息 (${attachmentCount})` : "图片消息";
+  }
+
+  return "新会话";
 };
 
 const createConversationThread = (title = "新会话"): ConversationThread => {
@@ -172,6 +191,23 @@ const moveConversationToTop = (
   updatedConversation,
   ...conversations.filter((item) => item.id !== updatedConversation.id)
 ];
+
+const normalizeSendInput = (
+  input: string | ChatSendInput
+): ChatSendInput => {
+  if (typeof input === "string") {
+    return {
+      content: input,
+      attachments: []
+    };
+  }
+
+  return {
+    content: input.content,
+    attachments: Array.isArray(input.attachments) ? input.attachments : []
+  };
+};
+
 
 const canUseStorage = (): boolean =>
   typeof localStorage !== "undefined" &&
@@ -228,7 +264,14 @@ const loadSnapshot = (): PersistedChatSnapshot => {
               typeof item.updatedAt === "number"
                 ? item.updatedAt
                 : Date.now(),
-            messages: Array.isArray(item.messages) ? item.messages : []
+            messages: Array.isArray(item.messages)
+              ? item.messages.map((message) => ({
+                  ...message,
+                  attachments: Array.isArray(message.attachments)
+                    ? message.attachments
+                    : undefined
+                }))
+              : []
           }))
       : [];
 
@@ -241,7 +284,12 @@ const loadSnapshot = (): PersistedChatSnapshot => {
                 ...createConversationThread(
                   buildConversationTitle(parsed.messages[0]?.content ?? "")
                 ),
-                messages: parsed.messages
+                messages: parsed.messages.map((message) => ({
+                  ...message,
+                  attachments: Array.isArray(message.attachments)
+                    ? message.attachments
+                    : undefined
+                }))
               }
             ]
           : [createConversationThread()];
@@ -404,11 +452,16 @@ export const createChatStore = (
           reauthRequired: false
         };
       }),
-    send: async (content) => {
+    send: async (input) => {
+      const normalizedInput = normalizeSendInput(input);
       const userMessage: ChatMessage = {
         id: makeId(),
         role: "user",
-        content
+        content: normalizedInput.content,
+        attachments:
+          normalizedInput.attachments.length > 0
+            ? normalizedInput.attachments
+            : undefined
       };
 
       let targetConversationId = "";
@@ -426,7 +479,7 @@ export const createChatStore = (
 
         const titled =
           currentConversation.messages.length === 0
-            ? buildConversationTitle(content)
+            ? buildConversationTitle(normalizedInput)
             : currentConversation.title;
         const updatedConversation: ConversationThread = {
           ...currentConversation,
@@ -600,7 +653,8 @@ export const createChatStore = (
                 commandCount: tx.commandCount
               }));
             const response = await deps.compile({
-              message: content,
+              message: normalizedInput.content,
+              attachments: normalizedInput.attachments,
               mode: get().mode,
               runtimeTarget: runtime.runtimeTarget,
               runtimeBaseUrl: runtime.runtimeBaseUrl,
