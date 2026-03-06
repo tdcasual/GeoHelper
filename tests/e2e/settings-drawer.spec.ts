@@ -69,11 +69,46 @@ test("opens settings as centered modal with section navigation", async ({ page }
 
   await page.getByRole("button", { name: "模型与预设", exact: true }).click();
   await expect(page.getByRole("heading", { name: "BYOK 预设", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Official 预设", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "官方预设", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "数据与安全", exact: true }).click();
   await expect(page.getByRole("heading", { name: "备份与恢复", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "安全", exact: true })).toBeVisible();
+});
+
+
+
+test("mobile settings navigation does not overflow horizontally", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "设置" }).click();
+
+  const metrics = await page.evaluate(() => {
+    const nav = document.querySelector(".settings-nav") as HTMLElement | null;
+    const buttons = Array.from(
+      document.querySelectorAll(".settings-nav-button")
+    ).map((element) => {
+      const rect = (element as HTMLElement).getBoundingClientRect();
+      return {
+        text: element.textContent?.trim() ?? "",
+        right: rect.right,
+        left: rect.left
+      };
+    });
+
+    const navRect = nav?.getBoundingClientRect();
+    return {
+      navRight: navRect?.right ?? 0,
+      scrollWidth: nav?.scrollWidth ?? 0,
+      clientWidth: nav?.clientWidth ?? 0,
+      buttons
+    };
+  });
+
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+  for (const button of metrics.buttons) {
+    expect(button.right).toBeLessThanOrEqual(metrics.navRight + 1);
+  }
 });
 
 test("applies byok preset config to compile request", async ({ page }) => {

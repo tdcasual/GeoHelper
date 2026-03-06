@@ -40,6 +40,8 @@ const EMPTY_COMPOSER_DRAFT: ComposerDraftState = {
   attachments: []
 };
 
+type MobileSurface = "canvas" | "chat";
+
 const readFileAsDataUrl = async (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -62,6 +64,9 @@ export const WorkspaceShell = () => {
   const historyDrawerWidth = useUIStore((state) => state.historyDrawerWidth);
   const toggleChat = useUIStore((state) => state.toggleChat);
   const toggleHistoryDrawer = useUIStore((state) => state.toggleHistoryDrawer);
+  const setHistoryDrawerVisible = useUIStore(
+    (state) => state.setHistoryDrawerVisible
+  );
   const setHistoryDrawerWidth = useUIStore(
     (state) => state.setHistoryDrawerWidth
   );
@@ -116,7 +121,10 @@ export const WorkspaceShell = () => {
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
   const [composerNotice, setComposerNotice] = useState<string | null>(null);
   const [composerDragActive, setComposerDragActive] = useState(false);
+  const [isCompactViewport, setIsCompactViewport] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [mobileSurface, setMobileSurface] = useState<MobileSurface>("canvas");
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const [chatShellWidth, setChatShellWidth] = useState(0);
   const activeRuntimeProfile = useMemo(
     () =>
@@ -128,6 +136,13 @@ export const WorkspaceShell = () => {
   const runtimeBaseUrl = activeRuntimeProfile?.baseUrl || undefined;
   const runtimeCapabilities = runtimeCapabilitiesByTarget[runtimeTarget];
   const runtimeSupportsOfficial = runtimeCapabilities.supportsOfficialAuth;
+  const compactViewport = isCompactViewport;
+  const phoneViewport = isMobileViewport;
+  const canvasProfile = phoneViewport ? "mobile" : "desktop";
+  const canvasVisible = !compactViewport || mobileSurface === "canvas";
+  const effectiveChatVisible = compactViewport
+    ? mobileSurface === "chat"
+    : chatVisible;
 
   const deviceId = useMemo(() => {
     const key = "geohelper.device.id";
@@ -169,7 +184,10 @@ export const WorkspaceShell = () => {
 
   useEffect(() => {
     const syncViewport = () => {
-      setIsMobileViewport(window.innerWidth <= 700);
+      const compact = window.innerWidth <= 900 || window.innerHeight <= 500;
+      const phone = window.innerWidth <= 700;
+      setIsCompactViewport(compact);
+      setIsMobileViewport(phone);
     };
     syncViewport();
     window.addEventListener("resize", syncViewport);
@@ -177,6 +195,28 @@ export const WorkspaceShell = () => {
       window.removeEventListener("resize", syncViewport);
     };
   }, []);
+
+  useEffect(() => {
+    if (!compactViewport) {
+      setMobileActionsOpen(false);
+      return;
+    }
+
+    setMobileActionsOpen(false);
+    setMobileSurface("canvas");
+    setHistoryDrawerVisible(false);
+  }, [compactViewport, setHistoryDrawerVisible]);
+
+  useEffect(() => {
+    if (compactViewport && mobileSurface !== "chat" && historyDrawerVisible) {
+      setHistoryDrawerVisible(false);
+    }
+  }, [
+    compactViewport,
+    historyDrawerVisible,
+    mobileSurface,
+    setHistoryDrawerVisible
+  ]);
 
   useEffect(() => {
     const node = chatShellRef.current;
@@ -263,13 +303,9 @@ export const WorkspaceShell = () => {
     historyDrawerWidth,
     historyDrawerMaxWidth
   );
-  const historyDrawerStyle = isMobileViewport
-    ? {
-        height: historyDrawerVisible ? 240 : 0
-      }
-    : {
-        width: historyDrawerVisible ? computedHistoryDrawerWidth : 0
-      };
+  const historyDrawerStyle = {
+    width: historyDrawerVisible ? computedHistoryDrawerWidth : 0
+  };
 
   useEffect(() => {
     if (slashSelectedIndex >= slashTemplates.length) {
@@ -514,125 +550,292 @@ export const WorkspaceShell = () => {
     window.addEventListener("pointercancel", onEnd);
   };
 
+  const openSettingsDrawer = () => {
+    setSettingsOpen(true);
+    setMobileActionsOpen(false);
+    setHistoryDrawerVisible(false);
+  };
+
+  const handleRollbackAction = () => {
+    setMobileActionsOpen(false);
+    void rollbackLastScene();
+  };
+
+  const handleClearSceneAction = () => {
+    setMobileActionsOpen(false);
+    void clearScene();
+  };
+
+  const handleLogoutAction = () => {
+    setMobileActionsOpen(false);
+    void handleOfficialLogout();
+  };
+
+  const handleSelectMobileSurface = (surface: MobileSurface) => {
+    setMobileSurface(surface);
+    setMobileActionsOpen(false);
+    if (surface !== "chat") {
+      setHistoryDrawerVisible(false);
+    }
+  };
+
+  const handleMobileActionsToggle = () => {
+    if (mobileActionsOpen) {
+      setMobileActionsOpen(false);
+      return;
+    }
+
+    setHistoryDrawerVisible(false);
+    setMobileActionsOpen(true);
+  };
+
+  const handleHistoryToggle = () => {
+    if (compactViewport) {
+      setMobileActionsOpen(false);
+      setMobileSurface("chat");
+      setHistoryDrawerVisible(!historyDrawerVisible);
+      return;
+    }
+
+    toggleHistoryDrawer();
+  };
+
+  const handleCreateConversation = () => {
+    const nextConversationId = createConversation();
+    setDraftByConversationId((state) => ({
+      ...state,
+      [nextConversationId]: {
+        text: "",
+        attachments: []
+      }
+    }));
+    setPlusMenuOpen(false);
+    setSlashSelectedIndex(0);
+    if (compactViewport) {
+      setHistoryDrawerVisible(false);
+    }
+  };
+
+  const handleSelectConversation = (conversationId: string) => {
+    selectConversation(conversationId);
+    setPlusMenuOpen(false);
+    setSlashSelectedIndex(0);
+    if (compactViewport) {
+      setHistoryDrawerVisible(false);
+    }
+  };
+
+  const conversationSidebarContent = (
+    <>
+      <div className="conversation-sidebar-header">
+        <button
+          type="button"
+          className="new-conversation-button"
+          onClick={handleCreateConversation}
+        >
+          新建会话
+        </button>
+      </div>
+      <div className="conversation-list">
+        {conversations.map((conversation) => (
+          <button
+            key={conversation.id}
+            type="button"
+            data-testid="conversation-item"
+            className={`conversation-item${
+              conversation.id === activeConversationId
+                ? " conversation-item-active"
+                : ""
+            }`}
+            onClick={() => {
+              handleSelectConversation(conversation.id);
+            }}
+          >
+            <span className="conversation-item-title">{conversation.title}</span>
+            <span className="conversation-item-meta">
+              {new Date(conversation.updatedAt).toLocaleTimeString("zh-CN", {
+                hour: "2-digit",
+                minute: "2-digit"
+              })}
+            </span>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+
   return (
-    <main className={`workspace-shell${chatVisible ? "" : " chat-collapsed"}`}>
+    <main
+      className={`workspace-shell${
+        !compactViewport && !chatVisible ? " chat-collapsed" : ""
+      }${compactViewport ? ` mobile-surface-${mobileSurface}` : ""}${compactViewport ? " compact-viewport" : ""}${phoneViewport ? " phone-viewport" : ""}`}
+    >
       <header className="top-bar">
-        <h1>GeoHelper</h1>
-        <div className="top-bar-actions">
-          <ModelModeSwitcher
-            mode={mode}
-            officialEnabled={runtimeSupportsOfficial}
-            onChange={handleModeChange}
-          />
-          <span className="runtime-tag">{`Runtime: ${activeRuntimeProfile?.name ?? runtimeTarget}`}</span>
-          <button type="button" onClick={() => setSettingsOpen(true)}>
-            设置
-          </button>
-          <button
-            type="button"
-            disabled={
-              isSending || isSceneRollingBack || sceneTransactionCount === 0
-            }
-            onClick={() => {
-              void rollbackLastScene();
-            }}
-          >
-            回滚上一步
-          </button>
-          <button
-            type="button"
-            disabled={isSending || isSceneRollingBack}
-            onClick={() => {
-              void clearScene();
-            }}
-          >
-            清空画布
-          </button>
-          {mode === "official" && sessionToken && runtimeSupportsOfficial ? (
-            <button type="button" onClick={handleOfficialLogout}>
-              退出官方会话
-            </button>
-          ) : null}
-          <button type="button" onClick={toggleChat}>
-            {chatVisible ? "Hide Chat" : "Show Chat"}
-          </button>
-        </div>
-      </header>
-      <div className="workspace-content">
-        <CanvasPanel />
-        <ChatPanel visible={chatVisible}>
-          <div ref={chatShellRef} className="chat-shell">
-            <div
-              className={`history-drawer${
-                historyDrawerVisible ? " history-drawer-open" : ""
-              }`}
-              style={historyDrawerStyle}
-            >
-              <aside
-                className="conversation-sidebar"
-                data-testid="conversation-sidebar"
-                hidden={!historyDrawerVisible}
-              >
-                <div className="conversation-sidebar-header">
+        <div className="top-bar-main">
+          <h1>GeoHelper</h1>
+          <div className="top-bar-actions">
+            <ModelModeSwitcher
+              mode={mode}
+              officialEnabled={runtimeSupportsOfficial}
+              onChange={handleModeChange}
+            />
+            <span className="runtime-tag">{`运行时：${activeRuntimeProfile?.name ?? runtimeTarget}`}</span>
+            {compactViewport ? (
+              <>
+                <button
+                  type="button"
+                  className="top-bar-button top-bar-button-secondary"
+                  onClick={openSettingsDrawer}
+                >
+                  设置
+                </button>
+                <button
+                  type="button"
+                  className="top-bar-button top-bar-button-ghost top-bar-more-button"
+                  data-testid="mobile-more-button"
+                  onClick={handleMobileActionsToggle}
+                >
+                  更多
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="top-bar-button top-bar-button-secondary"
+                  onClick={openSettingsDrawer}
+                >
+                  设置
+                </button>
+                <button
+                  type="button"
+                  className="top-bar-button top-bar-button-secondary"
+                  disabled={
+                    isSending || isSceneRollingBack || sceneTransactionCount === 0
+                  }
+                  onClick={handleRollbackAction}
+                >
+                  回滚上一步
+                </button>
+                <button
+                  type="button"
+                  className="top-bar-button top-bar-button-danger"
+                  disabled={isSending || isSceneRollingBack}
+                  onClick={handleClearSceneAction}
+                >
+                  清空画布
+                </button>
+                {mode === "official" && sessionToken && runtimeSupportsOfficial ? (
                   <button
                     type="button"
-                    className="new-conversation-button"
-                    onClick={() => {
-                      const nextConversationId = createConversation();
-                      setDraftByConversationId((state) => ({
-                        ...state,
-                        [nextConversationId]: {
-                          text: "",
-                          attachments: []
-                        }
-                      }));
-                      setPlusMenuOpen(false);
-                      setSlashSelectedIndex(0);
-                    }}
+                    className="top-bar-button top-bar-button-ghost"
+                    onClick={handleLogoutAction}
                   >
-                    新建会话
+                    退出官方会话
                   </button>
-                </div>
-                <div className="conversation-list">
-                  {conversations.map((conversation) => (
-                    <button
-                      key={conversation.id}
-                      type="button"
-                      data-testid="conversation-item"
-                      className={`conversation-item${
-                        conversation.id === activeConversationId
-                          ? " conversation-item-active"
-                          : ""
-                      }`}
-                      onClick={() => {
-                        selectConversation(conversation.id);
-                        setPlusMenuOpen(false);
-                        setSlashSelectedIndex(0);
-                      }}
-                    >
-                      <span className="conversation-item-title">
-                        {conversation.title}
-                      </span>
-                      <span className="conversation-item-meta">
-                        {new Date(conversation.updatedAt).toLocaleTimeString(
-                          "zh-CN",
-                          {
-                            hour: "2-digit",
-                            minute: "2-digit"
-                          }
-                        )}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </aside>
-              <div
-                className="history-resizer"
-                data-testid="history-resizer"
-                hidden={!historyDrawerVisible}
-                onPointerDown={handleHistoryResizeStart}
-              />
+                ) : null}
+                <button
+                  type="button"
+                  className="top-bar-button top-bar-button-ghost"
+                  onClick={toggleChat}
+                >
+                  {chatVisible ? "收起对话" : "显示对话"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+        {compactViewport ? (
+          <>
+            <div
+              className="mobile-surface-switcher"
+              data-testid="mobile-surface-switcher"
+            >
+              <button
+                type="button"
+                data-testid="mobile-surface-canvas"
+                className={`mobile-surface-button${
+                  mobileSurface === "canvas" ? " mobile-surface-button-active" : ""
+                }`}
+                aria-pressed={mobileSurface === "canvas"}
+                onClick={() => handleSelectMobileSurface("canvas")}
+              >
+                画布
+              </button>
+              <button
+                type="button"
+                data-testid="mobile-surface-chat"
+                className={`mobile-surface-button${
+                  mobileSurface === "chat" ? " mobile-surface-button-active" : ""
+                }`}
+                aria-pressed={mobileSurface === "chat"}
+                onClick={() => handleSelectMobileSurface("chat")}
+              >
+                对话
+              </button>
             </div>
+            {mobileActionsOpen ? (
+              <div
+                className="top-bar-overflow-menu"
+                data-testid="mobile-overflow-menu"
+              >
+                <button
+                  type="button"
+                  disabled={
+                    isSending || isSceneRollingBack || sceneTransactionCount === 0
+                  }
+                  onClick={handleRollbackAction}
+                >
+                  回滚上一步
+                </button>
+                <button
+                  type="button"
+                  disabled={isSending || isSceneRollingBack}
+                  onClick={handleClearSceneAction}
+                >
+                  清空画布
+                </button>
+                {mode === "official" && sessionToken && runtimeSupportsOfficial ? (
+                  <button type="button" onClick={handleLogoutAction}>
+                    退出官方会话
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </>
+        ) : null}
+      </header>
+      <div className="workspace-content">
+        <CanvasPanel
+          key={canvasProfile}
+          profile={canvasProfile}
+          visible={canvasVisible}
+        />
+        <ChatPanel visible={effectiveChatVisible}>
+          <div ref={chatShellRef} className="chat-shell">
+            {!compactViewport ? (
+              <div
+                className={`history-drawer${
+                  historyDrawerVisible ? " history-drawer-open" : ""
+                }`}
+                style={historyDrawerStyle}
+              >
+                {historyDrawerVisible ? (
+                  <aside
+                    className="conversation-sidebar"
+                    data-testid="conversation-sidebar"
+                  >
+                    {conversationSidebarContent}
+                  </aside>
+                ) : null}
+                <div
+                  className="history-resizer"
+                  data-testid="history-resizer"
+                  hidden={!historyDrawerVisible}
+                  onPointerDown={handleHistoryResizeStart}
+                />
+              </div>
+            ) : null}
             <div className="chat-body">
               <div className="chat-thread-header">
                 <h3>{activeConversation?.title ?? "新会话"}</h3>
@@ -644,7 +847,7 @@ export const WorkspaceShell = () => {
                     type="button"
                     className="history-toggle-button"
                     data-testid="history-toggle-button"
-                    onClick={toggleHistoryDrawer}
+                    onClick={handleHistoryToggle}
                   >
                     {historyDrawerVisible ? "收起历史" : "历史"}
                   </button>
@@ -678,7 +881,7 @@ export const WorkspaceShell = () => {
                       message.agentSteps &&
                       message.agentSteps.length > 0 ? (
                         <section className="agent-steps" data-testid="agent-steps">
-                          <h4>Agent Steps</h4>
+                          <h4>执行步骤</h4>
                           <ul>
                             {message.agentSteps.map((step, index) => (
                               <li
@@ -853,6 +1056,27 @@ export const WorkspaceShell = () => {
                 />
               </form>
             </div>
+            {compactViewport && historyDrawerVisible ? (
+              <div
+                className="history-sheet-backdrop"
+                data-testid="history-sheet-backdrop"
+                onClick={() => setHistoryDrawerVisible(false)}
+              >
+                <div
+                  className="history-sheet"
+                  data-testid="history-sheet"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="history-sheet-handle" />
+                  <aside
+                    className="conversation-sidebar"
+                    data-testid="conversation-sidebar"
+                  >
+                    {conversationSidebarContent}
+                  </aside>
+                </div>
+              </div>
+            ) : null}
           </div>
         </ChatPanel>
       </div>

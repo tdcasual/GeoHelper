@@ -33,7 +33,7 @@ export const TokenGateDialog = ({
   return (
     <div className="token-gate-overlay" role="dialog" aria-modal="true">
       <form className="token-gate-card" onSubmit={handleSubmit}>
-        <h2>Official Token</h2>
+        <h2>官方 Token</h2>
         <input
           value={token}
           onChange={(event) => setToken(event.target.value)}

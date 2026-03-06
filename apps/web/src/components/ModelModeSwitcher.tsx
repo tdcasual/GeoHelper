@@ -12,14 +12,15 @@ export const ModelModeSwitcher = ({
   onChange
 }: ModelModeSwitcherProps) => (
   <label className="mode-switcher">
-    <span>Mode</span>
+    <span>模式</span>
     <select
+      aria-label="模式"
       value={mode}
       onChange={(event) => onChange(event.target.value as ChatMode)}
     >
       <option value="byok">BYOK</option>
       <option value="official" disabled={!officialEnabled}>
-        Official
+        官方
       </option>
     </select>
   </label>

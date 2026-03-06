@@ -14,7 +14,7 @@ test("desktop toggles chat without pushing the panel offscreen", async ({
   const geogebraWidthWithChat = (await geogebraApplet.boundingBox())?.width ?? 0;
   expect(geogebraWidthWithChat).toBeGreaterThan(500);
 
-  await page.getByRole("button", { name: "Hide Chat" }).click();
+  await page.getByRole("button", { name: "收起对话" }).click();
   await expect(chat).toBeHidden();
 
   const fullWidth = (await canvas.boundingBox())?.width ?? 0;
@@ -27,7 +27,7 @@ test("desktop toggles chat without pushing the panel offscreen", async ({
     )
     .toBeGreaterThan(geogebraWidthWithChat + 200);
 
-  await page.getByRole("button", { name: "Show Chat" }).click();
+  await page.getByRole("button", { name: "显示对话" }).click();
   await expect(chat).toBeVisible();
 
   await expect
@@ -47,7 +47,7 @@ test("desktop toggles chat without pushing the panel offscreen", async ({
     )
     .toBeLessThanOrEqual(1600);
 
-  await page.getByRole("button", { name: "Hide Chat" }).click();
+  await page.getByRole("button", { name: "收起对话" }).click();
   await expect(chat).toBeHidden();
 
   await expect
@@ -75,30 +75,91 @@ test("tablet history drawer opens with bounded width", async ({ page }) => {
   expect(chatBodyBox?.width ?? 0).toBeGreaterThanOrEqual(220);
 });
 
-test("mobile history opens as bottom sheet and keeps composer visible", async ({
+test("mobile uses surface tabs, compact header, and overlay history", async ({
   page
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");
 
+  await expect(page.getByTestId("mobile-surface-switcher")).toBeVisible();
+  await expect(page.getByTestId("mobile-surface-canvas")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await expect(page.locator("[data-panel='chat']")).toBeHidden();
+
+  const topBarHeight = await page.evaluate(
+    () => document.querySelector(".top-bar")?.getBoundingClientRect().height ?? 0
+  );
+  expect(topBarHeight).toBeLessThanOrEqual(96);
+
+  await page.getByTestId("mobile-surface-chat").click();
+  await expect(page.locator("[data-panel='chat']")).toBeVisible();
+  await expect(page.getByTestId("mobile-more-button")).toBeVisible();
+
   await page.getByTestId("history-toggle-button").click();
-  const drawer = page.getByTestId("conversation-sidebar");
-  await expect(drawer).toBeVisible();
-  await expect(page.getByTestId("chat-composer-input")).toBeVisible();
+  const sheet = page.getByTestId("history-sheet");
+  await expect(sheet).toBeVisible();
 
-  const overflow = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    viewportWidth: window.innerWidth
-  }));
+  const [sheetBox, overflow, position] = await Promise.all([
+    sheet.boundingBox(),
+    page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight
+    })),
+    page.evaluate(
+      () =>
+        getComputedStyle(
+          document.querySelector("[data-testid='history-sheet']") as HTMLElement
+        ).position
+    )
+  ]);
+
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.viewportWidth);
-
-  const box = await drawer.boundingBox();
-  expect(box).not.toBeNull();
-  if (!box) {
+  expect(position).toBe("absolute");
+  expect(sheetBox).not.toBeNull();
+  if (!sheetBox) {
     return;
   }
 
-  expect(box.height).toBeGreaterThan(120);
-  expect(box.y).toBeGreaterThan(300);
-  expect(box.y + box.height).toBeLessThanOrEqual(844);
+  expect(sheetBox.width).toBeLessThanOrEqual(overflow.viewportWidth);
+  expect(sheetBox.y + sheetBox.height).toBeLessThanOrEqual(
+    overflow.viewportHeight
+  );
+});
+
+test("mobile overflow menu closes history sheet before opening", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("http://localhost:5173");
+  await page.getByTestId("mobile-surface-chat").click();
+
+  await page.getByTestId("history-toggle-button").click();
+  await expect(page.getByTestId("history-sheet")).toBeVisible();
+
+  await page.getByTestId("mobile-more-button").click();
+  await expect(page.getByTestId("mobile-overflow-menu")).toBeVisible();
+  await expect(page.getByTestId("history-sheet")).toBeHidden();
+});
+
+test("compact landscape uses single-surface layout instead of narrow split panes", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto("http://localhost:5173");
+
+  await expect(page.getByTestId("mobile-surface-switcher")).toBeVisible();
+  await expect(page.locator("[data-panel='chat']")).toBeHidden();
+  await expect(page.locator("[data-panel='canvas']")).toBeVisible();
+
+  await page.getByTestId("mobile-surface-chat").click();
+  await expect(page.locator("[data-panel='chat']")).toBeVisible();
+  await expect(page.locator("[data-panel='canvas']")).toBeHidden();
+
+  const chatBodyWidth = await page.evaluate(
+    () => document.querySelector(".chat-body")?.getBoundingClientRect().width ?? 0
+  );
+  expect(chatBodyWidth).toBeGreaterThan(500);
 });

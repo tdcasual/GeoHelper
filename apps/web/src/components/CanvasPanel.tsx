@@ -10,6 +10,13 @@ import {
 
 const GGB_MANIFEST_PATH = "/vendor/geogebra/manifest.json";
 
+export type CanvasUiProfile = "desktop" | "mobile";
+
+interface CanvasPanelProps {
+  profile: CanvasUiProfile;
+  visible: boolean;
+}
+
 type GeoGebraAppletObject = {
   evalCommand?: (command: string) => void;
   setValue?: (name: string, value: number) => void;
@@ -75,7 +82,9 @@ const getLiveAppletObject = (): GeoGebraAppletObject | null => {
   );
 };
 
-const resolveAppletObject = (appletObject: unknown): GeoGebraAppletObject | null => {
+const resolveAppletObject = (
+  appletObject: unknown
+): GeoGebraAppletObject | null => {
   const raw = appletObject as GeoGebraAppletObject | null | undefined;
   return raw ?? getLiveAppletObject();
 };
@@ -89,7 +98,19 @@ const toGeoGebraAdapter = (appletObject: unknown): GeoGebraAdapter => {
   };
 };
 
-export const CanvasPanel = () => {
+const toAppletConfig = (profile: CanvasUiProfile) => ({
+  appName: profile === "mobile" ? "geometry" : "classic",
+  showToolBar: true,
+  showAlgebraInput: profile === "desktop",
+  showMenuBar: profile === "desktop",
+  showToolBarHelp: profile === "desktop",
+  enableFileFeatures: true,
+  showFullscreenButton: true,
+  showResetIcon: true,
+  language: "zh"
+});
+
+export const CanvasPanel = ({ profile, visible }: CanvasPanelProps) => {
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading"
   );
@@ -113,7 +134,12 @@ export const CanvasPanel = () => {
       return;
     }
 
-    const nextSize = toAppletPixelSize(host.getBoundingClientRect());
+    const bounds = host.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      return;
+    }
+
+    const nextSize = toAppletPixelSize(bounds);
     if (
       lastSizeRef.current?.width === nextSize.width &&
       lastSizeRef.current?.height === nextSize.height
@@ -162,6 +188,42 @@ export const CanvasPanel = () => {
   }, [scheduleAppletResize]);
 
   useEffect(() => {
+    if (!visible) {
+      return;
+    }
+
+    scheduleAppletResize();
+    const timeoutId = window.setTimeout(() => {
+      scheduleAppletResize();
+    }, 120);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [scheduleAppletResize, visible]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleViewportChange = () => {
+      scheduleAppletResize();
+      window.setTimeout(() => {
+        scheduleAppletResize();
+      }, 80);
+    };
+
+    window.addEventListener("orientationchange", handleViewportChange);
+    window.addEventListener("resize", handleViewportChange);
+
+    return () => {
+      window.removeEventListener("orientationchange", handleViewportChange);
+      window.removeEventListener("resize", handleViewportChange);
+    };
+  }, [scheduleAppletResize]);
+
+  useEffect(() => {
     let disposed = false;
 
     const bootstrap = async () => {
@@ -177,20 +239,17 @@ export const CanvasPanel = () => {
           return;
         }
 
-        const size = toAppletPixelSize(hostRef.current.getBoundingClientRect());
+        const bounds = hostRef.current.getBoundingClientRect();
+        if (bounds.width <= 0 || bounds.height <= 0) {
+          return;
+        }
+
+        const size = toAppletPixelSize(bounds);
         const applet = new window.GGBApplet(
           {
-            appName: "classic",
+            ...toAppletConfig(profile),
             width: size.width,
-            height: size.height,
-            showToolBar: true,
-            showAlgebraInput: true,
-            showMenuBar: true,
-            showToolBarHelp: true,
-            enableFileFeatures: true,
-            showFullscreenButton: true,
-            showResetIcon: true,
-            language: "zh"
+            height: size.height
           },
           true
         );
@@ -217,6 +276,7 @@ export const CanvasPanel = () => {
       }
     };
 
+    setStatus("loading");
     void bootstrap();
 
     return () => {
@@ -229,10 +289,10 @@ export const CanvasPanel = () => {
       lastSizeRef.current = null;
       registerGeoGebraAdapter(null);
     };
-  }, [scheduleAppletResize]);
+  }, [profile, scheduleAppletResize]);
 
   return (
-    <section className="canvas-panel" data-panel="canvas">
+    <section className="canvas-panel" data-panel="canvas" hidden={!visible}>
       <div ref={hostRef} className="geogebra-host" data-testid="geogebra-host">
         <div id="geogebra-container" className="geogebra-container" />
         {status === "loading" ? (

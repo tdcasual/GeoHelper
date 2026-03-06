@@ -389,7 +389,7 @@ export const SettingsDrawer = ({
               }
             >
               <option value="byok">BYOK</option>
-              <option value="official">Official</option>
+              <option value="official">官方</option>
             </select>
           </label>
           <label>
@@ -449,7 +449,7 @@ export const SettingsDrawer = ({
             </select>
           </label>
           <label>
-            Base URL（gateway 必填，direct 可选）
+            基础地址（gateway 必填，direct 可选）
             <input
               placeholder={
                 runtimeDraft.target === "gateway"
@@ -554,9 +554,7 @@ export const SettingsDrawer = ({
               }
             />
           </label>
-          <label>
-            Model
-            <input
+          <label>模型<input
               data-testid="byok-model-input"
               value={byokDraft.model}
               onChange={(event) =>
@@ -567,9 +565,7 @@ export const SettingsDrawer = ({
               }
             />
           </label>
-          <label>
-            Endpoint
-            <input
+          <label>接口地址<input
               data-testid="byok-endpoint-input"
               value={byokDraft.endpoint}
               onChange={(event) =>
@@ -596,9 +592,7 @@ export const SettingsDrawer = ({
             />
           </label>
           <div className="settings-grid-3">
-            <label>
-              temperature
-              <input
+            <label>温度<input
                 type="number"
                 step="0.1"
                 value={byokDraft.temperature}
@@ -610,9 +604,7 @@ export const SettingsDrawer = ({
                 }
               />
             </label>
-            <label>
-              max tokens
-              <input
+            <label>最大 Tokens<input
                 type="number"
                 value={byokDraft.maxTokens}
                 onChange={(event) =>
@@ -623,9 +615,7 @@ export const SettingsDrawer = ({
                 }
               />
             </label>
-            <label>
-              timeout(ms)
-              <input
+            <label>超时（毫秒）<input
                 type="number"
                 value={byokDraft.timeoutMs}
                 onChange={(event) =>
@@ -684,7 +674,7 @@ export const SettingsDrawer = ({
         </section>
 
         <section className="settings-section">
-          <h3>Official 预设</h3>
+          <h3>官方预设</h3>
           <div className="settings-inline-actions">
             <select
               value={selectedOfficialId}
@@ -718,9 +708,7 @@ export const SettingsDrawer = ({
               }
             />
           </label>
-          <label>
-            Model
-            <input
+          <label>模型<input
               value={officialDraft.model}
               onChange={(event) =>
                 setOfficialDraft((prev) => ({
@@ -731,9 +719,7 @@ export const SettingsDrawer = ({
             />
           </label>
           <div className="settings-grid-3">
-            <label>
-              temperature
-              <input
+            <label>温度<input
                 type="number"
                 step="0.1"
                 value={officialDraft.temperature}
@@ -745,9 +731,7 @@ export const SettingsDrawer = ({
                 }
               />
             </label>
-            <label>
-              max tokens
-              <input
+            <label>最大 Tokens<input
                 type="number"
                 value={officialDraft.maxTokens}
                 onChange={(event) =>
@@ -758,9 +742,7 @@ export const SettingsDrawer = ({
                 }
               />
             </label>
-            <label>
-              timeout(ms)
-              <input
+            <label>超时（毫秒）<input
                 type="number"
                 value={officialDraft.timeoutMs}
                 onChange={(event) =>
@@ -790,7 +772,7 @@ export const SettingsDrawer = ({
                 setSavingOfficial(false);
               }}
             >
-              保存 Official 预设
+              保存官方预设
             </button>
             <button
               type="button"
@@ -817,33 +799,27 @@ export const SettingsDrawer = ({
           {activeConversationId ? (
             <>
               <label>
-                model（留空跟随默认）
+                模型（留空跟随默认）
                 <input
                   value={sessionModel}
                   onChange={(event) => setSessionModel(event.target.value)}
                 />
               </label>
               <div className="settings-grid-4">
-                <label>
-                  temperature
-                  <input
+                <label>温度<input
                     type="number"
                     step="0.1"
                     value={sessionTemperature}
                     onChange={(event) => setSessionTemperature(event.target.value)}
                   />
                 </label>
-                <label>
-                  max tokens
-                  <input
+                <label>最大 Tokens<input
                     type="number"
                     value={sessionMaxTokens}
                     onChange={(event) => setSessionMaxTokens(event.target.value)}
                   />
                 </label>
-                <label>
-                  timeout(ms)
-                  <input
+                <label>超时（毫秒）<input
                     type="number"
                     value={sessionTimeoutMs}
                     onChange={(event) => setSessionTimeoutMs(event.target.value)}
