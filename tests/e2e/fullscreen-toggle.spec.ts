@@ -1,13 +1,50 @@
 import { expect, test } from "@playwright/test";
 
-test("desktop can hide chat panel and keep canvas full width", async ({
+test("desktop toggles chat without pushing the panel offscreen", async ({
   page
 }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto("http://localhost:5173");
 
+  const canvas = page.locator("[data-panel='canvas']");
+  const chat = page.locator("[data-panel='chat']");
+
+  await expect(chat).toBeVisible();
   await page.getByRole("button", { name: "Hide Chat" }).click();
-  await expect(page.locator("[data-panel='chat']")).toBeHidden();
+  await expect(chat).toBeHidden();
+
+  const fullWidth = (await canvas.boundingBox())?.width ?? 0;
+  expect(fullWidth).toBeGreaterThan(900);
+
+  await page.getByRole("button", { name: "Show Chat" }).click();
+  await expect(chat).toBeVisible();
+
+  await expect
+    .poll(
+      async () => (await canvas.boundingBox())?.width ?? 0,
+      { message: "canvas should shrink after showing chat" }
+    )
+    .toBeLessThan(fullWidth - 200);
+
+  await expect
+    .poll(
+      async () => {
+        const box = await chat.boundingBox();
+        return box ? box.x + box.width : 0;
+      },
+      { message: "chat panel should stay within the viewport" }
+    )
+    .toBeLessThanOrEqual(1600);
+
+  await page.getByRole("button", { name: "Hide Chat" }).click();
+  await expect(chat).toBeHidden();
+
+  await expect
+    .poll(
+      async () => (await canvas.boundingBox())?.width ?? 0,
+      { message: "canvas should expand after hiding chat" }
+    )
+    .toBeGreaterThan(fullWidth - 20);
 });
 
 test("tablet history drawer opens with bounded width", async ({ page }) => {
