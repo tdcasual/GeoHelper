@@ -65,8 +65,23 @@ const ensureGeoGebraScript = async (scriptUrl: string): Promise<void> => {
   }
 };
 
-const toGeoGebraAdapter = (appletObject: unknown): GeoGebraAdapter => {
+const getLiveAppletObject = (): GeoGebraAppletObject | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return (
+    (window as Window & { ggbApplet?: GeoGebraAppletObject }).ggbApplet ?? null
+  );
+};
+
+const resolveAppletObject = (appletObject: unknown): GeoGebraAppletObject | null => {
   const raw = appletObject as GeoGebraAppletObject | null | undefined;
+  return raw ?? getLiveAppletObject();
+};
+
+const toGeoGebraAdapter = (appletObject: unknown): GeoGebraAdapter => {
+  const raw = resolveAppletObject(appletObject);
 
   return {
     evalCommand: (command) => raw?.evalCommand?.(command),
@@ -85,7 +100,14 @@ export const CanvasPanel = () => {
 
   const syncAppletSize = useCallback(() => {
     const host = hostRef.current;
-    const appletObject = appletObjectRef.current;
+    const appletObject = appletObjectRef.current?.setSize
+      ? appletObjectRef.current
+      : getLiveAppletObject();
+
+    if (appletObject && appletObjectRef.current !== appletObject) {
+      appletObjectRef.current = appletObject;
+      registerGeoGebraAdapter(toGeoGebraAdapter(appletObject));
+    }
 
     if (!host || !appletObject?.setSize) {
       return;
@@ -175,11 +197,12 @@ export const CanvasPanel = () => {
 
         applet.setHTML5Codebase?.(runtime.html5CodebaseUrl);
         applet.inject("geogebra-container");
-        const appletObject =
+        const appletObject = resolveAppletObject(
           typeof applet.getAppletObject === "function"
-            ? (applet.getAppletObject() as GeoGebraAppletObject | undefined)
-            : undefined;
-        appletObjectRef.current = appletObject ?? null;
+            ? applet.getAppletObject()
+            : undefined
+        );
+        appletObjectRef.current = appletObject;
         lastSizeRef.current = null;
         registerGeoGebraAdapter(toGeoGebraAdapter(appletObject));
         scheduleAppletResize();

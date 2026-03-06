@@ -10,11 +10,22 @@ test("desktop toggles chat without pushing the panel offscreen", async ({
   const chat = page.locator("[data-panel='chat']");
 
   await expect(chat).toBeVisible();
+  const geogebraApplet = page.locator("#ggbApplet");
+  const geogebraWidthWithChat = (await geogebraApplet.boundingBox())?.width ?? 0;
+  expect(geogebraWidthWithChat).toBeGreaterThan(500);
+
   await page.getByRole("button", { name: "Hide Chat" }).click();
   await expect(chat).toBeHidden();
 
   const fullWidth = (await canvas.boundingBox())?.width ?? 0;
   expect(fullWidth).toBeGreaterThan(900);
+
+  await expect
+    .poll(
+      async () => (await geogebraApplet.boundingBox())?.width ?? 0,
+      { message: "GeoGebra applet should expand after hiding chat" }
+    )
+    .toBeGreaterThan(geogebraWidthWithChat + 200);
 
   await page.getByRole("button", { name: "Show Chat" }).click();
   await expect(chat).toBeVisible();
