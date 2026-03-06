@@ -103,7 +103,9 @@ export const CanvasPanel = () => {
             height: size.height,
             showToolBar: true,
             showAlgebraInput: true,
-            showMenuBar: false,
+            showMenuBar: true,
+            showToolBarHelp: true,
+            enableFileFeatures: true,
             showResetIcon: true,
             language: "zh"
           },

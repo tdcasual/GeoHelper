@@ -19,7 +19,10 @@ test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
 
   await page.addInitScript(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).GGBApplet = function () {
+    (window as any).GGBApplet = function (params: Record<string, unknown>) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__geohelperGgbParams = params;
+
       return {
         inject: (containerId: string) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,6 +53,17 @@ test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
       { message: "GeoGebra applet should inject into the container" }
     )
     .toBe("geogebra-container");
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          () => (window as any).__geohelperGgbParams
+        ),
+      { message: "GeoGebra applet should enable the menu bar" }
+    )
+    .toMatchObject({ showMenuBar: true });
 
   await expect
     .poll(
