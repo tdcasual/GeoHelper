@@ -30,7 +30,7 @@ jobs:
         run: pnpm test
 
       - name: Build web static bundle
-        run: pnpm --filter @geohelper/web build
+        run: pnpm build:web
 
       - name: Validate benchmark dataset
         run: pnpm bench:quality -- --dry-run

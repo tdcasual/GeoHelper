@@ -24,7 +24,31 @@ Stop stack:
 bash scripts/deploy/staging-down.sh
 ```
 
-## B. EdgeOne Staging Deploy (Web)
+## B. GeoGebra Vendor Sync (required before web build)
+
+The web app now self-hosts GeoGebra assets. Before any staging or production web build, run:
+
+```bash
+pnpm geogebra:sync
+```
+
+What this does:
+
+- resolves the official latest GeoGebra Math Apps Bundle
+- downloads and validates the bundle locally
+- falls back to the configured fallback version if latest fails
+- falls back again to cached last-known-good if fallback is unavailable
+- publishes the resolved bundle into `apps/web/public/vendor/geogebra/current/`
+- writes vendor metadata to `apps/web/public/vendor/geogebra/manifest.json`
+
+Operational notes:
+
+- `latest` is preferred on every sync attempt
+- `fallback` is used only when latest download, extraction, or validation fails
+- `last-known-good` is used only when both latest and fallback fail
+- production should serve GeoGebra only from local static assets, not `geogebra.org`
+
+## C. EdgeOne Staging Deploy (Web)
 
 Required env vars:
 
@@ -37,7 +61,9 @@ Required env vars:
 Deploy command:
 
 ```bash
+pnpm geogebra:sync
 pnpm --filter @geohelper/web build
+pnpm verify:geogebra-self-hosted
 EDGEONE_PROJECT_NAME=<project> \
 EDGEONE_API_TOKEN=<token> \
 VITE_GATEWAY_URL=https://<staging-gateway-domain> \
@@ -47,6 +73,9 @@ bash scripts/deploy/edgeone-deploy.sh
 Direct BYOK-only deploy (no gateway URL at build time):
 
 ```bash
+pnpm geogebra:sync
+pnpm --filter @geohelper/web build
+pnpm verify:geogebra-self-hosted
 EDGEONE_PROJECT_NAME=<project> \
 EDGEONE_API_TOKEN=<token> \
 bash scripts/deploy/edgeone-deploy.sh
@@ -66,7 +95,7 @@ Secrets expected in repo settings:
 bash scripts/deploy/configure-release-secrets.sh --repo <owner/repo>
 ```
 
-## C. Gateway Staging Deploy
+## D. Gateway Staging Deploy
 
 Gateway is packaged as container image:
 
@@ -78,7 +107,7 @@ Optional deploy hook secret:
 
 - `GATEWAY_STAGING_DEPLOY_HOOK_URL`
 
-## D. Runtime Environment for Gateway
+## E. Runtime Environment for Gateway
 
 - `PORT`
 - `PRESET_TOKEN`
@@ -101,10 +130,16 @@ You can sync gateway/web deploy secrets from local env vars with:
 bash scripts/deploy/configure-release-secrets.sh --repo <owner/repo>
 ```
 
-## E. Post-deploy Verification
+## F. Post-deploy Verification
 
 ```bash
 curl -fsS https://<gateway-domain>/api/v1/health
+```
+
+Verify the self-hosted GeoGebra artifact before release:
+
+```bash
+pnpm verify:geogebra-self-hosted
 ```
 
 Live model smoke (requires real LiteLLM credentials):
@@ -122,6 +157,8 @@ Then open the web staging URL and verify:
 - runtime switch works (`Gateway` / `Direct BYOK`)
 - official mode is available only when gateway runtime is configured
 - compile pipeline returns rendered result
+- `vendor/geogebra/manifest.json` is present in the deployed static assets
+- page resources do not request `geogebra.org`
 
 Quality benchmark dry-run:
 

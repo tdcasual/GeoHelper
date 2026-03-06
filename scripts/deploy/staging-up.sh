@@ -15,7 +15,7 @@ start_local_fallback() {
   echo "[staging] docker unavailable, using local fallback"
   pnpm install --frozen-lockfile
   VITE_GATEWAY_URL="${VITE_GATEWAY_URL:-http://localhost:8787}" \
-    pnpm --filter @geohelper/web build
+    pnpm build:web
 
   PRESET_TOKEN="${PRESET_TOKEN:-geohelper-staging-token}" \
   APP_SECRET="${APP_SECRET:-geohelper-staging-app-secret}" \

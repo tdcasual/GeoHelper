@@ -19,11 +19,7 @@ VITE_GATEWAY_URL="${VITE_GATEWAY_URL:-}"
 
 corepack enable
 pnpm install --frozen-lockfile
-if [[ -n "$VITE_GATEWAY_URL" ]]; then
-  VITE_GATEWAY_URL="$VITE_GATEWAY_URL" pnpm --filter @geohelper/web build
-else
-  pnpm --filter @geohelper/web build
-fi
+VITE_GATEWAY_URL="$VITE_GATEWAY_URL" pnpm build:web
 
 pnpm dlx edgeone pages deploy \
   --project-name "$EDGEONE_PROJECT_NAME" \
