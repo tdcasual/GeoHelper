@@ -15,6 +15,7 @@ declare global {
       autoStart: boolean
     ) => {
       inject: (containerId: string) => void;
+      setHTML5Codebase?: (codebase: string) => void;
       getAppletObject?: () => unknown;
     };
   }

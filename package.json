@@ -5,12 +5,16 @@
   "scripts": {
     "test": "vitest",
     "typecheck": "tsc -p tsconfig.base.json --noEmit",
-    "test:e2e": "playwright test",
+    "test:e2e": "pnpm geogebra:sync && playwright test",
     "smoke:live-model": "bash scripts/smoke/live-model-chain.sh",
-    "bench:quality": "node scripts/bench/run-quality-benchmark.mjs"
+    "bench:quality": "node scripts/bench/run-quality-benchmark.mjs",
+    "geogebra:sync": "node scripts/geogebra/sync-bundle.mjs",
+    "build:web": "pnpm geogebra:sync && pnpm --filter @geohelper/web build",
+    "verify:geogebra-self-hosted": "node scripts/geogebra/assert-no-external.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
+    "@types/node": "^24.11.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }

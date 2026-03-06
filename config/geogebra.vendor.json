@@ -1,0 +1,11 @@
+{
+  "latestBundleUrl": "https://download.geogebra.org/package/geogebra-math-apps-bundle",
+  "fallbackVersion": "5.4.918.0",
+  "fallbackBundleUrl": "https://download.geogebra.org/installers/5.4/geogebra-math-apps-bundle-5-4-918-0.zip",
+  "requestTimeoutMs": 300000,
+  "allowCachedLastKnownGood": true,
+  "expectedEntries": [
+    "deployggb.js",
+    "HTML5"
+  ]
+}

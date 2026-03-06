@@ -13,11 +13,14 @@ GeoHelper is a static-deployable web app that uses LLMs to generate structured G
 ```bash
 pnpm install
 pnpm --filter @geohelper/gateway dev
+pnpm geogebra:sync
 pnpm --filter @geohelper/web dev
 ```
 
 - Web: `http://localhost:5173`
 - Gateway: `http://localhost:8787`
+- GeoGebra web assets are served locally from `apps/web/public/vendor/geogebra/current/`
+- Vendor metadata is generated at `apps/web/public/vendor/geogebra/manifest.json`
 
 ## Tests
 
@@ -36,16 +39,23 @@ pnpm test:e2e
 bash scripts/deploy/staging-up.sh
 ```
 
-2. Deploy web to EdgeOne preview:
+2. Sync the latest self-hosted GeoGebra bundle before building web assets:
+
+```bash
+pnpm geogebra:sync
+```
+
+3. Deploy web to EdgeOne preview:
 
 ```bash
 EDGEONE_PROJECT_NAME=<project> EDGEONE_API_TOKEN=<token> VITE_GATEWAY_URL=https://<staging-gateway> bash scripts/deploy/edgeone-deploy.sh
 ```
 
-3. Gateway/Web deploy is manual by design (no auto deploy workflow).
+4. Gateway/Web deploy is manual by design (no auto deploy workflow).
 
 Notes:
 
+- `geogebra:sync` tries the official latest bundle first and falls back to the configured fallback or cached last-known-good when needed.
 - `VITE_GATEWAY_URL` is optional for pure Direct BYOK mode.
 - If `VITE_GATEWAY_URL` is unset, web defaults to `Direct BYOK` runtime and Official mode is unavailable until a Gateway runtime is configured in settings.
 
