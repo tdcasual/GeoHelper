@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "scripts": {
     "test": "vitest",
-    "typecheck": "tsc -p tsconfig.base.json --noEmit",
+    "typecheck": "pnpm exec tsc -p apps/web/tsconfig.json --noEmit && pnpm exec tsc -p apps/gateway/tsconfig.json --noEmit && pnpm exec tsc -p packages/protocol/tsconfig.json --noEmit && pnpm exec tsc -p tests/tsconfig.json --noEmit",
     "test:e2e": "pnpm geogebra:sync && playwright test",
     "smoke:live-model": "bash scripts/smoke/live-model-chain.sh",
     "bench:quality": "node scripts/bench/run-quality-benchmark.mjs",

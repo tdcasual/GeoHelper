@@ -39,6 +39,11 @@ export interface ChatSendInput {
   attachments?: ChatAttachment[];
 }
 
+interface NormalizedChatSendInput {
+  content: string;
+  attachments: ChatAttachment[];
+}
+
 export interface ConversationThread {
   id: string;
   title: string;
@@ -194,7 +199,7 @@ const moveConversationToTop = (
 
 const normalizeSendInput = (
   input: string | ChatSendInput
-): ChatSendInput => {
+): NormalizedChatSendInput => {
   if (typeof input === "string") {
     return {
       content: input,

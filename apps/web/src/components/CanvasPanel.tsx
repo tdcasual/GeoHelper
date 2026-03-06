@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { GeoGebraAdapter, registerGeoGebraAdapter } from "../geogebra/adapter";
 import { toAppletPixelSize } from "../geogebra/applet-size";
@@ -9,6 +9,13 @@ import {
 } from "../geogebra/vendor-runtime";
 
 const GGB_MANIFEST_PATH = "/vendor/geogebra/manifest.json";
+
+type GeoGebraAppletObject = {
+  evalCommand?: (command: string) => void;
+  setValue?: (name: string, value: number) => void;
+  setSize?: (width: number, height: number) => void;
+  recalculateEnvironments?: () => void;
+};
 
 let ggbLoaderPromise: Promise<void> | null = null;
 let ggbLoaderUrl: string | null = null;
@@ -59,13 +66,7 @@ const ensureGeoGebraScript = async (scriptUrl: string): Promise<void> => {
 };
 
 const toGeoGebraAdapter = (appletObject: unknown): GeoGebraAdapter => {
-  const raw = appletObject as
-    | {
-        evalCommand?: (command: string) => void;
-        setValue?: (name: string, value: number) => void;
-      }
-    | null
-    | undefined;
+  const raw = appletObject as GeoGebraAppletObject | null | undefined;
 
   return {
     evalCommand: (command) => raw?.evalCommand?.(command),
@@ -78,6 +79,65 @@ export const CanvasPanel = () => {
     "loading"
   );
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const appletObjectRef = useRef<GeoGebraAppletObject | null>(null);
+  const lastSizeRef = useRef<{ width: number; height: number } | null>(null);
+  const resizeFrameRef = useRef<number | null>(null);
+
+  const syncAppletSize = useCallback(() => {
+    const host = hostRef.current;
+    const appletObject = appletObjectRef.current;
+
+    if (!host || !appletObject?.setSize) {
+      return;
+    }
+
+    const nextSize = toAppletPixelSize(host.getBoundingClientRect());
+    if (
+      lastSizeRef.current?.width === nextSize.width &&
+      lastSizeRef.current?.height === nextSize.height
+    ) {
+      return;
+    }
+
+    lastSizeRef.current = nextSize;
+    appletObject.setSize(nextSize.width, nextSize.height);
+    appletObject.recalculateEnvironments?.();
+  }, []);
+
+  const scheduleAppletResize = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (resizeFrameRef.current !== null) {
+      window.cancelAnimationFrame(resizeFrameRef.current);
+    }
+
+    resizeFrameRef.current = window.requestAnimationFrame(() => {
+      resizeFrameRef.current = null;
+      syncAppletSize();
+    });
+  }, [syncAppletSize]);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      scheduleAppletResize();
+    });
+    observer.observe(host);
+
+    return () => {
+      observer.disconnect();
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
+    };
+  }, [scheduleAppletResize]);
 
   useEffect(() => {
     let disposed = false;
@@ -106,6 +166,7 @@ export const CanvasPanel = () => {
             showMenuBar: true,
             showToolBarHelp: true,
             enableFileFeatures: true,
+            showFullscreenButton: true,
             showResetIcon: true,
             language: "zh"
           },
@@ -116,11 +177,16 @@ export const CanvasPanel = () => {
         applet.inject("geogebra-container");
         const appletObject =
           typeof applet.getAppletObject === "function"
-            ? applet.getAppletObject()
+            ? (applet.getAppletObject() as GeoGebraAppletObject | undefined)
             : undefined;
+        appletObjectRef.current = appletObject ?? null;
+        lastSizeRef.current = null;
         registerGeoGebraAdapter(toGeoGebraAdapter(appletObject));
+        scheduleAppletResize();
         setStatus("ready");
       } catch {
+        appletObjectRef.current = null;
+        lastSizeRef.current = null;
         registerGeoGebraAdapter(null);
         if (!disposed) {
           setStatus("error");
@@ -132,9 +198,15 @@ export const CanvasPanel = () => {
 
     return () => {
       disposed = true;
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
+      appletObjectRef.current = null;
+      lastSizeRef.current = null;
       registerGeoGebraAdapter(null);
     };
-  }, []);
+  }, [scheduleAppletResize]);
 
   return (
     <section className="canvas-panel" data-panel="canvas">

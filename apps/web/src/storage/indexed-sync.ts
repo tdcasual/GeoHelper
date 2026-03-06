@@ -1,3 +1,5 @@
+import type { GeoHelperDB, SettingRecord } from "./db";
+
 const CHAT_STORE_KEY = "geohelper.chat.snapshot";
 const SETTINGS_KEY = "geohelper.settings.snapshot";
 const UI_PREFS_KEY = "geohelper.ui.preferences";
@@ -31,19 +33,12 @@ const parseJsonMaybe = (raw: string | null): Record<string, unknown> | null => {
   }
 };
 
-interface DbSettingRecord {
-  key: string;
-  value: unknown;
-  updatedAt?: string;
-}
+type DbSettingRecord = SettingRecord;
+
+type SnapshotSettingsDb = Pick<GeoHelperDB, "settings">;
 
 const withDb = async <T>(
-  runner: (db: {
-    settings: {
-      get: (key: string) => Promise<DbSettingRecord | undefined>;
-      put: (entry: { key: string; value: unknown; updatedAt: string }) => Promise<void>;
-    };
-  }) => Promise<T>
+  runner: (db: SnapshotSettingsDb) => Promise<T>
 ): Promise<T | undefined> => {
   if (!canUseIndexedDb()) {
     return undefined;
@@ -66,11 +61,13 @@ const writeDbSnapshot = async (
   value: Record<string, unknown>
 ): Promise<void> => {
   await withDb((db) =>
-    db.settings.put({
-      key,
-      value,
-      updatedAt: new Date().toISOString()
-    })
+    db.settings
+      .put({
+        key,
+        value,
+        updatedAt: new Date().toISOString()
+      })
+      .then(() => undefined)
   );
 };
 

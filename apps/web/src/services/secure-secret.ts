@@ -42,13 +42,19 @@ const encodeBase64 = (bytes: Uint8Array): string => {
   return btoa(binary);
 };
 
-const decodeBase64 = (value: string): Uint8Array => {
+const cloneBytes = (bytes: Uint8Array): Uint8Array<ArrayBuffer> => {
+  const copy = new Uint8Array(new ArrayBuffer(bytes.byteLength));
+  copy.set(bytes);
+  return copy;
+};
+
+const decodeBase64 = (value: string): Uint8Array<ArrayBuffer> => {
   if (typeof Buffer !== "undefined") {
-    return new Uint8Array(Buffer.from(value, "base64"));
+    return cloneBytes(new Uint8Array(Buffer.from(value, "base64")));
   }
 
   const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
+  const bytes = new Uint8Array(new ArrayBuffer(binary.length));
   for (let index = 0; index < binary.length; index += 1) {
     bytes[index] = binary.charCodeAt(index);
   }

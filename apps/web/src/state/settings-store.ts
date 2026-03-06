@@ -299,7 +299,7 @@ const normalizeSnapshot = (
   const runtimeProfiles =
     Array.isArray(raw?.runtimeProfiles) && raw?.runtimeProfiles.length > 0
       ? raw.runtimeProfiles
-          .map((item) => ({
+          .map((item): RuntimeProfile => ({
             id: String(item.id ?? ""),
             name:
               typeof item.name === "string" && item.name.trim()

@@ -9,6 +9,7 @@ import { RuntimeCapabilities } from "./types";
 
 const gatewayCapabilities: RuntimeCapabilities = {
   supportsOfficialAuth: true,
+  supportsVision: false,
   supportsAgentSteps: true,
   supportsServerMetrics: true,
   supportsRateLimitHeaders: true
@@ -16,6 +17,7 @@ const gatewayCapabilities: RuntimeCapabilities = {
 
 const directCapabilities: RuntimeCapabilities = {
   supportsOfficialAuth: false,
+  supportsVision: true,
   supportsAgentSteps: false,
   supportsServerMetrics: false,
   supportsRateLimitHeaders: false
