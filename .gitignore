@@ -11,3 +11,4 @@ playwright-report/
 .cache/geogebra/
 apps/web/public/vendor/geogebra/current/
 apps/web/public/vendor/geogebra/manifest.json
+output/

@@ -108,7 +108,9 @@ const toAppletConfig = (
   profile: CanvasUiProfile,
   onLoad?: (appletObject: unknown) => void
 ) => ({
-  appName: profile === "mobile" ? "geometry" : "classic",
+  appName: "classic",
+  perspective: profile === "mobile" ? "G" : undefined,
+  preventFocus: true,
   showToolBar: true,
   showAlgebraInput: profile === "desktop",
   showMenuBar: profile === "desktop",

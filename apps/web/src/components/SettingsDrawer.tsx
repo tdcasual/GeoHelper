@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { ChatMode } from "../runtime/types";
 import {
@@ -65,6 +65,25 @@ const SETTINGS_SECTIONS: Array<{ id: SettingsSectionId; label: string }> = [
   { id: "experiments", label: "实验功能" },
   { id: "data", label: "数据与安全" }
 ];
+
+const FOCUSABLE_SELECTOR = [
+  "button:not([disabled])",
+  "[href]",
+  "input:not([disabled]):not([type='hidden'])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])"
+].join(",");
+
+const getFocusableElements = (container: HTMLElement | null) => {
+  if (!container) {
+    return [] as HTMLElement[];
+  }
+
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    (element) => element.getAttribute("aria-hidden") !== "true"
+  );
+};
 
 const fromByokPreset = (preset: ByokPreset | undefined): ByokDraft => ({
   id: preset?.id,
@@ -227,6 +246,9 @@ export const SettingsDrawer = ({
     useState<BackupInspection | null>(null);
   const [importingBackup, setImportingBackup] = useState(false);
   const backupInputRef = useRef<HTMLInputElement | null>(null);
+  const modalRef = useRef<HTMLElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!byokPresets.some((item) => item.id === selectedByokId)) {
@@ -268,6 +290,22 @@ export const SettingsDrawer = ({
   }, [open]);
 
   useEffect(() => {
+    if (!open || typeof document === "undefined") {
+      return;
+    }
+
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusTarget = closeButtonRef.current ?? modalRef.current;
+    requestAnimationFrame(() => focusTarget?.focus());
+
+    return () => {
+      previousFocusRef.current?.focus();
+      previousFocusRef.current = null;
+    };
+  }, [open]);
+
+  useEffect(() => {
     setSessionModel(sessionOverride.model ?? "");
     setSessionTemperature(
       sessionOverride.temperature != null ? String(sessionOverride.temperature) : ""
@@ -284,6 +322,45 @@ export const SettingsDrawer = ({
         : ""
     );
   }, [sessionOverride]);
+
+  const handleModalKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+
+    if (event.key !== "Tab") {
+      return;
+    }
+
+    const focusableElements = getFocusableElements(modalRef.current);
+    if (focusableElements.length === 0) {
+      event.preventDefault();
+      modalRef.current?.focus();
+      return;
+    }
+
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+    const activeElement =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusIsInsideModal =
+      !!activeElement && !!modalRef.current?.contains(activeElement);
+
+    if (event.shiftKey) {
+      if (!focusIsInsideModal || activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      }
+      return;
+    }
+
+    if (!focusIsInsideModal || activeElement === lastElement) {
+      event.preventDefault();
+      firstElement.focus();
+    }
+  };
 
   if (!open) {
     return null;
@@ -348,15 +425,18 @@ export const SettingsDrawer = ({
   return (
     <div className="settings-drawer-backdrop" onClick={onClose}>
       <aside
+        ref={modalRef}
         className="settings-drawer settings-modal"
         data-testid="settings-modal"
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={handleModalKeyDown}
       >
         <header className="settings-drawer-header">
           <h2>设置</h2>
-          <button type="button" onClick={onClose}>
+          <button ref={closeButtonRef} type="button" onClick={onClose}>
             关闭
           </button>
         </header>

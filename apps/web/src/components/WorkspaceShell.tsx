@@ -111,6 +111,7 @@ export const WorkspaceShell = () => {
   const sessionOverrides = useSettingsStore((state) => state.sessionOverrides);
   const templates = useTemplateStore((state) => state.templates);
   const chatShellRef = useRef<HTMLDivElement | null>(null);
+  const composerFormRef = useRef<HTMLFormElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const mobileActionsButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -121,6 +122,7 @@ export const WorkspaceShell = () => {
     Record<string, ComposerDraftState>
   >({});
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
+  const [slashMenuDismissed, setSlashMenuDismissed] = useState(false);
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
   const [composerNotice, setComposerNotice] = useState<string | null>(null);
@@ -236,43 +238,6 @@ export const WorkspaceShell = () => {
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    if (typeof document === "undefined") {
-      return;
-    }
-
-    const handlePointerDown = (event: globalThis.PointerEvent) => {
-      const target = event.target as Node | null;
-      if (!target) {
-        return;
-      }
-
-      if (mobileActionsOpen) {
-        const insideActionsMenu = mobileActionsMenuRef.current?.contains(target);
-        const insideActionsButton = mobileActionsButtonRef.current?.contains(target);
-        if (!insideActionsMenu && !insideActionsButton) {
-          setMobileActionsOpen(false);
-        }
-      }
-
-      if (plusMenuOpen) {
-        const insidePlusMenu = plusMenuRef.current?.contains(target);
-        const insidePlusButton = plusMenuButtonRef.current?.contains(target);
-        if (!insidePlusMenu && !insidePlusButton) {
-          setPlusMenuOpen(false);
-        }
-      }
-    };
-
-    if (mobileActionsOpen || plusMenuOpen) {
-      document.addEventListener("pointerdown", handlePointerDown);
-    }
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-    };
-  }, [mobileActionsOpen, plusMenuOpen]);
-
   const handleOfficialLogout = async () => {
     if (!sessionToken) {
       return;
@@ -331,7 +296,8 @@ export const WorkspaceShell = () => {
       )
       .slice(0, 8);
   }, [draft, slashQuery, templates]);
-  const slashMenuVisible = draft.startsWith("/") && slashTemplates.length > 0;
+  const slashMenuActive = draft.startsWith("/") && slashTemplates.length > 0;
+  const slashMenuVisible = slashMenuActive && !slashMenuDismissed;
   const historyDrawerMaxWidth = useMemo(() => {
     if (chatShellWidth <= 0) {
       return 420;
@@ -353,6 +319,56 @@ export const WorkspaceShell = () => {
       setSlashSelectedIndex(0);
     }
   }, [slashSelectedIndex, slashTemplates.length]);
+
+  useEffect(() => {
+    setSlashMenuDismissed(false);
+    setSlashSelectedIndex(0);
+  }, [activeConversationKey]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const handlePointerDown = (event: globalThis.PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target) {
+        return;
+      }
+
+      if (mobileActionsOpen) {
+        const insideActionsMenu = mobileActionsMenuRef.current?.contains(target);
+        const insideActionsButton = mobileActionsButtonRef.current?.contains(target);
+        if (!insideActionsMenu && !insideActionsButton) {
+          setMobileActionsOpen(false);
+        }
+      }
+
+      if (plusMenuOpen) {
+        const insidePlusMenu = plusMenuRef.current?.contains(target);
+        const insidePlusButton = plusMenuButtonRef.current?.contains(target);
+        if (!insidePlusMenu && !insidePlusButton) {
+          setPlusMenuOpen(false);
+        }
+      }
+
+      if (slashMenuVisible) {
+        const insideComposer = composerFormRef.current?.contains(target);
+        if (!insideComposer) {
+          setSlashMenuDismissed(true);
+          setSlashSelectedIndex(0);
+        }
+      }
+    };
+
+    if (mobileActionsOpen || plusMenuOpen || slashMenuVisible) {
+      document.addEventListener("pointerdown", handlePointerDown);
+    }
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [mobileActionsOpen, plusMenuOpen, slashMenuVisible]);
 
   const setDraftStateForActiveConversation = (
     updater:
@@ -495,8 +511,14 @@ export const WorkspaceShell = () => {
     await appendImageAttachments(files);
   };
 
+  const dismissSlashMenu = () => {
+    setSlashMenuDismissed(true);
+    setSlashSelectedIndex(0);
+  };
+
   const applySlashTemplate = (prompt: string) => {
     setDraftForActiveConversation(prompt);
+    setSlashMenuDismissed(false);
     setSlashSelectedIndex(0);
     setPlusMenuOpen(false);
     requestAnimationFrame(() => composerRef.current?.focus());
@@ -549,8 +571,7 @@ export const WorkspaceShell = () => {
     }
     if (event.key === "Escape" && slashMenuVisible) {
       event.preventDefault();
-      setDraftForActiveConversation("");
-      setSlashSelectedIndex(0);
+      dismissSlashMenu();
       return;
     }
 
@@ -959,7 +980,7 @@ export const WorkspaceShell = () => {
                   </div>
                 ) : null}
               </div>
-              <form className="chat-composer" onSubmit={handleSend}>
+              <form ref={composerFormRef} className="chat-composer" onSubmit={handleSend}>
                 <span className="chat-composer-hint">输入 / 调用模板命令</span>
 
                 {plusMenuOpen ? (
@@ -1074,10 +1095,16 @@ export const WorkspaceShell = () => {
                     onChange={(event) => {
                       const nextValue = event.target.value;
                       setDraftForActiveConversation(nextValue);
+                      setSlashMenuDismissed(false);
                       if (!nextValue.startsWith("/")) {
                         setSlashSelectedIndex(0);
                       } else {
                         setPlusMenuOpen(false);
+                      }
+                    }}
+                    onFocus={() => {
+                      if (draft.startsWith("/")) {
+                        setSlashMenuDismissed(false);
                       }
                     }}
                     onKeyDown={handleComposerKeyDown}

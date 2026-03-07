@@ -230,6 +230,8 @@ test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
       { message: "GeoGebra applet should enable menu and fullscreen controls" }
     )
     .toMatchObject({
+      appName: "classic",
+      preventFocus: true,
       showMenuBar: true,
       showFullscreenButton: true,
       showAlgebraInput: true
@@ -348,6 +350,9 @@ test("re-mounts GeoGebra with a compact mobile profile after viewport mode chang
         )
     )
     .toMatchObject({
+      appName: "classic",
+      perspective: "G",
+      preventFocus: true,
       showMenuBar: false,
       showAlgebraInput: false,
       showToolBarHelp: false,
@@ -459,4 +464,74 @@ test("captures manual GeoGebra mutations into the persisted scene snapshot", asy
     "<xml><element label='A' /></xml>"
   );
   expect(sceneSnapshot.transactions[0].source).toBe("manual");
+});
+
+test("closes slash menu on outside click while keeping the draft", async ({
+  page
+}) => {
+  await mockGeoGebraRuntime(page);
+
+  await page.goto("http://localhost:5173");
+  const composer = page.getByTestId("chat-composer-input");
+  await composer.click();
+  await composer.fill("/");
+
+  await expect(page.getByTestId("slash-command-menu")).toBeVisible();
+  await expect(composer).toHaveValue("/");
+
+  await page.locator("[data-testid='geogebra-host']").click({
+    position: { x: 20, y: 20 }
+  });
+
+  await expect(page.getByTestId("slash-command-menu")).toHaveCount(0);
+  await expect(composer).toHaveValue("/");
+});
+
+test("pressing escape closes slash menu without clearing the draft", async ({
+  page
+}) => {
+  await mockGeoGebraRuntime(page);
+
+  await page.goto("http://localhost:5173");
+  const composer = page.getByTestId("chat-composer-input");
+  await composer.click();
+  await composer.fill("/垂直");
+
+  await expect(page.getByTestId("slash-command-menu")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await expect(page.getByTestId("slash-command-menu")).toHaveCount(0);
+  await expect(composer).toHaveValue("/垂直");
+});
+
+test("settings modal traps focus and closes on escape", async ({ page }) => {
+  await mockGeoGebraRuntime(page);
+
+  await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "设置" }).click();
+
+  const modal = page.getByTestId("settings-modal");
+  await expect(modal).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const active = document.activeElement;
+        const modalNode = document.querySelector("[data-testid='settings-modal']");
+        return modalNode ? modalNode.contains(active) : false;
+      })
+    )
+    .toBe(true);
+
+  for (let index = 0; index < 10; index += 1) {
+    const insideModal = await page.evaluate(() => {
+      const active = document.activeElement;
+      const modalNode = document.querySelector("[data-testid='settings-modal']");
+      return modalNode ? modalNode.contains(active) : false;
+    });
+    expect(insideModal).toBe(true);
+    await page.keyboard.press("Tab");
+  }
+
+  await page.keyboard.press("Escape");
+  await expect(modal).toHaveCount(0);
 });
