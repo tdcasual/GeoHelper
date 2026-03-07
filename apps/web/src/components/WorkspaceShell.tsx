@@ -129,6 +129,7 @@ export const WorkspaceShell = () => {
   const [composerDragActive, setComposerDragActive] = useState(false);
   const [isCompactViewport, setIsCompactViewport] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [isShortViewport, setIsShortViewport] = useState(false);
   const [mobileSurface, setMobileSurface] = useState<MobileSurface>("canvas");
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const [chatShellWidth, setChatShellWidth] = useState(0);
@@ -144,6 +145,7 @@ export const WorkspaceShell = () => {
   const runtimeSupportsOfficial = runtimeCapabilities.supportsOfficialAuth;
   const compactViewport = isCompactViewport;
   const phoneViewport = isMobileViewport;
+  const shortViewport = isShortViewport;
   const canvasProfile = phoneViewport ? "mobile" : "desktop";
   const canvasVisible = !compactViewport || mobileSurface === "canvas";
   const effectiveChatVisible = compactViewport
@@ -190,10 +192,12 @@ export const WorkspaceShell = () => {
 
   useEffect(() => {
     const syncViewport = () => {
-      const compact = window.innerWidth <= 900 || window.innerHeight <= 500;
+      const short = window.innerHeight <= 500;
+      const compact = window.innerWidth <= 900 || short;
       const phone = window.innerWidth <= 700;
       setIsCompactViewport(compact);
       setIsMobileViewport(phone);
+      setIsShortViewport(short);
     };
     syncViewport();
     window.addEventListener("resize", syncViewport);
@@ -303,9 +307,15 @@ export const WorkspaceShell = () => {
       return 420;
     }
 
+    if (!compactViewport && chatShellWidth <= 480) {
+      return Math.max(240, Math.min(360, chatShellWidth - 24));
+    }
+
     const proportionalMax = Math.floor(chatShellWidth * 0.45);
     return Math.min(420, Math.max(189, proportionalMax));
-  }, [chatShellWidth]);
+  }, [chatShellWidth, compactViewport]);
+  const desktopHistoryOverlay =
+    !compactViewport && chatShellWidth > 0 && chatShellWidth <= 480;
   const computedHistoryDrawerWidth = Math.min(
     historyDrawerWidth,
     historyDrawerMaxWidth
@@ -590,7 +600,7 @@ export const WorkspaceShell = () => {
   };
 
   const handleHistoryResizeStart = (event: PointerEvent<HTMLDivElement>) => {
-    if (!historyDrawerVisible || isMobileViewport) {
+    if (!historyDrawerVisible || isMobileViewport || desktopHistoryOverlay) {
       return;
     }
 
@@ -737,7 +747,7 @@ export const WorkspaceShell = () => {
     <main
       className={`workspace-shell${
         !compactViewport && !chatVisible ? " chat-collapsed" : ""
-      }${compactViewport ? ` mobile-surface-${mobileSurface}` : ""}${compactViewport ? " compact-viewport" : ""}${phoneViewport ? " phone-viewport" : ""}`}
+      }${compactViewport ? ` mobile-surface-${mobileSurface}` : ""}${compactViewport ? " compact-viewport" : ""}${phoneViewport ? " phone-viewport" : ""}${shortViewport ? " short-viewport" : ""}`}
     >
       <header className="top-bar">
         <div className="top-bar-main">
@@ -883,7 +893,10 @@ export const WorkspaceShell = () => {
           visible={canvasVisible}
         />
         <ChatPanel visible={effectiveChatVisible}>
-          <div ref={chatShellRef} className="chat-shell">
+          <div
+            ref={chatShellRef}
+            className={`chat-shell${desktopHistoryOverlay ? " history-overlay-mode" : ""}`}
+          >
             {!compactViewport ? (
               <div
                 className={`history-drawer${

@@ -250,6 +250,48 @@ test("compact landscape uses single-surface layout instead of narrow split panes
 });
 
 
+test("near-breakpoint desktop keeps chat usable when history opens", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 901, height: 600 });
+  await page.goto("http://localhost:5173");
+
+  const chatBody = page.locator(".chat-body");
+  const widthBefore = (await chatBody.boundingBox())?.width ?? 0;
+  expect(widthBefore).toBeGreaterThan(320);
+
+  await page.getByTestId("history-toggle-button").click();
+  await expect(page.getByTestId("conversation-sidebar")).toBeVisible();
+
+  await expect
+    .poll(
+      async () => (await chatBody.boundingBox())?.width ?? 0,
+      { message: "chat body should stay usable when history opens near breakpoint" }
+    )
+    .toBeGreaterThan(widthBefore - 60);
+});
+
+test("compact landscape top bar stays compact on short viewports", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto("http://localhost:5173");
+
+  await expect(page.getByTestId("mobile-surface-switcher")).toBeVisible();
+
+  const { topBarHeight, hostHeight, viewportHeight } = await page.evaluate(() => ({
+    topBarHeight: document.querySelector(".top-bar")?.getBoundingClientRect().height ?? 0,
+    hostHeight:
+      document
+        .querySelector("[data-testid='geogebra-host']")
+        ?.getBoundingClientRect().height ?? 0,
+    viewportHeight: window.innerHeight
+  }));
+
+  expect(topBarHeight).toBeLessThanOrEqual(84);
+  expect(hostHeight).toBeGreaterThanOrEqual(Math.floor(viewportHeight * 0.72));
+});
+
 test("mobile overflow menu closes on outside click", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");

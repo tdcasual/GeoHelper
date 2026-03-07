@@ -217,6 +217,53 @@ body {
   font-size: 18px;
 }
 
+.workspace-shell.short-viewport.compact-viewport .top-bar {
+  gap: 4px;
+  padding: 6px 10px;
+}
+
+.workspace-shell.short-viewport.compact-viewport .top-bar-main {
+  gap: 8px;
+}
+
+.workspace-shell.short-viewport.compact-viewport .top-bar h1 {
+  font-size: 15px;
+}
+
+.workspace-shell.short-viewport.compact-viewport .top-bar-actions {
+  gap: 6px;
+}
+
+.workspace-shell.short-viewport.compact-viewport .top-bar-button,
+.workspace-shell.short-viewport.compact-viewport .mode-switcher select {
+  min-height: 30px;
+  height: 30px;
+  font-size: 12px;
+}
+
+.workspace-shell.short-viewport.compact-viewport .top-bar-button {
+  padding: 0 10px;
+}
+
+.workspace-shell.short-viewport.compact-viewport .mobile-surface-switcher {
+  gap: 4px;
+  width: min(240px, 100%);
+}
+
+.workspace-shell.short-viewport.compact-viewport .mobile-surface-button {
+  min-height: 28px;
+  font-size: 12px;
+}
+
+.workspace-shell.short-viewport.compact-viewport .top-bar-overflow-menu {
+  top: calc(100% - 2px);
+}
+
+.workspace-shell.short-viewport.compact-viewport .canvas-panel,
+.workspace-shell.short-viewport.compact-viewport .chat-panel {
+  padding: 6px 10px 10px;
+}
+
 .workspace-content {
   display: flex;
   flex: 1;
@@ -309,6 +356,31 @@ body {
   display: flex;
   min-width: 0;
   min-height: 0;
+}
+
+.chat-shell.history-overlay-mode .history-drawer {
+  position: absolute;
+  top: 52px;
+  left: 10px;
+  bottom: 10px;
+  max-width: calc(100% - 20px);
+  z-index: 14;
+  overflow: visible;
+}
+
+.chat-shell.history-overlay-mode .history-drawer.history-drawer-open {
+  border-right: none;
+}
+
+.chat-shell.history-overlay-mode .history-resizer {
+  display: none;
+}
+
+.chat-shell.history-overlay-mode .conversation-sidebar {
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
 }
 
 .history-drawer {
