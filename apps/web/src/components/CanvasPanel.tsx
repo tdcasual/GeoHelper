@@ -126,6 +126,7 @@ export const CanvasPanel = ({ profile, visible }: CanvasPanelProps) => {
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading"
   );
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appletObjectRef = useRef<GeoGebraAppletObject | null>(null);
   const lastSizeRef = useRef<{ width: number; height: number } | null>(null);
@@ -385,6 +386,49 @@ export const CanvasPanel = ({ profile, visible }: CanvasPanelProps) => {
   }, [scheduleAppletResize]);
 
   useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const handleFullscreenChange = () => {
+      const host = hostRef.current;
+      const fullscreenElement = document.fullscreenElement;
+      const nextIsFullscreen =
+        !!host &&
+        !!fullscreenElement &&
+        (fullscreenElement === host || host.contains(fullscreenElement));
+      setIsFullscreen(nextIsFullscreen);
+      scheduleAppletResize();
+      window.setTimeout(() => {
+        scheduleAppletResize();
+      }, 80);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, [scheduleAppletResize]);
+
+  const handleFullscreenToggle = async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const host = hostRef.current;
+    if (!host) {
+      return;
+    }
+
+    if (document.fullscreenElement) {
+      await document.exitFullscreen?.();
+      return;
+    }
+
+    await host.requestFullscreen?.();
+  };
+
+  useEffect(() => {
     let disposed = false;
 
     const bootstrap = async () => {
@@ -505,6 +549,19 @@ export const CanvasPanel = ({ profile, visible }: CanvasPanelProps) => {
     <section className="canvas-panel" data-panel="canvas" hidden={!visible}>
       <div ref={hostRef} className="geogebra-host" data-testid="geogebra-host">
         <div id="geogebra-container" className="geogebra-container" />
+        {profile === "desktop" ? (
+          <button
+            type="button"
+            className="canvas-fullscreen-button"
+            data-testid="canvas-fullscreen-button"
+            aria-label={isFullscreen ? "退出全屏" : "全屏显示"}
+            onClick={() => {
+              void handleFullscreenToggle();
+            }}
+          >
+            {isFullscreen ? "↙" : "↗"}
+          </button>
+        ) : null}
         {status === "loading" ? (
           <div className="canvas-overlay">GeoGebra 正在加载...</div>
         ) : null}

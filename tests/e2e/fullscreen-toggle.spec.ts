@@ -58,6 +58,29 @@ test("desktop toggles chat without pushing the panel offscreen", async ({
     .toBeGreaterThan(fullWidth - 20);
 });
 
+test("desktop exposes a fullscreen control and toggles fullscreen mode", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto("http://localhost:5173");
+
+  const fullscreenButton = page.getByTestId("canvas-fullscreen-button");
+  await expect(fullscreenButton).toBeVisible();
+  await expect(fullscreenButton).toHaveAttribute("aria-label", "全屏显示");
+
+  await fullscreenButton.click();
+  await expect
+    .poll(() => page.evaluate(() => !!document.fullscreenElement))
+    .toBe(true);
+  await expect(fullscreenButton).toHaveAttribute("aria-label", "退出全屏");
+
+  await fullscreenButton.click();
+  await expect
+    .poll(() => page.evaluate(() => document.fullscreenElement === null))
+    .toBe(true);
+  await expect(fullscreenButton).toHaveAttribute("aria-label", "全屏显示");
+});
+
 test("tablet history drawer opens with bounded width", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 1366 });
   await page.goto("http://localhost:5173");
