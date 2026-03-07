@@ -18,6 +18,27 @@ const mockGeoGebraRuntime = async (page: import("@playwright/test").Page) => {
   );
 
   await page.addInitScript(() => {
+    type Listener = ((...args: unknown[]) => void) | string;
+
+    const runListener = (listener: Listener, ...args: unknown[]) => {
+      if (typeof listener === "function") {
+        listener(...args);
+        return;
+      }
+
+      const globalFn = (window as Window & Record<string, unknown>)[listener];
+      if (typeof globalFn === "function") {
+        (globalFn as (...innerArgs: unknown[]) => void)(...args);
+      }
+    };
+
+    const removeListener = (listeners: Listener[], target: Listener) => {
+      const index = listeners.indexOf(target);
+      if (index >= 0) {
+        listeners.splice(index, 1);
+      }
+    };
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).__geohelperGgbSizeCalls = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -26,6 +47,41 @@ const mockGeoGebraRuntime = async (page: import("@playwright/test").Page) => {
     (window as any).__geohelperGgbInjectedTo = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).__geohelperGgbParamsHistory = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__geohelperGgbEvalCommands = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__geohelperGgbSetXmlCalls = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__geohelperGgbCurrentXml = "<xml/>";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__geohelperGgbListenerHistory = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__geohelperEmitSceneMutation = (
+      eventType: "add" | "update" | "remove" | "clear" | "rename",
+      payload?: unknown,
+      nextXml?: string
+    ) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const listenerSet = (window as any).__geohelperGgbActiveListeners as
+        | Record<string, Listener[]>
+        | undefined;
+      if (!listenerSet) {
+        return;
+      }
+      if (typeof nextXml === "string") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).__geohelperGgbCurrentXml = nextXml;
+      }
+      for (const listener of listenerSet[eventType] ?? []) {
+        if (eventType === "rename" && Array.isArray(payload)) {
+          runListener(listener, ...payload);
+        } else if (typeof payload !== "undefined") {
+          runListener(listener, payload);
+        } else {
+          runListener(listener);
+        }
+      }
+    };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).GGBApplet = function (params: Record<string, unknown>) {
@@ -34,8 +90,23 @@ const mockGeoGebraRuntime = async (page: import("@playwright/test").Page) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).__geohelperGgbParamsHistory.push(params);
 
+      const listeners: Record<string, Listener[]> = {
+        add: [],
+        update: [],
+        remove: [],
+        clear: [],
+        rename: []
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__geohelperGgbActiveListeners = listeners;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__geohelperGgbListenerHistory.push(listeners);
+
       const appletObject = {
-        evalCommand: () => undefined,
+        evalCommand: (command: string) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).__geohelperGgbEvalCommands.push(command);
+        },
         setValue: () => undefined,
         setSize: (width: number, height: number) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,6 +115,45 @@ const mockGeoGebraRuntime = async (page: import("@playwright/test").Page) => {
         recalculateEnvironments: () => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (window as any).__geohelperGgbRecalculateCount += 1;
+        },
+        getXML: () =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).__geohelperGgbCurrentXml,
+        setXML: (xml: string) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).__geohelperGgbCurrentXml = xml;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).__geohelperGgbSetXmlCalls.push(xml);
+        },
+        registerAddListener: (listener: Listener) => {
+          listeners.add.push(listener);
+        },
+        unregisterAddListener: (listener: Listener) => {
+          removeListener(listeners.add, listener);
+        },
+        registerUpdateListener: (listener: Listener) => {
+          listeners.update.push(listener);
+        },
+        unregisterUpdateListener: (listener: Listener) => {
+          removeListener(listeners.update, listener);
+        },
+        registerRemoveListener: (listener: Listener) => {
+          listeners.remove.push(listener);
+        },
+        unregisterRemoveListener: (listener: Listener) => {
+          removeListener(listeners.remove, listener);
+        },
+        registerClearListener: (listener: Listener) => {
+          listeners.clear.push(listener);
+        },
+        unregisterClearListener: (listener: Listener) => {
+          removeListener(listeners.clear, listener);
+        },
+        registerRenameListener: (listener: Listener) => {
+          listeners.rename.push(listener);
+        },
+        unregisterRenameListener: (listener: Listener) => {
+          removeListener(listeners.rename, listener);
         }
       };
 
@@ -212,4 +322,110 @@ test("re-mounts GeoGebra with a compact mobile profile after viewport mode chang
       showToolBarHelp: false,
       showFullscreenButton: true
     });
+});
+
+test("replays persisted scene transactions after mount and viewport remount", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "geohelper.scene.snapshot",
+      JSON.stringify({
+        schemaVersion: 1,
+        transactions: [
+          {
+            id: "scene_tx_1",
+            sceneId: "scene_1",
+            transactionId: "tx_1",
+            executedAt: 1,
+            commandCount: 1,
+            batch: {
+              version: "1.0",
+              scene_id: "scene_1",
+              transaction_id: "tx_1",
+              commands: [
+                {
+                  id: "cmd_1",
+                  op: "create_point",
+                  args: { name: "A", x: 2, y: 1 },
+                  depends_on: [],
+                  idempotency_key: "idemp_1"
+                }
+              ],
+              post_checks: [],
+              explanations: []
+            }
+          }
+        ]
+      })
+    );
+  });
+  await mockGeoGebraRuntime(page);
+
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto("http://localhost:5173");
+
+  await expect
+    .poll(() =>
+      page.evaluate(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        () => (window as any).__geohelperGgbEvalCommands as string[]
+      )
+    )
+    .toContain("A=(2,1)");
+
+  const replayCountBeforeRemount = await page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => ((window as any).__geohelperGgbEvalCommands as string[]).length
+  );
+
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          () => ((window as any).__geohelperGgbEvalCommands as string[]).length
+        ),
+      { message: "scene transactions should replay into the new applet after remount" }
+    )
+    .toBeGreaterThan(replayCountBeforeRemount);
+});
+
+test("captures manual GeoGebra mutations into the persisted scene snapshot", async ({
+  page
+}) => {
+  await mockGeoGebraRuntime(page);
+
+  await page.goto("http://localhost:5173");
+  await expect(page.getByText("事务数: 0")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        () => ((window as any).__geohelperGgbActiveListeners?.add?.length ?? 0)
+      )
+    )
+    .toBeGreaterThan(0);
+
+  await page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__geohelperEmitSceneMutation(
+      "add",
+      "A",
+      "<xml><element label='A' /></xml>"
+    );
+  });
+
+  await expect(page.getByText("事务数: 1")).toBeVisible();
+
+  const sceneSnapshot = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.scene.snapshot") ?? "{}")
+  );
+
+  expect(sceneSnapshot.transactions[0].sceneSnapshot).toBe(
+    "<xml><element label='A' /></xml>"
+  );
+  expect(sceneSnapshot.transactions[0].source).toBe("manual");
 });

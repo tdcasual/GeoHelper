@@ -113,6 +113,10 @@ export const WorkspaceShell = () => {
   const chatShellRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const mobileActionsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const mobileActionsMenuRef = useRef<HTMLDivElement | null>(null);
+  const plusMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const plusMenuRef = useRef<HTMLDivElement | null>(null);
   const [draftByConversationId, setDraftByConversationId] = useState<
     Record<string, ComposerDraftState>
   >({});
@@ -231,6 +235,43 @@ export const WorkspaceShell = () => {
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const handlePointerDown = (event: globalThis.PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target) {
+        return;
+      }
+
+      if (mobileActionsOpen) {
+        const insideActionsMenu = mobileActionsMenuRef.current?.contains(target);
+        const insideActionsButton = mobileActionsButtonRef.current?.contains(target);
+        if (!insideActionsMenu && !insideActionsButton) {
+          setMobileActionsOpen(false);
+        }
+      }
+
+      if (plusMenuOpen) {
+        const insidePlusMenu = plusMenuRef.current?.contains(target);
+        const insidePlusButton = plusMenuButtonRef.current?.contains(target);
+        if (!insidePlusMenu && !insidePlusButton) {
+          setPlusMenuOpen(false);
+        }
+      }
+    };
+
+    if (mobileActionsOpen || plusMenuOpen) {
+      document.addEventListener("pointerdown", handlePointerDown);
+    }
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [mobileActionsOpen, plusMenuOpen]);
 
   const handleOfficialLogout = async () => {
     if (!sessionToken) {
@@ -553,27 +594,32 @@ export const WorkspaceShell = () => {
   const openSettingsDrawer = () => {
     setSettingsOpen(true);
     setMobileActionsOpen(false);
+    setPlusMenuOpen(false);
     setHistoryDrawerVisible(false);
   };
 
   const handleRollbackAction = () => {
     setMobileActionsOpen(false);
+    setPlusMenuOpen(false);
     void rollbackLastScene();
   };
 
   const handleClearSceneAction = () => {
     setMobileActionsOpen(false);
+    setPlusMenuOpen(false);
     void clearScene();
   };
 
   const handleLogoutAction = () => {
     setMobileActionsOpen(false);
+    setPlusMenuOpen(false);
     void handleOfficialLogout();
   };
 
   const handleSelectMobileSurface = (surface: MobileSurface) => {
     setMobileSurface(surface);
     setMobileActionsOpen(false);
+    setPlusMenuOpen(false);
     if (surface !== "chat") {
       setHistoryDrawerVisible(false);
     }
@@ -585,11 +631,13 @@ export const WorkspaceShell = () => {
       return;
     }
 
+    setPlusMenuOpen(false);
     setHistoryDrawerVisible(false);
     setMobileActionsOpen(true);
   };
 
   const handleHistoryToggle = () => {
+    setPlusMenuOpen(false);
     if (compactViewport) {
       setMobileActionsOpen(false);
       setMobileSurface("chat");
@@ -690,6 +738,7 @@ export const WorkspaceShell = () => {
                   设置
                 </button>
                 <button
+                  ref={mobileActionsButtonRef}
                   type="button"
                   className="top-bar-button top-bar-button-ghost top-bar-more-button"
                   data-testid="mobile-more-button"
@@ -776,6 +825,7 @@ export const WorkspaceShell = () => {
             </div>
             {mobileActionsOpen ? (
               <div
+                ref={mobileActionsMenuRef}
                 className="top-bar-overflow-menu"
                 data-testid="mobile-overflow-menu"
               >
@@ -913,7 +963,11 @@ export const WorkspaceShell = () => {
                 <span className="chat-composer-hint">输入 / 调用模板命令</span>
 
                 {plusMenuOpen ? (
-                  <div className="plus-menu" data-testid="plus-menu">
+                  <div
+                    ref={plusMenuRef}
+                    className="plus-menu"
+                    data-testid="plus-menu"
+                  >
                     <button
                       type="button"
                       className="plus-menu-item"
@@ -1002,6 +1056,7 @@ export const WorkspaceShell = () => {
                   }}
                 >
                   <button
+                    ref={plusMenuButtonRef}
                     type="button"
                     className="plus-menu-button"
                     data-testid="plus-menu-button"

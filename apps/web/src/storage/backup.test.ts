@@ -10,6 +10,7 @@ import {
 import { CHAT_STORE_KEY } from "../state/chat-store";
 import { SETTINGS_KEY } from "../state/settings-store";
 import { UI_PREFS_KEY } from "../state/ui-store";
+import { SCENE_STORE_KEY } from "../state/scene-store";
 
 const TEMPLATE_STORE_KEY = "geohelper.templates.snapshot";
 
@@ -95,12 +96,38 @@ describe("backup", () => {
         templates: [{ id: "tpl_1", title: "圆", prompt: "画一个圆", updatedAt: 1 }]
       })
     );
+    localStorage.setItem(
+      SCENE_STORE_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        transactions: [
+          {
+            id: "scene_tx_1",
+            sceneId: "scene_1",
+            transactionId: "tx_1",
+            executedAt: 123,
+            commandCount: 1,
+            sceneSnapshot: "<xml><element label='A' /></xml>",
+            source: "manual",
+            batch: {
+              version: "1.0",
+              scene_id: "scene_1",
+              transaction_id: "tx_1",
+              commands: [],
+              post_checks: [],
+              explanations: []
+            }
+          }
+        ]
+      })
+    );
 
     const blob = await exportCurrentAppBackup();
     localStorage.removeItem(CHAT_STORE_KEY);
     localStorage.removeItem(SETTINGS_KEY);
     localStorage.removeItem(UI_PREFS_KEY);
     localStorage.removeItem(TEMPLATE_STORE_KEY);
+    localStorage.removeItem(SCENE_STORE_KEY);
 
     await importAppBackupToLocalStorage(blob, { mode: "replace" });
 
@@ -112,11 +139,17 @@ describe("backup", () => {
     const templatesSnapshot = JSON.parse(
       localStorage.getItem(TEMPLATE_STORE_KEY) ?? "{}"
     );
+    const sceneSnapshot = JSON.parse(
+      localStorage.getItem(SCENE_STORE_KEY) ?? "{}"
+    );
 
     expect(chatSnapshot.conversations[0].id).toBe("conv_1");
     expect(settingsSnapshot.schemaVersion).toBe(2);
     expect(uiPreferences.chatVisible).toBe(false);
     expect(templatesSnapshot.templates[0].id).toBe("tpl_1");
+    expect(sceneSnapshot.transactions[0].sceneSnapshot).toBe(
+      "<xml><element label='A' /></xml>"
+    );
   });
 
   it("merges backup conversations by id and updatedAt", async () => {
@@ -309,5 +342,71 @@ describe("backup", () => {
     const inspected = await inspectBackup(blob);
     expect(inspected.schemaVersion).toBeGreaterThan(0);
     expect(inspected.migrationHint).toBe("compatible");
+  });
+
+  it("merges scene snapshots by latest executedAt", async () => {
+    localStorage.setItem(
+      SCENE_STORE_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        transactions: [
+          {
+            id: "scene_local",
+            sceneId: "scene_1",
+            transactionId: "tx_local",
+            executedAt: 100,
+            commandCount: 0,
+            sceneSnapshot: "<xml><element label='Local' /></xml>",
+            source: "manual",
+            batch: {
+              version: "1.0",
+              scene_id: "scene_1",
+              transaction_id: "tx_local",
+              commands: [],
+              post_checks: [],
+              explanations: []
+            }
+          }
+        ]
+      })
+    );
+
+    const blob = await exportBackup({
+      conversations: [],
+      settings: {
+        scene_snapshot: {
+          schemaVersion: 1,
+          transactions: [
+            {
+              id: "scene_remote",
+              sceneId: "scene_2",
+              transactionId: "tx_remote",
+              executedAt: 200,
+              commandCount: 0,
+              sceneSnapshot: "<xml><element label='Remote' /></xml>",
+              source: "manual",
+              batch: {
+                version: "1.0",
+                scene_id: "scene_2",
+                transaction_id: "tx_remote",
+                commands: [],
+                post_checks: [],
+                explanations: []
+              }
+            }
+          ]
+        }
+      }
+    });
+
+    await importAppBackupToLocalStorage(blob, { mode: "merge" });
+
+    const sceneSnapshot = JSON.parse(
+      localStorage.getItem(SCENE_STORE_KEY) ?? "{}"
+    );
+
+    expect(sceneSnapshot.transactions[0].sceneSnapshot).toBe(
+      "<xml><element label='Remote' /></xml>"
+    );
   });
 });

@@ -7,6 +7,7 @@ import {
   resolveVendorAssetUrl,
   toGeoGebraRuntimeConfig
 } from "../geogebra/vendor-runtime";
+import { sceneStore } from "../state/scene-store";
 
 const GGB_MANIFEST_PATH = "/vendor/geogebra/manifest.json";
 
@@ -17,11 +18,25 @@ interface CanvasPanelProps {
   visible: boolean;
 }
 
+type GeoGebraListener = ((...args: unknown[]) => void) | string;
+
 type GeoGebraAppletObject = {
   evalCommand?: (command: string) => void;
   setValue?: (name: string, value: number) => void;
   setSize?: (width: number, height: number) => void;
   recalculateEnvironments?: () => void;
+  getXML?: () => string;
+  setXML?: (xml: string) => void;
+  registerAddListener?: (listener: GeoGebraListener) => void;
+  unregisterAddListener?: (listener: GeoGebraListener) => void;
+  registerUpdateListener?: (listener: GeoGebraListener) => void;
+  unregisterUpdateListener?: (listener: GeoGebraListener) => void;
+  registerRemoveListener?: (listener: GeoGebraListener) => void;
+  unregisterRemoveListener?: (listener: GeoGebraListener) => void;
+  registerClearListener?: (listener: GeoGebraListener) => void;
+  unregisterClearListener?: (listener: GeoGebraListener) => void;
+  registerRenameListener?: (listener: GeoGebraListener) => void;
+  unregisterRenameListener?: (listener: GeoGebraListener) => void;
 };
 
 let ggbLoaderPromise: Promise<void> | null = null;
@@ -89,15 +104,6 @@ const resolveAppletObject = (
   return raw ?? getLiveAppletObject();
 };
 
-const toGeoGebraAdapter = (appletObject: unknown): GeoGebraAdapter => {
-  const raw = resolveAppletObject(appletObject);
-
-  return {
-    evalCommand: (command) => raw?.evalCommand?.(command),
-    setValue: (name, value) => raw?.setValue?.(name, value)
-  };
-};
-
 const toAppletConfig = (profile: CanvasUiProfile) => ({
   appName: profile === "mobile" ? "geometry" : "classic",
   showToolBar: true,
@@ -118,6 +124,111 @@ export const CanvasPanel = ({ profile, visible }: CanvasPanelProps) => {
   const appletObjectRef = useRef<GeoGebraAppletObject | null>(null);
   const lastSizeRef = useRef<{ width: number; height: number } | null>(null);
   const resizeFrameRef = useRef<number | null>(null);
+  const sceneCaptureTimeoutRef = useRef<number | null>(null);
+  const sceneCaptureSuppressedUntilRef = useRef(0);
+  const unbindSceneListenersRef = useRef<(() => void) | null>(null);
+
+  const suppressSceneCapture = useCallback((durationMs = 280) => {
+    sceneCaptureSuppressedUntilRef.current = Math.max(
+      sceneCaptureSuppressedUntilRef.current,
+      Date.now() + durationMs
+    );
+    if (sceneCaptureTimeoutRef.current !== null) {
+      window.clearTimeout(sceneCaptureTimeoutRef.current);
+      sceneCaptureTimeoutRef.current = null;
+    }
+  }, []);
+
+  const createRuntimeAdapter = useCallback(
+    (appletObject: unknown): GeoGebraAdapter => {
+      const raw = resolveAppletObject(appletObject);
+
+      return {
+        evalCommand: (command) => {
+          suppressSceneCapture();
+          raw?.evalCommand?.(command);
+        },
+        setValue: (name, value) => {
+          suppressSceneCapture();
+          raw?.setValue?.(name, value);
+        },
+        getXML: () => raw?.getXML?.() ?? null,
+        setXML: (xml) => {
+          suppressSceneCapture(640);
+          raw?.setXML?.(xml);
+        }
+      };
+    },
+    [suppressSceneCapture]
+  );
+
+  const flushSceneCapture = useCallback(() => {
+    if (Date.now() < sceneCaptureSuppressedUntilRef.current) {
+      return;
+    }
+
+    const xml =
+      appletObjectRef.current?.getXML?.() ?? getLiveAppletObject()?.getXML?.();
+    if (!xml) {
+      return;
+    }
+
+    sceneStore.getState().recordSceneSnapshot(xml);
+  }, []);
+
+  const scheduleSceneCapture = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (sceneCaptureTimeoutRef.current !== null) {
+      window.clearTimeout(sceneCaptureTimeoutRef.current);
+    }
+
+    sceneCaptureTimeoutRef.current = window.setTimeout(() => {
+      sceneCaptureTimeoutRef.current = null;
+      flushSceneCapture();
+    }, 120);
+  }, [flushSceneCapture]);
+
+  const bindSceneMutationListeners = useCallback(
+    (appletObject: GeoGebraAppletObject | null): (() => void) => {
+      if (!appletObject) {
+        return () => undefined;
+      }
+
+      const listener = () => {
+        scheduleSceneCapture();
+      };
+      const bindings = [
+        [appletObject.registerAddListener, appletObject.unregisterAddListener],
+        [
+          appletObject.registerUpdateListener,
+          appletObject.unregisterUpdateListener
+        ],
+        [
+          appletObject.registerRemoveListener,
+          appletObject.unregisterRemoveListener
+        ],
+        [appletObject.registerClearListener, appletObject.unregisterClearListener],
+        [
+          appletObject.registerRenameListener,
+          appletObject.unregisterRenameListener
+        ]
+      ] as const;
+
+      for (const [register] of bindings) {
+        register?.(listener);
+      }
+
+      return () => {
+        for (const [, unregister] of bindings) {
+          unregister?.(listener);
+        }
+      };
+    },
+    [scheduleSceneCapture]
+  );
 
   const syncAppletSize = useCallback(() => {
     const host = hostRef.current;
@@ -127,7 +238,7 @@ export const CanvasPanel = ({ profile, visible }: CanvasPanelProps) => {
 
     if (appletObject && appletObjectRef.current !== appletObject) {
       appletObjectRef.current = appletObject;
-      registerGeoGebraAdapter(toGeoGebraAdapter(appletObject));
+      registerGeoGebraAdapter(createRuntimeAdapter(appletObject));
     }
 
     if (!host || !appletObject?.setSize) {
@@ -150,7 +261,7 @@ export const CanvasPanel = ({ profile, visible }: CanvasPanelProps) => {
     lastSizeRef.current = nextSize;
     appletObject.setSize(nextSize.width, nextSize.height);
     appletObject.recalculateEnvironments?.();
-  }, []);
+  }, [createRuntimeAdapter]);
 
   const scheduleAppletResize = useCallback(() => {
     if (typeof window === "undefined") {
@@ -263,12 +374,17 @@ export const CanvasPanel = ({ profile, visible }: CanvasPanelProps) => {
         );
         appletObjectRef.current = appletObject;
         lastSizeRef.current = null;
-        registerGeoGebraAdapter(toGeoGebraAdapter(appletObject));
+        unbindSceneListenersRef.current?.();
+        unbindSceneListenersRef.current = bindSceneMutationListeners(appletObject);
+        registerGeoGebraAdapter(createRuntimeAdapter(appletObject));
+        await sceneStore.getState().rehydrateScene();
         scheduleAppletResize();
         setStatus("ready");
       } catch {
         appletObjectRef.current = null;
         lastSizeRef.current = null;
+        unbindSceneListenersRef.current?.();
+        unbindSceneListenersRef.current = null;
         registerGeoGebraAdapter(null);
         if (!disposed) {
           setStatus("error");
@@ -285,11 +401,23 @@ export const CanvasPanel = ({ profile, visible }: CanvasPanelProps) => {
         window.cancelAnimationFrame(resizeFrameRef.current);
         resizeFrameRef.current = null;
       }
+      if (sceneCaptureTimeoutRef.current !== null) {
+        window.clearTimeout(sceneCaptureTimeoutRef.current);
+        sceneCaptureTimeoutRef.current = null;
+      }
+      unbindSceneListenersRef.current?.();
+      unbindSceneListenersRef.current = null;
       appletObjectRef.current = null;
       lastSizeRef.current = null;
       registerGeoGebraAdapter(null);
     };
-  }, [profile, scheduleAppletResize]);
+  }, [
+    bindSceneMutationListeners,
+    createRuntimeAdapter,
+    profile,
+    scheduleAppletResize,
+    suppressSceneCapture
+  ]);
 
   return (
     <section className="canvas-panel" data-panel="canvas" hidden={!visible}>

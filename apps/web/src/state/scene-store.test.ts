@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { registerGeoGebraAdapter } from "../geogebra/adapter";
 import { createSceneStore } from "./scene-store";
+import { SCENE_STORE_KEY } from "./scene-store";
 
 const createMemoryStorage = (): Storage => {
   const map = new Map<string, string>();
@@ -118,4 +119,95 @@ describe("scene-store", () => {
     expect(store.getState().transactions.length).toBe(0);
     expect(evalCommands).toContain("DeleteAll[]");
   });
+
+  it("rehydrates persisted transactions into a newly mounted adapter", async () => {
+    localStorage.setItem(
+      SCENE_STORE_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        transactions: [
+          {
+            id: "scene_tx_1",
+            sceneId: "scene_1",
+            transactionId: "tx_1",
+            executedAt: 100,
+            commandCount: 1,
+            batch: {
+              version: "1.0",
+              scene_id: "scene_1",
+              transaction_id: "tx_1",
+              commands: [
+                {
+                  id: "cmd_1",
+                  op: "create_point",
+                  args: { name: "A", x: 2, y: 1 },
+                  depends_on: [],
+                  idempotency_key: "idemp_1"
+                }
+              ],
+              post_checks: [],
+              explanations: []
+            }
+          }
+        ]
+      })
+    );
+
+    const evalCommands: string[] = [];
+    registerGeoGebraAdapter({
+      evalCommand: (cmd) => {
+        evalCommands.push(cmd);
+      },
+      setValue: () => undefined,
+      getXML: () => null,
+      setXML: () => undefined
+    });
+
+    const store = createSceneStore();
+    await store.getState().rehydrateScene();
+
+    expect(evalCommands).toEqual(["DeleteAll[]", "A=(2,1)"]);
+  });
+
+  it("records manual scene snapshots and replays them with setXML", async () => {
+    const evalCommands: string[] = [];
+    const setXmlCalls: string[] = [];
+    registerGeoGebraAdapter({
+      evalCommand: (cmd) => {
+        evalCommands.push(cmd);
+      },
+      setValue: () => undefined,
+      getXML: () => "<xml><element label='A' /></xml>",
+      setXML: (xml) => {
+        setXmlCalls.push(xml);
+      }
+    });
+
+    const store = createSceneStore();
+    store.getState().recordTransaction({
+      version: "1.0",
+      scene_id: "scene_1",
+      transaction_id: "tx_1",
+      commands: [
+        {
+          id: "cmd_1",
+          op: "create_point",
+          args: { name: "A", x: 0, y: 0 },
+          depends_on: [],
+          idempotency_key: "idemp_1"
+        }
+      ],
+      post_checks: [],
+      explanations: []
+    });
+    store
+      .getState()
+      .recordSceneSnapshot("<xml><element label='A' x='1' y='1' /></xml>");
+
+    await store.getState().rehydrateScene();
+
+    expect(evalCommands).toEqual(["DeleteAll[]", "A=(0,0)"]);
+    expect(setXmlCalls).toEqual(["<xml><element label='A' x='1' y='1' /></xml>"]);
+  });
+
 });

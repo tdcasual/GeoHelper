@@ -1,5 +1,6 @@
 import { STORAGE_SCHEMA_VERSION } from "./migrate";
 import { CHAT_STORE_KEY } from "../state/chat-store";
+import { SCENE_STORE_KEY, mergeSceneSnapshots, normalizeSceneSnapshot } from "../state/scene-snapshot";
 import { SETTINGS_KEY } from "../state/settings-store";
 import { UI_PREFS_KEY } from "../state/ui-store";
 
@@ -524,6 +525,9 @@ export const exportCurrentAppBackup = async (): Promise<Blob> => {
   const templatesSnapshot = canUseStorage()
     ? parseJsonMaybe(localStorage.getItem(TEMPLATE_STORE_KEY))
     : null;
+  const sceneSnapshot = canUseStorage()
+    ? parseJsonMaybe(localStorage.getItem(SCENE_STORE_KEY))
+    : null;
 
   return exportBackup({
     conversations: Array.isArray((chatSnapshot as { conversations?: unknown })?.conversations)
@@ -534,7 +538,8 @@ export const exportCurrentAppBackup = async (): Promise<Blob> => {
       ui_preferences: uiPreferences,
       chat_snapshot: chatSnapshot,
       settings_snapshot: settingsSnapshot,
-      templates_snapshot: templatesSnapshot
+      templates_snapshot: templatesSnapshot,
+      scene_snapshot: sceneSnapshot
     }
   });
 };
@@ -555,7 +560,8 @@ export const importAppBackupToLocalStorage = async (
     Object.prototype.hasOwnProperty.call(incomingSettings, "chat_snapshot") ||
     Object.prototype.hasOwnProperty.call(incomingSettings, "settings_snapshot") ||
     Object.prototype.hasOwnProperty.call(incomingSettings, "ui_preferences") ||
-    Object.prototype.hasOwnProperty.call(incomingSettings, "templates_snapshot");
+    Object.prototype.hasOwnProperty.call(incomingSettings, "templates_snapshot") ||
+    Object.prototype.hasOwnProperty.call(incomingSettings, "scene_snapshot");
   const incomingChatSnapshot =
     incomingSettings.chat_snapshot ??
     (Array.isArray(envelope.conversations)
@@ -578,6 +584,7 @@ export const importAppBackupToLocalStorage = async (
     (hasStructuredSettings ? null : incomingSettings);
   const incomingUiPreferences = incomingSettings.ui_preferences;
   const incomingTemplatesSnapshot = incomingSettings.templates_snapshot;
+  const incomingSceneSnapshot = incomingSettings.scene_snapshot;
 
   if (mode === "replace") {
     writeSnapshotToStorage(CHAT_STORE_KEY, buildChatSnapshot(incomingChatSnapshot), mode);
@@ -592,6 +599,11 @@ export const importAppBackupToLocalStorage = async (
       normalizeTemplatesSnapshot(incomingTemplatesSnapshot),
       mode
     );
+    writeSnapshotToStorage(
+      SCENE_STORE_KEY,
+      normalizeSceneSnapshot(incomingSceneSnapshot),
+      mode
+    );
     return envelope;
   }
 
@@ -602,6 +614,9 @@ export const importAppBackupToLocalStorage = async (
   const currentUiPreferences = parseJsonMaybe(localStorage.getItem(UI_PREFS_KEY));
   const currentTemplatesSnapshot = parseJsonMaybe(
     localStorage.getItem(TEMPLATE_STORE_KEY)
+  );
+  const currentSceneSnapshot = parseJsonMaybe(
+    localStorage.getItem(SCENE_STORE_KEY)
   );
 
   writeSnapshotToStorage(
@@ -622,6 +637,11 @@ export const importAppBackupToLocalStorage = async (
   writeSnapshotToStorage(
     TEMPLATE_STORE_KEY,
     mergeTemplatesSnapshot(currentTemplatesSnapshot, incomingTemplatesSnapshot),
+    mode
+  );
+  writeSnapshotToStorage(
+    SCENE_STORE_KEY,
+    mergeSceneSnapshots(currentSceneSnapshot, incomingSceneSnapshot),
     mode
   );
 

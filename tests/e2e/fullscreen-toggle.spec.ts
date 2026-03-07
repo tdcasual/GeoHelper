@@ -163,3 +163,29 @@ test("compact landscape uses single-surface layout instead of narrow split panes
   );
   expect(chatBodyWidth).toBeGreaterThan(500);
 });
+
+
+test("mobile overflow menu closes on outside click", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("http://localhost:5173");
+  await page.getByTestId("mobile-surface-chat").click();
+
+  await page.getByTestId("mobile-more-button").click();
+  await expect(page.getByTestId("mobile-overflow-menu")).toBeVisible();
+
+  await page.mouse.click(40, 220);
+  await expect(page.getByTestId("mobile-overflow-menu")).toBeHidden();
+});
+
+test("mobile plus menu closes when leaving the chat surface", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("http://localhost:5173");
+  await page.getByTestId("mobile-surface-chat").click();
+
+  await page.getByTestId("plus-menu-button").click();
+  await expect(page.getByTestId("plus-menu")).toBeVisible();
+
+  await page.getByTestId("mobile-surface-canvas").click();
+  await page.getByTestId("mobile-surface-chat").click();
+  await expect(page.getByTestId("plus-menu")).toBeHidden();
+});
