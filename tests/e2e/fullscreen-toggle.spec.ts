@@ -292,6 +292,24 @@ test("compact landscape top bar stays compact on short viewports", async ({
   expect(hostHeight).toBeGreaterThanOrEqual(Math.floor(viewportHeight * 0.72));
 });
 
+test("short landscape chat preserves message room above the composer", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto("http://localhost:5173");
+  await page.getByTestId("mobile-surface-chat").click();
+
+  const { messagesHeight, composerHeight } = await page.evaluate(() => ({
+    messagesHeight:
+      document.querySelector(".chat-messages")?.getBoundingClientRect().height ?? 0,
+    composerHeight:
+      document.querySelector(".chat-composer")?.getBoundingClientRect().height ?? 0
+  }));
+
+  expect(messagesHeight).toBeGreaterThanOrEqual(100);
+  expect(composerHeight).toBeLessThanOrEqual(150);
+});
+
 test("mobile overflow menu closes on outside click", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");
