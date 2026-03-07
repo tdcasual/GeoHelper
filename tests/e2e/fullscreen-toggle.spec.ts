@@ -310,6 +310,33 @@ test("short landscape chat preserves message room above the composer", async ({
   expect(composerHeight).toBeLessThanOrEqual(150);
 });
 
+test("desktop empty state centers guidance and seeds the composer from templates", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 2560, height: 1440 });
+  await page.goto("http://localhost:5173");
+
+  const emptyCard = page.getByTestId("chat-empty-card");
+  await expect(emptyCard).toBeVisible();
+
+  const { containerCenter, cardCenter } = await page.evaluate(() => {
+    const container = document.querySelector(".chat-messages")?.getBoundingClientRect();
+    const card = document.querySelector("[data-testid='chat-empty-card']")?.getBoundingClientRect();
+    return {
+      containerCenter: container ? container.y + container.height / 2 : 0,
+      cardCenter: card ? card.y + card.height / 2 : 0
+    };
+  });
+
+  expect(Math.abs(containerCenter - cardCenter)).toBeLessThanOrEqual(180);
+  await expect(page.getByTestId("chat-empty-template-button")).toHaveCount(3);
+
+  await emptyCard.getByRole("button", { name: "画圆" }).click();
+  await expect(page.getByTestId("chat-composer-input")).toHaveValue(
+    "过点A为圆心，半径为3作圆。"
+  );
+});
+
 test("mobile overflow menu closes on outside click", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");

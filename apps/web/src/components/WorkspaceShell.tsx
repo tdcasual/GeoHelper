@@ -939,7 +939,31 @@ export const WorkspaceShell = () => {
               </div>
               <div className="chat-messages">
                 {messages.length === 0 ? (
-                  <div className="chat-empty">开始输入你的几何需求</div>
+                  !compactViewport ? (
+                    <div className="chat-empty-state">
+                      <section className="chat-empty-card" data-testid="chat-empty-card">
+                        <div className="chat-empty-copy">
+                          <h4>开始输入你的几何需求</h4>
+                          <p>也可以先试试这些模板，快速生成一个可编辑的起点。</p>
+                        </div>
+                        <div className="chat-empty-actions">
+                          {templates.slice(0, 3).map((template) => (
+                            <button
+                              key={template.id}
+                              type="button"
+                              className="chat-empty-template-button"
+                              data-testid="chat-empty-template-button"
+                              onClick={() => applySlashTemplate(template.prompt)}
+                            >
+                              {template.title}
+                            </button>
+                          ))}
+                        </div>
+                      </section>
+                    </div>
+                  ) : (
+                    <div className="chat-empty">开始输入你的几何需求</div>
+                  )
                 ) : (
                   messages.map((message) => (
                     <article
