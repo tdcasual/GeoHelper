@@ -7,10 +7,11 @@ import {
   importBackup,
   inspectBackup
 } from "./backup";
-import { CHAT_STORE_KEY } from "../state/chat-store";
+import { registerGeoGebraAdapter } from "../geogebra/adapter";
+import { chatStore, CHAT_STORE_KEY } from "../state/chat-store";
 import { SETTINGS_KEY } from "../state/settings-store";
-import { UI_PREFS_KEY } from "../state/ui-store";
-import { SCENE_STORE_KEY } from "../state/scene-store";
+import { SCENE_STORE_KEY, sceneStore } from "../state/scene-store";
+import { UI_PREFS_KEY, uiStore } from "../state/ui-store";
 
 const TEMPLATE_STORE_KEY = "geohelper.templates.snapshot";
 
@@ -48,11 +49,42 @@ describe("backup", () => {
     });
   });
 
+  beforeEach(() => {
+    chatStore.setState({
+      mode: "byok",
+      sessionToken: null,
+      conversations: [
+        {
+          id: "conv_local",
+          title: "Local",
+          createdAt: 1,
+          updatedAt: 1,
+          messages: []
+        }
+      ],
+      activeConversationId: "conv_local",
+      messages: [],
+      isSending: false,
+      reauthRequired: false
+    });
+    sceneStore.setState({
+      schemaVersion: 1,
+      transactions: [],
+      isRollingBack: false
+    });
+    uiStore.setState({
+      chatVisible: true,
+      historyDrawerVisible: false,
+      historyDrawerWidth: 280
+    });
+  });
+
   afterEach(() => {
     Object.defineProperty(globalThis, "localStorage", {
       configurable: true,
       value: originalLocalStorage
     });
+    registerGeoGebraAdapter(null);
   });
 
   it("round-trips conversations and settings", async () => {
@@ -342,6 +374,77 @@ describe("backup", () => {
     const inspected = await inspectBackup(blob);
     expect(inspected.schemaVersion).toBeGreaterThan(0);
     expect(inspected.migrationHint).toBe("compatible");
+  });
+
+  it("syncs imported backups into live stores and mounted scene state", async () => {
+    const setXmlCalls: string[] = [];
+    registerGeoGebraAdapter({
+      evalCommand: () => undefined,
+      setValue: () => undefined,
+      getXML: () => null,
+      setXML: (xml) => {
+        setXmlCalls.push(xml);
+      }
+    });
+
+    const conversation = {
+      id: "conv_backup",
+      title: "Backup",
+      createdAt: 10,
+      updatedAt: 20,
+      messages: [{ id: "msg_1", role: "assistant", content: "hello from backup" }]
+    };
+    const sceneXml = "<xml><element label='A' /></xml>";
+    const blob = await exportBackup({
+      conversations: [conversation],
+      settings: {
+        chat_snapshot: {
+          mode: "byok",
+          sessionToken: null,
+          activeConversationId: conversation.id,
+          conversations: [conversation],
+          messages: conversation.messages,
+          reauthRequired: false
+        },
+        ui_preferences: {
+          chatVisible: false,
+          historyDrawerVisible: true,
+          historyDrawerWidth: 320
+        },
+        scene_snapshot: {
+          schemaVersion: 1,
+          transactions: [
+            {
+              id: "scene_tx_backup",
+              sceneId: "scene_1",
+              transactionId: "tx_backup",
+              executedAt: 999,
+              commandCount: 0,
+              sceneSnapshot: sceneXml,
+              source: "manual",
+              batch: {
+                version: "1.0",
+                scene_id: "scene_1",
+                transaction_id: "tx_backup",
+                commands: [],
+                post_checks: [],
+                explanations: []
+              }
+            }
+          ]
+        }
+      }
+    });
+
+    await importAppBackupToLocalStorage(blob, { mode: "replace" });
+
+    expect(chatStore.getState().activeConversationId).toBe("conv_backup");
+    expect(chatStore.getState().messages[0]?.content).toBe("hello from backup");
+    expect(uiStore.getState().chatVisible).toBe(false);
+    expect(uiStore.getState().historyDrawerVisible).toBe(true);
+    expect(sceneStore.getState().transactions).toHaveLength(1);
+    expect(sceneStore.getState().transactions[0]?.sceneSnapshot).toBe(sceneXml);
+    expect(setXmlCalls).toEqual([sceneXml]);
   });
 
   it("merges scene snapshots by latest executedAt", async () => {

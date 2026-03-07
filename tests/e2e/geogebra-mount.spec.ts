@@ -26,7 +26,7 @@ const mockGeoGebraRuntime = async (page: import("@playwright/test").Page) => {
         return;
       }
 
-      const globalFn = (window as Window & Record<string, unknown>)[listener];
+      const globalFn = (window as unknown as Window & Record<string, unknown>)[listener];
       if (typeof globalFn === "function") {
         (globalFn as (...innerArgs: unknown[]) => void)(...args);
       }
@@ -53,6 +53,8 @@ const mockGeoGebraRuntime = async (page: import("@playwright/test").Page) => {
     (window as any).__geohelperGgbSetXmlCalls = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).__geohelperGgbCurrentXml = "<xml/>";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__geohelperGgbAppletOnLoadCalls = 0;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).__geohelperGgbListenerHistory = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -161,6 +163,13 @@ const mockGeoGebraRuntime = async (page: import("@playwright/test").Page) => {
         inject: (containerId: string) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (window as any).__geohelperGgbInjectedTo.push(containerId);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).ggbApplet = appletObject;
+          if (typeof params.appletOnLoad === "function") {
+            params.appletOnLoad(appletObject);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (window as any).__geohelperGgbAppletOnLoadCalls += 1;
+          }
         },
         setHTML5Codebase: (codebase: string) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -188,6 +197,28 @@ test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
       { message: "GeoGebra applet should inject into the container" }
     )
     .toBe("geogebra-container");
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          () => typeof (window as any).__geohelperGgbParams?.appletOnLoad
+        ),
+      { message: "GeoGebra applet should pass an appletOnLoad callback" }
+    )
+    .toBe("function");
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          () => (window as any).__geohelperGgbAppletOnLoadCalls
+        ),
+      { message: "GeoGebra applet should finish mount through appletOnLoad" }
+    )
+    .toBeGreaterThan(0);
 
   await expect
     .poll(

@@ -810,5 +810,25 @@ export const createChatStore = (
 
 export const chatStore = createChatStore();
 
+const applyChatSnapshotToStore = (
+  store: ReturnType<typeof createChatStore>,
+  snapshot: PersistedChatSnapshot
+): PersistedChatSnapshot => {
+  store.setState((state) => ({
+    mode: snapshot.mode,
+    sessionToken: snapshot.sessionToken,
+    conversations: snapshot.conversations,
+    activeConversationId: snapshot.activeConversationId,
+    messages: snapshot.messages,
+    reauthRequired: snapshot.reauthRequired,
+    isSending: state.isSending
+  }));
+  return snapshot;
+};
+
+export const syncChatStoreFromStorage = (
+  store: ReturnType<typeof createChatStore> = chatStore
+): PersistedChatSnapshot => applyChatSnapshotToStore(store, loadSnapshot());
+
 export const useChatStore = <T>(selector: (state: ChatStoreState) => T): T =>
   useStore(chatStore, selector);

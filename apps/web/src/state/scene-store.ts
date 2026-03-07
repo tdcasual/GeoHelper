@@ -187,6 +187,22 @@ export const createSceneStore = () => {
 
 export const sceneStore = createSceneStore();
 
+const applySceneSnapshotToStore = (
+  store: ReturnType<typeof createSceneStore>,
+  snapshot: PersistedSceneSnapshot
+): PersistedSceneSnapshot => {
+  store.setState(() => ({
+    schemaVersion: snapshot.schemaVersion,
+    transactions: snapshot.transactions,
+    isRollingBack: false
+  }));
+  return snapshot;
+};
+
+export const syncSceneStoreFromStorage = (
+  store: ReturnType<typeof createSceneStore> = sceneStore
+): PersistedSceneSnapshot => applySceneSnapshotToStore(store, loadSnapshot());
+
 export const useSceneStore = <T>(selector: (state: SceneStoreState) => T): T =>
   useStore(sceneStore, selector);
 

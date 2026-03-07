@@ -174,6 +174,21 @@ export const createTemplateStore = () => {
 
 export const templateStore = createTemplateStore();
 
+const applyTemplateSnapshotToStore = (
+  store: ReturnType<typeof createTemplateStore>,
+  snapshot: PersistedTemplateSnapshot
+): PersistedTemplateSnapshot => {
+  store.setState(() => ({
+    schemaVersion: snapshot.schemaVersion,
+    templates: snapshot.templates
+  }));
+  return snapshot;
+};
+
+export const syncTemplateStoreFromStorage = (
+  store: ReturnType<typeof createTemplateStore> = templateStore
+): PersistedTemplateSnapshot => applyTemplateSnapshotToStore(store, loadSnapshot());
+
 export const useTemplateStore = <T>(
   selector: (state: TemplateStoreState) => T
 ): T => useStore(templateStore, selector);

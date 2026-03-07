@@ -1,10 +1,10 @@
 import { STORAGE_SCHEMA_VERSION } from "./migrate";
-import { CHAT_STORE_KEY } from "../state/chat-store";
-import { SCENE_STORE_KEY, mergeSceneSnapshots, normalizeSceneSnapshot } from "../state/scene-snapshot";
-import { SETTINGS_KEY } from "../state/settings-store";
-import { UI_PREFS_KEY } from "../state/ui-store";
-
-const TEMPLATE_STORE_KEY = "geohelper.templates.snapshot";
+import { CHAT_STORE_KEY, syncChatStoreFromStorage } from "../state/chat-store";
+import { SCENE_STORE_KEY, sceneStore, syncSceneStoreFromStorage } from "../state/scene-store";
+import { mergeSceneSnapshots, normalizeSceneSnapshot } from "../state/scene-snapshot";
+import { SETTINGS_KEY, syncSettingsStoreFromStorage } from "../state/settings-store";
+import { TEMPLATE_STORE_KEY, syncTemplateStoreFromStorage } from "../state/template-store";
+import { UI_PREFS_KEY, syncUIStoreFromStorage } from "../state/ui-store";
 
 export interface BackupPayload {
   conversations: Array<Record<string, unknown>>;
@@ -544,6 +544,15 @@ export const exportCurrentAppBackup = async (): Promise<Blob> => {
   });
 };
 
+const syncLiveStoresAfterImport = async (): Promise<void> => {
+  syncChatStoreFromStorage();
+  syncSettingsStoreFromStorage();
+  syncUIStoreFromStorage();
+  syncTemplateStoreFromStorage();
+  syncSceneStoreFromStorage();
+  await sceneStore.getState().rehydrateScene();
+};
+
 export const importAppBackupToLocalStorage = async (
   blob: Blob,
   options: BackupImportOptions = {}
@@ -604,6 +613,7 @@ export const importAppBackupToLocalStorage = async (
       normalizeSceneSnapshot(incomingSceneSnapshot),
       mode
     );
+    await syncLiveStoresAfterImport();
     return envelope;
   }
 
@@ -645,5 +655,6 @@ export const importAppBackupToLocalStorage = async (
     mode
   );
 
+  await syncLiveStoresAfterImport();
   return envelope;
 };

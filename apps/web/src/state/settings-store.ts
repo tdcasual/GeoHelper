@@ -818,6 +818,33 @@ export const createSettingsStore = (
 
 export const settingsStore = createSettingsStore();
 
+const applySettingsSnapshotToStore = (
+  store: ReturnType<typeof createSettingsStore>,
+  snapshot: PersistedSettingsSnapshot
+): PersistedSettingsSnapshot => {
+  store.setState((state) => ({
+    schemaVersion: snapshot.schemaVersion,
+    defaultMode: snapshot.defaultMode,
+    runtimeProfiles: snapshot.runtimeProfiles,
+    defaultRuntimeProfileId: snapshot.defaultRuntimeProfileId,
+    byokPresets: snapshot.byokPresets,
+    officialPresets: snapshot.officialPresets,
+    defaultByokPresetId: snapshot.defaultByokPresetId,
+    defaultOfficialPresetId: snapshot.defaultOfficialPresetId,
+    sessionOverrides: snapshot.sessionOverrides,
+    experimentFlags: snapshot.experimentFlags,
+    requestDefaults: snapshot.requestDefaults,
+    debugEvents: snapshot.debugEvents,
+    drawerOpen: state.drawerOpen,
+    byokRuntimeIssue: state.byokRuntimeIssue
+  }));
+  return snapshot;
+};
+
+export const syncSettingsStoreFromStorage = (
+  store: ReturnType<typeof createSettingsStore> = settingsStore
+): PersistedSettingsSnapshot => applySettingsSnapshotToStore(store, loadSnapshot());
+
 export const useSettingsStore = <T>(
   selector: (state: SettingsStoreState) => T
 ): T => useStore(settingsStore, selector);

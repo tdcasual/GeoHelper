@@ -154,5 +154,21 @@ export const createUIStore = () =>
 
 export const uiStore = createUIStore();
 
+const applyUiSnapshotToStore = (
+  store: ReturnType<typeof createUIStore>,
+  snapshot: UiSnapshot
+): UiSnapshot => {
+  store.setState(() => ({
+    chatVisible: snapshot.chatVisible,
+    historyDrawerVisible: snapshot.historyDrawerVisible,
+    historyDrawerWidth: snapshot.historyDrawerWidth
+  }));
+  return snapshot;
+};
+
+export const syncUIStoreFromStorage = (
+  store: ReturnType<typeof createUIStore> = uiStore
+): UiSnapshot => applyUiSnapshotToStore(store, loadInitialSnapshot());
+
 export const useUIStore = <T>(selector: (state: UIState) => T): T =>
   useStore(uiStore, selector);
