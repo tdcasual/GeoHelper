@@ -1350,6 +1350,17 @@ body {
 }
 
 
+@media (min-width: 1800px) {
+  .settings-drawer {
+    width: min(720px, 32vw);
+  }
+
+  .settings-modal-body {
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 20px;
+  }
+}
+
 @media (max-width: 900px) {
   .settings-drawer-backdrop {
     padding: 12px;

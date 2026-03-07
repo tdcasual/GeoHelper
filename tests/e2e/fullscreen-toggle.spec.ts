@@ -337,6 +337,24 @@ test("desktop empty state centers guidance and seeds the composer from templates
   );
 });
 
+test("ultrawide settings drawer uses a readable content width", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 2560, height: 1440 });
+  await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "设置" }).first().click();
+
+  const { drawerWidth, contentWidth } = await page.evaluate(() => ({
+    drawerWidth:
+      document.querySelector(".settings-drawer")?.getBoundingClientRect().width ?? 0,
+    contentWidth:
+      document.querySelector(".settings-content")?.getBoundingClientRect().width ?? 0
+  }));
+
+  expect(drawerWidth).toBeGreaterThanOrEqual(640);
+  expect(contentWidth).toBeGreaterThanOrEqual(380);
+});
+
 test("mobile overflow menu closes on outside click", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");
