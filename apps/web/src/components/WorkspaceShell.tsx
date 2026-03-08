@@ -302,26 +302,57 @@ export const WorkspaceShell = () => {
   }, [draft, slashQuery, templates]);
   const slashMenuActive = draft.startsWith("/") && slashTemplates.length > 0;
   const slashMenuVisible = slashMenuActive && !slashMenuDismissed;
+  const compactEmptyStateTemplates = useMemo(
+    () => templates.slice(0, phoneViewport ? 2 : 3),
+    [phoneViewport, templates]
+  );
+  const minimumDesktopChatWidthForInlineHistory = 360;
+  const minimumDesktopHistoryDrawerWidth = 220;
+  const desktopHistoryOverlay =
+    !compactViewport &&
+    chatShellWidth > 0 &&
+    chatShellWidth - Math.min(historyDrawerWidth, 420) <
+      minimumDesktopChatWidthForInlineHistory;
+  const desktopHistoryFullOverlay =
+    desktopHistoryOverlay && chatShellWidth >= 520;
   const historyDrawerMaxWidth = useMemo(() => {
     if (chatShellWidth <= 0) {
       return 420;
     }
 
-    if (!compactViewport && chatShellWidth <= 480) {
+    if (!compactViewport && desktopHistoryOverlay) {
       return Math.max(240, Math.min(360, chatShellWidth - 24));
     }
 
     const proportionalMax = Math.floor(chatShellWidth * 0.45);
-    return Math.min(420, Math.max(189, proportionalMax));
-  }, [chatShellWidth, compactViewport]);
-  const desktopHistoryOverlay =
-    !compactViewport && chatShellWidth > 0 && chatShellWidth <= 480;
+    const maxInlineWidth = Math.max(
+      minimumDesktopHistoryDrawerWidth,
+      chatShellWidth - minimumDesktopChatWidthForInlineHistory
+    );
+    return Math.min(
+      420,
+      Math.max(
+        minimumDesktopHistoryDrawerWidth,
+        Math.min(proportionalMax, maxInlineWidth)
+      )
+    );
+  }, [
+    chatShellWidth,
+    compactViewport,
+    desktopHistoryOverlay,
+    minimumDesktopChatWidthForInlineHistory,
+    minimumDesktopHistoryDrawerWidth
+  ]);
   const computedHistoryDrawerWidth = Math.min(
     historyDrawerWidth,
     historyDrawerMaxWidth
   );
   const historyDrawerStyle = {
-    width: historyDrawerVisible ? computedHistoryDrawerWidth : 0
+    width: historyDrawerVisible
+      ? desktopHistoryFullOverlay
+        ? "calc(100% - 20px)"
+        : computedHistoryDrawerWidth
+      : 0
   };
 
   useEffect(() => {
@@ -962,7 +993,22 @@ export const WorkspaceShell = () => {
                       </section>
                     </div>
                   ) : (
-                    <div className="chat-empty">开始输入你的几何需求</div>
+                    <div className="chat-empty chat-empty-compact" data-testid="chat-empty-compact">
+                      <p>开始输入你的几何需求</p>
+                      <div className="chat-empty-actions chat-empty-actions-compact">
+                        {compactEmptyStateTemplates.map((template) => (
+                          <button
+                            key={template.id}
+                            type="button"
+                            className="chat-empty-template-button"
+                            data-testid="chat-empty-template-button"
+                            onClick={() => applySlashTemplate(template.prompt)}
+                          >
+                            {template.title}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   )
                 ) : (
                   messages.map((message) => (

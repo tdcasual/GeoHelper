@@ -312,6 +312,22 @@ body {
   max-height: 120px;
 }
 
+.workspace-shell.short-viewport.compact-viewport .history-sheet-backdrop {
+  inset: 0 -10px -10px;
+}
+
+.workspace-shell.short-viewport.compact-viewport .history-sheet {
+  top: 8px;
+  bottom: 0;
+  height: auto;
+  max-height: none;
+  padding: 6px 10px 0;
+}
+
+.workspace-shell.short-viewport.compact-viewport .history-sheet .conversation-sidebar {
+  border-radius: 18px;
+}
+
 .workspace-content {
   display: flex;
   flex: 1;
@@ -635,6 +651,23 @@ body {
   padding: 12px;
 }
 
+.chat-empty-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-self: flex-start;
+  width: min(420px, 100%);
+  background: #fbfdff;
+}
+
+.chat-empty-compact p {
+  margin: 0;
+}
+
+.chat-empty-actions-compact {
+  gap: 8px;
+}
+
 .chat-empty-state {
   flex: 1;
   min-height: 0;
@@ -691,6 +724,20 @@ body {
 
 .chat-empty-template-button:hover {
   background: #eef5ff;
+}
+
+.workspace-shell.compact-viewport .chat-empty-template-button {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.workspace-shell.short-viewport.compact-viewport.mobile-surface-chat .chat-empty-compact {
+  gap: 8px;
+  width: min(560px, 100%);
+  margin: 0 auto;
+  align-self: center;
+  padding: 10px 12px;
 }
 
 .session-warning {
@@ -1351,6 +1398,15 @@ body {
 
 
 @media (min-width: 1800px) {
+  .chat-panel {
+    width: clamp(600px, 28vw, 680px);
+    flex: 0 0 clamp(600px, 28vw, 680px);
+  }
+
+  .chat-empty-card {
+    width: min(520px, 100%);
+  }
+
   .settings-drawer {
     width: min(720px, 32vw);
   }

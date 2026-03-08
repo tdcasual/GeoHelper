@@ -310,6 +310,51 @@ test("short landscape chat preserves message room above the composer", async ({
   expect(composerHeight).toBeLessThanOrEqual(150);
 });
 
+test("desktop 1600 keeps chat readable when history opens", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto("http://localhost:5173");
+
+  const chatBody = page.locator(".chat-body");
+  const widthBefore = (await chatBody.boundingBox())?.width ?? 0;
+  expect(widthBefore).toBeGreaterThan(480);
+
+  await page.getByTestId("history-toggle-button").click();
+  await expect(page.getByTestId("conversation-sidebar")).toBeVisible();
+
+  await expect
+    .poll(
+      async () => (await chatBody.boundingBox())?.width ?? 0,
+      { message: "1600 desktop chat body should stay wide enough after opening history" }
+    )
+    .toBeGreaterThan(widthBefore - 60);
+
+  await expect
+    .poll(
+      async () =>
+        (await page.locator(".chat-composer").boundingBox())?.width ?? 0,
+      { message: "1600 desktop composer should not collapse when history opens" }
+    )
+    .toBeGreaterThanOrEqual(450);
+});
+
+
+test("desktop 1600 history expands into a full overlay rail", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto("http://localhost:5173");
+  await page.getByTestId("history-toggle-button").click();
+  await expect(page.getByTestId("conversation-sidebar")).toBeVisible();
+
+  const { chatWidth, sidebarWidth } = await page.evaluate(() => ({
+    chatWidth:
+      document.querySelector("[data-panel='chat']")?.getBoundingClientRect().width ?? 0,
+    sidebarWidth:
+      document.querySelector("[data-testid='conversation-sidebar']")?.getBoundingClientRect()
+        .width ?? 0
+  }));
+
+  expect(sidebarWidth).toBeGreaterThanOrEqual(chatWidth - 60);
+});
+
 test("desktop empty state centers guidance and seeds the composer from templates", async ({
   page
 }) => {
@@ -337,6 +382,28 @@ test("desktop empty state centers guidance and seeds the composer from templates
   );
 });
 
+test("ultrawide chat rail uses a readable width", async ({ page }) => {
+  await page.setViewportSize({ width: 2560, height: 1440 });
+  await page.goto("http://localhost:5173");
+  await expect(page.locator("[data-panel='chat']")).toBeVisible();
+  await expect(page.getByTestId("chat-empty-card")).toBeVisible();
+
+  const { chatWidth, composerWidth, emptyCardWidth } = await page.evaluate(() => ({
+    chatWidth:
+      document.querySelector("[data-panel='chat']")?.getBoundingClientRect().width ?? 0,
+    composerWidth:
+      document.querySelector(".chat-composer")?.getBoundingClientRect().width ?? 0,
+    emptyCardWidth:
+      document
+        .querySelector("[data-testid='chat-empty-card']")
+        ?.getBoundingClientRect().width ?? 0
+  }));
+
+  expect(chatWidth).toBeGreaterThanOrEqual(640);
+  expect(composerWidth).toBeGreaterThanOrEqual(600);
+  expect(emptyCardWidth).toBeGreaterThanOrEqual(500);
+});
+
 test("ultrawide settings drawer uses a readable content width", async ({
   page
 }) => {
@@ -353,6 +420,33 @@ test("ultrawide settings drawer uses a readable content width", async ({
 
   expect(drawerWidth).toBeGreaterThanOrEqual(640);
   expect(contentWidth).toBeGreaterThanOrEqual(380);
+});
+
+test("short landscape history sheet expands into a full modal layer", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto("http://localhost:5173");
+  await page.getByTestId("mobile-surface-chat").click();
+  await page.getByTestId("history-toggle-button").click();
+
+  await expect(page.getByTestId("history-sheet")).toBeVisible();
+
+  const { sheetY, sheetHeight, sheetBottom, viewportHeight } = await page.evaluate(() => {
+    const sheet = document.querySelector("[data-testid='history-sheet']");
+    const rect = sheet?.getBoundingClientRect();
+    return {
+      sheetY: rect?.y ?? 0,
+      sheetHeight: rect?.height ?? 0,
+      sheetBottom: rect ? rect.y + rect.height : 0,
+      viewportHeight: window.innerHeight
+    };
+  });
+
+  expect(sheetY).toBeLessThanOrEqual(110);
+  expect(sheetHeight).toBeGreaterThanOrEqual(220);
+  expect(sheetBottom).toBeLessThanOrEqual(viewportHeight);
+  expect(viewportHeight - sheetBottom).toBeLessThanOrEqual(4);
 });
 
 test("mobile overflow menu closes on outside click", async ({ page }) => {
@@ -378,4 +472,37 @@ test("mobile plus menu closes when leaving the chat surface", async ({ page }) =
   await page.getByTestId("mobile-surface-canvas").click();
   await page.getByTestId("mobile-surface-chat").click();
   await expect(page.getByTestId("plus-menu")).toBeHidden();
+});
+
+test("compact empty state keeps template shortcuts available", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("http://localhost:5173");
+  await page.getByTestId("mobile-surface-chat").click();
+
+  await expect(page.getByTestId("chat-empty-template-button")).toHaveCount(2);
+
+  await page.getByTestId("chat-empty-template-button").first().click();
+  await expect(page.getByTestId("chat-composer-input")).not.toHaveValue("");
+});
+
+
+test("short landscape compact empty state stays visually centered", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto("http://localhost:5173");
+  await page.getByTestId("mobile-surface-chat").click();
+  await expect(page.getByTestId("chat-empty-compact")).toBeVisible();
+
+  const { viewportCenter, emptyCenter } = await page.evaluate(() => {
+    const rect = document
+      .querySelector("[data-testid='chat-empty-compact']")
+      ?.getBoundingClientRect();
+    return {
+      viewportCenter: window.innerWidth / 2,
+      emptyCenter: rect ? rect.x + rect.width / 2 : 0
+    };
+  });
+
+  expect(Math.abs(viewportCenter - emptyCenter)).toBeLessThanOrEqual(80);
 });
