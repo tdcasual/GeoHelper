@@ -8,6 +8,11 @@ import { registerCompileRoute } from "./routes/compile";
 import { registerHealthRoute } from "./routes/health";
 import { sendAlert } from "./services/alerting";
 import {
+  buildTraceId,
+  CompileEventSink,
+  createLogCompileEventSink
+} from "./services/compile-events";
+import {
   createRedisKvClient,
   KvClient
 } from "./services/kv-client";
@@ -35,6 +40,7 @@ export interface GatewayServices {
   sessionStore: SessionRevocationStore;
   rateLimitStore: RateLimitStore;
   metricsStore: GatewayMetricsStore;
+  compileEventSink: CompileEventSink;
   kvClient?: KvClient;
 }
 
@@ -76,6 +82,8 @@ export const buildServer = (
         ? createRedisRateLimitStore(kvClient)
         : getDefaultRateLimitStore()),
     metricsStore: serviceOverrides.metricsStore ?? getDefaultMetricsStore(),
+    compileEventSink:
+      serviceOverrides.compileEventSink ?? createLogCompileEventSink(app.log),
     kvClient
   };
 
@@ -85,10 +93,14 @@ export const buildServer = (
     });
   }
 
+  app.addHook("onRequest", async (request, reply) => {
+    reply.header("x-trace-id", buildTraceId(request.id));
+  });
+
   app.addHook("onResponse", async (request, reply) => {
     if (reply.statusCode >= 500) {
       await sendAlert(config.alertWebhookUrl, {
-        traceId: request.id,
+        traceId: buildTraceId(request.id),
         path: request.url,
         method: request.method,
         statusCode: reply.statusCode

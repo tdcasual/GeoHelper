@@ -3,6 +3,12 @@ import { z } from "zod";
 
 import { GatewayConfig } from "../config";
 import {
+  buildTraceId,
+  CompileEventSink,
+  CompileEventType,
+  CompileFinalStatus
+} from "../services/compile-events";
+import {
   CompileContext,
   CompileMode,
   RequestCommandBatch
@@ -86,6 +92,7 @@ export interface CompileRouteDeps {
   sessionStore: SessionRevocationStore;
   rateLimitStore: RateLimitStore;
   metricsStore: GatewayMetricsStore;
+  compileEventSink: CompileEventSink;
 }
 
 export const registerCompileRoute = (
@@ -121,6 +128,34 @@ export const registerCompileRoute = (
 
   app.post("/api/v1/chat/compile", async (request, reply) => {
     const totalStartedAt = Date.now();
+    const traceId = buildTraceId(request.id);
+    let eventMode: CompileMode | undefined;
+
+    const writeCompileEvent = async (
+      event: CompileEventType,
+      finalStatus: CompileFinalStatus,
+      statusCode: number,
+      extras: {
+        detail?: string;
+        metadata?: Record<string, unknown>;
+        upstreamCallCount?: number;
+      } = {}
+    ): Promise<void> => {
+      await deps.compileEventSink.write({
+        event,
+        finalStatus,
+        traceId,
+        requestId: request.id,
+        path: request.url,
+        method: request.method,
+        mode: eventMode,
+        statusCode,
+        upstreamCallCount: extras.upstreamCallCount ?? 0,
+        detail: extras.detail,
+        metadata: extras.metadata
+      });
+    };
+
     const rateKey = `${request.ip}:compile`;
     const limit = await consumeRateLimit(
       rateKey,
@@ -143,6 +178,9 @@ export const registerCompileRoute = (
 
     const parsed = CompileBodySchema.safeParse(request.body);
     if (!parsed.success) {
+      await writeCompileEvent("compile_validation_failure", "validation_failure", 400, {
+        detail: "invalid_request"
+      });
       return reply.status(400).send({
         error: {
           code: "INVALID_REQUEST",
@@ -152,8 +190,12 @@ export const registerCompileRoute = (
     }
 
     const mode = parsed.data.mode as CompileMode;
+    eventMode = mode;
 
     if ((parsed.data.attachments?.length ?? 0) > 0) {
+      await writeCompileEvent("compile_validation_failure", "validation_failure", 400, {
+        detail: "attachments_unsupported"
+      });
       return reply.status(400).send({
         error: {
           code: "ATTACHMENTS_UNSUPPORTED",
@@ -227,6 +269,11 @@ export const registerCompileRoute = (
       const repaired = result.agent_steps.some(
         (step) => step.name === "repair" && step.status === "ok"
       );
+      const finalStatus: CompileFinalStatus = hadFallback
+        ? "fallback"
+        : repaired
+          ? "repair"
+          : "success";
       const estimatedCostUsd =
         Math.max(0, config.costPerRequestUsd) *
         Math.max(1, result.upstream_calls);
@@ -239,18 +286,31 @@ export const registerCompileRoute = (
         },
         deps.metricsStore
       );
+      await writeCompileEvent("compile_success", finalStatus, 200, {
+        upstreamCallCount: result.upstream_calls
+      });
       if (samplePerf) {
-        recordCompilePerfSample({
-          totalMs,
-          upstreamMs: result.upstream_ms
-        }, deps.metricsStore);
+        recordCompilePerfSample(
+          {
+            totalMs,
+            upstreamMs: result.upstream_ms
+          },
+          deps.metricsStore
+        );
         reply.header("x-perf-total-ms", String(totalMs));
         reply.header("x-perf-upstream-ms", String(result.upstream_ms));
       }
 
       if (fallbackSteps.length > 0) {
+        await writeCompileEvent("compile_fallback", "fallback", 200, {
+          detail: fallbackSteps.map((step) => step.name).join(","),
+          upstreamCallCount: result.upstream_calls,
+          metadata: {
+            fallback_steps: fallbackSteps.map((step) => step.name)
+          }
+        });
         await sendAlert(config.alertWebhookUrl, {
-          traceId: request.id,
+          traceId,
           path: request.url,
           method: request.method,
           statusCode: 200,
@@ -261,8 +321,15 @@ export const registerCompileRoute = (
           }
         });
       } else if (repaired) {
+        await writeCompileEvent("compile_repair", "repair", 200, {
+          detail: "repair agent produced a valid batch",
+          upstreamCallCount: result.upstream_calls,
+          metadata: {
+            repair: true
+          }
+        });
         await sendAlert(config.alertWebhookUrl, {
-          traceId: request.id,
+          traceId,
           path: request.url,
           method: request.method,
           statusCode: 200,
@@ -275,7 +342,7 @@ export const registerCompileRoute = (
       }
 
       return reply.send({
-        trace_id: `tr_${Date.now()}`,
+        trace_id: traceId,
         batch: result.batch,
         agent_steps: result.agent_steps
       });
@@ -283,6 +350,12 @@ export const registerCompileRoute = (
       const totalMs = Date.now() - totalStartedAt;
       if (error instanceof InvalidCommandBatchError) {
         recordCompileFailure(totalMs, 0, deps.metricsStore);
+        await writeCompileEvent("compile_validation_failure", "validation_failure", 422, {
+          detail: "invalid_command_batch",
+          metadata: {
+            issues: error.issues
+          }
+        });
         return reply.status(422).send({
           error: {
             code: "INVALID_COMMAND_BATCH",
@@ -295,6 +368,9 @@ export const registerCompileRoute = (
       }
 
       recordCompileFailure(totalMs, 0, deps.metricsStore);
+      await writeCompileEvent("compile_upstream_failure", "upstream_failure", 502, {
+        detail: error instanceof Error ? error.message : "upstream_failure"
+      });
       return reply.status(502).send({
         error: {
           code: "LITELLM_UPSTREAM_ERROR",

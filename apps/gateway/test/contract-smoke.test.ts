@@ -19,16 +19,19 @@ describe("api contract doc", () => {
   it("accepts a normal compile request without attachments", async () => {
     clearRateLimits();
 
-    const app = buildServer({}, {
-      requestCommandBatch: async () => ({
-        version: "1.0",
-        scene_id: "scene_contract",
-        transaction_id: "tx_contract",
-        commands: [],
-        post_checks: [],
-        explanations: []
-      })
-    });
+    const app = buildServer(
+      {},
+      {
+        requestCommandBatch: async () => ({
+          version: "1.0",
+          scene_id: "scene_contract",
+          transaction_id: "tx_contract",
+          commands: [],
+          post_checks: [],
+          explanations: []
+        })
+      }
+    );
 
     const res = await app.inject({
       method: "POST",
@@ -40,7 +43,9 @@ describe("api contract doc", () => {
     });
 
     expect(res.statusCode).toBe(200);
+    expect(res.headers["x-trace-id"]).toBe("tr_req-1");
     expect(JSON.parse(res.payload)).toMatchObject({
+      trace_id: "tr_req-1",
       batch: {
         scene_id: "scene_contract",
         transaction_id: "tx_contract"
