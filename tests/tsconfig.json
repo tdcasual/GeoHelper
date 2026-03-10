@@ -9,6 +9,7 @@
   },
   "include": [
     "./**/*.ts",
-    "../scripts/geogebra/**/*.mjs"
+    "../scripts/geogebra/**/*.mjs",
+    "../scripts/ui/**/*.mjs"
   ]
 }

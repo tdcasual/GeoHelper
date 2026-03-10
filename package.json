@@ -10,7 +10,8 @@
     "bench:quality": "node scripts/bench/run-quality-benchmark.mjs",
     "geogebra:sync": "node scripts/geogebra/sync-bundle.mjs",
     "build:web": "pnpm geogebra:sync && pnpm --filter @geohelper/web build",
-    "verify:geogebra-self-hosted": "node scripts/geogebra/assert-no-external.mjs"
+    "verify:geogebra-self-hosted": "node scripts/geogebra/assert-no-external.mjs",
+    "audit:ui:expanded": "node scripts/ui/run-expanded-audit.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
