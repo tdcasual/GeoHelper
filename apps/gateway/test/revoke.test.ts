@@ -67,6 +67,7 @@ describe("POST /api/v1/auth/token/revoke", () => {
     const firstApp = buildServer(
       env,
       {
+        kvClient,
         sessionStore: createRedisSessionRevocationStore(kvClient),
         requestCommandBatch: async () => ({
           version: "1.0",
@@ -100,6 +101,7 @@ describe("POST /api/v1/auth/token/revoke", () => {
     const secondApp = buildServer(
       env,
       {
+        kvClient,
         sessionStore: createRedisSessionRevocationStore(kvClient),
         requestCommandBatch: async () => ({
           version: "1.0",

@@ -119,6 +119,7 @@ Optional deploy hook secret:
 - `LITELLM_MODEL`
 - `RATE_LIMIT_MAX`
 - `RATE_LIMIT_WINDOW_MS`
+- optional: `REDIS_URL` (recommended for multi-instance shared revoke/rate-limit state)
 - optional: `ALERT_WEBHOOK_URL`
 - optional: `ADMIN_METRICS_TOKEN`
 - optional: `COST_PER_REQUEST_USD`
@@ -130,7 +131,7 @@ You can sync gateway/web deploy secrets from local env vars with:
 bash scripts/deploy/configure-release-secrets.sh --repo <owner/repo>
 ```
 
-Production gateway startup validates `APP_SECRET` and `LITELLM_ENDPOINT` before listening.
+Production gateway startup validates `APP_SECRET` and `LITELLM_ENDPOINT` before listening. When `REDIS_URL` is set, session revoke and fixed-window rate limits are shared across instances.
 
 ## F. Post-deploy Verification
 

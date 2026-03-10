@@ -122,7 +122,7 @@ export const registerCompileRoute = (
   app.post("/api/v1/chat/compile", async (request, reply) => {
     const totalStartedAt = Date.now();
     const rateKey = `${request.ip}:compile`;
-    const limit = consumeRateLimit(
+    const limit = await consumeRateLimit(
       rateKey,
       config.rateLimitMax,
       config.rateLimitWindowMs,

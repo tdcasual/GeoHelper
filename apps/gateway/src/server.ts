@@ -23,6 +23,7 @@ import {
   getDefaultRateLimitStore,
   RateLimitStore
 } from "./services/rate-limit";
+import { createRedisRateLimitStore } from "./services/redis-rate-limit-store";
 import { createRedisSessionRevocationStore } from "./services/redis-session-store";
 import {
   getDefaultSessionRevocationStore,
@@ -70,7 +71,10 @@ export const buildServer = (
         ? createRedisSessionRevocationStore(kvClient)
         : getDefaultSessionRevocationStore()),
     rateLimitStore:
-      serviceOverrides.rateLimitStore ?? getDefaultRateLimitStore(),
+      serviceOverrides.rateLimitStore ??
+      (kvClient
+        ? createRedisRateLimitStore(kvClient)
+        : getDefaultRateLimitStore()),
     metricsStore: serviceOverrides.metricsStore ?? getDefaultMetricsStore(),
     kvClient
   };

@@ -59,6 +59,7 @@ Notes:
 - `VITE_GATEWAY_URL` is optional for pure Direct BYOK mode.
 - If `VITE_GATEWAY_URL` is unset, web defaults to `Direct BYOK` runtime and Official mode is unavailable until a Gateway runtime is configured in settings.
 - Production gateway startup requires explicit `APP_SECRET` and `LITELLM_ENDPOINT`; development keeps local defaults for convenience.
+- `REDIS_URL` is recommended when running multiple gateway instances so session revoke and rate-limit state stay shared.
 - `PRESET_TOKEN` is required only when you intend to expose `Official` mode login.
 
 ## Live Model Smoke
