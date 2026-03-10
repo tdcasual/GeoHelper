@@ -18,22 +18,22 @@ import {
 } from "./services/kv-client";
 import {
   getDefaultMetricsStore,
-  GatewayMetricsStore
 } from "./services/metrics";
+import { GatewayMetricsStore } from "./services/metrics-store";
 import {
   requestCommandBatch as defaultRequestCommandBatch,
   RequestCommandBatch
 } from "./services/litellm-client";
 import {
   getDefaultRateLimitStore,
-  RateLimitStore
 } from "./services/rate-limit";
+import { RateLimitStore } from "./services/rate-limit-store";
 import { createRedisRateLimitStore } from "./services/redis-rate-limit-store";
 import { createRedisSessionRevocationStore } from "./services/redis-session-store";
 import {
   getDefaultSessionRevocationStore,
-  SessionRevocationStore
 } from "./services/session";
+import { SessionRevocationStore } from "./services/session-store";
 
 export interface GatewayServices {
   requestCommandBatch: RequestCommandBatch;

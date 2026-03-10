@@ -118,9 +118,12 @@ export const createRedisKvClient = (redisUrl: string): KvClient => {
     }
 
     if (!connectPromise) {
-      connectPromise = client.connect().finally(() => {
-        connectPromise = null;
-      });
+      connectPromise = client
+        .connect()
+        .then(() => undefined)
+        .finally(() => {
+          connectPromise = null;
+        });
     }
 
     await connectPromise;
@@ -154,7 +157,8 @@ export const createRedisKvClient = (redisUrl: string): KvClient => {
     },
     expire: async (key, ttlMs) => {
       await ensureConnected();
-      return client.pExpire(key, Math.max(1, Math.ceil(ttlMs)));
+      const result = await client.pExpire(key, Math.max(1, Math.ceil(ttlMs)));
+      return result === 1;
     },
     getTtlMs: async (key) => {
       await ensureConnected();
