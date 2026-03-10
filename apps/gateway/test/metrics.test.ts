@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { buildServer } from "../src/server";
-import { clearRateLimits } from "../src/services/rate-limit";
-import { resetGatewayMetrics } from "../src/services/metrics";
+import { createMemoryMetricsStore } from "../src/services/metrics-store";
+import { createMemoryRateLimitStore } from "../src/services/rate-limit-store";
 
 describe("GET /admin/metrics", () => {
   it("reports compile success rate and rate-limited ratio", async () => {
-    clearRateLimits();
-    resetGatewayMetrics();
+    const rateLimitStore = createMemoryRateLimitStore();
+    const metricsStore = createMemoryMetricsStore();
 
     const app = buildServer(
       {
@@ -15,6 +15,8 @@ describe("GET /admin/metrics", () => {
         RATE_LIMIT_WINDOW_MS: "60000"
       },
       {
+        rateLimitStore,
+        metricsStore,
         requestCommandBatch: async () => ({
           version: "1.0",
           scene_id: "s1",
@@ -56,12 +58,16 @@ describe("GET /admin/metrics", () => {
   });
 
   it("requires admin token when configured", async () => {
-    clearRateLimits();
-    resetGatewayMetrics();
+    const metricsStore = createMemoryMetricsStore();
 
-    const app = buildServer({
-      ADMIN_METRICS_TOKEN: "secret-metrics-token"
-    });
+    const app = buildServer(
+      {
+        ADMIN_METRICS_TOKEN: "secret-metrics-token"
+      },
+      {
+        metricsStore
+      }
+    );
 
     const forbidden = await app.inject({
       method: "GET",
@@ -80,12 +86,12 @@ describe("GET /admin/metrics", () => {
   });
 
   it("records sampled performance stats", async () => {
-    clearRateLimits();
-    resetGatewayMetrics();
+    const metricsStore = createMemoryMetricsStore();
 
     const app = buildServer(
       {},
       {
+        metricsStore,
         requestCommandBatch: async () => ({
           version: "1.0",
           scene_id: "s1",
@@ -119,12 +125,12 @@ describe("GET /admin/metrics", () => {
   });
 
   it("tracks fallback count and fallback rate", async () => {
-    clearRateLimits();
-    resetGatewayMetrics();
+    const metricsStore = createMemoryMetricsStore();
 
     const app = buildServer(
       {},
       {
+        metricsStore,
         requestCommandBatch: async (input) => {
           if (input.message.startsWith("Intent extraction")) {
             throw new Error("intent unavailable");
@@ -162,14 +168,14 @@ describe("GET /admin/metrics", () => {
   });
 
   it("tracks cost_per_request using configured unit cost", async () => {
-    clearRateLimits();
-    resetGatewayMetrics();
+    const metricsStore = createMemoryMetricsStore();
 
     const app = buildServer(
       {
         COST_PER_REQUEST_USD: "0.02"
       },
       {
+        metricsStore,
         requestCommandBatch: async () => ({
           version: "1.0",
           scene_id: "s1",

@@ -12,6 +12,9 @@ import {
   compileWithSingleAgent
 } from "../services/multi-agent";
 import { verifySessionToken } from "../services/session";
+import { GatewayMetricsStore } from "../services/metrics-store";
+import { RateLimitStore } from "../services/rate-limit-store";
+import { SessionRevocationStore } from "../services/session-store";
 import { InvalidCommandBatchError } from "../services/verify-command-batch";
 import { consumeRateLimit } from "../services/rate-limit";
 import {
@@ -80,6 +83,9 @@ const CompileBodySchema = z.object({
 
 export interface CompileRouteDeps {
   requestCommandBatch: RequestCommandBatch;
+  sessionStore: SessionRevocationStore;
+  rateLimitStore: RateLimitStore;
+  metricsStore: GatewayMetricsStore;
 }
 
 export const registerCompileRoute = (
@@ -119,13 +125,14 @@ export const registerCompileRoute = (
     const limit = consumeRateLimit(
       rateKey,
       config.rateLimitMax,
-      config.rateLimitWindowMs
+      config.rateLimitWindowMs,
+      deps.rateLimitStore
     );
     reply.header("x-ratelimit-limit", String(limit.limit));
     reply.header("x-ratelimit-remaining", String(limit.remaining));
     reply.header("x-ratelimit-reset", String(Math.floor(limit.resetAt / 1000)));
     if (!limit.allowed) {
-      recordCompileRateLimited();
+      recordCompileRateLimited(deps.metricsStore);
       return reply.status(429).send({
         error: {
           code: "RATE_LIMITED",
@@ -167,7 +174,7 @@ export const registerCompileRoute = (
       }
 
       const sessionToken = authHeader.slice("Bearer ".length);
-      const payload = verifySessionToken(sessionToken, config);
+      const payload = verifySessionToken(sessionToken, config, deps.sessionStore);
       if (!payload) {
         return reply.status(401).send({
           error: {
@@ -219,17 +226,20 @@ export const registerCompileRoute = (
       const estimatedCostUsd =
         Math.max(0, config.costPerRequestUsd) *
         Math.max(1, result.upstream_calls);
-      recordCompileSuccess({
-        retryCount,
-        latencyMs: totalMs,
-        hadFallback,
-        costUsd: estimatedCostUsd
-      });
+      recordCompileSuccess(
+        {
+          retryCount,
+          latencyMs: totalMs,
+          hadFallback,
+          costUsd: estimatedCostUsd
+        },
+        deps.metricsStore
+      );
       if (samplePerf) {
         recordCompilePerfSample({
           totalMs,
           upstreamMs: result.upstream_ms
-        });
+        }, deps.metricsStore);
         reply.header("x-perf-total-ms", String(totalMs));
         reply.header("x-perf-upstream-ms", String(result.upstream_ms));
       }
@@ -268,7 +278,7 @@ export const registerCompileRoute = (
     } catch (error) {
       const totalMs = Date.now() - totalStartedAt;
       if (error instanceof InvalidCommandBatchError) {
-        recordCompileFailure(totalMs);
+        recordCompileFailure(totalMs, 0, deps.metricsStore);
         return reply.status(422).send({
           error: {
             code: "INVALID_COMMAND_BATCH",
@@ -280,7 +290,7 @@ export const registerCompileRoute = (
         });
       }
 
-      recordCompileFailure(totalMs);
+      recordCompileFailure(totalMs, 0, deps.metricsStore);
       return reply.status(502).send({
         error: {
           code: "LITELLM_UPSTREAM_ERROR",

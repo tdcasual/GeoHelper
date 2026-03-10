@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { buildServer } from "../src/server";
-import { clearRateLimits } from "../src/services/rate-limit";
+import { createMemoryRateLimitStore } from "../src/services/rate-limit-store";
 
 describe("rate limiting", () => {
   it("returns 429 when request quota is exceeded", async () => {
-    clearRateLimits();
+    const rateLimitStore = createMemoryRateLimitStore();
 
     const app = buildServer(
       {
@@ -13,6 +13,7 @@ describe("rate limiting", () => {
         RATE_LIMIT_WINDOW_MS: "60000"
       },
       {
+        rateLimitStore,
         requestCommandBatch: async () => ({
           version: "1.0",
           scene_id: "s1",

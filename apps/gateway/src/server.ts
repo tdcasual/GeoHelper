@@ -8,12 +8,27 @@ import { registerCompileRoute } from "./routes/compile";
 import { registerHealthRoute } from "./routes/health";
 import { sendAlert } from "./services/alerting";
 import {
+  getDefaultMetricsStore,
+  GatewayMetricsStore
+} from "./services/metrics";
+import {
   requestCommandBatch as defaultRequestCommandBatch,
   RequestCommandBatch
 } from "./services/litellm-client";
+import {
+  getDefaultRateLimitStore,
+  RateLimitStore
+} from "./services/rate-limit";
+import {
+  getDefaultSessionRevocationStore,
+  SessionRevocationStore
+} from "./services/session";
 
 export interface GatewayServices {
   requestCommandBatch: RequestCommandBatch;
+  sessionStore: SessionRevocationStore;
+  rateLimitStore: RateLimitStore;
+  metricsStore: GatewayMetricsStore;
 }
 
 export const buildServer = (
@@ -37,6 +52,9 @@ export const buildServer = (
   const config = loadConfig(envOverrides);
   const services: GatewayServices = {
     requestCommandBatch: defaultRequestCommandBatch,
+    sessionStore: getDefaultSessionRevocationStore(),
+    rateLimitStore: getDefaultRateLimitStore(),
+    metricsStore: getDefaultMetricsStore(),
     ...serviceOverrides
   };
 
@@ -52,8 +70,12 @@ export const buildServer = (
   });
 
   registerHealthRoute(app);
-  registerAdminRoutes(app, config);
-  registerAuthRoutes(app, config);
+  registerAdminRoutes(app, config, {
+    metricsStore: services.metricsStore
+  });
+  registerAuthRoutes(app, config, {
+    sessionStore: services.sessionStore
+  });
   registerCompileRoute(app, config, services);
 
   return app;

@@ -1,6 +1,10 @@
 import { createHmac } from "node:crypto";
 
 import { GatewayConfig } from "../config";
+import {
+  createMemorySessionRevocationStore,
+  SessionRevocationStore
+} from "./session-store";
 
 export interface SessionPayload {
   device_id: string;
@@ -8,6 +12,8 @@ export interface SessionPayload {
   iat: number;
   jti: string;
 }
+
+const defaultSessionRevocationStore = createMemorySessionRevocationStore();
 
 const signPayload = (payloadB64: string, secret: string): string =>
   createHmac("sha256", secret).update(payloadB64).digest("base64url");
@@ -17,7 +23,8 @@ const sessionHash = (token: string): string =>
     .update(token)
     .digest("hex");
 
-const revokedSessionHashes = new Set<string>();
+export const getDefaultSessionRevocationStore = (): SessionRevocationStore =>
+  defaultSessionRevocationStore;
 
 export const issueSessionToken = (
   deviceId: string,
@@ -44,19 +51,25 @@ export const issueSessionToken = (
   return `${payloadB64}.${signature}`;
 };
 
-export const revokeSessionToken = (token: string): void => {
-  revokedSessionHashes.add(sessionHash(token));
+export const revokeSessionToken = (
+  token: string,
+  store: SessionRevocationStore = defaultSessionRevocationStore
+): void => {
+  store.add(sessionHash(token));
 };
 
-export const clearRevokedSessions = (): void => {
-  revokedSessionHashes.clear();
+export const clearRevokedSessions = (
+  store: SessionRevocationStore = defaultSessionRevocationStore
+): void => {
+  store.clear();
 };
 
 export const verifySessionToken = (
   token: string,
-  config: GatewayConfig
+  config: GatewayConfig,
+  store: SessionRevocationStore = defaultSessionRevocationStore
 ): SessionPayload | null => {
-  if (revokedSessionHashes.has(sessionHash(token))) {
+  if (store.has(sessionHash(token))) {
     return null;
   }
 

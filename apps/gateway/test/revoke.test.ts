@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
+
 import { buildServer } from "../src/server";
-import { clearRevokedSessions } from "../src/services/session";
+import { createMemorySessionRevocationStore } from "../src/services/session-store";
 
 describe("POST /api/v1/auth/token/revoke", () => {
   it("revokes session and blocks future official compile calls", async () => {
-    clearRevokedSessions();
+    const sessionStore = createMemorySessionRevocationStore();
 
     const app = buildServer(
       {
         PRESET_TOKEN: "geo-allow"
       },
       {
+        sessionStore,
         requestCommandBatch: async () => ({
           version: "1.0",
           scene_id: "s1",

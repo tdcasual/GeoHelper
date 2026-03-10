@@ -1,9 +1,9 @@
-interface Bucket {
-  count: number;
-  resetAt: number;
-}
+import {
+  createMemoryRateLimitStore,
+  RateLimitStore
+} from "./rate-limit-store";
 
-const buckets = new Map<string, Bucket>();
+const defaultRateLimitStore = createMemoryRateLimitStore();
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -12,20 +12,24 @@ export interface RateLimitResult {
   resetAt: number;
 }
 
+export const getDefaultRateLimitStore = (): RateLimitStore =>
+  defaultRateLimitStore;
+
 export const consumeRateLimit = (
   key: string,
   max: number,
-  windowMs: number
+  windowMs: number,
+  store: RateLimitStore = defaultRateLimitStore
 ): RateLimitResult => {
   const now = Date.now();
-  const existing = buckets.get(key);
+  const existing = store.get(key);
 
   if (!existing || existing.resetAt <= now) {
-    const next: Bucket = {
+    const next = {
       count: 1,
       resetAt: now + windowMs
     };
-    buckets.set(key, next);
+    store.set(key, next);
     return {
       allowed: true,
       limit: max,
@@ -34,18 +38,23 @@ export const consumeRateLimit = (
     };
   }
 
-  existing.count += 1;
-  buckets.set(key, existing);
+  const next = {
+    ...existing,
+    count: existing.count + 1
+  };
+  store.set(key, next);
 
-  const remaining = Math.max(0, max - existing.count);
+  const remaining = Math.max(0, max - next.count);
   return {
-    allowed: existing.count <= max,
+    allowed: next.count <= max,
     limit: max,
     remaining,
-    resetAt: existing.resetAt
+    resetAt: next.resetAt
   };
 };
 
-export const clearRateLimits = (): void => {
-  buckets.clear();
+export const clearRateLimits = (
+  store: RateLimitStore = defaultRateLimitStore
+): void => {
+  store.clear();
 };

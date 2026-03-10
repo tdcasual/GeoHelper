@@ -7,6 +7,7 @@ import {
   revokeSessionToken,
   verifySessionToken
 } from "../services/session";
+import { SessionRevocationStore } from "../services/session-store";
 import { validatePresetToken } from "../services/token-auth";
 
 const AuthBodySchema = z.object({
@@ -14,9 +15,14 @@ const AuthBodySchema = z.object({
   device_id: z.string().min(1)
 });
 
+interface AuthRouteDeps {
+  sessionStore: SessionRevocationStore;
+}
+
 export const registerAuthRoutes = (
   app: FastifyInstance,
-  config: GatewayConfig
+  config: GatewayConfig,
+  deps: AuthRouteDeps
 ): void => {
   app.post("/api/v1/auth/token/login", async (request, reply) => {
     const parseResult = AuthBodySchema.safeParse(request.body);
@@ -60,7 +66,7 @@ export const registerAuthRoutes = (
     }
 
     const sessionToken = authHeader.slice("Bearer ".length);
-    const payload = verifySessionToken(sessionToken, config);
+    const payload = verifySessionToken(sessionToken, config, deps.sessionStore);
     if (!payload) {
       return reply.status(401).send({
         error: {
@@ -70,7 +76,7 @@ export const registerAuthRoutes = (
       });
     }
 
-    revokeSessionToken(sessionToken);
+    revokeSessionToken(sessionToken, deps.sessionStore);
     return reply.send({
       revoked: true
     });
