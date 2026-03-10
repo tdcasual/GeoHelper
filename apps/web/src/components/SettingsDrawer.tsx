@@ -458,7 +458,7 @@ export const SettingsDrawer = ({
           </nav>
           <div className="settings-content">
         {activeSection === "general" ? (
-        <section className="settings-section">
+        <section className="settings-section settings-section-general">
           <h3>通用</h3>
           <label>
             默认模式

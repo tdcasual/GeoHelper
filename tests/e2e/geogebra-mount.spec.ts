@@ -360,6 +360,60 @@ test("re-mounts GeoGebra with a compact mobile profile after viewport mode chang
     });
 });
 
+
+test("re-mounts GeoGebra when desktop enters compact short viewport mode", async ({
+  page
+}) => {
+  await mockGeoGebraRuntime(page);
+
+  await page.setViewportSize({ width: 1200, height: 900 });
+  await page.goto("http://localhost:5173");
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          () => ((window as any).__geohelperGgbParamsHistory as Array<unknown>).length
+        )
+    )
+    .toBe(1);
+
+  await page.setViewportSize({ width: 932, height: 430 });
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          () => ((window as any).__geohelperGgbParamsHistory as Array<unknown>).length
+        ),
+      {
+        message:
+          "entering compact short viewport should trigger a fresh desktop GeoGebra mount"
+      }
+    )
+    .toBeGreaterThan(1);
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const history = (window as any).__geohelperGgbParamsHistory as Array<Record<string, unknown>>;
+          return history.at(-1) ?? null;
+        })
+    )
+    .toMatchObject({
+      appName: "classic",
+      preventFocus: true,
+      showMenuBar: true,
+      showAlgebraInput: true,
+      showToolBarHelp: true,
+      showFullscreenButton: true
+    });
+});
+
 test("replays persisted scene transactions after mount and viewport remount", async ({
   page
 }) => {

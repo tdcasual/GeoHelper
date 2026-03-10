@@ -132,6 +132,9 @@ export const WorkspaceShell = () => {
   const [isShortViewport, setIsShortViewport] = useState(false);
   const [mobileSurface, setMobileSurface] = useState<MobileSurface>("canvas");
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const [compactHistorySheetVisible, setCompactHistorySheetVisible] =
+    useState(false);
+  const [canvasFullscreenActive, setCanvasFullscreenActive] = useState(false);
   const [chatShellWidth, setChatShellWidth] = useState(0);
   const activeRuntimeProfile = useMemo(
     () =>
@@ -147,10 +150,42 @@ export const WorkspaceShell = () => {
   const phoneViewport = isMobileViewport;
   const shortViewport = isShortViewport;
   const canvasProfile = phoneViewport ? "mobile" : "desktop";
+  const canvasViewportMode = !compactViewport
+    ? "regular"
+    : shortViewport
+      ? "compact-short"
+      : "compact";
+  const rawCanvasMountKey = `${canvasProfile}-${canvasViewportMode}`;
+  const [canvasMountKey, setCanvasMountKey] = useState(rawCanvasMountKey);
+  const effectiveHistoryDrawerVisible = compactViewport
+    ? compactHistorySheetVisible
+    : historyDrawerVisible;
   const canvasVisible = !compactViewport || mobileSurface === "canvas";
   const effectiveChatVisible = compactViewport
     ? mobileSurface === "chat"
     : chatVisible;
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const syncFullscreenState = () => {
+      setCanvasFullscreenActive(!!document.fullscreenElement);
+    };
+
+    syncFullscreenState();
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreenState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!canvasFullscreenActive) {
+      setCanvasMountKey(rawCanvasMountKey);
+    }
+  }, [canvasFullscreenActive, rawCanvasMountKey]);
 
   const deviceId = useMemo(() => {
     const key = "geohelper.device.id";
@@ -209,24 +244,24 @@ export const WorkspaceShell = () => {
   useEffect(() => {
     if (!compactViewport) {
       setMobileActionsOpen(false);
+      setCompactHistorySheetVisible(false);
       return;
     }
 
     setMobileActionsOpen(false);
     setMobileSurface("canvas");
-    setHistoryDrawerVisible(false);
-  }, [compactViewport, setHistoryDrawerVisible]);
+    setCompactHistorySheetVisible(false);
+  }, [compactViewport]);
 
   useEffect(() => {
-    if (compactViewport && mobileSurface !== "chat" && historyDrawerVisible) {
-      setHistoryDrawerVisible(false);
+    if (
+      compactViewport &&
+      mobileSurface !== "chat" &&
+      compactHistorySheetVisible
+    ) {
+      setCompactHistorySheetVisible(false);
     }
-  }, [
-    compactViewport,
-    historyDrawerVisible,
-    mobileSurface,
-    setHistoryDrawerVisible
-  ]);
+  }, [compactHistorySheetVisible, compactViewport, mobileSurface]);
 
   useEffect(() => {
     const node = chatShellRef.current;
@@ -657,7 +692,9 @@ export const WorkspaceShell = () => {
     setSettingsOpen(true);
     setMobileActionsOpen(false);
     setPlusMenuOpen(false);
-    setHistoryDrawerVisible(false);
+    if (compactViewport) {
+      setCompactHistorySheetVisible(false);
+    }
   };
 
   const handleRollbackAction = () => {
@@ -683,7 +720,7 @@ export const WorkspaceShell = () => {
     setMobileActionsOpen(false);
     setPlusMenuOpen(false);
     if (surface !== "chat") {
-      setHistoryDrawerVisible(false);
+      setCompactHistorySheetVisible(false);
     }
   };
 
@@ -694,7 +731,7 @@ export const WorkspaceShell = () => {
     }
 
     setPlusMenuOpen(false);
-    setHistoryDrawerVisible(false);
+    setCompactHistorySheetVisible(false);
     setMobileActionsOpen(true);
   };
 
@@ -703,7 +740,7 @@ export const WorkspaceShell = () => {
     if (compactViewport) {
       setMobileActionsOpen(false);
       setMobileSurface("chat");
-      setHistoryDrawerVisible(!historyDrawerVisible);
+      setCompactHistorySheetVisible((value) => !value);
       return;
     }
 
@@ -722,7 +759,7 @@ export const WorkspaceShell = () => {
     setPlusMenuOpen(false);
     setSlashSelectedIndex(0);
     if (compactViewport) {
-      setHistoryDrawerVisible(false);
+      setCompactHistorySheetVisible(false);
     }
   };
 
@@ -731,7 +768,7 @@ export const WorkspaceShell = () => {
     setPlusMenuOpen(false);
     setSlashSelectedIndex(0);
     if (compactViewport) {
-      setHistoryDrawerVisible(false);
+      setCompactHistorySheetVisible(false);
     }
   };
 
@@ -919,7 +956,7 @@ export const WorkspaceShell = () => {
       </header>
       <div className="workspace-content">
         <CanvasPanel
-          key={canvasProfile}
+          key={canvasMountKey}
           profile={canvasProfile}
           visible={canvasVisible}
         />
@@ -964,7 +1001,7 @@ export const WorkspaceShell = () => {
                     data-testid="history-toggle-button"
                     onClick={handleHistoryToggle}
                   >
-                    {historyDrawerVisible ? "收起历史" : "历史"}
+                    {effectiveHistoryDrawerVisible ? "收起历史" : "历史"}
                   </button>
                 </div>
               </div>
@@ -1221,11 +1258,11 @@ export const WorkspaceShell = () => {
                 />
               </form>
             </div>
-            {compactViewport && historyDrawerVisible ? (
+            {compactViewport && compactHistorySheetVisible ? (
               <div
                 className="history-sheet-backdrop"
                 data-testid="history-sheet-backdrop"
-                onClick={() => setHistoryDrawerVisible(false)}
+                onClick={() => setCompactHistorySheetVisible(false)}
               >
                 <div
                   className="history-sheet"

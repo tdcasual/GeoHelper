@@ -44,11 +44,12 @@ test("history drawer is hidden by default and can be toggled", async ({
   await expect(page.getByTestId("conversation-sidebar")).toBeHidden();
 });
 
-test("supports creating and switching conversations in history drawer", async ({
+test("supports creating and switching conversations in inline history drawer", async ({
   page
 }) => {
   await mockCompile(page);
 
+  await page.setViewportSize({ width: 2560, height: 900 });
   await page.goto("http://localhost:5173");
   await page.getByTestId("history-toggle-button").click();
 
@@ -71,9 +72,10 @@ test("supports creating and switching conversations in history drawer", async ({
   ).toHaveCount(0);
 });
 
-test("history drawer width can be resized and remains bounded", async ({
+test("inline history drawer width can be resized and remains bounded", async ({
   page
 }) => {
+  await page.setViewportSize({ width: 2560, height: 900 });
   await page.goto("http://localhost:5173");
   await page.getByTestId("history-toggle-button").click();
 
@@ -85,10 +87,23 @@ test("history drawer width can be resized and remains bounded", async ({
   const before = await drawer.boundingBox();
   expect(before?.width ?? 0).toBeGreaterThan(0);
 
+  const inlineSlack = await page.evaluate(() => {
+    const shell = document.querySelector(".chat-shell")?.getBoundingClientRect();
+    const sidebar = document
+      .querySelector("[data-testid='conversation-sidebar']")
+      ?.getBoundingClientRect();
+    if (!shell || !sidebar) {
+      return 0;
+    }
+    return Math.max(0, Math.floor(shell.width - 360 - sidebar.width));
+  });
+  expect(inlineSlack).toBeGreaterThan(8);
+
+  const expandDelta = Math.max(8, Math.floor(inlineSlack / 2));
   const resizerBox = await resizer.boundingBox();
   expect(resizerBox).not.toBeNull();
 
-  if (!resizerBox) {
+  if (!resizerBox || !before) {
     return;
   }
 
@@ -98,12 +113,13 @@ test("history drawer width can be resized and remains bounded", async ({
   );
   await page.mouse.down();
   await page.mouse.move(
-    resizerBox.x + resizerBox.width / 2 + 1000,
+    resizerBox.x + resizerBox.width / 2 + expandDelta,
     resizerBox.y + resizerBox.height / 2
   );
   await page.mouse.up();
 
   const afterExpand = await drawer.boundingBox();
+  expect(afterExpand?.width ?? 0).toBeGreaterThan(before.width);
   expect(afterExpand?.width ?? 0).toBeLessThanOrEqual(420);
 
   await page.mouse.move(
@@ -119,6 +135,55 @@ test("history drawer width can be resized and remains bounded", async ({
 
   const afterShrink = await drawer.boundingBox();
   expect(afterShrink?.width ?? 0).toBeGreaterThanOrEqual(180);
+});
+
+test("compact history sheet closes and preserves desktop history preference after selecting a conversation", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 1200, height: 900 });
+  await page.goto("http://localhost:5173");
+  await page.getByTestId("history-toggle-button").click();
+  await expect(page.getByTestId("conversation-sidebar")).toBeVisible();
+
+  await page.getByRole("button", { name: "新建会话" }).click();
+  await expect(page.locator("[data-testid='conversation-item']")).toHaveCount(2);
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const raw = localStorage.getItem("geohelper.ui.preferences");
+          return raw ? JSON.parse(raw).historyDrawerVisible ?? null : null;
+        }),
+      {
+        message:
+          "creating a conversation on desktop should keep the persisted history preference enabled"
+      }
+    )
+    .toBe(true);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByTestId("mobile-surface-switcher")).toBeVisible();
+  await page.getByTestId("mobile-surface-chat").click();
+  await page.getByRole("button", { name: "历史" }).click();
+  await expect(page.getByTestId("history-sheet")).toBeVisible();
+
+  await page.locator("[data-testid='conversation-item']").last().click();
+  await expect(page.getByTestId("history-sheet")).toHaveCount(0);
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const raw = localStorage.getItem("geohelper.ui.preferences");
+          return raw ? JSON.parse(raw).historyDrawerVisible ?? null : null;
+        }),
+      {
+        message:
+          "compact conversation switching should not clear the persisted desktop history preference"
+      }
+    )
+    .toBe(true);
 });
 
 test("restores unsent draft per conversation", async ({ page }) => {
