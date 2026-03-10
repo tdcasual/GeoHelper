@@ -104,7 +104,7 @@ const resolveAppletObject = (
   return raw ?? getLiveAppletObject();
 };
 
-const toAppletConfig = (
+export const toAppletConfig = (
   profile: CanvasUiProfile,
   onLoad?: (appletObject: unknown) => void
 ) => ({
@@ -118,6 +118,7 @@ const toAppletConfig = (
   enableFileFeatures: true,
   showFullscreenButton: true,
   showResetIcon: true,
+  disableAutoScale: true,
   language: "zh",
   ...(onLoad ? { appletOnLoad: onLoad } : {})
 });
@@ -549,19 +550,17 @@ export const CanvasPanel = ({ profile, visible }: CanvasPanelProps) => {
     <section className="canvas-panel" data-panel="canvas" hidden={!visible}>
       <div ref={hostRef} className="geogebra-host" data-testid="geogebra-host">
         <div id="geogebra-container" className="geogebra-container" />
-        {profile === "desktop" ? (
-          <button
-            type="button"
-            className="canvas-fullscreen-button"
-            data-testid="canvas-fullscreen-button"
-            aria-label={isFullscreen ? "退出全屏" : "全屏显示"}
-            onClick={() => {
-              void handleFullscreenToggle();
-            }}
-          >
-            {isFullscreen ? "↙" : "↗"}
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className="canvas-fullscreen-button"
+          data-testid="canvas-fullscreen-button"
+          aria-label={isFullscreen ? "退出全屏" : "全屏显示"}
+          onClick={() => {
+            void handleFullscreenToggle();
+          }}
+        >
+          {isFullscreen ? "↙" : "↗"}
+        </button>
         {status === "loading" ? (
           <div className="canvas-overlay">GeoGebra 正在加载...</div>
         ) : null}

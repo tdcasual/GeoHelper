@@ -81,6 +81,30 @@ test("desktop exposes a fullscreen control and toggles fullscreen mode", async (
   await expect(fullscreenButton).toHaveAttribute("aria-label", "全屏显示");
 });
 
+
+test("mobile canvas exposes a fullscreen control and toggles fullscreen mode", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("http://localhost:5173");
+
+  const fullscreenButton = page.getByTestId("canvas-fullscreen-button");
+  await expect(fullscreenButton).toBeVisible();
+  await expect(fullscreenButton).toHaveAttribute("aria-label", "全屏显示");
+
+  await fullscreenButton.click();
+  await expect
+    .poll(() => page.evaluate(() => !!document.fullscreenElement))
+    .toBe(true);
+  await expect(fullscreenButton).toHaveAttribute("aria-label", "退出全屏");
+
+  await fullscreenButton.click();
+  await expect
+    .poll(() => page.evaluate(() => document.fullscreenElement === null))
+    .toBe(true);
+  await expect(fullscreenButton).toHaveAttribute("aria-label", "全屏显示");
+});
+
 test("tablet history drawer opens with bounded width", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 1366 });
   await page.goto("http://localhost:5173");
@@ -96,6 +120,41 @@ test("tablet history drawer opens with bounded width", async ({ page }) => {
   const chatBody = page.locator(".chat-body");
   const chatBodyBox = await chatBody.boundingBox();
   expect(chatBodyBox?.width ?? 0).toBeGreaterThanOrEqual(220);
+});
+
+test("desktop GeoGebra frame fills most of the canvas host on wide layouts", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 1200, height: 700 });
+  await page.goto("http://localhost:5173");
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const host = document.querySelector("[data-testid='geogebra-host']");
+          const frame = document.querySelector(".GeoGebraFrame");
+          const hostWidth = host?.getBoundingClientRect().width ?? 0;
+          const frameWidth = frame?.getBoundingClientRect().width ?? 0;
+          return hostWidth > 0 ? frameWidth / hostWidth : 0;
+        }),
+      { message: "GeoGebra frame should fill most of the host width on desktop" }
+    )
+    .toBeGreaterThan(0.92);
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const host = document.querySelector("[data-testid='geogebra-host']");
+          const frame = document.querySelector(".GeoGebraFrame");
+          const hostHeight = host?.getBoundingClientRect().height ?? 0;
+          const frameHeight = frame?.getBoundingClientRect().height ?? 0;
+          return hostHeight > 0 ? frameHeight / hostHeight : 0;
+        }),
+      { message: "GeoGebra frame should fill most of the host height on desktop" }
+    )
+    .toBeGreaterThan(0.92);
 });
 
 test("mobile canvas dedicates most of the host height to the graphics view", async ({
@@ -115,6 +174,101 @@ test("mobile canvas dedicates most of the host height to the graphics view", asy
       })
     )
     .toBeGreaterThan(0.7);
+});
+
+
+test("mobile rotating to landscape keeps GeoGebra filling most of the canvas host", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("http://localhost:5173");
+
+  await expect(page.getByTestId("mobile-surface-canvas")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+
+  await page.setViewportSize({ width: 932, height: 430 });
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const host = document.querySelector("[data-testid='geogebra-host']");
+          const container = document.querySelector("#geogebra-container");
+          const hostWidth = host?.getBoundingClientRect().width ?? 0;
+          const containerWidth = container?.getBoundingClientRect().width ?? 0;
+          return hostWidth > 0 ? containerWidth / hostWidth : 0;
+        }),
+      { message: "GeoGebra canvas should widen after switching to landscape" }
+    )
+    .toBeGreaterThan(0.75);
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const host = document.querySelector("[data-testid='geogebra-host']");
+          const container = document.querySelector("#geogebra-container");
+          const hostHeight = host?.getBoundingClientRect().height ?? 0;
+          const containerHeight = container?.getBoundingClientRect().height ?? 0;
+          return containerHeight - hostHeight;
+        }),
+      { message: "GeoGebra canvas should stay within host height in landscape" }
+    )
+    .toBeLessThanOrEqual(4);
+});
+
+test("mobile fullscreen survives rotation between portrait and landscape", async ({
+  page
+}) => {
+  const client = await page.context().newCDPSession(page);
+  const rotateViewport = async (width: number, height: number) => {
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width,
+      height,
+      deviceScaleFactor: 1,
+      mobile: true,
+      screenWidth: width,
+      screenHeight: height
+    });
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event("resize"));
+      window.dispatchEvent(new Event("orientationchange"));
+    });
+  };
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("http://localhost:5173");
+
+  await page.getByTestId("canvas-fullscreen-button").click();
+
+  await expect
+    .poll(
+      () => page.evaluate(() => !!document.fullscreenElement),
+      { message: "portrait should enter fullscreen before rotating" }
+    )
+    .toBe(true);
+
+  await rotateViewport(844, 390);
+
+  await expect
+    .poll(
+      () => page.evaluate(() => !!document.fullscreenElement),
+      { message: "rotating to landscape should keep the GeoGebra host in fullscreen" }
+    )
+    .toBe(true);
+
+  await rotateViewport(390, 844);
+
+  await expect
+    .poll(
+      () => page.evaluate(() => !!document.fullscreenElement),
+      { message: "rotating back to portrait should still keep fullscreen active" }
+    )
+    .toBe(true);
+
+  await client.send("Emulation.clearDeviceMetricsOverride");
 });
 
 test("mobile uses surface tabs, compact header, and overlay history", async ({
