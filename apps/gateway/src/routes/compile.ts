@@ -26,6 +26,18 @@ const CompileBodySchema = z.object({
   message: z.string().min(1),
   mode: z.enum(["byok", "official"]),
   model: z.string().optional(),
+  attachments: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        kind: z.literal("image"),
+        name: z.string().min(1),
+        mimeType: z.string().min(1),
+        size: z.number().int().nonnegative(),
+        transportPayload: z.string().min(1)
+      })
+    )
+    .optional(),
   context: z
     .object({
       recentMessages: z
@@ -133,6 +145,15 @@ export const registerCompileRoute = (
     }
 
     const mode = parsed.data.mode as CompileMode;
+
+    if ((parsed.data.attachments?.length ?? 0) > 0) {
+      return reply.status(400).send({
+        error: {
+          code: "ATTACHMENTS_UNSUPPORTED",
+          message: "Gateway runtime does not support attachments yet"
+        }
+      });
+    }
 
     if (mode === "official") {
       const authHeader = request.headers.authorization;
