@@ -28,6 +28,15 @@ export const loadConfig = (
   envOverrides: Partial<NodeJS.ProcessEnv> = {}
 ): GatewayConfig => {
   const env = { ...process.env, ...envOverrides };
+  const isProduction = env.NODE_ENV === "production";
+
+  if (isProduction && !env.APP_SECRET?.trim()) {
+    throw new Error("APP_SECRET_REQUIRED");
+  }
+
+  if (isProduction && !env.LITELLM_ENDPOINT?.trim()) {
+    throw new Error("LITELLM_ENDPOINT_REQUIRED");
+  }
   const portFromEnv = Number(env.PORT ?? 8787);
   const port = Number.isNaN(portFromEnv) ? 8787 : portFromEnv;
   const sessionTtlFromEnv = Number(env.SESSION_TTL_SECONDS ?? 1800);

@@ -58,6 +58,8 @@ Notes:
 - `geogebra:sync` tries the official latest bundle first and falls back to the configured fallback or cached last-known-good when needed.
 - `VITE_GATEWAY_URL` is optional for pure Direct BYOK mode.
 - If `VITE_GATEWAY_URL` is unset, web defaults to `Direct BYOK` runtime and Official mode is unavailable until a Gateway runtime is configured in settings.
+- Production gateway startup requires explicit `APP_SECRET` and `LITELLM_ENDPOINT`; development keeps local defaults for convenience.
+- `PRESET_TOKEN` is required only when you intend to expose `Official` mode login.
 
 ## Live Model Smoke
 

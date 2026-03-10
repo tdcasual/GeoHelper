@@ -26,4 +26,30 @@ describe("gateway config secret derivation", () => {
 
     expect(config.sessionSecret).toBe("explicit-session-secret");
   });
+
+  it("fails fast in production when app secret is missing", () => {
+    expect(() =>
+      loadConfig({
+        NODE_ENV: "production",
+        LITELLM_ENDPOINT: "https://litellm.example.com"
+      })
+    ).toThrow("APP_SECRET_REQUIRED");
+  });
+
+  it("fails fast in production when LiteLLM endpoint is missing", () => {
+    expect(() =>
+      loadConfig({
+        NODE_ENV: "production",
+        APP_SECRET: "prod-app-secret"
+      })
+    ).toThrow("LITELLM_ENDPOINT_REQUIRED");
+  });
+
+  it("keeps safe development defaults outside production", () => {
+    const config = loadConfig({});
+
+    expect(config.appSecret).toBe("geohelper-dev-app-secret");
+    expect(config.sessionTtlSeconds).toBe(1800);
+    expect(config.rateLimitMax).toBe(120);
+  });
 });

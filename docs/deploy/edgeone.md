@@ -110,12 +110,12 @@ Optional deploy hook secret:
 ## E. Runtime Environment for Gateway
 
 - `PORT`
-- `PRESET_TOKEN`
-- `APP_SECRET`
+- `PRESET_TOKEN` (required when Official mode login is enabled)
+- `APP_SECRET` (required in production)
 - optional: `SESSION_SECRET`
 - `SESSION_TTL_SECONDS`
-- `LITELLM_ENDPOINT`
-- `LITELLM_API_KEY`
+- `LITELLM_ENDPOINT` (required in production)
+- `LITELLM_API_KEY` (required for authenticated upstreams)
 - `LITELLM_MODEL`
 - `RATE_LIMIT_MAX`
 - `RATE_LIMIT_WINDOW_MS`
@@ -129,6 +129,8 @@ You can sync gateway/web deploy secrets from local env vars with:
 ```bash
 bash scripts/deploy/configure-release-secrets.sh --repo <owner/repo>
 ```
+
+Production gateway startup validates `APP_SECRET` and `LITELLM_ENDPOINT` before listening.
 
 ## F. Post-deploy Verification
 

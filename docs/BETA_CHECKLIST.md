@@ -11,14 +11,14 @@ Updated: 2026-03-05
 
 ### Gateway (`apps/gateway`)
 
-- `PRESET_TOKEN` (required in official mode): Shared preset token for login gate.
-- `APP_SECRET` (required): Root secret for deriving session signing key.
+- `PRESET_TOKEN` (required when Official mode is exposed): Shared preset token for login gate.
+- `APP_SECRET` (required in production): Root secret for deriving session signing key.
 - `SESSION_SECRET` (optional): Explicit override for session signing key (only for compatibility/manual override).
-- `SESSION_TTL_SECONDS` (optional, default `3600`): Official session lifetime.
-- `RATE_LIMIT_MAX` (optional, default `30`): Max requests in rate-limit window.
+- `SESSION_TTL_SECONDS` (optional, default `1800`): Official session lifetime.
+- `RATE_LIMIT_MAX` (optional, default `120`): Max requests in rate-limit window.
 - `RATE_LIMIT_WINDOW_MS` (optional, default `60000`): Rate-limit window in ms.
-- `LITELLM_ENDPOINT` (required): LiteLLM-compatible endpoint.
-- `LITELLM_API_KEY` (required): API key for LiteLLM endpoint.
+- `LITELLM_ENDPOINT` (required in production): LiteLLM-compatible endpoint.
+- `LITELLM_API_KEY` (required for authenticated upstreams): API key for LiteLLM endpoint.
 - `ALERT_WEBHOOK_URL` (optional): Webhook for fallback/repair alerts.
 - `ADMIN_METRICS_TOKEN` (optional): Required `x-admin-token` for `/admin/metrics`.
 - `COST_PER_REQUEST_USD` (optional, default `0`): Estimated USD cost per upstream model request, used for ops metrics.
