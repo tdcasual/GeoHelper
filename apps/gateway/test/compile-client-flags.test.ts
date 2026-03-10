@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildServer } from "../src/server";
-import { clearRateLimits } from "../src/services/rate-limit";
 import { resetGatewayMetrics } from "../src/services/metrics";
+import { clearRateLimits } from "../src/services/rate-limit";
+import { requestCommandBatch } from "../src/services/litellm-client";
 
 describe("POST /api/v1/chat/compile client flags", () => {
   it("uses single-agent fallback path when requested", async () => {
@@ -141,6 +142,95 @@ describe("POST /api/v1/chat/compile client flags", () => {
     expect(capturedInput?.context?.recentMessages).toHaveLength(2);
     expect(capturedInput?.context?.sceneTransactions?.[0]?.transactionId).toBe(
       "tx1"
+    );
+  });
+});
+
+describe("requestCommandBatch upstream fallback routing", () => {
+  const originalFetch = globalThis.fetch;
+  const originalEnv = { ...process.env };
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: fetchMock
+    });
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: originalFetch
+    });
+    process.env = { ...originalEnv };
+  });
+
+  it("retries transient upstream failures against configured fallback endpoint and model", async () => {
+    process.env.LITELLM_ENDPOINT = "https://primary.example.com";
+    process.env.LITELLM_API_KEY = "primary-key";
+    process.env.LITELLM_MODEL = "primary-model";
+    process.env.LITELLM_FALLBACK_ENDPOINT = "https://fallback.example.com";
+    process.env.LITELLM_FALLBACK_API_KEY = "fallback-key";
+    process.env.LITELLM_FALLBACK_MODEL = "fallback-model";
+
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({})
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  version: "1.0",
+                  scene_id: "s1",
+                  transaction_id: "t1",
+                  commands: [],
+                  post_checks: [],
+                  explanations: []
+                })
+              }
+            }
+          ]
+        })
+      });
+
+    const result = await requestCommandBatch({
+      message: "画一个圆",
+      mode: "official"
+    });
+
+    expect(result).toMatchObject({
+      scene_id: "s1",
+      transaction_id: "t1"
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://primary.example.com/chat/completions"
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "https://fallback.example.com/chat/completions"
+    );
+
+    const firstRequest = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const secondRequest = fetchMock.mock.calls[1]?.[1] as RequestInit;
+    expect((firstRequest.headers as Record<string, string>).authorization).toBe(
+      "Bearer primary-key"
+    );
+    expect((secondRequest.headers as Record<string, string>).authorization).toBe(
+      "Bearer fallback-key"
+    );
+    expect(JSON.parse(String(firstRequest.body)).model).toBe("primary-model");
+    expect(JSON.parse(String(secondRequest.body)).model).toBe(
+      "fallback-model"
     );
   });
 });

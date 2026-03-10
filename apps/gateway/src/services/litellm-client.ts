@@ -1,3 +1,9 @@
+import {
+  isTransientUpstreamStatus,
+  resolveUpstreamTargets,
+  UpstreamTarget
+} from "./model-router";
+
 export type CompileMode = "byok" | "official";
 
 export interface CompileContext {
@@ -23,6 +29,32 @@ export interface CompileInput {
 
 export type RequestCommandBatch = (input: CompileInput) => Promise<unknown>;
 
+class LiteLLMRequestError extends Error {
+  transient: boolean;
+  statusCode?: number;
+
+  constructor(
+    message: string,
+    options: {
+      transient: boolean;
+      statusCode?: number;
+    }
+  ) {
+    super(message);
+    this.name = "LiteLLMRequestError";
+    this.transient = options.transient;
+    this.statusCode = options.statusCode;
+  }
+}
+
+const TRANSIENT_FETCH_ERROR_CODES = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "EAI_AGAIN",
+  "ENOTFOUND",
+  "ETIMEDOUT"
+]);
+
 const parseJsonFromLLMContent = (value: unknown): unknown => {
   if (typeof value !== "string") {
     return value;
@@ -35,16 +67,25 @@ const parseJsonFromLLMContent = (value: unknown): unknown => {
   }
 };
 
-export const requestCommandBatch: RequestCommandBatch = async (input) => {
-  const endpoint = (input.byokEndpoint ?? process.env.LITELLM_ENDPOINT ?? "")
-    .replace(/\/+$/, "");
-  const apiKey = input.byokKey ?? process.env.LITELLM_API_KEY ?? "";
-  const model = input.model ?? process.env.LITELLM_MODEL ?? "gpt-4o-mini";
-
-  if (!endpoint) {
-    throw new Error("LITELLM_ENDPOINT_MISSING");
+const isTransientUpstreamError = (error: unknown): boolean => {
+  if (error instanceof LiteLLMRequestError) {
+    return error.transient;
   }
 
+  if (error instanceof TypeError) {
+    return true;
+  }
+
+  if (typeof error === "object" && error && "code" in error) {
+    return TRANSIENT_FETCH_ERROR_CODES.has(
+      String((error as { code?: unknown }).code ?? "")
+    );
+  }
+
+  return false;
+};
+
+const buildUserPrompt = (input: CompileInput): string => {
   const contextLines: string[] = [];
   if (input.context?.recentMessages?.length) {
     const recent = input.context.recentMessages
@@ -67,36 +108,54 @@ export const requestCommandBatch: RequestCommandBatch = async (input) => {
     contextLines.push(`Recent scene transactions:\n${sceneSummary}`);
   }
 
-  const userPrompt =
-    contextLines.length > 0
-      ? `${contextLines.join("\n\n")}\n\nCurrent request:\n${input.message}`
-      : input.message;
+  return contextLines.length > 0
+    ? `${contextLines.join("\n\n")}\n\nCurrent request:\n${input.message}`
+    : input.message;
+};
 
-  const response = await fetch(`${endpoint}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {})
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Return only valid JSON for a CommandBatch. Do not include markdown."
-        },
-        {
-          role: "user",
-          content: userPrompt
-        }
-      ]
-    })
-  });
+const requestBatchFromTarget = async (
+  target: UpstreamTarget,
+  userPrompt: string
+): Promise<unknown> => {
+  let response: Response;
+
+  try {
+    response = await fetch(`${target.endpoint}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(target.apiKey ? { authorization: `Bearer ${target.apiKey}` } : {})
+      },
+      body: JSON.stringify({
+        model: target.model,
+        temperature: 0,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Return only valid JSON for a CommandBatch. Do not include markdown."
+          },
+          {
+            role: "user",
+            content: userPrompt
+          }
+        ]
+      })
+    });
+  } catch (error) {
+    if (isTransientUpstreamError(error)) {
+      throw new LiteLLMRequestError("LITELLM_UPSTREAM_ERROR", {
+        transient: true
+      });
+    }
+    throw error;
+  }
 
   if (!response.ok) {
-    throw new Error("LITELLM_UPSTREAM_ERROR");
+    throw new LiteLLMRequestError("LITELLM_UPSTREAM_ERROR", {
+      transient: isTransientUpstreamStatus(response.status),
+      statusCode: response.status
+    });
   }
 
   const payload = (await response.json()) as {
@@ -109,4 +168,30 @@ export const requestCommandBatch: RequestCommandBatch = async (input) => {
   }
 
   return parseJsonFromLLMContent(messageContent);
+};
+
+export const requestCommandBatch: RequestCommandBatch = async (input) => {
+  const userPrompt = buildUserPrompt(input);
+  const targets = resolveUpstreamTargets(
+    {
+      byokEndpoint: input.byokEndpoint,
+      byokKey: input.byokKey,
+      model: input.model
+    },
+    process.env
+  );
+
+  let lastError: unknown;
+  for (const [index, target] of targets.entries()) {
+    try {
+      return await requestBatchFromTarget(target, userPrompt);
+    } catch (error) {
+      lastError = error;
+      if (!isTransientUpstreamError(error) || index === targets.length - 1) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError ?? new Error("LITELLM_UPSTREAM_ERROR");
 };

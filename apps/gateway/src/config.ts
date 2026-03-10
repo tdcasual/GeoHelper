@@ -9,6 +9,12 @@ export interface GatewayConfig {
   rateLimitMax: number;
   rateLimitWindowMs: number;
   redisUrl?: string;
+  litellmEndpoint?: string;
+  litellmApiKey?: string;
+  litellmModel: string;
+  litellmFallbackEndpoint?: string;
+  litellmFallbackApiKey?: string;
+  litellmFallbackModel?: string;
   alertWebhookUrl?: string;
   adminMetricsToken?: string;
   costPerRequestUsd: number;
@@ -62,6 +68,12 @@ export const loadConfig = (
       ? 60_000
       : rateLimitWindowFromEnv,
     redisUrl: env.REDIS_URL?.trim() || undefined,
+    litellmEndpoint: env.LITELLM_ENDPOINT?.trim() || undefined,
+    litellmApiKey: env.LITELLM_API_KEY?.trim() || undefined,
+    litellmModel: env.LITELLM_MODEL?.trim() || "gpt-4o-mini",
+    litellmFallbackEndpoint: env.LITELLM_FALLBACK_ENDPOINT?.trim() || undefined,
+    litellmFallbackApiKey: env.LITELLM_FALLBACK_API_KEY?.trim() || undefined,
+    litellmFallbackModel: env.LITELLM_FALLBACK_MODEL?.trim() || undefined,
     alertWebhookUrl: env.ALERT_WEBHOOK_URL,
     adminMetricsToken: env.ADMIN_METRICS_TOKEN,
     costPerRequestUsd: Number.isNaN(costPerRequestFromEnv)
