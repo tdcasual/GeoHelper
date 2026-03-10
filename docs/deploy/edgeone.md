@@ -117,6 +117,9 @@ Optional deploy hook secret:
 - `LITELLM_ENDPOINT` (required in production)
 - `LITELLM_API_KEY` (required for authenticated upstreams)
 - `LITELLM_MODEL`
+- optional: `LITELLM_FALLBACK_ENDPOINT`
+- optional: `LITELLM_FALLBACK_API_KEY`
+- optional: `LITELLM_FALLBACK_MODEL`
 - `RATE_LIMIT_MAX`
 - `RATE_LIMIT_WINDOW_MS`
 - optional: `REDIS_URL` (recommended for multi-instance shared revoke/rate-limit state)
@@ -131,7 +134,7 @@ You can sync gateway/web deploy secrets from local env vars with:
 bash scripts/deploy/configure-release-secrets.sh --repo <owner/repo>
 ```
 
-Production gateway startup validates `APP_SECRET` and `LITELLM_ENDPOINT` before listening. When `REDIS_URL` is set, session revoke and fixed-window rate limits are shared across instances.
+Production gateway startup validates `APP_SECRET` and `LITELLM_ENDPOINT` before listening. When `REDIS_URL` is set, session revoke and fixed-window rate limits are shared across instances. Every response also includes `x-trace-id` (compile responses include matching `trace_id`).
 
 ## F. Post-deploy Verification
 
@@ -160,6 +163,7 @@ Then open the web staging URL and verify:
 - runtime switch works (`Gateway` / `Direct BYOK`)
 - official mode is available only when gateway runtime is configured
 - compile pipeline returns rendered result
+- compile responses include `x-trace-id` / `trace_id` for debugging
 - `vendor/geogebra/manifest.json` is present in the deployed static assets
 - page resources do not request `geogebra.org`
 

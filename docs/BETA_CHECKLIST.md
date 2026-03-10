@@ -1,7 +1,7 @@
 # GeoHelper Beta Checklist
 
 Status: Draft for M4 release gate
-Updated: 2026-03-05
+Updated: 2026-03-10
 
 ## Environment Variables
 
@@ -17,12 +17,23 @@ Updated: 2026-03-05
 - `SESSION_TTL_SECONDS` (optional, default `1800`): Official session lifetime.
 - `RATE_LIMIT_MAX` (optional, default `120`): Max requests in rate-limit window.
 - `RATE_LIMIT_WINDOW_MS` (optional, default `60000`): Rate-limit window in ms.
-- `REDIS_URL` (optional, recommended for multi-instance Official mode): Redis-compatible URL for shared session revoke state.
+- `REDIS_URL` (optional, recommended for multi-instance Official mode): Redis-compatible URL for shared session revoke + rate-limit state.
 - `LITELLM_ENDPOINT` (required in production): LiteLLM-compatible endpoint.
 - `LITELLM_API_KEY` (required for authenticated upstreams): API key for LiteLLM endpoint.
+- `LITELLM_MODEL` (optional, default `gpt-4o-mini`): Upstream model name.
+- `LITELLM_FALLBACK_ENDPOINT` (optional): Secondary upstream endpoint for transient failure retries.
+- `LITELLM_FALLBACK_API_KEY` (optional): API key for fallback endpoint (defaults to `LITELLM_API_KEY`).
+- `LITELLM_FALLBACK_MODEL` (optional): Model name for fallback retries (defaults to `LITELLM_MODEL`).
 - `ALERT_WEBHOOK_URL` (optional): Webhook for fallback/repair alerts.
 - `ADMIN_METRICS_TOKEN` (optional): Required `x-admin-token` for `/admin/metrics`.
 - `COST_PER_REQUEST_USD` (optional, default `0`): Estimated USD cost per upstream model request, used for ops metrics.
+
+## Operational Notes
+
+- Gateway compile currently rejects `attachments` with `ATTACHMENTS_UNSUPPORTED` (vision is not supported yet).
+- All gateway responses include `x-trace-id`; compile responses also include matching `trace_id` for operator debugging.
+- When `REDIS_URL` is set, session revocation and fixed-window rate limits are shared across instances.
+- When fallback env vars are set, gateway retries transient upstream failures against the fallback target.
 
 ## Rollback Plan
 
@@ -61,4 +72,7 @@ Updated: 2026-03-05
 - [ ] Deploy runbook reviewed (`docs/deploy/edgeone.md`)
 - [ ] Alert webhook smoke-tested (trigger one fallback/repair compile and verify webhook receives event)
 - [ ] Metrics contract checked (`/admin/metrics` includes `fallback_rate`, `p95_latency_ms`, `cost_per_request_usd`)
+- [ ] Trace id contract checked (compile returns `trace_id` and `x-trace-id` header)
+- [ ] Attachments contract checked (compile rejects with `ATTACHMENTS_UNSUPPORTED`)
+- [ ] Redis shared-state verified when configured (`REDIS_URL` shares revoke + rate limit)
 - [ ] Template backup recovery checked (export + import preserves `geohelper.templates.snapshot`)
