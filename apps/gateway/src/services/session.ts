@@ -23,6 +23,16 @@ const sessionHash = (token: string): string =>
     .update(token)
     .digest("hex");
 
+const decodeSessionPayload = (payloadB64: string): SessionPayload | null => {
+  try {
+    return JSON.parse(
+      Buffer.from(payloadB64, "base64url").toString("utf8")
+    ) as SessionPayload;
+  } catch {
+    return null;
+  }
+};
+
 export const getDefaultSessionRevocationStore = (): SessionRevocationStore =>
   defaultSessionRevocationStore;
 
@@ -51,25 +61,27 @@ export const issueSessionToken = (
   return `${payloadB64}.${signature}`;
 };
 
-export const revokeSessionToken = (
+export const revokeSessionToken = async (
   token: string,
+  payload: SessionPayload,
   store: SessionRevocationStore = defaultSessionRevocationStore
-): void => {
-  store.add(sessionHash(token));
+): Promise<void> => {
+  const ttlSeconds = Math.max(1, payload.exp - Math.floor(Date.now() / 1000));
+  await store.add(sessionHash(token), ttlSeconds);
 };
 
-export const clearRevokedSessions = (
+export const clearRevokedSessions = async (
   store: SessionRevocationStore = defaultSessionRevocationStore
-): void => {
-  store.clear();
+): Promise<void> => {
+  await store.clear();
 };
 
-export const verifySessionToken = (
+export const verifySessionToken = async (
   token: string,
   config: GatewayConfig,
   store: SessionRevocationStore = defaultSessionRevocationStore
-): SessionPayload | null => {
-  if (store.has(sessionHash(token))) {
+): Promise<SessionPayload | null> => {
+  if (await store.has(sessionHash(token))) {
     return null;
   }
 
@@ -84,12 +96,8 @@ export const verifySessionToken = (
     return null;
   }
 
-  let payload: SessionPayload;
-  try {
-    payload = JSON.parse(
-      Buffer.from(payloadB64, "base64url").toString("utf8")
-    ) as SessionPayload;
-  } catch {
+  const payload = decodeSessionPayload(payloadB64);
+  if (!payload) {
     return null;
   }
 

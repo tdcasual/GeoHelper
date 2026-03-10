@@ -66,7 +66,11 @@ export const registerAuthRoutes = (
     }
 
     const sessionToken = authHeader.slice("Bearer ".length);
-    const payload = verifySessionToken(sessionToken, config, deps.sessionStore);
+    const payload = await verifySessionToken(
+      sessionToken,
+      config,
+      deps.sessionStore
+    );
     if (!payload) {
       return reply.status(401).send({
         error: {
@@ -76,7 +80,7 @@ export const registerAuthRoutes = (
       });
     }
 
-    revokeSessionToken(sessionToken, deps.sessionStore);
+    await revokeSessionToken(sessionToken, payload, deps.sessionStore);
     return reply.send({
       revoked: true
     });

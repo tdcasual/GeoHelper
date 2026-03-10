@@ -8,6 +8,7 @@ export interface GatewayConfig {
   sessionTtlSeconds: number;
   rateLimitMax: number;
   rateLimitWindowMs: number;
+  redisUrl?: string;
   alertWebhookUrl?: string;
   adminMetricsToken?: string;
   costPerRequestUsd: number;
@@ -60,6 +61,7 @@ export const loadConfig = (
     rateLimitWindowMs: Number.isNaN(rateLimitWindowFromEnv)
       ? 60_000
       : rateLimitWindowFromEnv,
+    redisUrl: env.REDIS_URL?.trim() || undefined,
     alertWebhookUrl: env.ALERT_WEBHOOK_URL,
     adminMetricsToken: env.ADMIN_METRICS_TOKEN,
     costPerRequestUsd: Number.isNaN(costPerRequestFromEnv)

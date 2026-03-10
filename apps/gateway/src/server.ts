@@ -8,6 +8,10 @@ import { registerCompileRoute } from "./routes/compile";
 import { registerHealthRoute } from "./routes/health";
 import { sendAlert } from "./services/alerting";
 import {
+  createRedisKvClient,
+  KvClient
+} from "./services/kv-client";
+import {
   getDefaultMetricsStore,
   GatewayMetricsStore
 } from "./services/metrics";
@@ -19,6 +23,7 @@ import {
   getDefaultRateLimitStore,
   RateLimitStore
 } from "./services/rate-limit";
+import { createRedisSessionRevocationStore } from "./services/redis-session-store";
 import {
   getDefaultSessionRevocationStore,
   SessionRevocationStore
@@ -29,6 +34,7 @@ export interface GatewayServices {
   sessionStore: SessionRevocationStore;
   rateLimitStore: RateLimitStore;
   metricsStore: GatewayMetricsStore;
+  kvClient?: KvClient;
 }
 
 export const buildServer = (
@@ -50,13 +56,30 @@ export const buildServer = (
     }
   });
   const config = loadConfig(envOverrides);
+  const ownedKvClient =
+    !serviceOverrides.kvClient && config.redisUrl
+      ? createRedisKvClient(config.redisUrl)
+      : undefined;
+  const kvClient = serviceOverrides.kvClient ?? ownedKvClient;
   const services: GatewayServices = {
-    requestCommandBatch: defaultRequestCommandBatch,
-    sessionStore: getDefaultSessionRevocationStore(),
-    rateLimitStore: getDefaultRateLimitStore(),
-    metricsStore: getDefaultMetricsStore(),
-    ...serviceOverrides
+    requestCommandBatch:
+      serviceOverrides.requestCommandBatch ?? defaultRequestCommandBatch,
+    sessionStore:
+      serviceOverrides.sessionStore ??
+      (kvClient
+        ? createRedisSessionRevocationStore(kvClient)
+        : getDefaultSessionRevocationStore()),
+    rateLimitStore:
+      serviceOverrides.rateLimitStore ?? getDefaultRateLimitStore(),
+    metricsStore: serviceOverrides.metricsStore ?? getDefaultMetricsStore(),
+    kvClient
   };
+
+  if (ownedKvClient?.disconnect) {
+    app.addHook("onClose", async () => {
+      await ownedKvClient.disconnect?.();
+    });
+  }
 
   app.addHook("onResponse", async (request, reply) => {
     if (reply.statusCode >= 500) {

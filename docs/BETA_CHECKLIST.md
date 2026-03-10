@@ -17,6 +17,7 @@ Updated: 2026-03-05
 - `SESSION_TTL_SECONDS` (optional, default `1800`): Official session lifetime.
 - `RATE_LIMIT_MAX` (optional, default `120`): Max requests in rate-limit window.
 - `RATE_LIMIT_WINDOW_MS` (optional, default `60000`): Rate-limit window in ms.
+- `REDIS_URL` (optional, recommended for multi-instance Official mode): Redis-compatible URL for shared session revoke state.
 - `LITELLM_ENDPOINT` (required in production): LiteLLM-compatible endpoint.
 - `LITELLM_API_KEY` (required for authenticated upstreams): API key for LiteLLM endpoint.
 - `ALERT_WEBHOOK_URL` (optional): Webhook for fallback/repair alerts.
