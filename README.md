@@ -93,6 +93,14 @@ pnpm smoke:gateway-runtime
 
 Alert webhooks sent via `ALERT_WEBHOOK_URL` now include `traceId`, `finalStatus`, runtime build identity, and non-secret upstream endpoint/model metadata for fallback, repair, timeout, and operator-failure cases.
 
+Scheduled operator wrapper dry-run:
+
+```bash
+pnpm ops:gateway:scheduled -- --dry-run
+```
+
+Use this wrapper as the scheduler-facing entrypoint for external cron platforms; later phases can enable artifact publish and webhook notify behavior through env vars without changing the cron command itself.
+
 ## Live Model Smoke
 
 ```bash

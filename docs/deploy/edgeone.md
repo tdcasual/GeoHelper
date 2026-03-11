@@ -250,4 +250,14 @@ pnpm ops:gateway:verify
 
 Live runs persist JSON artifacts under `output/ops/<timestamp>/`. When `OPS_BENCH_MIN_SUCCESS_RATE` or `OPS_BENCH_MAX_P95_MS` is configured, a threshold breach exits non-zero and should block release promotion until resolved.
 
+Scheduler-facing wrapper dry-run:
+
+```bash
+OPS_RUN_LABEL=nightly-<date> \
+OPS_DEPLOYMENT=staging \
+pnpm ops:gateway:scheduled -- --dry-run
+```
+
+Use `ops:gateway:scheduled` as the stable command for external cron platforms; the wrapper composes verify, artifact publish, and notify phases behind one entrypoint.
+
 Use `docs/BETA_CHECKLIST.md` as the final release gate before beta launch.
