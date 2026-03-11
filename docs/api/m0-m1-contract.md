@@ -260,3 +260,68 @@ Readiness is deeper than liveness: it probes configured runtime dependencies suc
   }
 }
 ```
+
+## GET /admin/compile-events
+
+### Headers
+
+- Optional: `x-admin-token: <ADMIN_METRICS_TOKEN>` when gateway config enables admin token protection.
+
+### Query
+
+- Optional: `limit` (default `20`, max `100`)
+- Optional: `traceId`, `requestId`, `mode`, `finalStatus`, `since`
+
+### Response 200
+
+```json
+{
+  "events": [
+    {
+      "traceId": "tr_req-12",
+      "requestId": "req-12",
+      "event": "compile_success",
+      "finalStatus": "fallback",
+      "mode": "byok"
+    }
+  ]
+}
+```
+
+## GET /admin/traces/:traceId
+
+### Headers
+
+- Optional: `x-admin-token: <ADMIN_METRICS_TOKEN>` when gateway config enables admin token protection.
+
+### Response 200
+
+```json
+{
+  "traceId": "tr_req-12",
+  "requestId": "req-12",
+  "finalStatus": "fallback",
+  "mode": "byok",
+  "events": [
+    {
+      "event": "compile_success",
+      "traceId": "tr_req-12"
+    },
+    {
+      "event": "compile_fallback",
+      "traceId": "tr_req-12"
+    }
+  ]
+}
+```
+
+### Error 404
+
+```json
+{
+  "error": {
+    "code": "TRACE_NOT_FOUND",
+    "message": "Trace was not found"
+  }
+}
+```

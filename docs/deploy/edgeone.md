@@ -158,6 +158,13 @@ curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
   "https://<gateway-domain>/admin/compile-events?limit=20"
 ```
 
+Use a trace id from that feed to inspect the full operator event timeline for one compile:
+
+```bash
+curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
+  "https://<gateway-domain>/admin/traces/<trace-id>"
+```
+
 Verify the self-hosted GeoGebra artifact before release:
 
 ```bash

@@ -189,3 +189,40 @@ export const readRecentCompileEvents = async (
 
   return sink.readRecent(query);
 };
+
+
+export interface CompileTraceDetails {
+  traceId: string;
+  requestId: string;
+  finalStatus: CompileFinalStatus;
+  mode?: string;
+  events: CompileEventRecord[];
+}
+
+export const readCompileTraceDetails = async (
+  sink: CompileEventSink,
+  traceId: string,
+  limit = 100
+): Promise<CompileTraceDetails | null> => {
+  const normalizedTraceId = traceId.trim();
+  if (!normalizedTraceId) {
+    return null;
+  }
+
+  const events = await readRecentCompileEvents(sink, {
+    limit,
+    traceId: normalizedTraceId
+  });
+  if (events.length === 0) {
+    return null;
+  }
+
+  const latest = events[0];
+  return {
+    traceId: normalizedTraceId,
+    requestId: latest.requestId,
+    finalStatus: latest.finalStatus,
+    mode: latest.mode,
+    events
+  };
+};
