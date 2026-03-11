@@ -13,7 +13,8 @@
     "verify:geogebra-self-hosted": "node scripts/geogebra/assert-no-external.mjs",
     "audit:ui:expanded": "node scripts/ui/run-expanded-audit.mjs",
     "docker:gateway:build": "docker build --build-arg GEOHELPER_BUILD_SHA=$(git rev-parse --short=12 HEAD) --build-arg GEOHELPER_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) --build-context repo=. --file apps/gateway/Dockerfile --tag geohelper-gateway:local apps/gateway",
-    "smoke:gateway-runtime": "node scripts/smoke/gateway-runtime.mjs"
+    "smoke:gateway-runtime": "node scripts/smoke/gateway-runtime.mjs",
+    "ops:gateway:verify": "node scripts/ops/run-gateway-ops-checks.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",

@@ -1,5 +1,11 @@
 import { RuntimeApiError, RuntimeClient } from "./orchestrator";
 import { verifyCommandBatch } from "./compile-pipeline";
+import {
+  RuntimeBackupDownloadRequest,
+  RuntimeBackupDownloadResponse,
+  RuntimeBackupUploadRequest,
+  RuntimeBackupUploadResponse
+} from "./types";
 
 const gatewayCapabilities = {
   supportsOfficialAuth: true,
@@ -14,6 +20,15 @@ interface ApiErrorPayload {
     code?: string;
     message?: string;
   };
+}
+
+export interface GatewayRuntimeClient extends RuntimeClient {
+  uploadBackup: (
+    request: RuntimeBackupUploadRequest
+  ) => Promise<RuntimeBackupUploadResponse>;
+  downloadBackup: (
+    request: RuntimeBackupDownloadRequest
+  ) => Promise<RuntimeBackupDownloadResponse>;
 }
 
 const readGatewayBaseUrlFromEnv = (): string | undefined => {
@@ -57,7 +72,23 @@ const parseApiError = async (
   );
 };
 
-export const createGatewayClient = (): RuntimeClient => ({
+const buildAdminHeaders = (
+  adminToken?: string,
+  includeContentType = false
+): Record<string, string> => {
+  const headers: Record<string, string> = {};
+
+  if (includeContentType) {
+    headers["content-type"] = "application/json";
+  }
+  if (adminToken) {
+    headers["x-admin-token"] = adminToken;
+  }
+
+  return headers;
+};
+
+export const createGatewayClient = (): GatewayRuntimeClient => ({
   target: "gateway",
   capabilities: gatewayCapabilities,
 
@@ -124,6 +155,43 @@ export const createGatewayClient = (): RuntimeClient => ({
       batch: verifyCommandBatch(payload.batch),
       agent_steps: payload.agent_steps
     };
+  },
+
+  uploadBackup: async (request) => {
+    const baseUrl = resolveGatewayBaseUrl(request.baseUrl);
+    const response = await fetch(`${baseUrl}/admin/backups/latest`, {
+      method: "PUT",
+      headers: buildAdminHeaders(request.adminToken, true),
+      body: JSON.stringify(request.envelope)
+    });
+
+    if (!response.ok) {
+      return parseApiError(
+        response,
+        "REMOTE_BACKUP_UPLOAD_FAILED",
+        "Remote backup upload failed"
+      );
+    }
+
+    return response.json() as Promise<RuntimeBackupUploadResponse>;
+  },
+
+  downloadBackup: async (request) => {
+    const baseUrl = resolveGatewayBaseUrl(request.baseUrl);
+    const response = await fetch(`${baseUrl}/admin/backups/latest`, {
+      method: "GET",
+      headers: buildAdminHeaders(request.adminToken)
+    });
+
+    if (!response.ok) {
+      return parseApiError(
+        response,
+        "REMOTE_BACKUP_DOWNLOAD_FAILED",
+        "Remote backup download failed"
+      );
+    }
+
+    return response.json() as Promise<RuntimeBackupDownloadResponse>;
   },
 
   loginWithPresetToken: async (request) => {

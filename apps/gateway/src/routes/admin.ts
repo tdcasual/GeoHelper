@@ -2,7 +2,16 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { GatewayConfig } from "../config";
-import { GatewayBuildInfo } from "../services/build-info";
+import {
+  GatewayBackupEnvelopeSchema,
+  GatewayBackupRecord,
+  GatewayBackupStore,
+  GatewayBackupSummary
+} from "../services/backup-store";
+import {
+  GatewayBuildInfo,
+  getGatewayBuildIdentity
+} from "../services/build-info";
 import {
   CompileEventSink,
   CompileFinalStatus,
@@ -16,6 +25,7 @@ interface AdminRouteDeps {
   metricsStore: GatewayMetricsStore;
   compileEventSink: CompileEventSink;
   buildInfo: GatewayBuildInfo;
+  backupStore: GatewayBackupStore;
 }
 
 const AdminCompileEventsQuerySchema = z.object({
@@ -56,11 +66,71 @@ const requireAdminToken = (
   return false;
 };
 
+const serializeBackupSummary = (summary: GatewayBackupSummary) => ({
+  stored_at: summary.storedAt,
+  schema_version: summary.schemaVersion,
+  created_at: summary.createdAt,
+  app_version: summary.appVersion,
+  checksum: summary.checksum,
+  conversation_count: summary.conversationCount
+});
+
+const serializeBackupRecord = (record: GatewayBackupRecord) => ({
+  ...serializeBackupSummary(record),
+  envelope: record.envelope
+});
+
+const createBackupResponse = (
+  backup: ReturnType<typeof serializeBackupSummary> | ReturnType<typeof serializeBackupRecord>,
+  buildInfo: GatewayBuildInfo
+) => ({
+  backup,
+  build: getGatewayBuildIdentity(buildInfo)
+});
+
 export const registerAdminRoutes = (
   app: FastifyInstance,
   config: GatewayConfig,
   deps: AdminRouteDeps
 ): void => {
+  app.put("/admin/backups/latest", async (request, reply) => {
+    if (!requireAdminToken(request, reply, config)) {
+      return reply;
+    }
+
+    const parsed = GatewayBackupEnvelopeSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: {
+          code: "INVALID_BACKUP_ENVELOPE",
+          message: "Backup envelope is invalid"
+        }
+      });
+    }
+
+    const summary = await deps.backupStore.writeLatest(parsed.data);
+
+    return reply.send(createBackupResponse(serializeBackupSummary(summary), deps.buildInfo));
+  });
+
+  app.get("/admin/backups/latest", async (request, reply) => {
+    if (!requireAdminToken(request, reply, config)) {
+      return reply;
+    }
+
+    const latest = await deps.backupStore.readLatest();
+    if (!latest) {
+      return reply.status(404).send({
+        error: {
+          code: "BACKUP_NOT_FOUND",
+          message: "Backup was not found"
+        }
+      });
+    }
+
+    return reply.send(createBackupResponse(serializeBackupRecord(latest), deps.buildInfo));
+  });
+
   app.get("/admin/metrics", async (request, reply) => {
     if (!requireAdminToken(request, reply, config)) {
       return reply;

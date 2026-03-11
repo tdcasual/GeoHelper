@@ -5,6 +5,7 @@ import {
   exportCurrentAppBackup,
   importAppBackupToLocalStorage,
   importBackup,
+  importBackupEnvelopeToLocalStorage,
   inspectBackup
 } from "./backup";
 import { registerGeoGebraAdapter } from "../geogebra/adapter";
@@ -363,6 +364,65 @@ describe("backup", () => {
       "tpl_backup"
     ]);
     expect(templatesSnapshot.templates[0].prompt).toBe("new");
+  });
+
+  it("restores a fetched remote backup envelope through the existing import path", async () => {
+    localStorage.setItem(
+      CHAT_STORE_KEY,
+      JSON.stringify({
+        mode: "byok",
+        sessionToken: null,
+        activeConversationId: "conv_local",
+        reauthRequired: false,
+        messages: [],
+        conversations: [
+          {
+            id: "conv_local",
+            title: "Local",
+            createdAt: 1,
+            updatedAt: 100,
+            messages: []
+          }
+        ]
+      })
+    );
+
+    const remoteConversation = {
+      id: "conv_remote",
+      title: "Remote",
+      createdAt: 2,
+      updatedAt: 200,
+      messages: []
+    };
+    const remoteBlob = await exportBackup({
+      conversations: [remoteConversation],
+      settings: {
+        chat_snapshot: {
+          mode: "byok",
+          sessionToken: null,
+          activeConversationId: remoteConversation.id,
+          conversations: [remoteConversation],
+          messages: [],
+          reauthRequired: false
+        },
+        ui_preferences: {
+          chatVisible: false
+        }
+      }
+    });
+    const remoteEnvelope = await importBackup(remoteBlob);
+
+    await importBackupEnvelopeToLocalStorage(remoteEnvelope, { mode: "merge" });
+
+    const chatSnapshot = JSON.parse(localStorage.getItem(CHAT_STORE_KEY) ?? "{}");
+    const uiPreferences = JSON.parse(localStorage.getItem(UI_PREFS_KEY) ?? "{}");
+
+    expect(chatSnapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
+      "conv_remote",
+      "conv_local"
+    ]);
+    expect(chatSnapshot.activeConversationId).toBe("conv_local");
+    expect(uiPreferences.chatVisible).toBe(false);
   });
 
   it("inspects schema direction for migration hint", async () => {

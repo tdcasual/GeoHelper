@@ -27,16 +27,20 @@ Updated: 2026-03-11
 - `ALERT_WEBHOOK_URL` (optional): Webhook for fallback/repair/timeout/runtime-capacity alerts.
 - `COMPILE_MAX_IN_FLIGHT` (optional, default `4`): Max concurrent compile requests allowed per gateway instance before returning `GATEWAY_BUSY`.
 - `COMPILE_TIMEOUT_MS` (optional, default `30000`): Timeout budget per compile request before returning `COMPILE_TIMEOUT`.
-- `ADMIN_METRICS_TOKEN` (optional): Required `x-admin-token` for `/admin/version`, `/admin/metrics`, and `/admin/compile-events`.
+- `ADMIN_METRICS_TOKEN` (optional): Required `x-admin-token` for `/admin/version`, `/admin/metrics`, `/admin/compile-events`, and `/admin/backups/latest`.
 - `COST_PER_REQUEST_USD` (optional, default `0`): Estimated USD cost per upstream model request, used for ops metrics.
+- `OPS_BENCH_MIN_SUCCESS_RATE` (optional): Release threshold for composed ops benchmark success rate.
+- `OPS_BENCH_MAX_P95_MS` (optional): Release threshold for composed ops benchmark per-domain p95 latency.
 
 ## Operational Notes
 
 - `/api/v1/health` is liveness-only; use `/api/v1/ready` as the dependency-aware deploy gate before switching traffic.
-- `/admin/version`, `/admin/compile-events`, and `/admin/metrics` form the core read-only operator surface and share the same `x-admin-token` gate; `/admin/version` is the release identity source of truth.
+- `pnpm ops:gateway:verify` is the recurring post-deploy entrypoint; live runs write JSON evidence under `output/ops/<timestamp>/`.
+- When `OPS_BENCH_MIN_SUCCESS_RATE` or `OPS_BENCH_MAX_P95_MS` is configured, threshold failures are release blockers and must stop promotion.
+- `/admin/version`, `/admin/compile-events`, `/admin/metrics`, and `/admin/backups/latest` share the same `x-admin-token` gate; `/admin/version` remains the release identity source of truth and backup routes expose latest snapshot metadata for recovery workflows.
 - `x-trace-id` and compile `trace_id` are the main debugging join keys across alerts, smoke runs, `/admin/compile-events`, and `/admin/traces/:traceId`.
-- `REDIS_URL` remains the only supported shared fast-state dependency in Gateway V2; no SQL or extra backend datastore is required in this roadmap.
-- When `REDIS_URL` is enabled, compile event retention becomes durable across process restarts and powers operator queries.
+- `REDIS_URL` remains the only supported shared fast-state dependency in Gateway V4; no SQL or extra backend datastore is required in this roadmap.
+- When `REDIS_URL` is enabled, compile event retention and latest backup retention become durable across process restarts and power operator recovery queries.
 - Gateway compile currently rejects `attachments` with `ATTACHMENTS_UNSUPPORTED` (vision is not supported yet).
 - When fallback env vars are set, gateway retries transient upstream failures against the fallback target.
 - Compile runtime protection is instance-local: overlapping requests beyond `COMPILE_MAX_IN_FLIGHT` return `503 GATEWAY_BUSY`, and stalled compiles beyond `COMPILE_TIMEOUT_MS` return `504 COMPILE_TIMEOUT` with traceable operator events.
@@ -75,6 +79,7 @@ Updated: 2026-03-11
 - [ ] Web unit tests pass (`pnpm --filter @geohelper/web test`)
 - [ ] E2E tests pass (`pnpm test:e2e`)
 - [ ] Benchmark dry-run passes (`pnpm bench:quality -- --dry-run`)
+- [ ] Ops verify passes (`pnpm ops:gateway:verify -- --dry-run`, live runs persist JSON artifacts under `output/ops/`)
 - [ ] Gateway runtime smoke checked (`pnpm smoke:gateway-runtime -- --dry-run`, plus optional live run verifying `/admin/version`, compile trace visibility, and metrics movement)
 - [ ] Deploy runbook reviewed (`docs/deploy/edgeone.md`)
 - [ ] Alert webhook smoke-tested (trigger one fallback/repair compile and verify webhook receives event)
@@ -83,5 +88,6 @@ Updated: 2026-03-11
 - [ ] Operator events contract checked (`/admin/compile-events?limit=20` returns recent traceable records)
 - [ ] Trace id contract checked (compile returns `trace_id` and `x-trace-id` header)
 - [ ] Attachments contract checked (compile rejects with `ATTACHMENTS_UNSUPPORTED`)
-- [ ] Redis shared-state verified when configured (`REDIS_URL` shares revoke + rate limit)
+- [ ] Redis shared-state verified when configured (`REDIS_URL` shares revoke + rate limit + backup retention)
 - [ ] Template backup recovery checked (export + import preserves `geohelper.templates.snapshot`)
+- [ ] Gateway backup admin routes checked (`PUT/GET /admin/backups/latest` returns metadata and latest envelope with valid admin token)

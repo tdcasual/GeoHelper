@@ -101,6 +101,33 @@ Readiness is deeper than liveness: it probes configured runtime dependencies suc
 }
 ```
 
+## Backup Envelope (storage contract only, public routes pending)
+
+Gateway V4 Task4 adds validated single-tenant backup storage groundwork only. Public admin backup routes are not available until the next task, but the stored envelope shape is already fixed so web and gateway can share one format.
+
+```json
+{
+  "schema_version": 2,
+  "created_at": "2026-03-11T15:40:00.000Z",
+  "app_version": "0.0.1",
+  "checksum": "abcd1234",
+  "conversations": [
+    { "id": "conv-1", "title": "Lesson 1" }
+  ],
+  "settings": {
+    "chat_snapshot": {},
+    "settings_snapshot": {},
+    "ui_preferences": {}
+  }
+}
+```
+
+Retention model in gateway storage:
+
+- one latest full backup envelope
+- one bounded summary history for operator audit
+- Redis-backed when `REDIS_URL` is configured, in-memory fallback otherwise
+
 ## POST /api/v1/chat/compile
 
 ### Headers

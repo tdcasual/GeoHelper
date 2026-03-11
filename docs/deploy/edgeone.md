@@ -134,6 +134,8 @@ Optional deploy hook secret:
 - optional: `COMPILE_TIMEOUT_MS` (default `30000`)
 - optional: `ADMIN_METRICS_TOKEN` (protects `/admin/version`, `/admin/metrics`, and `/admin/compile-events`)
 - optional: `COST_PER_REQUEST_USD`
+- optional: `OPS_BENCH_MIN_SUCCESS_RATE`
+- optional: `OPS_BENCH_MAX_P95_MS`
 - Template file: `.env.release.example`
 
 You can sync gateway/web deploy secrets from local env vars with:
@@ -142,7 +144,7 @@ You can sync gateway/web deploy secrets from local env vars with:
 bash scripts/deploy/configure-release-secrets.sh --repo <owner/repo>
 ```
 
-Production gateway startup validates `APP_SECRET` and `LITELLM_ENDPOINT` before listening. `/api/v1/health` stays liveness-only, while `/api/v1/ready` is the deploy gate that should be green before traffic shifts. When `REDIS_URL` is set, session revoke, fixed-window rate limits, and compile event retention are shared across instances. `REDIS_URL` remains the only supported shared fast-state dependency for Gateway V2. Every response also includes `x-trace-id` (compile responses include matching `trace_id`) so operator alerts, smoke runs, `/admin/compile-events`, and `/admin/traces/:traceId` can be joined on the same trace handle. `/admin/version` is the release identity source of truth for deploy drift checks. Per-instance compile protection is controlled by `COMPILE_MAX_IN_FLIGHT` and `COMPILE_TIMEOUT_MS`, returning `GATEWAY_BUSY` or `COMPILE_TIMEOUT` before a stuck upstream can monopolize the runtime.
+Production gateway startup validates `APP_SECRET` and `LITELLM_ENDPOINT` before listening. `/api/v1/health` stays liveness-only, while `/api/v1/ready` is the deploy gate that should be green before traffic shifts. When `REDIS_URL` is set, session revoke, fixed-window rate limits, compile event retention, and the single-tenant latest backup slot/history are shared across instances. `REDIS_URL` remains the only supported shared fast-state dependency for Gateway V4; without it, backup storage falls back to process memory and is not restart-safe. Every response also includes `x-trace-id` (compile responses include matching `trace_id`) so operator alerts, smoke runs, `/admin/compile-events`, and `/admin/traces/:traceId` can be joined on the same trace handle. `/admin/version` is the release identity source of truth for deploy drift checks. Per-instance compile protection is controlled by `COMPILE_MAX_IN_FLIGHT` and `COMPILE_TIMEOUT_MS`, returning `GATEWAY_BUSY` or `COMPILE_TIMEOUT` before a stuck upstream can monopolize the runtime.
 
 ## F. Post-deploy Verification
 
@@ -172,6 +174,19 @@ Verify the running gateway build identity when investigating deploy drift:
 ```bash
 curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
   "https://<gateway-domain>/admin/version"
+```
+
+Push one exported app backup into gateway and verify the latest remote snapshot is readable back with metadata:
+
+```bash
+curl -fsS -X PUT \
+  -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
+  -H "content-type: application/json" \
+  --data @geochat-backup.json \
+  "https://<gateway-domain>/admin/backups/latest"
+
+curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
+  "https://<gateway-domain>/admin/backups/latest"
 ```
 
 Verify the self-hosted GeoGebra artifact before release:
@@ -219,5 +234,20 @@ Quality benchmark dry-run:
 ```bash
 pnpm bench:quality -- --dry-run
 ```
+
+Gateway ops verify dry-run (smoke + benchmark plan only):
+
+```bash
+pnpm ops:gateway:verify -- --dry-run
+```
+
+Gateway ops verify live run (recommended after deploy):
+
+```bash
+GATEWAY_URL=https://<gateway-domain> \
+pnpm ops:gateway:verify
+```
+
+Live runs persist JSON artifacts under `output/ops/<timestamp>/`. When `OPS_BENCH_MIN_SUCCESS_RATE` or `OPS_BENCH_MAX_P95_MS` is configured, a threshold breach exits non-zero and should block release promotion until resolved.
 
 Use `docs/BETA_CHECKLIST.md` as the final release gate before beta launch.
