@@ -74,6 +74,15 @@ The drill validates the downloaded `backup.envelope` with the shared protocol ch
 
 When the web app stores a gateway backup admin token, it is encrypted separately from BYOK keys and persisted inside the local settings snapshot as ciphertext only. After moving backups across browser profiles or clearing local secure keys, you may need to re-enter the remote admin token before upload/download actions work again.
 
+In `设置` -> `数据与安全` -> `网关远端备份`, the workflow is explicit and manual:
+
+1. Save the gateway admin token.
+2. Click `上传到网关` to publish the current local backup snapshot.
+3. Click `从网关拉取` to inspect the latest remote backup metadata.
+4. Choose `拉取后导入（合并）` or `拉取后覆盖导入` based on recovery intent.
+
+The UI does not background-sync, poll, or auto-restore. Every remote mutation remains operator-triggered.
+
 ## Troubleshooting
 
 ### "备份读取失败，请检查文件格式"

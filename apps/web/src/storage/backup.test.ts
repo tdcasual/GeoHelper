@@ -5,9 +5,11 @@ import { createBackupEnvelope } from "@geohelper/protocol";
 import {
   exportBackup,
   exportCurrentAppBackup,
+  exportCurrentAppBackupEnvelope,
   importAppBackupToLocalStorage,
   importBackup,
   importBackupEnvelopeToLocalStorage,
+  importRemoteBackupToLocalStorage,
   inspectBackup
 } from "./backup";
 import { registerGeoGebraAdapter } from "../geogebra/adapter";
@@ -390,7 +392,26 @@ describe("backup", () => {
     expect(templatesSnapshot.templates[0].prompt).toBe("new");
   });
 
-  it("restores a fetched remote backup envelope through the existing import path", async () => {
+  it("exports the current app backup as an envelope for gateway upload", async () => {
+    localStorage.setItem(
+      CHAT_STORE_KEY,
+      JSON.stringify({
+        mode: "byok",
+        sessionToken: null,
+        activeConversationId: "conv_local",
+        reauthRequired: false,
+        messages: [],
+        conversations: [{ id: "conv_local", title: "Local", createdAt: 1, updatedAt: 1, messages: [] }]
+      })
+    );
+
+    const envelope = await exportCurrentAppBackupEnvelope();
+
+    expect(envelope.conversations[0]?.id).toBe("conv_local");
+    expect(envelope.checksum.length).toBeGreaterThan(0);
+  });
+
+  it("restores a fetched remote backup envelope through the remote import helper", async () => {
     localStorage.setItem(
       CHAT_STORE_KEY,
       JSON.stringify({
@@ -436,7 +457,7 @@ describe("backup", () => {
     });
     const remoteEnvelope = await importBackup(remoteBlob);
 
-    await importBackupEnvelopeToLocalStorage(remoteEnvelope, { mode: "merge" });
+    await importRemoteBackupToLocalStorage({ envelope: remoteEnvelope }, { mode: "merge" });
 
     const chatSnapshot = JSON.parse(localStorage.getItem(CHAT_STORE_KEY) ?? "{}");
     const uiPreferences = JSON.parse(localStorage.getItem(UI_PREFS_KEY) ?? "{}");

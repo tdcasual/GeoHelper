@@ -462,6 +462,9 @@ export const importBackup = async (blob: Blob): Promise<BackupEnvelope> => {
 export const inspectBackup = async (blob: Blob): Promise<BackupInspection> =>
   inspectBackupEnvelope(await importBackup(blob), STORAGE_SCHEMA_VERSION);
 
+export const exportCurrentAppBackupEnvelope = async (): Promise<BackupEnvelope> =>
+  importBackup(await exportCurrentAppBackup());
+
 export const exportCurrentAppBackup = async (): Promise<Blob> => {
   const chatSnapshot = canUseStorage()
     ? parseJsonMaybe(localStorage.getItem(CHAT_STORE_KEY))
@@ -508,6 +511,12 @@ export const importBackupEnvelopeToLocalStorage = async (
   options: BackupImportOptions = {}
 ): Promise<BackupEnvelope> =>
   importAppBackupToLocalStorage(createBackupBlob(envelope), options);
+
+export const importRemoteBackupToLocalStorage = async (
+  remoteBackup: { envelope: BackupEnvelope },
+  options: BackupImportOptions = {}
+): Promise<BackupEnvelope> =>
+  importBackupEnvelopeToLocalStorage(remoteBackup.envelope, options);
 
 export const importAppBackupToLocalStorage = async (
   blob: Blob,
