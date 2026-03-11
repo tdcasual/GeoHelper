@@ -73,6 +73,23 @@ pnpm docker:gateway:build
 
 The image starts the Fastify gateway on `PORT=8787` and only includes the gateway workspace plus shared protocol sources.
 
+## Gateway Runtime Smoke
+
+Dry-run the ordered verification plan without network calls:
+
+```bash
+pnpm smoke:gateway-runtime -- --dry-run
+```
+
+Run it against a live gateway:
+
+```bash
+GATEWAY_URL=https://<gateway-domain> \
+PRESET_TOKEN=<preset-token> \
+ADMIN_METRICS_TOKEN=<admin-token> \
+pnpm smoke:gateway-runtime
+```
+
 ## Live Model Smoke
 
 ```bash

@@ -164,6 +164,21 @@ Verify the self-hosted GeoGebra artifact before release:
 pnpm verify:geogebra-self-hosted
 ```
 
+Gateway runtime smoke dry-run (no network calls):
+
+```bash
+pnpm smoke:gateway-runtime -- --dry-run
+```
+
+Gateway runtime live smoke (recommended after deploy):
+
+```bash
+GATEWAY_URL=https://<gateway-domain> \
+PRESET_TOKEN=<preset-token> \
+ADMIN_METRICS_TOKEN=<admin-token> \
+pnpm smoke:gateway-runtime
+```
+
 Live model smoke (requires real LiteLLM credentials):
 
 ```bash

@@ -69,6 +69,7 @@ Updated: 2026-03-10
 - [ ] Web unit tests pass (`pnpm --filter @geohelper/web test`)
 - [ ] E2E tests pass (`pnpm test:e2e`)
 - [ ] Benchmark dry-run passes (`pnpm bench:quality -- --dry-run`)
+- [ ] Gateway runtime smoke checked (`pnpm smoke:gateway-runtime -- --dry-run`, plus optional live run)
 - [ ] Deploy runbook reviewed (`docs/deploy/edgeone.md`)
 - [ ] Alert webhook smoke-tested (trigger one fallback/repair compile and verify webhook receives event)
 - [ ] Metrics contract checked (`/admin/metrics` includes `fallback_rate`, `p95_latency_ms`, `cost_per_request_usd`)
