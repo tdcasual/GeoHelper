@@ -171,7 +171,8 @@ export const buildServer = (
   registerAdminRoutes(app, config, {
     metricsStore: services.metricsStore,
     compileEventSink: services.compileEventSink,
-    buildInfo
+    buildInfo: services.buildInfo,
+    backupStore: services.backupStore
   });
   registerAuthRoutes(app, config, {
     sessionStore: services.sessionStore

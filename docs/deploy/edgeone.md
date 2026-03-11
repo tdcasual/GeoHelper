@@ -176,6 +176,19 @@ curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
   "https://<gateway-domain>/admin/version"
 ```
 
+Push one exported app backup into gateway and verify the latest remote snapshot is readable back with metadata:
+
+```bash
+curl -fsS -X PUT \
+  -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
+  -H "content-type: application/json" \
+  --data @geochat-backup.json \
+  "https://<gateway-domain>/admin/backups/latest"
+
+curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
+  "https://<gateway-domain>/admin/backups/latest"
+```
+
 Verify the self-hosted GeoGebra artifact before release:
 
 ```bash

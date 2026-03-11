@@ -7,7 +7,7 @@ export const GatewayBackupEnvelopeSchema = z.object({
   checksum: z.string().trim().min(1),
   conversations: z.array(z.record(z.string(), z.unknown())),
   settings: z.record(z.string(), z.unknown())
-});
+}).strict();
 
 export type GatewayBackupEnvelope = z.infer<typeof GatewayBackupEnvelopeSchema>;
 
