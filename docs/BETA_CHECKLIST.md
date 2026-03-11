@@ -25,13 +25,13 @@ Updated: 2026-03-11
 - `LITELLM_FALLBACK_API_KEY` (optional): API key for fallback endpoint (defaults to `LITELLM_API_KEY`).
 - `LITELLM_FALLBACK_MODEL` (optional): Model name for fallback retries (defaults to `LITELLM_MODEL`).
 - `ALERT_WEBHOOK_URL` (optional): Webhook for fallback/repair alerts.
-- `ADMIN_METRICS_TOKEN` (optional): Required `x-admin-token` for `/admin/metrics` and `/admin/compile-events`.
+- `ADMIN_METRICS_TOKEN` (optional): Required `x-admin-token` for `/admin/version`, `/admin/metrics`, and `/admin/compile-events`.
 - `COST_PER_REQUEST_USD` (optional, default `0`): Estimated USD cost per upstream model request, used for ops metrics.
 
 ## Operational Notes
 
 - `/api/v1/health` is liveness-only; use `/api/v1/ready` as the dependency-aware deploy gate before switching traffic.
-- `/admin/compile-events` is the read-only operator query endpoint for recent compile outcomes and shares the same `x-admin-token` gate as `/admin/metrics`.
+- `/admin/version`, `/admin/compile-events`, and `/admin/metrics` form the core read-only operator surface and share the same `x-admin-token` gate.
 - `x-trace-id` and compile `trace_id` are first-class debugging handles; record them in alerts, smoke runs, and operator logs.
 - `REDIS_URL` remains the only supported shared fast-state dependency in Gateway V2; no SQL or extra backend datastore is required in this roadmap.
 - When `REDIS_URL` is enabled, compile event retention becomes durable across process restarts and powers operator queries.
@@ -72,7 +72,7 @@ Updated: 2026-03-11
 - [ ] Web unit tests pass (`pnpm --filter @geohelper/web test`)
 - [ ] E2E tests pass (`pnpm test:e2e`)
 - [ ] Benchmark dry-run passes (`pnpm bench:quality -- --dry-run`)
-- [ ] Gateway runtime smoke checked (`pnpm smoke:gateway-runtime -- --dry-run`, plus optional live run)
+- [ ] Gateway runtime smoke checked (`pnpm smoke:gateway-runtime -- --dry-run`, plus optional live run verifying `/admin/version`, compile trace visibility, and metrics movement)
 - [ ] Deploy runbook reviewed (`docs/deploy/edgeone.md`)
 - [ ] Alert webhook smoke-tested (trigger one fallback/repair compile and verify webhook receives event)
 - [ ] Liveness/readiness contract checked (`/api/v1/health` stays shallow, `/api/v1/ready` is green before traffic switch)

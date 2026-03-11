@@ -81,7 +81,7 @@ Dry-run the ordered verification plan without network calls:
 pnpm smoke:gateway-runtime -- --dry-run
 ```
 
-Run it against a live gateway:
+Run it against a live gateway. The smoke now validates `/admin/version`, one compile request, trace visibility in `/admin/compile-events`, and post-compile totals in `/admin/metrics` when `ADMIN_METRICS_TOKEN` is present:
 
 ```bash
 GATEWAY_URL=https://<gateway-domain> \

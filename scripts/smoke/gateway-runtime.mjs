@@ -51,6 +51,14 @@ export function buildGatewayRuntimeChecks(env = process.env) {
     }
   ];
 
+  if (env.ADMIN_METRICS_TOKEN) {
+    checks.push({
+      name: "GET /admin/version",
+      method: "GET",
+      path: "/admin/version"
+    });
+  }
+
   if (env.PRESET_TOKEN) {
     checks.push({
       name: "POST /api/v1/auth/token/login",
@@ -72,6 +80,11 @@ export function buildGatewayRuntimeChecks(env = process.env) {
 
   if (env.ADMIN_METRICS_TOKEN) {
     checks.push({
+      name: "GET /admin/compile-events",
+      method: "GET",
+      path: "/admin/compile-events?limit=10"
+    });
+    checks.push({
       name: "GET /admin/metrics",
       method: "GET",
       path: "/admin/metrics"
@@ -83,8 +96,7 @@ export function buildGatewayRuntimeChecks(env = process.env) {
 
 const normalizeBaseUrl = (value) => String(value ?? "").replace(/\/$/, "");
 
-const parseJsonResponse = async (response) => {
-  const text = await response.text();
+const parseJsonText = (text) => {
   if (!text) {
     return null;
   }
@@ -96,23 +108,32 @@ const parseJsonResponse = async (response) => {
   }
 };
 
-const assertResponseOk = async (response, label) => {
-  if (response.ok) {
-    return;
+const fetchJson = async (fetchImpl, url, options, label) => {
+  const response = await fetchImpl(url, options);
+  const body = parseJsonText(await response.text());
+
+  if (!response.ok) {
+    throw new Error(
+      `${label} failed: ${response.status} ${JSON.stringify(body ?? null)}`
+    );
   }
 
-  const body = await parseJsonResponse(response);
-  throw new Error(
-    `${label} failed: ${response.status} ${JSON.stringify(body ?? null)}`
-  );
+  return { response, body };
 };
+
+const getAdminHeaders = (env) => ({
+  "x-admin-token": env.ADMIN_METRICS_TOKEN
+});
 
 const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
   const checks = [];
 
-  const healthResponse = await fetchImpl(`${gatewayUrl}/api/v1/health`);
-  await assertResponseOk(healthResponse, "health");
-  const healthBody = await parseJsonResponse(healthResponse);
+  const { body: healthBody } = await fetchJson(
+    fetchImpl,
+    `${gatewayUrl}/api/v1/health`,
+    undefined,
+    "health"
+  );
   if (healthBody?.status !== "ok") {
     throw new Error("health failed: unexpected payload");
   }
@@ -121,9 +142,12 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
     ok: true
   });
 
-  const readyResponse = await fetchImpl(`${gatewayUrl}/api/v1/ready`);
-  await assertResponseOk(readyResponse, "ready");
-  const readyBody = await parseJsonResponse(readyResponse);
+  const { body: readyBody } = await fetchJson(
+    fetchImpl,
+    `${gatewayUrl}/api/v1/ready`,
+    undefined,
+    "ready"
+  );
   if (!readyBody?.ready) {
     throw new Error("ready failed: gateway is not ready");
   }
@@ -132,20 +156,61 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
     ok: true
   });
 
+  let metricsBefore = null;
+  if (env.ADMIN_METRICS_TOKEN) {
+    const { body: versionBody } = await fetchJson(
+      fetchImpl,
+      `${gatewayUrl}/admin/version`,
+      {
+        headers: getAdminHeaders(env)
+      },
+      "admin version"
+    );
+    if (
+      typeof versionBody?.node_env !== "string" ||
+      typeof versionBody?.redis_enabled !== "boolean"
+    ) {
+      throw new Error("admin version failed: missing runtime identity fields");
+    }
+    checks.push({
+      name: "GET /admin/version",
+      ok: true,
+      git_sha: versionBody.git_sha ?? null,
+      build_time: versionBody.build_time ?? null,
+      redis_enabled: versionBody.redis_enabled
+    });
+
+    const { body: metricsBody } = await fetchJson(
+      fetchImpl,
+      `${gatewayUrl}/admin/metrics`,
+      {
+        headers: getAdminHeaders(env)
+      },
+      "admin metrics baseline"
+    );
+    if (typeof metricsBody?.compile?.total_requests !== "number") {
+      throw new Error("admin metrics baseline failed: missing compile totals");
+    }
+    metricsBefore = metricsBody.compile.total_requests;
+  }
+
   let revokedToken;
   if (env.PRESET_TOKEN) {
-    const loginResponse = await fetchImpl(`${gatewayUrl}/api/v1/auth/token/login`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json"
+    const { body: loginBody } = await fetchJson(
+      fetchImpl,
+      `${gatewayUrl}/api/v1/auth/token/login`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          token: env.PRESET_TOKEN,
+          device_id: "gateway-runtime-smoke"
+        })
       },
-      body: JSON.stringify({
-        token: env.PRESET_TOKEN,
-        device_id: "gateway-runtime-smoke"
-      })
-    });
-    await assertResponseOk(loginResponse, "auth login");
-    const loginBody = await parseJsonResponse(loginResponse);
+      "auth login"
+    );
     if (!loginBody?.session_token) {
       throw new Error("auth login failed: missing session_token");
     }
@@ -155,14 +220,17 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
       ok: true
     });
 
-    const revokeResponse = await fetchImpl(`${gatewayUrl}/api/v1/auth/token/revoke`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${revokedToken}`
-      }
-    });
-    await assertResponseOk(revokeResponse, "auth revoke");
-    const revokeBody = await parseJsonResponse(revokeResponse);
+    const { body: revokeBody } = await fetchJson(
+      fetchImpl,
+      `${gatewayUrl}/api/v1/auth/token/revoke`,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${revokedToken}`
+        }
+      },
+      "auth revoke"
+    );
     if (!revokeBody?.revoked) {
       throw new Error("auth revoke failed: missing revoked=true");
     }
@@ -172,19 +240,22 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
     });
   }
 
-  const compileResponse = await fetchImpl(`${gatewayUrl}/api/v1/chat/compile`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json"
+  const { response: compileResponse, body: compileBody } = await fetchJson(
+    fetchImpl,
+    `${gatewayUrl}/api/v1/chat/compile`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        message: env.SMOKE_COMPILE_MESSAGE ?? DEFAULT_COMPILE_MESSAGE,
+        mode: "byok",
+        ...(env.LITELLM_MODEL ? { model: env.LITELLM_MODEL } : {})
+      })
     },
-    body: JSON.stringify({
-      message: env.SMOKE_COMPILE_MESSAGE ?? DEFAULT_COMPILE_MESSAGE,
-      mode: "byok",
-      ...(env.LITELLM_MODEL ? { model: env.LITELLM_MODEL } : {})
-    })
-  });
-  await assertResponseOk(compileResponse, "compile");
-  const compileBody = await parseJsonResponse(compileResponse);
+    "compile"
+  );
   if (!Array.isArray(compileBody?.batch?.commands) || !compileBody?.trace_id) {
     throw new Error("compile failed: missing batch.commands or trace_id");
   }
@@ -198,20 +269,54 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
   });
 
   if (env.ADMIN_METRICS_TOKEN) {
-    const metricsResponse = await fetchImpl(`${gatewayUrl}/admin/metrics`, {
-      headers: {
-        "x-admin-token": env.ADMIN_METRICS_TOKEN
-      }
+    const traceId = String(compileBody.trace_id);
+    const { body: compileEventsBody } = await fetchJson(
+      fetchImpl,
+      `${gatewayUrl}/admin/compile-events?traceId=${encodeURIComponent(traceId)}&limit=10`,
+      {
+        headers: getAdminHeaders(env)
+      },
+      "admin compile events"
+    );
+    if (!Array.isArray(compileEventsBody?.events)) {
+      throw new Error("admin compile events failed: missing events array");
+    }
+    const matchingEvent = compileEventsBody.events.find(
+      (event) => event?.traceId === traceId
+    );
+    if (!matchingEvent) {
+      throw new Error("admin compile events failed: trace not found");
+    }
+    checks.push({
+      name: "GET /admin/compile-events",
+      ok: true,
+      trace_id: traceId,
+      final_status: matchingEvent.finalStatus ?? null,
+      event_count: compileEventsBody.events.length
     });
-    await assertResponseOk(metricsResponse, "admin metrics");
-    const metricsBody = await parseJsonResponse(metricsResponse);
+
+    const { body: metricsBody } = await fetchJson(
+      fetchImpl,
+      `${gatewayUrl}/admin/metrics`,
+      {
+        headers: getAdminHeaders(env)
+      },
+      "admin metrics"
+    );
     if (typeof metricsBody?.compile?.total_requests !== "number") {
       throw new Error("admin metrics failed: missing compile totals");
+    }
+    if (
+      typeof metricsBefore === "number" &&
+      metricsBody.compile.total_requests < metricsBefore + 1
+    ) {
+      throw new Error("admin metrics failed: compile totals did not advance");
     }
     checks.push({
       name: "GET /admin/metrics",
       ok: true,
-      total_requests: metricsBody.compile.total_requests
+      total_requests_before: metricsBefore,
+      total_requests_after: metricsBody.compile.total_requests
     });
   }
 

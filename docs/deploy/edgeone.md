@@ -184,7 +184,7 @@ Gateway runtime smoke dry-run (no network calls):
 pnpm smoke:gateway-runtime -- --dry-run
 ```
 
-Gateway runtime live smoke (recommended after deploy):
+Gateway runtime live smoke (recommended after deploy; validates `/admin/version`, one compile trace, `/admin/compile-events`, and `/admin/metrics` when admin auth is configured):
 
 ```bash
 GATEWAY_URL=https://<gateway-domain> \

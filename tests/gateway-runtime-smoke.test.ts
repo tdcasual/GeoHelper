@@ -25,17 +25,51 @@ describe("gateway runtime smoke script", () => {
     expect(run.status).toBe(0);
     const payload = JSON.parse(run.stdout.trim()) as {
       dry_run: boolean;
-      checks: Array<{ name: string }>;
+      checks: Array<{ name: string; method: string; path: string }>;
     };
 
     expect(payload.dry_run).toBe(true);
-    expect(payload.checks.map((check) => check.name)).toEqual([
-      "GET /api/v1/health",
-      "GET /api/v1/ready",
-      "POST /api/v1/auth/token/login",
-      "POST /api/v1/auth/token/revoke",
-      "POST /api/v1/chat/compile",
-      "GET /admin/metrics"
+    expect(payload.checks).toEqual([
+      {
+        name: "GET /api/v1/health",
+        method: "GET",
+        path: "/api/v1/health"
+      },
+      {
+        name: "GET /api/v1/ready",
+        method: "GET",
+        path: "/api/v1/ready"
+      },
+      {
+        name: "GET /admin/version",
+        method: "GET",
+        path: "/admin/version"
+      },
+      {
+        name: "POST /api/v1/auth/token/login",
+        method: "POST",
+        path: "/api/v1/auth/token/login"
+      },
+      {
+        name: "POST /api/v1/auth/token/revoke",
+        method: "POST",
+        path: "/api/v1/auth/token/revoke"
+      },
+      {
+        name: "POST /api/v1/chat/compile",
+        method: "POST",
+        path: "/api/v1/chat/compile"
+      },
+      {
+        name: "GET /admin/compile-events",
+        method: "GET",
+        path: "/admin/compile-events?limit=10"
+      },
+      {
+        name: "GET /admin/metrics",
+        method: "GET",
+        path: "/admin/metrics"
+      }
     ]);
   });
 });
