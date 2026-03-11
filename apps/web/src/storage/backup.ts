@@ -1,3 +1,15 @@
+import {
+  createBackupBlob,
+  createBackupEnvelope,
+  inspectBackupEnvelope,
+  parseBackupEnvelope
+} from "@geohelper/protocol";
+import type {
+  BackupEnvelope,
+  BackupInspection,
+  BackupPayload
+} from "@geohelper/protocol";
+
 import { STORAGE_SCHEMA_VERSION } from "./migrate";
 import { CHAT_STORE_KEY, syncChatStoreFromStorage } from "../state/chat-store";
 import { SCENE_STORE_KEY, sceneStore, syncSceneStoreFromStorage } from "../state/scene-store";
@@ -6,17 +18,6 @@ import { SETTINGS_KEY, syncSettingsStoreFromStorage } from "../state/settings-st
 import { TEMPLATE_STORE_KEY, syncTemplateStoreFromStorage } from "../state/template-store";
 import { UI_PREFS_KEY, syncUIStoreFromStorage } from "../state/ui-store";
 
-export interface BackupPayload {
-  conversations: Array<Record<string, unknown>>;
-  settings: Record<string, unknown>;
-}
-
-export interface BackupEnvelope extends BackupPayload {
-  schema_version: number;
-  created_at: string;
-  app_version: string;
-  checksum: string;
-}
 
 export type BackupImportMode = "replace" | "merge";
 
@@ -24,15 +25,9 @@ export interface BackupImportOptions {
   mode?: BackupImportMode;
 }
 
-export interface BackupInspection {
-  schemaVersion: number;
-  createdAt: string;
-  appVersion: string;
-  conversationCount: number;
-  migrationHint: "compatible" | "older" | "newer";
-}
-
 export const BACKUP_FILENAME = "geochat-backup.json";
+
+export type { BackupEnvelope, BackupInspection, BackupPayload };
 
 const canUseStorage = (): boolean =>
   typeof localStorage !== "undefined" &&
@@ -450,70 +445,22 @@ const writeSnapshotToStorage = (
   }
 };
 
-const checksumOf = (value: string): string => {
-  let hash = 2166136261;
-  for (let i = 0; i < value.length; i += 1) {
-    hash ^= value.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-
-  return (hash >>> 0).toString(16).padStart(8, "0");
-};
-
-export const createBackupBlob = (envelope: BackupEnvelope): Blob =>
-  new Blob([JSON.stringify(envelope, null, 2)], {
-    type: "application/json"
-  });
-
-export const exportBackup = async (payload: BackupPayload): Promise<Blob> => {
-  const envelopeWithoutChecksum = {
-    schema_version: STORAGE_SCHEMA_VERSION,
-    created_at: new Date().toISOString(),
-    app_version: "0.0.1",
-    conversations: payload.conversations,
-    settings: payload.settings
-  };
-  const body = JSON.stringify(envelopeWithoutChecksum);
-  const envelope: BackupEnvelope = {
-    ...envelopeWithoutChecksum,
-    checksum: checksumOf(body)
-  };
-
-  return createBackupBlob(envelope);
-};
+export const exportBackup = async (payload: BackupPayload): Promise<Blob> =>
+  createBackupBlob(
+    createBackupEnvelope(payload, {
+      schemaVersion: STORAGE_SCHEMA_VERSION,
+      createdAt: new Date().toISOString(),
+      appVersion: "0.0.1"
+    })
+  );
 
 export const importBackup = async (blob: Blob): Promise<BackupEnvelope> => {
   const text = await blob.text();
-  const envelope = JSON.parse(text) as BackupEnvelope;
-  const { checksum, ...rest } = envelope;
-  const expectedChecksum = checksumOf(JSON.stringify(rest));
-
-  if (checksum !== expectedChecksum) {
-    throw new Error("CHECKSUM_MISMATCH");
-  }
-
-  return envelope;
+  return parseBackupEnvelope(JSON.parse(text));
 };
 
-export const inspectBackup = async (blob: Blob): Promise<BackupInspection> => {
-  const envelope = await importBackup(blob);
-  const migrationHint =
-    envelope.schema_version === STORAGE_SCHEMA_VERSION
-      ? "compatible"
-      : envelope.schema_version < STORAGE_SCHEMA_VERSION
-        ? "older"
-        : "newer";
-
-  return {
-    schemaVersion: envelope.schema_version,
-    createdAt: envelope.created_at,
-    appVersion: envelope.app_version,
-    conversationCount: Array.isArray(envelope.conversations)
-      ? envelope.conversations.length
-      : 0,
-    migrationHint
-  };
-};
+export const inspectBackup = async (blob: Blob): Promise<BackupInspection> =>
+  inspectBackupEnvelope(await importBackup(blob), STORAGE_SCHEMA_VERSION);
 
 export const exportCurrentAppBackup = async (): Promise<Blob> => {
   const chatSnapshot = canUseStorage()

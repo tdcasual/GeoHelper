@@ -1,23 +1,28 @@
+import { createBackupEnvelope } from "@geohelper/protocol";
 import { describe, expect, it } from "vitest";
 
 import { buildServer } from "../src/server";
 import { createMemoryBackupStore } from "../src/services/backup-store";
 
-const createEnvelope = () => ({
-  schema_version: 2,
-  created_at: "2026-03-11T16:00:00.000Z",
-  app_version: "0.0.1",
-  checksum: "checksum-1",
-  conversations: [
+const createEnvelope = () =>
+  createBackupEnvelope(
     {
-      id: "conv-1",
-      title: "Lesson 1"
+      conversations: [
+        {
+          id: "conv-1",
+          title: "Lesson 1"
+        }
+      ],
+      settings: {
+        defaultMode: "byok"
+      }
+    },
+    {
+      schemaVersion: 2,
+      createdAt: "2026-03-11T16:00:00.000Z",
+      appVersion: "0.0.1"
     }
-  ],
-  settings: {
-    defaultMode: "byok"
-  }
-});
+  );
 
 describe("admin backup routes", () => {
   it("stores the latest backup and returns metadata plus build identity", async () => {
@@ -35,13 +40,15 @@ describe("admin backup routes", () => {
       }
     );
 
+    const envelope = createEnvelope();
+
     const putRes = await app.inject({
       method: "PUT",
       url: "/admin/backups/latest",
       headers: {
         "x-admin-token": "secret-metrics-token"
       },
-      payload: createEnvelope()
+      payload: envelope
     });
 
     expect(putRes.statusCode).toBe(200);
@@ -51,7 +58,7 @@ describe("admin backup routes", () => {
         schema_version: 2,
         created_at: "2026-03-11T16:00:00.000Z",
         app_version: "0.0.1",
-        checksum: "checksum-1",
+        checksum: envelope.checksum,
         conversation_count: 1
       },
       build: {
@@ -77,9 +84,9 @@ describe("admin backup routes", () => {
         schema_version: 2,
         created_at: "2026-03-11T16:00:00.000Z",
         app_version: "0.0.1",
-        checksum: "checksum-1",
+        checksum: envelope.checksum,
         conversation_count: 1,
-        envelope: createEnvelope()
+        envelope
       },
       build: {
         git_sha: "backupsha",

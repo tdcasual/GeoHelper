@@ -1,15 +1,12 @@
-import { z } from "zod";
+import {
+  BackupEnvelope,
+  BackupEnvelopeSchema,
+  parseBackupEnvelope
+} from "@geohelper/protocol";
 
-export const GatewayBackupEnvelopeSchema = z.object({
-  schema_version: z.number().int().positive(),
-  created_at: z.string().trim().min(1),
-  app_version: z.string().trim().min(1),
-  checksum: z.string().trim().min(1),
-  conversations: z.array(z.record(z.string(), z.unknown())),
-  settings: z.record(z.string(), z.unknown())
-}).strict();
+export const GatewayBackupEnvelopeSchema = BackupEnvelopeSchema;
 
-export type GatewayBackupEnvelope = z.infer<typeof GatewayBackupEnvelopeSchema>;
+export type GatewayBackupEnvelope = BackupEnvelope;
 
 export interface GatewayBackupSummary {
   storedAt: string;
@@ -54,7 +51,7 @@ const createSummary = (
 
 export const parseGatewayBackupEnvelope = (
   value: unknown
-): GatewayBackupEnvelope => GatewayBackupEnvelopeSchema.parse(value);
+): GatewayBackupEnvelope => parseBackupEnvelope(value);
 
 export const createMemoryBackupStore = (
   options: BackupStoreOptions = {}
