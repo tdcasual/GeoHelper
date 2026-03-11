@@ -24,7 +24,9 @@ Updated: 2026-03-11
 - `LITELLM_FALLBACK_ENDPOINT` (optional): Secondary upstream endpoint for transient failure retries.
 - `LITELLM_FALLBACK_API_KEY` (optional): API key for fallback endpoint (defaults to `LITELLM_API_KEY`).
 - `LITELLM_FALLBACK_MODEL` (optional): Model name for fallback retries (defaults to `LITELLM_MODEL`).
-- `ALERT_WEBHOOK_URL` (optional): Webhook for fallback/repair alerts.
+- `ALERT_WEBHOOK_URL` (optional): Webhook for fallback/repair/timeout/runtime-capacity alerts.
+- `COMPILE_MAX_IN_FLIGHT` (optional, default `4`): Max concurrent compile requests allowed per gateway instance before returning `GATEWAY_BUSY`.
+- `COMPILE_TIMEOUT_MS` (optional, default `30000`): Timeout budget per compile request before returning `COMPILE_TIMEOUT`.
 - `ADMIN_METRICS_TOKEN` (optional): Required `x-admin-token` for `/admin/version`, `/admin/metrics`, and `/admin/compile-events`.
 - `COST_PER_REQUEST_USD` (optional, default `0`): Estimated USD cost per upstream model request, used for ops metrics.
 
@@ -37,6 +39,7 @@ Updated: 2026-03-11
 - When `REDIS_URL` is enabled, compile event retention becomes durable across process restarts and powers operator queries.
 - Gateway compile currently rejects `attachments` with `ATTACHMENTS_UNSUPPORTED` (vision is not supported yet).
 - When fallback env vars are set, gateway retries transient upstream failures against the fallback target.
+- Compile runtime protection is instance-local: overlapping requests beyond `COMPILE_MAX_IN_FLIGHT` return `503 GATEWAY_BUSY`, and stalled compiles beyond `COMPILE_TIMEOUT_MS` return `504 COMPILE_TIMEOUT` with traceable operator events.
 
 ## Rollback Plan
 

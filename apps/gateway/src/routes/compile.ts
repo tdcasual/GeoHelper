@@ -1,4 +1,4 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
 import { GatewayConfig } from "../config";
@@ -8,6 +8,11 @@ import {
   CompileEventType,
   CompileFinalStatus
 } from "../services/compile-events";
+import {
+  CompileGuard,
+  CompileGuardBusyError,
+  CompileGuardTimeoutError
+} from "../services/compile-guard";
 import {
   CompileContext,
   CompileMode,
@@ -29,7 +34,7 @@ import {
   recordCompileRateLimited,
   recordCompileSuccess
 } from "../services/metrics";
-import { sendAlert } from "../services/alerting";
+import { GatewayAlertEvent, sendAlert } from "../services/alerting";
 
 const CompileBodySchema = z.object({
   message: z.string().min(1),
@@ -87,12 +92,17 @@ const CompileBodySchema = z.object({
     .optional()
 });
 
+interface CompileReplyWithAlert extends FastifyReply {
+  geohelperAlertEvent?: GatewayAlertEvent;
+}
+
 export interface CompileRouteDeps {
   requestCommandBatch: RequestCommandBatch;
   sessionStore: SessionRevocationStore;
   rateLimitStore: RateLimitStore;
   metricsStore: GatewayMetricsStore;
   compileEventSink: CompileEventSink;
+  compileGuard: CompileGuard;
 }
 
 export const registerCompileRoute = (
@@ -154,6 +164,53 @@ export const registerCompileRoute = (
         detail: extras.detail,
         metadata: extras.metadata
       });
+    };
+
+    const buildCompileOperatorAlert = (
+      event: string,
+      statusCode: number,
+      extras: {
+        detail?: string;
+        error?: string;
+        metadata?: Record<string, unknown>;
+      } = {}
+    ): GatewayAlertEvent => ({
+      traceId,
+      path: request.url,
+      method: request.method,
+      statusCode,
+      event,
+      detail: extras.detail,
+      error: extras.error,
+      metadata: extras.metadata
+    });
+
+    const sendCompileOperatorAlert = async (
+      event: string,
+      statusCode: number,
+      extras: {
+        detail?: string;
+        error?: string;
+        metadata?: Record<string, unknown>;
+      } = {}
+    ): Promise<void> => {
+      await sendAlert(
+        config.alertWebhookUrl,
+        buildCompileOperatorAlert(event, statusCode, extras)
+      );
+    };
+
+    const deferCompileOperatorAlert = (
+      event: string,
+      statusCode: number,
+      extras: {
+        detail?: string;
+        error?: string;
+        metadata?: Record<string, unknown>;
+      } = {}
+    ): void => {
+      (reply as CompileReplyWithAlert).geohelperAlertEvent =
+        buildCompileOperatorAlert(event, statusCode, extras);
     };
 
     const rateKey = `${request.ip}:compile`;
@@ -250,9 +307,11 @@ export const registerCompileRoute = (
         byokKey: typeof byokKey === "string" ? byokKey : undefined,
         context: normalizeContext(parsed.data.context)
       };
-      const result = useSingleAgent
-        ? await compileWithSingleAgent(compileInput, deps.requestCommandBatch)
-        : await compileWithMultiAgent(compileInput, deps.requestCommandBatch);
+      const result = await deps.compileGuard.run(async () =>
+        useSingleAgent
+          ? compileWithSingleAgent(compileInput, deps.requestCommandBatch)
+          : compileWithMultiAgent(compileInput, deps.requestCommandBatch)
+      );
       const totalMs = Date.now() - totalStartedAt;
 
       const retryCount = result.agent_steps.some(
@@ -309,12 +368,7 @@ export const registerCompileRoute = (
             fallback_steps: fallbackSteps.map((step) => step.name)
           }
         });
-        await sendAlert(config.alertWebhookUrl, {
-          traceId,
-          path: request.url,
-          method: request.method,
-          statusCode: 200,
-          event: "compile_fallback",
+        await sendCompileOperatorAlert("compile_fallback", 200, {
           detail: fallbackSteps.map((step) => step.name).join(","),
           metadata: {
             fallback_steps: fallbackSteps.map((step) => step.name)
@@ -328,12 +382,7 @@ export const registerCompileRoute = (
             repair: true
           }
         });
-        await sendAlert(config.alertWebhookUrl, {
-          traceId,
-          path: request.url,
-          method: request.method,
-          statusCode: 200,
-          event: "compile_repair",
+        await sendCompileOperatorAlert("compile_repair", 200, {
           detail: "repair agent produced a valid batch",
           metadata: {
             repair: true
@@ -348,6 +397,50 @@ export const registerCompileRoute = (
       });
     } catch (error) {
       const totalMs = Date.now() - totalStartedAt;
+      if (error instanceof CompileGuardBusyError) {
+        recordCompileFailure(totalMs, 0, deps.metricsStore);
+        await writeCompileEvent("compile_runtime_rejected", "runtime_rejected", 503, {
+          detail: "max_in_flight_reached",
+          metadata: {
+            max_in_flight: config.compileMaxInFlight
+          }
+        });
+        deferCompileOperatorAlert("compile_runtime_rejected", 503, {
+          detail: "max_in_flight_reached",
+          metadata: {
+            max_in_flight: config.compileMaxInFlight
+          }
+        });
+        return reply.status(503).send({
+          error: {
+            code: error.code,
+            message: error.message
+          }
+        });
+      }
+
+      if (error instanceof CompileGuardTimeoutError) {
+        recordCompileFailure(totalMs, 0, deps.metricsStore);
+        await writeCompileEvent("compile_timeout", "timeout", 504, {
+          detail: "compile_timeout",
+          metadata: {
+            timeout_ms: config.compileTimeoutMs
+          }
+        });
+        deferCompileOperatorAlert("compile_timeout", 504, {
+          detail: "compile_timeout",
+          metadata: {
+            timeout_ms: config.compileTimeoutMs
+          }
+        });
+        return reply.status(504).send({
+          error: {
+            code: error.code,
+            message: error.message
+          }
+        });
+      }
+
       if (error instanceof InvalidCommandBatchError) {
         recordCompileFailure(totalMs, 0, deps.metricsStore);
         await writeCompileEvent("compile_validation_failure", "validation_failure", 422, {
@@ -369,6 +462,9 @@ export const registerCompileRoute = (
 
       recordCompileFailure(totalMs, 0, deps.metricsStore);
       await writeCompileEvent("compile_upstream_failure", "upstream_failure", 502, {
+        detail: error instanceof Error ? error.message : "upstream_failure"
+      });
+      deferCompileOperatorAlert("compile_upstream_failure", 502, {
         detail: error instanceof Error ? error.message : "upstream_failure"
       });
       return reply.status(502).send({

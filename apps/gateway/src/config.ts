@@ -18,6 +18,8 @@ export interface GatewayConfig {
   alertWebhookUrl?: string;
   adminMetricsToken?: string;
   costPerRequestUsd: number;
+  compileMaxInFlight: number;
+  compileTimeoutMs: number;
 }
 
 const deriveSessionSecret = (appSecret: string): string =>
@@ -53,6 +55,8 @@ export const loadConfig = (
   const rateLimitMaxFromEnv = Number(env.RATE_LIMIT_MAX ?? 120);
   const rateLimitWindowFromEnv = Number(env.RATE_LIMIT_WINDOW_MS ?? 60_000);
   const costPerRequestFromEnv = Number(env.COST_PER_REQUEST_USD ?? 0);
+  const compileMaxInFlightFromEnv = Number(env.COMPILE_MAX_IN_FLIGHT ?? 4);
+  const compileTimeoutFromEnv = Number(env.COMPILE_TIMEOUT_MS ?? 30000);
   const appSecret = env.APP_SECRET ?? "geohelper-dev-app-secret";
   const sessionSecret =
     env.SESSION_SECRET?.trim() || deriveSessionSecret(appSecret);
@@ -78,6 +82,12 @@ export const loadConfig = (
     adminMetricsToken: env.ADMIN_METRICS_TOKEN,
     costPerRequestUsd: Number.isNaN(costPerRequestFromEnv)
       ? 0
-      : Math.max(0, costPerRequestFromEnv)
+      : Math.max(0, costPerRequestFromEnv),
+    compileMaxInFlight: Number.isNaN(compileMaxInFlightFromEnv)
+      ? 4
+      : Math.max(1, Math.floor(compileMaxInFlightFromEnv)),
+    compileTimeoutMs: Number.isNaN(compileTimeoutFromEnv)
+      ? 30000
+      : Math.max(10, Math.floor(compileTimeoutFromEnv))
   };
 };

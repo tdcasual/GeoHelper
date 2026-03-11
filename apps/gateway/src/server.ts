@@ -1,4 +1,4 @@
-import Fastify, { FastifyInstance } from "fastify";
+import Fastify, { FastifyInstance, FastifyReply } from "fastify";
 import { fileURLToPath } from "node:url";
 
 import { loadConfig } from "./config";
@@ -11,8 +11,9 @@ import {
   createRuntimeReadinessService,
   RuntimeReadinessService
 } from "./services/runtime-readiness";
-import { sendAlert } from "./services/alerting";
+import { GatewayAlertEvent, sendAlert } from "./services/alerting";
 import { createGatewayBuildInfo } from "./services/build-info";
+import { createCompileGuard, CompileGuard } from "./services/compile-guard";
 import {
   buildTraceId,
   CompileEventSink,
@@ -44,6 +45,10 @@ import {
 } from "./services/session";
 import { SessionRevocationStore } from "./services/session-store";
 
+interface GatewayReplyWithAlert extends FastifyReply {
+  geohelperAlertEvent?: GatewayAlertEvent;
+}
+
 export interface GatewayServices {
   requestCommandBatch: RequestCommandBatch;
   sessionStore: SessionRevocationStore;
@@ -51,6 +56,7 @@ export interface GatewayServices {
   metricsStore: GatewayMetricsStore;
   compileEventSink: CompileEventSink;
   runtimeReadinessService: RuntimeReadinessService;
+  compileGuard: CompileGuard;
   kvClient?: KvClient;
 }
 
@@ -110,6 +116,12 @@ export const buildServer = (
     runtimeReadinessService:
       serviceOverrides.runtimeReadinessService ??
       createRuntimeReadinessService(runtimeReadinessChecks),
+    compileGuard:
+      serviceOverrides.compileGuard ??
+      createCompileGuard({
+        maxInFlight: config.compileMaxInFlight,
+        timeoutMs: config.compileTimeoutMs
+      }),
     kvClient
   };
 
@@ -124,6 +136,12 @@ export const buildServer = (
   });
 
   app.addHook("onResponse", async (request, reply) => {
+    const responseAlert = (reply as GatewayReplyWithAlert).geohelperAlertEvent;
+    if (responseAlert) {
+      await sendAlert(config.alertWebhookUrl, responseAlert);
+      return;
+    }
+
     if (reply.statusCode >= 500) {
       await sendAlert(config.alertWebhookUrl, {
         traceId: buildTraceId(request.id),

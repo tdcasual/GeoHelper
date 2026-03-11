@@ -3,14 +3,18 @@ export type CompileEventType =
   | "compile_validation_failure"
   | "compile_upstream_failure"
   | "compile_fallback"
-  | "compile_repair";
+  | "compile_repair"
+  | "compile_runtime_rejected"
+  | "compile_timeout";
 
 export type CompileFinalStatus =
   | "success"
   | "fallback"
   | "repair"
   | "validation_failure"
-  | "upstream_failure";
+  | "upstream_failure"
+  | "runtime_rejected"
+  | "timeout";
 
 export interface CompileEventRecord {
   event: CompileEventType;

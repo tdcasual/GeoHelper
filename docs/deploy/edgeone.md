@@ -130,7 +130,9 @@ Optional deploy hook secret:
 - `RATE_LIMIT_WINDOW_MS`
 - optional: `REDIS_URL` (recommended for multi-instance shared revoke/rate-limit state)
 - optional: `ALERT_WEBHOOK_URL`
-- optional: `ADMIN_METRICS_TOKEN` (protects `/admin/metrics` and `/admin/compile-events`)
+- optional: `COMPILE_MAX_IN_FLIGHT` (default `4`)
+- optional: `COMPILE_TIMEOUT_MS` (default `30000`)
+- optional: `ADMIN_METRICS_TOKEN` (protects `/admin/version`, `/admin/metrics`, and `/admin/compile-events`)
 - optional: `COST_PER_REQUEST_USD`
 - Template file: `.env.release.example`
 
@@ -140,7 +142,7 @@ You can sync gateway/web deploy secrets from local env vars with:
 bash scripts/deploy/configure-release-secrets.sh --repo <owner/repo>
 ```
 
-Production gateway startup validates `APP_SECRET` and `LITELLM_ENDPOINT` before listening. `/api/v1/health` stays liveness-only, while `/api/v1/ready` is the deploy gate that should be green before traffic shifts. When `REDIS_URL` is set, session revoke, fixed-window rate limits, and compile event retention are shared across instances. `REDIS_URL` remains the only supported shared fast-state dependency for Gateway V2. Every response also includes `x-trace-id` (compile responses include matching `trace_id`) so operator alerts and `/admin/compile-events` records can be correlated quickly.
+Production gateway startup validates `APP_SECRET` and `LITELLM_ENDPOINT` before listening. `/api/v1/health` stays liveness-only, while `/api/v1/ready` is the deploy gate that should be green before traffic shifts. When `REDIS_URL` is set, session revoke, fixed-window rate limits, and compile event retention are shared across instances. `REDIS_URL` remains the only supported shared fast-state dependency for Gateway V2. Every response also includes `x-trace-id` (compile responses include matching `trace_id`) so operator alerts and `/admin/compile-events` records can be correlated quickly. Per-instance compile protection is controlled by `COMPILE_MAX_IN_FLIGHT` and `COMPILE_TIMEOUT_MS`, returning `GATEWAY_BUSY` or `COMPILE_TIMEOUT` before a stuck upstream can monopolize the runtime.
 
 ## F. Post-deploy Verification
 
