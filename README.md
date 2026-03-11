@@ -63,6 +63,16 @@ Notes:
 - Optional upstream fallback envs `LITELLM_FALLBACK_ENDPOINT`, `LITELLM_FALLBACK_API_KEY`, and `LITELLM_FALLBACK_MODEL` let Gateway retry transient model failures against a secondary provider.
 - `PRESET_TOKEN` is required only when you intend to expose `Official` mode login.
 
+## Gateway Container Build
+
+Build the self-hosted gateway image from the repo root:
+
+```bash
+pnpm docker:gateway:build
+```
+
+The image starts the Fastify gateway on `PORT=8787` and only includes the gateway workspace plus shared protocol sources.
+
 ## Live Model Smoke
 
 ```bash

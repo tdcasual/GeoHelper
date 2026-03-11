@@ -32,6 +32,9 @@ importers:
       redis:
         specifier: ^5.11.0
         version: 5.11.0
+      tsx:
+        specifier: ^4.20.5
+        version: 4.21.0
       zod:
         specifier: ^4.1.8
         version: 4.3.6
@@ -39,9 +42,6 @@ importers:
       '@types/node':
         specifier: ^24.3.1
         version: 24.11.0
-      tsx:
-        specifier: ^4.20.5
-        version: 4.21.0
 
   apps/web:
     dependencies:

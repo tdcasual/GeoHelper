@@ -12,10 +12,10 @@
     "@geohelper/protocol": "workspace:*",
     "fastify": "^5.6.1",
     "redis": "^5.11.0",
-    "zod": "^4.1.8"
+    "zod": "^4.1.8",
+    "tsx": "^4.20.5"
   },
   "devDependencies": {
-    "@types/node": "^24.3.1",
-    "tsx": "^4.20.5"
+    "@types/node": "^24.3.1"
   }
 }

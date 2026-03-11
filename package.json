@@ -11,12 +11,14 @@
     "geogebra:sync": "node scripts/geogebra/sync-bundle.mjs",
     "build:web": "pnpm geogebra:sync && pnpm --filter @geohelper/web build",
     "verify:geogebra-self-hosted": "node scripts/geogebra/assert-no-external.mjs",
-    "audit:ui:expanded": "node scripts/ui/run-expanded-audit.mjs"
+    "audit:ui:expanded": "node scripts/ui/run-expanded-audit.mjs",
+    "docker:gateway:build": "docker build --build-context repo=. --file apps/gateway/Dockerfile --tag geohelper-gateway:local apps/gateway"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
     "@types/node": "^24.11.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
-  }
+  },
+  "packageManager": "pnpm@10.29.3"
 }

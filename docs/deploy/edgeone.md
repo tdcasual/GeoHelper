@@ -101,6 +101,12 @@ Gateway is packaged as container image:
 
 - image: `ghcr.io/<owner>/geohelper-gateway:staging`
 
+Build a local staging image from the repo root with:
+
+```bash
+pnpm docker:gateway:build
+```
+
 Gateway staging image/deploy is also manual by design.
 
 Optional deploy hook secret:
