@@ -1,7 +1,7 @@
 # GeoHelper Beta Checklist
 
 Status: Draft for M4 release gate
-Updated: 2026-03-10
+Updated: 2026-03-11
 
 ## Environment Variables
 
@@ -30,9 +30,11 @@ Updated: 2026-03-10
 
 ## Operational Notes
 
+- `/api/v1/health` is liveness-only; use `/api/v1/ready` as the dependency-aware deploy gate before switching traffic.
+- `/admin/compile-events` is the read-only operator query endpoint for recent compile outcomes and shares the same `x-admin-token` gate as `/admin/metrics`.
+- `x-trace-id` and compile `trace_id` are first-class debugging handles; record them in alerts, smoke runs, and operator logs.
+- `REDIS_URL` remains the only supported shared fast-state dependency in Gateway V2; no SQL or extra backend datastore is required in this roadmap.
 - Gateway compile currently rejects `attachments` with `ATTACHMENTS_UNSUPPORTED` (vision is not supported yet).
-- All gateway responses include `x-trace-id`; compile responses also include matching `trace_id` for operator debugging.
-- When `REDIS_URL` is set, session revocation and fixed-window rate limits are shared across instances.
 - When fallback env vars are set, gateway retries transient upstream failures against the fallback target.
 
 ## Rollback Plan
@@ -72,6 +74,7 @@ Updated: 2026-03-10
 - [ ] Gateway runtime smoke checked (`pnpm smoke:gateway-runtime -- --dry-run`, plus optional live run)
 - [ ] Deploy runbook reviewed (`docs/deploy/edgeone.md`)
 - [ ] Alert webhook smoke-tested (trigger one fallback/repair compile and verify webhook receives event)
+- [ ] Liveness/readiness contract checked (`/api/v1/health` stays shallow, `/api/v1/ready` is green before traffic switch)
 - [ ] Metrics contract checked (`/admin/metrics` includes `fallback_rate`, `p95_latency_ms`, `cost_per_request_usd`)
 - [ ] Operator events contract checked (`/admin/compile-events?limit=20` returns recent traceable records)
 - [ ] Trace id contract checked (compile returns `trace_id` and `x-trace-id` header)
