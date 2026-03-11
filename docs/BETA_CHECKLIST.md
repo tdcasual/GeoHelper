@@ -35,6 +35,8 @@ Updated: 2026-03-11
 ## Operational Notes
 
 - `/api/v1/health` is liveness-only; use `/api/v1/ready` as the dependency-aware deploy gate before switching traffic.
+- `pnpm ops:gateway:verify` is the recurring post-deploy entrypoint; live runs write JSON evidence under `output/ops/<timestamp>/`.
+- When `OPS_BENCH_MIN_SUCCESS_RATE` or `OPS_BENCH_MAX_P95_MS` is configured, threshold failures are release blockers and must stop promotion.
 - `/admin/version`, `/admin/compile-events`, `/admin/metrics`, and `/admin/backups/latest` share the same `x-admin-token` gate; `/admin/version` remains the release identity source of truth and backup routes expose latest snapshot metadata for recovery workflows.
 - `x-trace-id` and compile `trace_id` are the main debugging join keys across alerts, smoke runs, `/admin/compile-events`, and `/admin/traces/:traceId`.
 - `REDIS_URL` remains the only supported shared fast-state dependency in Gateway V4; no SQL or extra backend datastore is required in this roadmap.
@@ -77,6 +79,7 @@ Updated: 2026-03-11
 - [ ] Web unit tests pass (`pnpm --filter @geohelper/web test`)
 - [ ] E2E tests pass (`pnpm test:e2e`)
 - [ ] Benchmark dry-run passes (`pnpm bench:quality -- --dry-run`)
+- [ ] Ops verify passes (`pnpm ops:gateway:verify -- --dry-run`, live runs persist JSON artifacts under `output/ops/`)
 - [ ] Gateway runtime smoke checked (`pnpm smoke:gateway-runtime -- --dry-run`, plus optional live run verifying `/admin/version`, compile trace visibility, and metrics movement)
 - [ ] Deploy runbook reviewed (`docs/deploy/edgeone.md`)
 - [ ] Alert webhook smoke-tested (trigger one fallback/repair compile and verify webhook receives event)

@@ -248,4 +248,6 @@ GATEWAY_URL=https://<gateway-domain> \
 pnpm ops:gateway:verify
 ```
 
+Live runs persist JSON artifacts under `output/ops/<timestamp>/`. When `OPS_BENCH_MIN_SUCCESS_RATE` or `OPS_BENCH_MAX_P95_MS` is configured, a threshold breach exits non-zero and should block release promotion until resolved.
+
 Use `docs/BETA_CHECKLIST.md` as the final release gate before beta launch.
