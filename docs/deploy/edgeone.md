@@ -220,4 +220,17 @@ Quality benchmark dry-run:
 pnpm bench:quality -- --dry-run
 ```
 
+Gateway ops verify dry-run (smoke + benchmark plan only):
+
+```bash
+pnpm ops:gateway:verify -- --dry-run
+```
+
+Gateway ops verify live run (recommended after deploy):
+
+```bash
+GATEWAY_URL=https://<gateway-domain> \
+pnpm ops:gateway:verify
+```
+
 Use `docs/BETA_CHECKLIST.md` as the final release gate before beta launch.
