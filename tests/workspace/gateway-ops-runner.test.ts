@@ -54,4 +54,56 @@ describe("gateway ops runner", () => {
     });
     expect(fs.existsSync(artifactRoot)).toBe(false);
   });
+
+  it("writes smoke and benchmark artifacts with a manifest", () => {
+    const tmpRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "geohelper-ops-runner-live-")
+    );
+    const artifactRoot = path.join(tmpRoot, "ops-output");
+    const stamp = "2026-03-11T15-30-00Z";
+
+    const run = spawnSync(
+      "node",
+      ["scripts/ops/run-gateway-ops-checks.mjs"],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          OPS_OUTPUT_ROOT: artifactRoot,
+          OPS_ARTIFACT_STAMP: stamp,
+          OPS_USE_DRY_RUN_SUBCOMMANDS: "1"
+        }
+      }
+    );
+
+    expect(run.status).toBe(0);
+    const payload = JSON.parse(run.stdout.trim()) as {
+      dry_run: boolean;
+      output_dir: string;
+    };
+    const outputDir = path.join(artifactRoot, stamp);
+
+    expect(payload.dry_run).toBe(false);
+    expect(payload.output_dir).toBe(outputDir);
+    expect(fs.existsSync(path.join(outputDir, "manifest.json"))).toBe(true);
+    expect(fs.existsSync(path.join(outputDir, "smoke.json"))).toBe(true);
+    expect(fs.existsSync(path.join(outputDir, "benchmark.json"))).toBe(true);
+    expect(fs.existsSync(path.join(outputDir, "summary.json"))).toBe(true);
+
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(outputDir, "manifest.json"), "utf8")
+    ) as {
+      status: string;
+      artifacts: Record<string, string>;
+    };
+    expect(manifest).toEqual({
+      status: "ok",
+      artifacts: {
+        smoke: "smoke.json",
+        benchmark: "benchmark.json",
+        summary: "summary.json"
+      }
+    });
+  });
+
 });

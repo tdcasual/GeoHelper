@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 
+import { resolveOpsArtifactDir, writeJsonArtifact } from "./lib/artifact-paths.mjs";
+
 const parseArgs = (argv) => {
   const parsed = {};
 
@@ -39,12 +41,14 @@ const parseArgs = (argv) => {
 const buildSteps = () => [
   {
     name: "gateway_smoke",
+    artifactName: "smoke",
     command: "pnpm smoke:gateway-runtime -- --dry-run",
     script: "smoke:gateway-runtime",
     dryRunArgs: ["--", "--dry-run"]
   },
   {
     name: "quality_benchmark",
+    artifactName: "benchmark",
     command: "pnpm bench:quality -- --dry-run",
     script: "bench:quality",
     dryRunArgs: ["--", "--dry-run"]
@@ -106,41 +110,57 @@ export async function runGatewayOpsChecks({
     return 0;
   }
 
+  const outputDir = await resolveOpsArtifactDir(env);
+  const useDryRunSubcommands = env.OPS_USE_DRY_RUN_SUBCOMMANDS === "1";
   const results = [];
+  let status = "ok";
   let exitCode = 0;
 
   for (const step of steps) {
-    const run = spawnSync("pnpm", [step.script], {
-      encoding: "utf8",
-      env,
-      cwd: process.cwd()
-    });
+    const run = spawnSync(
+      "pnpm",
+      [step.script, ...(useDryRunSubcommands ? step.dryRunArgs : [])],
+      {
+        encoding: "utf8",
+        env,
+        cwd: process.cwd()
+      }
+    );
     const payload = parseJsonMaybe(run.stdout.trim());
+    const artifactFile = await writeJsonArtifact(outputDir, step.artifactName, payload);
     results.push({
       name: step.name,
-      command: `pnpm ${step.script}`,
+      command: useDryRunSubcommands ? step.command : `pnpm ${step.script}`,
       ok: run.status === 0,
       exit_code: run.status ?? 1,
-      output: payload
+      artifact: artifactFile
     });
 
     if (run.status !== 0) {
+      status = "failed";
       exitCode = run.status ?? 1;
       break;
     }
   }
 
-  stdout.write(
-    JSON.stringify(
-      {
-        dry_run: false,
-        output_dir: null,
-        steps: results
-      },
-      null,
-      2
-    ) + "\n"
-  );
+  const summary = {
+    dry_run: false,
+    output_dir: outputDir,
+    status,
+    steps: results
+  };
+  const summaryFile = await writeJsonArtifact(outputDir, "summary", summary);
+  const manifest = {
+    status,
+    artifacts: {
+      smoke: "smoke.json",
+      benchmark: "benchmark.json",
+      summary: summaryFile
+    }
+  };
+  await writeJsonArtifact(outputDir, "manifest", manifest);
+
+  stdout.write(JSON.stringify(summary, null, 2) + "\n");
   return exitCode;
 }
 
