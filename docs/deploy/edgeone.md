@@ -129,7 +129,7 @@ Optional deploy hook secret:
 - `RATE_LIMIT_MAX`
 - `RATE_LIMIT_WINDOW_MS`
 - optional: `REDIS_URL` (recommended for multi-instance shared revoke/rate-limit state)
-- optional: `ALERT_WEBHOOK_URL`
+- optional: `ALERT_WEBHOOK_URL` (receives compact JSON with `traceId`, `finalStatus`, build identity, and redacted upstream target metadata)
 - optional: `COMPILE_MAX_IN_FLIGHT` (default `4`)
 - optional: `COMPILE_TIMEOUT_MS` (default `30000`)
 - optional: `ADMIN_METRICS_TOKEN` (protects `/admin/version`, `/admin/metrics`, and `/admin/compile-events`)

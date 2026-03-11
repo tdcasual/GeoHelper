@@ -12,7 +12,7 @@ import {
   RuntimeReadinessService
 } from "./services/runtime-readiness";
 import { GatewayAlertEvent, sendAlert } from "./services/alerting";
-import { createGatewayBuildInfo } from "./services/build-info";
+import { createGatewayBuildInfo, GatewayBuildInfo } from "./services/build-info";
 import { createCompileGuard, CompileGuard } from "./services/compile-guard";
 import {
   buildTraceId,
@@ -57,6 +57,7 @@ export interface GatewayServices {
   compileEventSink: CompileEventSink;
   runtimeReadinessService: RuntimeReadinessService;
   compileGuard: CompileGuard;
+  buildInfo: GatewayBuildInfo;
   kvClient?: KvClient;
 }
 
@@ -122,6 +123,7 @@ export const buildServer = (
         maxInFlight: config.compileMaxInFlight,
         timeoutMs: config.compileTimeoutMs
       }),
+    buildInfo: serviceOverrides.buildInfo ?? buildInfo,
     kvClient
   };
 

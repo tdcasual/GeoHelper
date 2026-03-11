@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
 import { GatewayConfig } from "../config";
+import { GatewayBuildInfo } from "../services/build-info";
 import {
   buildTraceId,
   CompileEventSink,
@@ -28,13 +29,14 @@ import { RateLimitStore } from "../services/rate-limit-store";
 import { SessionRevocationStore } from "../services/session-store";
 import { InvalidCommandBatchError } from "../services/verify-command-batch";
 import { consumeRateLimit } from "../services/rate-limit";
+import { resolveUpstreamTargets } from "../services/model-router";
 import {
   recordCompilePerfSample,
   recordCompileFailure,
   recordCompileRateLimited,
   recordCompileSuccess
 } from "../services/metrics";
-import { GatewayAlertEvent, sendAlert } from "../services/alerting";
+import { GatewayAlertEvent, GatewayAlertUpstreamContext, sendAlert } from "../services/alerting";
 
 const CompileBodySchema = z.object({
   message: z.string().min(1),
@@ -103,6 +105,7 @@ export interface CompileRouteDeps {
   metricsStore: GatewayMetricsStore;
   compileEventSink: CompileEventSink;
   compileGuard: CompileGuard;
+  buildInfo: GatewayBuildInfo;
 }
 
 export const registerCompileRoute = (
@@ -166,13 +169,53 @@ export const registerCompileRoute = (
       });
     };
 
+    const buildCompileAlertUpstream = (
+      input: {
+        mode: CompileMode;
+        model?: string;
+        byokEndpoint?: string;
+        byokKey?: string;
+      }
+    ): GatewayAlertUpstreamContext | undefined => {
+      try {
+        const targets = resolveUpstreamTargets(
+          {
+            byokEndpoint: input.byokEndpoint,
+            byokKey: input.byokKey,
+            model: input.model
+          },
+          {
+            LITELLM_ENDPOINT: config.litellmEndpoint,
+            LITELLM_API_KEY: config.litellmApiKey,
+            LITELLM_MODEL: config.litellmModel,
+            LITELLM_FALLBACK_ENDPOINT: config.litellmFallbackEndpoint,
+            LITELLM_FALLBACK_API_KEY: config.litellmFallbackApiKey,
+            LITELLM_FALLBACK_MODEL: config.litellmFallbackModel
+          }
+        );
+
+        return {
+          mode: input.mode,
+          targets: targets.map((target) => ({
+            source: target.source,
+            endpoint: target.endpoint,
+            model: target.model
+          }))
+        };
+      } catch {
+        return undefined;
+      }
+    };
+
     const buildCompileOperatorAlert = (
       event: string,
+      finalStatus: CompileFinalStatus,
       statusCode: number,
       extras: {
         detail?: string;
         error?: string;
         metadata?: Record<string, unknown>;
+        upstream?: GatewayAlertUpstreamContext;
       } = {}
     ): GatewayAlertEvent => ({
       traceId,
@@ -180,37 +223,47 @@ export const registerCompileRoute = (
       method: request.method,
       statusCode,
       event,
+      finalStatus,
       detail: extras.detail,
       error: extras.error,
-      metadata: extras.metadata
+      metadata: extras.metadata,
+      git_sha: deps.buildInfo.git_sha,
+      build_time: deps.buildInfo.build_time,
+      node_env: deps.buildInfo.node_env,
+      redis_enabled: deps.buildInfo.redis_enabled,
+      upstream: extras.upstream
     });
 
     const sendCompileOperatorAlert = async (
       event: string,
+      finalStatus: CompileFinalStatus,
       statusCode: number,
       extras: {
         detail?: string;
         error?: string;
         metadata?: Record<string, unknown>;
+        upstream?: GatewayAlertUpstreamContext;
       } = {}
     ): Promise<void> => {
       await sendAlert(
         config.alertWebhookUrl,
-        buildCompileOperatorAlert(event, statusCode, extras)
+        buildCompileOperatorAlert(event, finalStatus, statusCode, extras)
       );
     };
 
     const deferCompileOperatorAlert = (
       event: string,
+      finalStatus: CompileFinalStatus,
       statusCode: number,
       extras: {
         detail?: string;
         error?: string;
         metadata?: Record<string, unknown>;
+        upstream?: GatewayAlertUpstreamContext;
       } = {}
     ): void => {
       (reply as CompileReplyWithAlert).geohelperAlertEvent =
-        buildCompileOperatorAlert(event, statusCode, extras);
+        buildCompileOperatorAlert(event, finalStatus, statusCode, extras);
     };
 
     const rateKey = `${request.ip}:compile`;
@@ -297,16 +350,18 @@ export const registerCompileRoute = (
     const samplePerf = performanceSampling === "1";
     const strictMode = strictValidation === "1";
 
+    const compileInput = {
+      message: parsed.data.message,
+      mode,
+      model: parsed.data.model,
+      byokEndpoint:
+        typeof byokEndpoint === "string" ? byokEndpoint : undefined,
+      byokKey: typeof byokKey === "string" ? byokKey : undefined,
+      context: normalizeContext(parsed.data.context)
+    };
+    const alertUpstream = buildCompileAlertUpstream(compileInput);
+
     try {
-      const compileInput = {
-        message: parsed.data.message,
-        mode,
-        model: parsed.data.model,
-        byokEndpoint:
-          typeof byokEndpoint === "string" ? byokEndpoint : undefined,
-        byokKey: typeof byokKey === "string" ? byokKey : undefined,
-        context: normalizeContext(parsed.data.context)
-      };
       const result = await deps.compileGuard.run(async () =>
         useSingleAgent
           ? compileWithSingleAgent(compileInput, deps.requestCommandBatch)
@@ -368,11 +423,12 @@ export const registerCompileRoute = (
             fallback_steps: fallbackSteps.map((step) => step.name)
           }
         });
-        await sendCompileOperatorAlert("compile_fallback", 200, {
+        await sendCompileOperatorAlert("compile_fallback", "fallback", 200, {
           detail: fallbackSteps.map((step) => step.name).join(","),
           metadata: {
             fallback_steps: fallbackSteps.map((step) => step.name)
-          }
+          },
+          upstream: alertUpstream
         });
       } else if (repaired) {
         await writeCompileEvent("compile_repair", "repair", 200, {
@@ -382,11 +438,12 @@ export const registerCompileRoute = (
             repair: true
           }
         });
-        await sendCompileOperatorAlert("compile_repair", 200, {
+        await sendCompileOperatorAlert("compile_repair", "repair", 200, {
           detail: "repair agent produced a valid batch",
           metadata: {
             repair: true
-          }
+          },
+          upstream: alertUpstream
         });
       }
 
@@ -405,11 +462,12 @@ export const registerCompileRoute = (
             max_in_flight: config.compileMaxInFlight
           }
         });
-        deferCompileOperatorAlert("compile_runtime_rejected", 503, {
+        deferCompileOperatorAlert("compile_runtime_rejected", "runtime_rejected", 503, {
           detail: "max_in_flight_reached",
           metadata: {
             max_in_flight: config.compileMaxInFlight
-          }
+          },
+          upstream: alertUpstream
         });
         return reply.status(503).send({
           error: {
@@ -427,11 +485,12 @@ export const registerCompileRoute = (
             timeout_ms: config.compileTimeoutMs
           }
         });
-        deferCompileOperatorAlert("compile_timeout", 504, {
+        deferCompileOperatorAlert("compile_timeout", "timeout", 504, {
           detail: "compile_timeout",
           metadata: {
             timeout_ms: config.compileTimeoutMs
-          }
+          },
+          upstream: alertUpstream
         });
         return reply.status(504).send({
           error: {
@@ -464,8 +523,9 @@ export const registerCompileRoute = (
       await writeCompileEvent("compile_upstream_failure", "upstream_failure", 502, {
         detail: error instanceof Error ? error.message : "upstream_failure"
       });
-      deferCompileOperatorAlert("compile_upstream_failure", 502, {
-        detail: error instanceof Error ? error.message : "upstream_failure"
+      deferCompileOperatorAlert("compile_upstream_failure", "upstream_failure", 502, {
+        detail: error instanceof Error ? error.message : "upstream_failure",
+        upstream: alertUpstream
       });
       return reply.status(502).send({
         error: {

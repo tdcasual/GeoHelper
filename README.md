@@ -90,6 +90,8 @@ ADMIN_METRICS_TOKEN=<admin-token> \
 pnpm smoke:gateway-runtime
 ```
 
+Alert webhooks sent via `ALERT_WEBHOOK_URL` now include `traceId`, `finalStatus`, runtime build identity, and non-secret upstream endpoint/model metadata for fallback, repair, timeout, and operator-failure cases.
+
 ## Live Model Smoke
 
 ```bash
