@@ -6,6 +6,11 @@ import { registerAdminRoutes } from "./routes/admin";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerCompileRoute } from "./routes/compile";
 import { registerHealthRoute } from "./routes/health";
+import {
+  createRedisRuntimeDependencyCheck,
+  createRuntimeReadinessService,
+  RuntimeReadinessService
+} from "./services/runtime-readiness";
 import { sendAlert } from "./services/alerting";
 import {
   buildTraceId,
@@ -41,6 +46,7 @@ export interface GatewayServices {
   rateLimitStore: RateLimitStore;
   metricsStore: GatewayMetricsStore;
   compileEventSink: CompileEventSink;
+  runtimeReadinessService: RuntimeReadinessService;
   kvClient?: KvClient;
 }
 
@@ -68,6 +74,10 @@ export const buildServer = (
       ? createRedisKvClient(config.redisUrl)
       : undefined;
   const kvClient = serviceOverrides.kvClient ?? ownedKvClient;
+  const runtimeReadinessChecks =
+    config.redisUrl && kvClient
+      ? [createRedisRuntimeDependencyCheck(kvClient)]
+      : [];
   const services: GatewayServices = {
     requestCommandBatch:
       serviceOverrides.requestCommandBatch ?? defaultRequestCommandBatch,
@@ -84,6 +94,9 @@ export const buildServer = (
     metricsStore: serviceOverrides.metricsStore ?? getDefaultMetricsStore(),
     compileEventSink:
       serviceOverrides.compileEventSink ?? createLogCompileEventSink(app.log),
+    runtimeReadinessService:
+      serviceOverrides.runtimeReadinessService ??
+      createRuntimeReadinessService(runtimeReadinessChecks),
     kvClient
   };
 
@@ -108,7 +121,9 @@ export const buildServer = (
     }
   });
 
-  registerHealthRoute(app);
+  registerHealthRoute(app, {
+    runtimeReadinessService: services.runtimeReadinessService
+  });
   registerAdminRoutes(app, config, {
     metricsStore: services.metricsStore
   });

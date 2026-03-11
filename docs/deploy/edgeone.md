@@ -140,7 +140,10 @@ Production gateway startup validates `APP_SECRET` and `LITELLM_ENDPOINT` before 
 
 ```bash
 curl -fsS https://<gateway-domain>/api/v1/health
+curl -fsS https://<gateway-domain>/api/v1/ready
 ```
+
+Use `/api/v1/health` for shallow liveness and `/api/v1/ready` for dependency-aware readiness before switching traffic.
 
 Verify the self-hosted GeoGebra artifact before release:
 

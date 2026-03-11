@@ -16,6 +16,34 @@
 }
 ```
 
+## GET /api/v1/ready
+
+Readiness is deeper than liveness: it probes configured runtime dependencies such as Redis when `REDIS_URL` is enabled.
+
+### Response 200
+
+```json
+{
+  "ready": true,
+  "dependencies": []
+}
+```
+
+### Response 503
+
+```json
+{
+  "ready": false,
+  "dependencies": [
+    {
+      "name": "redis",
+      "ok": false,
+      "detail": "REDIS_UNAVAILABLE"
+    }
+  ]
+}
+```
+
 ## POST /api/v1/auth/token/login
 
 ### Request
