@@ -107,13 +107,15 @@ ADMIN_METRICS_TOKEN=<admin-token> \
 pnpm smoke:gateway-backup-restore
 ```
 
+Remote backup UI stays opt-in in `设置` -> `数据与安全`: operators must save a gateway admin token before `上传到网关` or `从网关拉取` becomes available, and all remote restore actions remain manual.
+
 Scheduled operator wrapper dry-run:
 
 ```bash
 pnpm ops:gateway:scheduled -- --dry-run
 ```
 
-Use this wrapper as the scheduler-facing entrypoint for external cron platforms; artifact publish and compact webhook heartbeat/failure summaries are controlled through env vars without changing the cron command itself.
+Use this wrapper as the scheduler-facing recurring entrypoint for external cron platforms; artifact publish and compact webhook heartbeat/failure summaries are controlled through env vars without changing the cron command itself. Published artifact URLs from scheduled runs become the post-deploy evidence source of truth, and release promotion should stop when threshold checks or the gateway backup restore drill fail.
 
 ## Live Model Smoke
 

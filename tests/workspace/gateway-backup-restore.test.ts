@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
-import { createBackupEnvelope } from "../../packages/protocol/src/backup.ts";
+import { createBackupEnvelope } from "../../packages/protocol/src/backup";
 
 describe("gateway backup restore smoke", () => {
   it("exposes restore drill script and dry-run plan output", () => {

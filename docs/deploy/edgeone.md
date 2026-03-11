@@ -272,7 +272,7 @@ OPS_DEPLOYMENT=staging \
 pnpm ops:gateway:scheduled -- --dry-run
 ```
 
-Use `ops:gateway:scheduled` as the stable command for external cron platforms; the wrapper composes verify, artifact publish, and notify phases behind one entrypoint.
+Use `ops:gateway:scheduled` as the stable recurring command for external cron platforms; the wrapper composes verify, artifact publish, and notify phases behind one entrypoint. Published artifact URLs from scheduled runs should be treated as the post-deploy evidence source of truth.
 
 Artifact publish envs for S3-compatible storage:
 
@@ -285,7 +285,9 @@ Artifact publish envs for S3-compatible storage:
 - `OPS_ARTIFACT_PUBLIC_BASE_URL`
 - `OPS_NOTIFY_WEBHOOK_URL`
 
-When notify is enabled, the scheduled wrapper emits one compact JSON heartbeat/failure summary per run with `run_label`, `deployment`, `status`, threshold `failure_reasons`, and artifact URLs when publish is enabled.
+When notify is enabled, the scheduled wrapper emits one compact JSON heartbeat/failure summary per run with `run_label`, `deployment`, `status`, threshold `failure_reasons`, and artifact URLs when publish is enabled. A failed restore drill should block release promotion alongside smoke/benchmark threshold failures.
+
+The web `设置` drawer exposes opt-in remote backup controls (`上传到网关`, `从网关拉取`, `拉取后导入`) only after a gateway admin token is saved locally. There is no automatic polling or background sync in this phase.
 
 
 Use `docs/BETA_CHECKLIST.md` as the final release gate before beta launch.
