@@ -33,8 +33,8 @@ Updated: 2026-03-11
 ## Operational Notes
 
 - `/api/v1/health` is liveness-only; use `/api/v1/ready` as the dependency-aware deploy gate before switching traffic.
-- `/admin/version`, `/admin/compile-events`, and `/admin/metrics` form the core read-only operator surface and share the same `x-admin-token` gate.
-- `x-trace-id` and compile `trace_id` are first-class debugging handles; record them in alerts, smoke runs, and operator logs.
+- `/admin/version`, `/admin/compile-events`, and `/admin/metrics` form the core read-only operator surface and share the same `x-admin-token` gate; `/admin/version` is the release identity source of truth.
+- `x-trace-id` and compile `trace_id` are the main debugging join keys across alerts, smoke runs, `/admin/compile-events`, and `/admin/traces/:traceId`.
 - `REDIS_URL` remains the only supported shared fast-state dependency in Gateway V2; no SQL or extra backend datastore is required in this roadmap.
 - When `REDIS_URL` is enabled, compile event retention becomes durable across process restarts and powers operator queries.
 - Gateway compile currently rejects `attachments` with `ATTACHMENTS_UNSUPPORTED` (vision is not supported yet).
