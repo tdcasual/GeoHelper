@@ -260,4 +260,18 @@ pnpm ops:gateway:scheduled -- --dry-run
 
 Use `ops:gateway:scheduled` as the stable command for external cron platforms; the wrapper composes verify, artifact publish, and notify phases behind one entrypoint.
 
+Artifact publish envs for S3-compatible storage:
+
+- `OPS_ARTIFACT_BUCKET`
+- `OPS_ARTIFACT_PREFIX`
+- `OPS_ARTIFACT_REGION`
+- `OPS_ARTIFACT_ENDPOINT`
+- `OPS_ARTIFACT_ACCESS_KEY_ID`
+- `OPS_ARTIFACT_SECRET_ACCESS_KEY`
+- `OPS_ARTIFACT_PUBLIC_BASE_URL`
+- `OPS_NOTIFY_WEBHOOK_URL`
+
+When notify is enabled, the scheduled wrapper emits one compact JSON heartbeat/failure summary per run with `run_label`, `deployment`, `status`, threshold `failure_reasons`, and artifact URLs when publish is enabled.
+
+
 Use `docs/BETA_CHECKLIST.md` as the final release gate before beta launch.

@@ -99,7 +99,7 @@ Scheduled operator wrapper dry-run:
 pnpm ops:gateway:scheduled -- --dry-run
 ```
 
-Use this wrapper as the scheduler-facing entrypoint for external cron platforms; later phases can enable artifact publish and webhook notify behavior through env vars without changing the cron command itself.
+Use this wrapper as the scheduler-facing entrypoint for external cron platforms; artifact publish and compact webhook heartbeat/failure summaries are controlled through env vars without changing the cron command itself.
 
 ## Live Model Smoke
 

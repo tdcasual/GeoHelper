@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { publishOpsArtifacts } from "./lib/publish-artifacts.mjs";
+import { sendOpsAlert } from "./lib/send-ops-alert.mjs";
 import { runGatewayOpsChecks } from "./run-gateway-ops-checks.mjs";
 
 const parseArgs = (argv) => {
@@ -35,10 +37,16 @@ const parseArgs = (argv) => {
   return parsed;
 };
 
+const resolveRunLabel = (env, args) =>
+  String(args["run-label"] ?? env.OPS_RUN_LABEL ?? "manual");
+
+const resolveDeployment = (env, args) =>
+  String(args.deployment ?? env.OPS_DEPLOYMENT ?? "unknown");
+
 const buildPlan = (env, args) => ({
   dry_run: true,
-  run_label: String(args["run-label"] ?? env.OPS_RUN_LABEL ?? "manual"),
-  deployment: String(args.deployment ?? env.OPS_DEPLOYMENT ?? "unknown"),
+  run_label: resolveRunLabel(env, args),
+  deployment: resolveDeployment(env, args),
   phases: [
     {
       name: "verify",
@@ -55,6 +63,22 @@ const buildPlan = (env, args) => ({
   ]
 });
 
+const buildNotifyPayload = ({
+  runLabel,
+  deployment,
+  status,
+  verify,
+  publishedArtifacts
+}) => ({
+  run_label: runLabel,
+  deployment,
+  status,
+  failure_reasons: Array.isArray(verify.failure_reasons)
+    ? verify.failure_reasons
+    : [],
+  ...(publishedArtifacts ? { published_artifacts: publishedArtifacts } : {})
+});
+
 export async function runScheduledGatewayVerify({
   argv = process.argv.slice(2),
   env = process.env,
@@ -67,6 +91,8 @@ export async function runScheduledGatewayVerify({
     return 0;
   }
 
+  const runLabel = resolveRunLabel(env, args);
+  const deployment = resolveDeployment(env, args);
   let verifyOutput = "";
   const exitCode = await runGatewayOpsChecks({
     env,
@@ -78,17 +104,36 @@ export async function runScheduledGatewayVerify({
     }
   });
   const verify = JSON.parse(verifyOutput.trim() || "{}");
+  const shouldPublish = env.OPS_PUBLISH_ARTIFACTS === "1" && verify.output_dir;
+  const publishedArtifacts = shouldPublish
+    ? await publishOpsArtifacts({
+        outputDir: verify.output_dir,
+        env
+      })
+    : null;
+  const status = exitCode === 0 ? "ok" : "failed";
+  const notify = await sendOpsAlert({
+    webhookUrl: env.OPS_NOTIFY_WEBHOOK_URL,
+    env,
+    payload: buildNotifyPayload({
+      runLabel,
+      deployment,
+      status,
+      verify,
+      publishedArtifacts
+    })
+  });
 
   stdout.write(
     JSON.stringify(
       {
         dry_run: false,
-        run_label: String(args["run-label"] ?? env.OPS_RUN_LABEL ?? "manual"),
-        deployment: String(args.deployment ?? env.OPS_DEPLOYMENT ?? "unknown"),
-        status: exitCode === 0 ? "ok" : "failed",
+        run_label: runLabel,
+        deployment,
+        status,
         verify,
-        publish_artifacts: null,
-        notify: null
+        published_artifacts: publishedArtifacts,
+        notify
       },
       null,
       2

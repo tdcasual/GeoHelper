@@ -80,6 +80,8 @@ Updated: 2026-03-11
 - [ ] E2E tests pass (`pnpm test:e2e`)
 - [ ] Benchmark dry-run passes (`pnpm bench:quality -- --dry-run`)
 - [ ] Ops verify passes (`pnpm ops:gateway:verify -- --dry-run`, live runs persist JSON artifacts under `output/ops/`)
+- [ ] Scheduled ops wrapper checked (`pnpm ops:gateway:scheduled -- --dry-run`, optional publish stage returns artifact URLs when enabled)
+- [ ] Scheduled notify heartbeat checked (`OPS_NOTIFY_WEBHOOK_URL` receives compact success/failure summaries with threshold reasons and artifact URLs when enabled)
 - [ ] Gateway runtime smoke checked (`pnpm smoke:gateway-runtime -- --dry-run`, plus optional live run verifying `/admin/version`, compile trace visibility, and metrics movement)
 - [ ] Deploy runbook reviewed (`docs/deploy/edgeone.md`)
 - [ ] Alert webhook smoke-tested (trigger one fallback/repair compile and verify webhook receives event)
