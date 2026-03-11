@@ -24,26 +24,108 @@ export interface CompileEventRecord {
   upstreamCallCount: number;
   detail?: string;
   metadata?: Record<string, unknown>;
+  recordedAt?: string;
 }
+
+export interface CompileEventQuery {
+  limit: number;
+  traceId?: string;
+  mode?: string;
+  finalStatus?: CompileFinalStatus;
+  requestId?: string;
+  since?: string;
+}
+
+export type CompileEventQueryInput = number | Partial<CompileEventQuery>;
 
 export interface CompileEventSink {
   write: (event: CompileEventRecord) => void | Promise<void>;
   readRecent?: (
-    limit: number
+    query?: CompileEventQueryInput
   ) => CompileEventRecord[] | Promise<CompileEventRecord[]>;
 }
 
 export interface MemoryCompileEventSink extends CompileEventSink {
   clear: () => void;
   readAll: () => CompileEventRecord[];
-  readRecent: (limit: number) => CompileEventRecord[];
+  readRecent: (query?: CompileEventQueryInput) => CompileEventRecord[];
 }
 
 interface CompileEventLogger {
   info: (payload: unknown, message?: string) => void;
 }
 
-const normalizeLimit = (limit: number): number => Math.max(1, Math.floor(limit));
+const DEFAULT_COMPILE_EVENT_LIMIT = 20;
+
+export const normalizeCompileEventQuery = (
+  input?: CompileEventQueryInput
+): CompileEventQuery => {
+  if (typeof input === "number") {
+    return {
+      limit: Math.max(1, Math.floor(input))
+    };
+  }
+
+  return {
+    limit: Math.max(1, Math.floor(input?.limit ?? DEFAULT_COMPILE_EVENT_LIMIT)),
+    traceId: input?.traceId?.trim() || undefined,
+    mode: input?.mode?.trim() || undefined,
+    finalStatus: input?.finalStatus,
+    requestId: input?.requestId?.trim() || undefined,
+    since: input?.since?.trim() || undefined
+  };
+};
+
+export const normalizeCompileEventRecord = (
+  event: CompileEventRecord
+): CompileEventRecord => ({
+  ...event,
+  recordedAt: event.recordedAt ?? new Date().toISOString()
+});
+
+const matchesSince = (event: CompileEventRecord, since?: string): boolean => {
+  if (!since) {
+    return true;
+  }
+
+  const sinceTime = Date.parse(since);
+  if (Number.isNaN(sinceTime)) {
+    return true;
+  }
+
+  const eventTime = Date.parse(event.recordedAt ?? "");
+  if (Number.isNaN(eventTime)) {
+    return false;
+  }
+
+  return eventTime >= sinceTime;
+};
+
+export const filterCompileEvents = (
+  events: CompileEventRecord[],
+  input?: CompileEventQueryInput
+): CompileEventRecord[] => {
+  const query = normalizeCompileEventQuery(input);
+
+  return [...events]
+    .filter((event) => {
+      if (query.traceId && event.traceId !== query.traceId) {
+        return false;
+      }
+      if (query.mode && event.mode !== query.mode) {
+        return false;
+      }
+      if (query.finalStatus && event.finalStatus !== query.finalStatus) {
+        return false;
+      }
+      if (query.requestId && event.requestId !== query.requestId) {
+        return false;
+      }
+      return matchesSince(event, query.since);
+    })
+    .slice(-query.limit)
+    .reverse();
+};
 
 export const buildTraceId = (requestId: string): string => `tr_${requestId}`;
 
@@ -51,7 +133,10 @@ export const createLogCompileEventSink = (
   logger: CompileEventLogger
 ): CompileEventSink => ({
   write: (event) => {
-    logger.info({ compile_event: event }, "compile_event");
+    logger.info(
+      { compile_event: normalizeCompileEventRecord(event) },
+      "compile_event"
+    );
   }
 });
 
@@ -62,7 +147,7 @@ export const createMemoryCompileEventSink = (
 
   return {
     write: (event) => {
-      events.push(event);
+      events.push(normalizeCompileEventRecord(event));
       if (events.length > Math.max(1, Math.floor(maxEvents))) {
         events.shift();
       }
@@ -71,7 +156,7 @@ export const createMemoryCompileEventSink = (
       events.length = 0;
     },
     readAll: () => [...events],
-    readRecent: (limit) => [...events].slice(-normalizeLimit(limit)).reverse()
+    readRecent: (query) => filterCompileEvents(events, query)
   };
 };
 
@@ -83,10 +168,10 @@ export const createFanoutCompileEventSink = (
       await sink.write(event);
     }
   },
-  readRecent: async (limit) => {
+  readRecent: async (query) => {
     for (const sink of [...sinks].reverse()) {
       if (sink.readRecent) {
-        return sink.readRecent(limit);
+        return sink.readRecent(query);
       }
     }
 
@@ -96,11 +181,11 @@ export const createFanoutCompileEventSink = (
 
 export const readRecentCompileEvents = async (
   sink: CompileEventSink,
-  limit: number
+  query?: CompileEventQueryInput
 ): Promise<CompileEventRecord[]> => {
   if (!sink.readRecent) {
     return [];
   }
 
-  return sink.readRecent(normalizeLimit(limit));
+  return sink.readRecent(query);
 };

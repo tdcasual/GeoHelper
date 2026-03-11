@@ -59,6 +59,7 @@ describe("rate limiting", () => {
     const firstApp = buildServer(
       env,
       {
+        kvClient,
         rateLimitStore: createRedisRateLimitStore(kvClient),
         requestCommandBatch: async () => ({
           version: "1.0",
@@ -74,6 +75,7 @@ describe("rate limiting", () => {
     const secondApp = buildServer(
       env,
       {
+        kvClient,
         rateLimitStore: createRedisRateLimitStore(kvClient),
         requestCommandBatch: async () => ({
           version: "1.0",

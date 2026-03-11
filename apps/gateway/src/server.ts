@@ -19,6 +19,7 @@ import {
   createLogCompileEventSink,
   createMemoryCompileEventSink
 } from "./services/compile-events";
+import { createRedisCompileEventSink } from "./services/redis-compile-event-sink";
 import {
   createRedisKvClient,
   KvClient
@@ -80,9 +81,13 @@ export const buildServer = (
     config.redisUrl && kvClient
       ? [createRedisRuntimeDependencyCheck(kvClient)]
       : [];
+  const operatorCompileEventSink =
+    config.redisUrl && kvClient
+      ? createRedisCompileEventSink(kvClient)
+      : createMemoryCompileEventSink();
   const defaultCompileEventSink = createFanoutCompileEventSink(
     createLogCompileEventSink(app.log),
-    createMemoryCompileEventSink()
+    operatorCompileEventSink
   );
   const services: GatewayServices = {
     requestCommandBatch:

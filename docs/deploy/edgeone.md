@@ -140,7 +140,7 @@ You can sync gateway/web deploy secrets from local env vars with:
 bash scripts/deploy/configure-release-secrets.sh --repo <owner/repo>
 ```
 
-Production gateway startup validates `APP_SECRET` and `LITELLM_ENDPOINT` before listening. `/api/v1/health` stays liveness-only, while `/api/v1/ready` is the deploy gate that should be green before traffic shifts. When `REDIS_URL` is set, session revoke and fixed-window rate limits are shared across instances. `REDIS_URL` remains the only supported shared fast-state dependency for Gateway V2. Every response also includes `x-trace-id` (compile responses include matching `trace_id`) so operator alerts and `/admin/compile-events` records can be correlated quickly.
+Production gateway startup validates `APP_SECRET` and `LITELLM_ENDPOINT` before listening. `/api/v1/health` stays liveness-only, while `/api/v1/ready` is the deploy gate that should be green before traffic shifts. When `REDIS_URL` is set, session revoke, fixed-window rate limits, and compile event retention are shared across instances. `REDIS_URL` remains the only supported shared fast-state dependency for Gateway V2. Every response also includes `x-trace-id` (compile responses include matching `trace_id`) so operator alerts and `/admin/compile-events` records can be correlated quickly.
 
 ## F. Post-deploy Verification
 
@@ -151,7 +151,7 @@ curl -fsS https://<gateway-domain>/api/v1/ready
 
 Use `/api/v1/health` for shallow liveness and `/api/v1/ready` for dependency-aware readiness before switching traffic.
 
-If `ADMIN_METRICS_TOKEN` is enabled, verify recent operator events after one smoke compile and use returned trace ids to jump into logs quickly:
+If `ADMIN_METRICS_TOKEN` is enabled, verify recent operator events after one smoke compile and use returned trace ids to jump into logs quickly. With `REDIS_URL` configured, these records should also survive gateway restarts:
 
 ```bash
 curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \

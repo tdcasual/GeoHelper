@@ -34,6 +34,7 @@ Updated: 2026-03-11
 - `/admin/compile-events` is the read-only operator query endpoint for recent compile outcomes and shares the same `x-admin-token` gate as `/admin/metrics`.
 - `x-trace-id` and compile `trace_id` are first-class debugging handles; record them in alerts, smoke runs, and operator logs.
 - `REDIS_URL` remains the only supported shared fast-state dependency in Gateway V2; no SQL or extra backend datastore is required in this roadmap.
+- When `REDIS_URL` is enabled, compile event retention becomes durable across process restarts and powers operator queries.
 - Gateway compile currently rejects `attachments` with `ATTACHMENTS_UNSUPPORTED` (vision is not supported yet).
 - When fallback env vars are set, gateway retries transient upstream failures against the fallback target.
 
