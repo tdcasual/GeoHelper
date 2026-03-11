@@ -189,6 +189,20 @@ curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
   "https://<gateway-domain>/admin/backups/latest"
 ```
 
+Gateway backup restore drill dry-run (no network calls):
+
+```bash
+pnpm smoke:gateway-backup-restore -- --dry-run
+```
+
+Gateway backup restore drill live run (recommended after backup upload; validates the envelope with the shared protocol helper and prints compact restore metadata only):
+
+```bash
+GATEWAY_URL=https://<gateway-domain> \
+ADMIN_METRICS_TOKEN=<admin-token> \
+pnpm smoke:gateway-backup-restore
+```
+
 Verify the self-hosted GeoGebra artifact before release:
 
 ```bash

@@ -15,7 +15,8 @@
     "docker:gateway:build": "docker build --build-arg GEOHELPER_BUILD_SHA=$(git rev-parse --short=12 HEAD) --build-arg GEOHELPER_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) --build-context repo=. --file apps/gateway/Dockerfile --tag geohelper-gateway:local apps/gateway",
     "smoke:gateway-runtime": "node scripts/smoke/gateway-runtime.mjs",
     "ops:gateway:verify": "node scripts/ops/run-gateway-ops-checks.mjs",
-    "ops:gateway:scheduled": "node scripts/ops/run-scheduled-gateway-verify.mjs"
+    "ops:gateway:scheduled": "node scripts/ops/run-scheduled-gateway-verify.mjs",
+    "smoke:gateway-backup-restore": "node scripts/smoke/gateway-backup-restore.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",

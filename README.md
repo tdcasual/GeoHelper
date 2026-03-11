@@ -93,6 +93,20 @@ pnpm smoke:gateway-runtime
 
 Alert webhooks sent via `ALERT_WEBHOOK_URL` now include `traceId`, `finalStatus`, runtime build identity, and non-secret upstream endpoint/model metadata for fallback, repair, timeout, and operator-failure cases.
 
+Gateway backup restore drill dry-run:
+
+```bash
+pnpm smoke:gateway-backup-restore -- --dry-run
+```
+
+Run the restore drill against a live gateway to validate the latest remote backup envelope and print compact recovery metadata without mutating browser state:
+
+```bash
+GATEWAY_URL=https://<gateway-domain> \
+ADMIN_METRICS_TOKEN=<admin-token> \
+pnpm smoke:gateway-backup-restore
+```
+
 Scheduled operator wrapper dry-run:
 
 ```bash

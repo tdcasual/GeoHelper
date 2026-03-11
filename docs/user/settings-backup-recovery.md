@@ -52,6 +52,26 @@ Export includes:
 - `older`: imported schema is lower than current schema; app applies best-effort compatibility import.
 - `newer`: imported schema is higher than current schema; import is still allowed, but unknown future fields may be ignored.
 
+## Remote Recovery Drill
+
+For personal self-hosted deployments that enable gateway backup sync, operators can verify the latest remote backup without importing it into the browser.
+
+Dry-run the operator checklist:
+
+```bash
+pnpm smoke:gateway-backup-restore -- --dry-run
+```
+
+Inspect the latest remote backup metadata from the gateway:
+
+```bash
+GATEWAY_URL=https://<gateway-domain> \
+ADMIN_METRICS_TOKEN=<admin-token> \
+pnpm smoke:gateway-backup-restore
+```
+
+The drill validates the downloaded `backup.envelope` with the shared protocol checksum logic and reports: `stored_at`, `schema_version`, `created_at`, `app_version`, and `conversation_count`. It does not write to browser storage or trigger an import.
+
 ## Troubleshooting
 
 ### "备份读取失败，请检查文件格式"
