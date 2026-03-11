@@ -84,6 +84,7 @@ interface PersistedSettingsSnapshot {
   officialPresets: OfficialPreset[];
   defaultByokPresetId: string;
   defaultOfficialPresetId: string;
+  remoteBackupAdminTokenCipher?: EncryptedSecret;
   sessionOverrides: Record<string, SessionOverride>;
   experimentFlags: ExperimentFlags;
   requestDefaults: RequestDefaults;
@@ -103,6 +104,9 @@ export interface SettingsStoreState extends PersistedSettingsSnapshot {
   }) => string;
   setDefaultRuntimeProfile: (id: string) => void;
   setDefaultMode: (mode: ChatMode) => void;
+  setRemoteBackupAdminToken: (token: string) => Promise<void>;
+  readRemoteBackupAdminToken: () => Promise<string | null>;
+  clearRemoteBackupAdminToken: () => void;
   upsertByokPreset: (input: {
     id?: string;
     name: string;
@@ -259,6 +263,29 @@ const canUseStorage = (): boolean =>
   typeof localStorage.getItem === "function" &&
   typeof localStorage.setItem === "function";
 
+const asEncryptedSecret = (value: unknown): EncryptedSecret | undefined => {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const candidate = value as Partial<EncryptedSecret>;
+  if (
+    candidate.version !== 1 ||
+    candidate.algorithm !== "AES-GCM" ||
+    typeof candidate.iv !== "string" ||
+    typeof candidate.ciphertext !== "string"
+  ) {
+    return undefined;
+  }
+
+  return {
+    version: 1,
+    algorithm: "AES-GCM",
+    iv: candidate.iv,
+    ciphertext: candidate.ciphertext
+  };
+};
+
 const makeDefaultSnapshot = (): PersistedSettingsSnapshot => {
   const runtime = createDefaultRuntimeProfiles();
   const byok = createDefaultByokPreset();
@@ -352,6 +379,9 @@ const normalizeSnapshot = (
     officialPresets,
     defaultByokPresetId,
     defaultOfficialPresetId,
+    remoteBackupAdminTokenCipher: asEncryptedSecret(
+      raw?.remoteBackupAdminTokenCipher
+    ),
     sessionOverrides:
       raw?.sessionOverrides && typeof raw.sessionOverrides === "object"
         ? raw.sessionOverrides
@@ -437,6 +467,7 @@ export const createSettingsStore = (
       officialPresets: state.officialPresets,
       defaultByokPresetId: state.defaultByokPresetId,
       defaultOfficialPresetId: state.defaultOfficialPresetId,
+      remoteBackupAdminTokenCipher: state.remoteBackupAdminTokenCipher,
       sessionOverrides: state.sessionOverrides,
       experimentFlags: state.experimentFlags,
       requestDefaults: state.requestDefaults,
@@ -511,6 +542,46 @@ export const createSettingsStore = (
         saveState(next);
         return {
           defaultMode: mode
+        };
+      }),
+    setRemoteBackupAdminToken: async (token) => {
+      const normalized = token.trim();
+      const cipher = normalized
+        ? await deps.secretService.encrypt(normalized)
+        : undefined;
+
+      set((state) => {
+        const next = {
+          ...state,
+          remoteBackupAdminTokenCipher: cipher
+        };
+        saveState(next);
+        return {
+          remoteBackupAdminTokenCipher: cipher
+        };
+      });
+    },
+    readRemoteBackupAdminToken: async () => {
+      const cipher = get().remoteBackupAdminTokenCipher;
+      if (!cipher) {
+        return null;
+      }
+
+      return deps.secretService.decrypt(cipher);
+    },
+    clearRemoteBackupAdminToken: () =>
+      set((state) => {
+        if (!state.remoteBackupAdminTokenCipher) {
+          return {};
+        }
+
+        const next = {
+          ...state,
+          remoteBackupAdminTokenCipher: undefined
+        };
+        saveState(next);
+        return {
+          remoteBackupAdminTokenCipher: undefined
         };
       }),
     upsertByokPreset: async (input) => {
@@ -804,11 +875,13 @@ export const createSettingsStore = (
         }));
         const next = {
           ...state,
-          byokPresets
+          byokPresets,
+          remoteBackupAdminTokenCipher: undefined
         };
         saveState(next);
         return {
           byokPresets,
+          remoteBackupAdminTokenCipher: undefined,
           byokRuntimeIssue: null
         };
       });
@@ -831,6 +904,7 @@ const applySettingsSnapshotToStore = (
     officialPresets: snapshot.officialPresets,
     defaultByokPresetId: snapshot.defaultByokPresetId,
     defaultOfficialPresetId: snapshot.defaultOfficialPresetId,
+    remoteBackupAdminTokenCipher: snapshot.remoteBackupAdminTokenCipher,
     sessionOverrides: snapshot.sessionOverrides,
     experimentFlags: snapshot.experimentFlags,
     requestDefaults: snapshot.requestDefaults,

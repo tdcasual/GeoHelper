@@ -72,6 +72,8 @@ pnpm smoke:gateway-backup-restore
 
 The drill validates the downloaded `backup.envelope` with the shared protocol checksum logic and reports: `stored_at`, `schema_version`, `created_at`, `app_version`, and `conversation_count`. It does not write to browser storage or trigger an import.
 
+When the web app stores a gateway backup admin token, it is encrypted separately from BYOK keys and persisted inside the local settings snapshot as ciphertext only. After moving backups across browser profiles or clearing local secure keys, you may need to re-enter the remote admin token before upload/download actions work again.
+
 ## Troubleshooting
 
 ### "备份读取失败，请检查文件格式"
@@ -99,6 +101,19 @@ Action:
 
 1. Retry with `覆盖导入` if full replacement is intended.
 2. For `合并导入`, verify `updatedAt` in source backup is newer.
+
+### Remote backup admin token is unavailable
+
+Cause:
+
+- the encrypted gateway admin token was restored into a different browser profile
+- local secure keys were cleared after the token was saved
+
+Action:
+
+1. Open `设置` -> `备份与恢复` after remote sync actions are available.
+2. Re-enter the gateway admin token.
+3. Retry `上传到网关` or `从网关拉取`.
 
 ### "BYOK 密钥不可用" after restore
 

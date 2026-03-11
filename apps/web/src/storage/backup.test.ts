@@ -12,7 +12,7 @@ import {
 } from "./backup";
 import { registerGeoGebraAdapter } from "../geogebra/adapter";
 import { chatStore, CHAT_STORE_KEY } from "../state/chat-store";
-import { SETTINGS_KEY } from "../state/settings-store";
+import { SETTINGS_KEY, settingsStore } from "../state/settings-store";
 import { SCENE_STORE_KEY, sceneStore } from "../state/scene-store";
 import { UI_PREFS_KEY, uiStore } from "../state/ui-store";
 
@@ -596,4 +596,175 @@ describe("backup", () => {
       "<xml><element label='Remote' /></xml>"
     );
   });
+
+  it("imports a gateway-fetched envelope without regressing merge behavior", async () => {
+    localStorage.setItem(
+      CHAT_STORE_KEY,
+      JSON.stringify({
+        mode: "byok",
+        sessionToken: null,
+        activeConversationId: "conv_local",
+        reauthRequired: false,
+        messages: [],
+        conversations: [
+          {
+            id: "conv_shared",
+            title: "shared_old",
+            createdAt: 1,
+            updatedAt: 100,
+            messages: []
+          },
+          {
+            id: "conv_local",
+            title: "local",
+            createdAt: 2,
+            updatedAt: 200,
+            messages: []
+          }
+        ]
+      })
+    );
+    localStorage.setItem(
+      SETTINGS_KEY,
+      JSON.stringify({
+        schemaVersion: 3,
+        defaultMode: "byok",
+        byokPresets: [
+          {
+            id: "preset_local",
+            name: "preset_local",
+            model: "gpt-4o-mini",
+            endpoint: "",
+            temperature: 0.2,
+            maxTokens: 1200,
+            timeoutMs: 20000,
+            updatedAt: 100
+          }
+        ],
+        officialPresets: [
+          {
+            id: "official_local",
+            name: "official_local",
+            model: "gpt-4o-mini",
+            temperature: 0.2,
+            maxTokens: 1200,
+            timeoutMs: 20000,
+            updatedAt: 100
+          }
+        ],
+        remoteBackupAdminTokenCipher: {
+          version: 1,
+          algorithm: "AES-GCM",
+          iv: "iv-local",
+          ciphertext: "enc:local"
+        }
+      })
+    );
+
+    const envelope = createBackupEnvelope(
+      {
+        conversations: [
+          {
+            id: "conv_shared",
+            title: "shared_new",
+            createdAt: 1,
+            updatedAt: 300,
+            messages: []
+          },
+          {
+            id: "conv_remote",
+            title: "remote",
+            createdAt: 3,
+            updatedAt: 250,
+            messages: []
+          }
+        ],
+        settings: {
+          chat_snapshot: {
+            mode: "byok",
+            sessionToken: null,
+            activeConversationId: "conv_remote",
+            reauthRequired: false,
+            messages: [],
+            conversations: [
+              {
+                id: "conv_shared",
+                title: "shared_new",
+                createdAt: 1,
+                updatedAt: 300,
+                messages: []
+              },
+              {
+                id: "conv_remote",
+                title: "remote",
+                createdAt: 3,
+                updatedAt: 250,
+                messages: []
+              }
+            ]
+          },
+          settings_snapshot: {
+            schemaVersion: 3,
+            defaultMode: "byok",
+            byokPresets: [
+              {
+                id: "preset_local",
+                name: "preset_remote",
+                model: "gpt-4o-mini",
+                endpoint: "",
+                temperature: 0.2,
+                maxTokens: 1200,
+                timeoutMs: 20000,
+                updatedAt: 300
+              }
+            ],
+            officialPresets: [
+              {
+                id: "official_local",
+                name: "official_local",
+                model: "gpt-4o-mini",
+                temperature: 0.2,
+                maxTokens: 1200,
+                timeoutMs: 20000,
+                updatedAt: 100
+              }
+            ],
+            remoteBackupAdminTokenCipher: {
+              version: 1,
+              algorithm: "AES-GCM",
+              iv: "iv-remote",
+              ciphertext: "enc:remote"
+            }
+          }
+        }
+      },
+      {
+        schemaVersion: 2,
+        createdAt: "2026-03-12T09:00:00.000Z",
+        appVersion: "0.0.1"
+      }
+    );
+
+    await importBackupEnvelopeToLocalStorage(envelope, { mode: "merge" });
+
+    const chatSnapshot = JSON.parse(localStorage.getItem(CHAT_STORE_KEY) ?? "{}");
+    const settingsSnapshot = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}");
+
+    expect(chatSnapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
+      "conv_shared",
+      "conv_remote",
+      "conv_local"
+    ]);
+    expect(chatSnapshot.conversations[0].title).toBe("shared_new");
+    expect(settingsSnapshot.remoteBackupAdminTokenCipher).toEqual({
+      version: 1,
+      algorithm: "AES-GCM",
+      iv: "iv-remote",
+      ciphertext: "enc:remote"
+    });
+    expect(settingsStore.getState().remoteBackupAdminTokenCipher?.ciphertext).toBe(
+      "enc:remote"
+    );
+  });
+
 });
