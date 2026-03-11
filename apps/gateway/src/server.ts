@@ -15,7 +15,9 @@ import { sendAlert } from "./services/alerting";
 import {
   buildTraceId,
   CompileEventSink,
-  createLogCompileEventSink
+  createFanoutCompileEventSink,
+  createLogCompileEventSink,
+  createMemoryCompileEventSink
 } from "./services/compile-events";
 import {
   createRedisKvClient,
@@ -78,6 +80,10 @@ export const buildServer = (
     config.redisUrl && kvClient
       ? [createRedisRuntimeDependencyCheck(kvClient)]
       : [];
+  const defaultCompileEventSink = createFanoutCompileEventSink(
+    createLogCompileEventSink(app.log),
+    createMemoryCompileEventSink()
+  );
   const services: GatewayServices = {
     requestCommandBatch:
       serviceOverrides.requestCommandBatch ?? defaultRequestCommandBatch,
@@ -93,7 +99,7 @@ export const buildServer = (
         : getDefaultRateLimitStore()),
     metricsStore: serviceOverrides.metricsStore ?? getDefaultMetricsStore(),
     compileEventSink:
-      serviceOverrides.compileEventSink ?? createLogCompileEventSink(app.log),
+      serviceOverrides.compileEventSink ?? defaultCompileEventSink,
     runtimeReadinessService:
       serviceOverrides.runtimeReadinessService ??
       createRuntimeReadinessService(runtimeReadinessChecks),
@@ -125,7 +131,8 @@ export const buildServer = (
     runtimeReadinessService: services.runtimeReadinessService
   });
   registerAdminRoutes(app, config, {
-    metricsStore: services.metricsStore
+    metricsStore: services.metricsStore,
+    compileEventSink: services.compileEventSink
   });
   registerAuthRoutes(app, config, {
     sessionStore: services.sessionStore

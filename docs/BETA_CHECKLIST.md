@@ -25,7 +25,7 @@ Updated: 2026-03-10
 - `LITELLM_FALLBACK_API_KEY` (optional): API key for fallback endpoint (defaults to `LITELLM_API_KEY`).
 - `LITELLM_FALLBACK_MODEL` (optional): Model name for fallback retries (defaults to `LITELLM_MODEL`).
 - `ALERT_WEBHOOK_URL` (optional): Webhook for fallback/repair alerts.
-- `ADMIN_METRICS_TOKEN` (optional): Required `x-admin-token` for `/admin/metrics`.
+- `ADMIN_METRICS_TOKEN` (optional): Required `x-admin-token` for `/admin/metrics` and `/admin/compile-events`.
 - `COST_PER_REQUEST_USD` (optional, default `0`): Estimated USD cost per upstream model request, used for ops metrics.
 
 ## Operational Notes
@@ -72,6 +72,7 @@ Updated: 2026-03-10
 - [ ] Deploy runbook reviewed (`docs/deploy/edgeone.md`)
 - [ ] Alert webhook smoke-tested (trigger one fallback/repair compile and verify webhook receives event)
 - [ ] Metrics contract checked (`/admin/metrics` includes `fallback_rate`, `p95_latency_ms`, `cost_per_request_usd`)
+- [ ] Operator events contract checked (`/admin/compile-events?limit=20` returns recent traceable records)
 - [ ] Trace id contract checked (compile returns `trace_id` and `x-trace-id` header)
 - [ ] Attachments contract checked (compile rejects with `ATTACHMENTS_UNSUPPORTED`)
 - [ ] Redis shared-state verified when configured (`REDIS_URL` shares revoke + rate limit)

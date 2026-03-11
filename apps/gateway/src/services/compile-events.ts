@@ -28,16 +28,22 @@ export interface CompileEventRecord {
 
 export interface CompileEventSink {
   write: (event: CompileEventRecord) => void | Promise<void>;
+  readRecent?: (
+    limit: number
+  ) => CompileEventRecord[] | Promise<CompileEventRecord[]>;
 }
 
 export interface MemoryCompileEventSink extends CompileEventSink {
   clear: () => void;
   readAll: () => CompileEventRecord[];
+  readRecent: (limit: number) => CompileEventRecord[];
 }
 
 interface CompileEventLogger {
   info: (payload: unknown, message?: string) => void;
 }
+
+const normalizeLimit = (limit: number): number => Math.max(1, Math.floor(limit));
 
 export const buildTraceId = (requestId: string): string => `tr_${requestId}`;
 
@@ -49,16 +55,52 @@ export const createLogCompileEventSink = (
   }
 });
 
-export const createMemoryCompileEventSink = (): MemoryCompileEventSink => {
+export const createMemoryCompileEventSink = (
+  maxEvents = 200
+): MemoryCompileEventSink => {
   const events: CompileEventRecord[] = [];
 
   return {
     write: (event) => {
       events.push(event);
+      if (events.length > Math.max(1, Math.floor(maxEvents))) {
+        events.shift();
+      }
     },
     clear: () => {
       events.length = 0;
     },
-    readAll: () => [...events]
+    readAll: () => [...events],
+    readRecent: (limit) => [...events].slice(-normalizeLimit(limit)).reverse()
   };
+};
+
+export const createFanoutCompileEventSink = (
+  ...sinks: CompileEventSink[]
+): CompileEventSink => ({
+  write: async (event) => {
+    for (const sink of sinks) {
+      await sink.write(event);
+    }
+  },
+  readRecent: async (limit) => {
+    for (const sink of [...sinks].reverse()) {
+      if (sink.readRecent) {
+        return sink.readRecent(limit);
+      }
+    }
+
+    return [];
+  }
+});
+
+export const readRecentCompileEvents = async (
+  sink: CompileEventSink,
+  limit: number
+): Promise<CompileEventRecord[]> => {
+  if (!sink.readRecent) {
+    return [];
+  }
+
+  return sink.readRecent(normalizeLimit(limit));
 };

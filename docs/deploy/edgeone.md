@@ -124,7 +124,7 @@ Optional deploy hook secret:
 - `RATE_LIMIT_WINDOW_MS`
 - optional: `REDIS_URL` (recommended for multi-instance shared revoke/rate-limit state)
 - optional: `ALERT_WEBHOOK_URL`
-- optional: `ADMIN_METRICS_TOKEN`
+- optional: `ADMIN_METRICS_TOKEN` (protects `/admin/metrics` and `/admin/compile-events`)
 - optional: `COST_PER_REQUEST_USD`
 - Template file: `.env.release.example`
 
@@ -144,6 +144,13 @@ curl -fsS https://<gateway-domain>/api/v1/ready
 ```
 
 Use `/api/v1/health` for shallow liveness and `/api/v1/ready` for dependency-aware readiness before switching traffic.
+
+If `ADMIN_METRICS_TOKEN` is enabled, verify recent operator events after one smoke compile:
+
+```bash
+curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
+  "https://<gateway-domain>/admin/compile-events?limit=20"
+```
 
 Verify the self-hosted GeoGebra artifact before release:
 
