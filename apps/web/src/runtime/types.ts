@@ -1,3 +1,4 @@
+import type { BackupEnvelope } from "../storage/backup";
 import { CommandBatch } from "@geohelper/protocol";
 
 export type ChatMode = "byok" | "official";
@@ -96,4 +97,43 @@ export interface RuntimeRevokeRequest {
   target: RuntimeTarget;
   baseUrl?: string;
   sessionToken: string;
+}
+
+export interface RuntimeBuildIdentity {
+  git_sha: string | null;
+  build_time: string | null;
+  node_env: string;
+  redis_enabled: boolean;
+}
+
+export interface RuntimeBackupMetadata {
+  stored_at: string;
+  schema_version: number;
+  created_at: string;
+  app_version: string;
+  checksum: string;
+  conversation_count: number;
+}
+
+export interface RuntimeBackupUploadRequest {
+  baseUrl?: string;
+  adminToken?: string;
+  envelope: BackupEnvelope;
+}
+
+export interface RuntimeBackupUploadResponse {
+  backup: RuntimeBackupMetadata;
+  build: RuntimeBuildIdentity;
+}
+
+export interface RuntimeBackupDownloadRequest {
+  baseUrl?: string;
+  adminToken?: string;
+}
+
+export interface RuntimeBackupDownloadResponse {
+  backup: RuntimeBackupMetadata & {
+    envelope: BackupEnvelope;
+  };
+  build: RuntimeBuildIdentity;
 }

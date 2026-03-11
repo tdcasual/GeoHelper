@@ -98,6 +98,100 @@ describe("gateway runtime client", () => {
     ]);
   });
 
+  it("uploads the latest backup envelope through the admin backup route", async () => {
+    const envelope = {
+      schema_version: 2,
+      created_at: "2026-03-11T16:20:00.000Z",
+      app_version: "0.0.1",
+      checksum: "checksum-remote",
+      conversations: [{ id: "conv_remote", title: "Remote backup" }],
+      settings: { defaultMode: "byok" }
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        backup: {
+          stored_at: "2026-03-11T16:21:00.000Z",
+          schema_version: 2,
+          created_at: "2026-03-11T16:20:00.000Z",
+          app_version: "0.0.1",
+          checksum: "checksum-remote",
+          conversation_count: 1
+        },
+        build: {
+          git_sha: "backupsha",
+          build_time: "2026-03-11T16:19:00.000Z",
+          node_env: "production",
+          redis_enabled: true
+        }
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createGatewayClient();
+    const response = await client.uploadBackup({
+      baseUrl: "https://gateway.example.com",
+      adminToken: "admin-secret",
+      envelope
+    });
+
+    expect(response.backup.stored_at).toBe("2026-03-11T16:21:00.000Z");
+    const call = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(call[0]).toBe("https://gateway.example.com/admin/backups/latest");
+    expect(call[1].method).toBe("PUT");
+    expect(call[1].headers).toMatchObject({
+      "content-type": "application/json",
+      "x-admin-token": "admin-secret"
+    });
+    expect(JSON.parse(String(call[1].body))).toEqual(envelope);
+  });
+
+  it("downloads the latest remote backup envelope", async () => {
+    const envelope = {
+      schema_version: 2,
+      created_at: "2026-03-11T16:20:00.000Z",
+      app_version: "0.0.1",
+      checksum: "checksum-remote",
+      conversations: [{ id: "conv_remote", title: "Remote backup" }],
+      settings: { defaultMode: "byok" }
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        backup: {
+          stored_at: "2026-03-11T16:21:00.000Z",
+          schema_version: 2,
+          created_at: "2026-03-11T16:20:00.000Z",
+          app_version: "0.0.1",
+          checksum: "checksum-remote",
+          conversation_count: 1,
+          envelope
+        },
+        build: {
+          git_sha: "backupsha",
+          build_time: "2026-03-11T16:19:00.000Z",
+          node_env: "production",
+          redis_enabled: true
+        }
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createGatewayClient();
+    const response = await client.downloadBackup({
+      baseUrl: "https://gateway.example.com",
+      adminToken: "admin-secret"
+    });
+
+    expect(response.backup.envelope.checksum).toBe("checksum-remote");
+    const call = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(call[0]).toBe("https://gateway.example.com/admin/backups/latest");
+    expect(call[1].method).toBe("GET");
+    expect(call[1].headers).toMatchObject({
+      "x-admin-token": "admin-secret"
+    });
+  });
+
   it("uses VITE_GATEWAY_URL as fallback base url", async () => {
     vi.stubEnv("VITE_GATEWAY_URL", "https://gateway.env.example.com");
     const fetchMock = vi.fn().mockResolvedValue({

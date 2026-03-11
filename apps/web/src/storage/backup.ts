@@ -460,6 +460,11 @@ const checksumOf = (value: string): string => {
   return (hash >>> 0).toString(16).padStart(8, "0");
 };
 
+export const createBackupBlob = (envelope: BackupEnvelope): Blob =>
+  new Blob([JSON.stringify(envelope, null, 2)], {
+    type: "application/json"
+  });
+
 export const exportBackup = async (payload: BackupPayload): Promise<Blob> => {
   const envelopeWithoutChecksum = {
     schema_version: STORAGE_SCHEMA_VERSION,
@@ -474,9 +479,7 @@ export const exportBackup = async (payload: BackupPayload): Promise<Blob> => {
     checksum: checksumOf(body)
   };
 
-  return new Blob([JSON.stringify(envelope, null, 2)], {
-    type: "application/json"
-  });
+  return createBackupBlob(envelope);
 };
 
 export const importBackup = async (blob: Blob): Promise<BackupEnvelope> => {
@@ -552,6 +555,12 @@ const syncLiveStoresAfterImport = async (): Promise<void> => {
   syncSceneStoreFromStorage();
   await sceneStore.getState().rehydrateScene();
 };
+
+export const importBackupEnvelopeToLocalStorage = async (
+  envelope: BackupEnvelope,
+  options: BackupImportOptions = {}
+): Promise<BackupEnvelope> =>
+  importAppBackupToLocalStorage(createBackupBlob(envelope), options);
 
 export const importAppBackupToLocalStorage = async (
   blob: Blob,

@@ -59,7 +59,8 @@ Notes:
 - `VITE_GATEWAY_URL` is optional for pure Direct BYOK mode.
 - If `VITE_GATEWAY_URL` is unset, web defaults to `Direct BYOK` runtime and Official mode is unavailable until a Gateway runtime is configured in settings.
 - Production gateway startup requires explicit `APP_SECRET` and `LITELLM_ENDPOINT`; development keeps local defaults for convenience.
-- `REDIS_URL` is recommended when running multiple gateway instances so session revoke and rate-limit state stay shared.
+- `REDIS_URL` is recommended when running multiple gateway instances so session revoke, rate-limit state, and latest backup retention stay shared.
+- Gateway operators can push/pull the latest single-tenant backup through `/admin/backups/latest` with `x-admin-token` when remote recovery is needed.
 - Optional upstream fallback envs `LITELLM_FALLBACK_ENDPOINT`, `LITELLM_FALLBACK_API_KEY`, and `LITELLM_FALLBACK_MODEL` let Gateway retry transient model failures against a secondary provider.
 - `PRESET_TOKEN` is required only when you intend to expose `Official` mode login.
 
