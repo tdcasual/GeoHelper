@@ -29,6 +29,8 @@ Updated: 2026-03-11
 - `COMPILE_TIMEOUT_MS` (optional, default `30000`): Timeout budget per compile request before returning `COMPILE_TIMEOUT`.
 - `ADMIN_METRICS_TOKEN` (optional): Required `x-admin-token` for `/admin/version`, `/admin/metrics`, and `/admin/compile-events`.
 - `COST_PER_REQUEST_USD` (optional, default `0`): Estimated USD cost per upstream model request, used for ops metrics.
+- `OPS_BENCH_MIN_SUCCESS_RATE` (optional): Release threshold for composed ops benchmark success rate.
+- `OPS_BENCH_MAX_P95_MS` (optional): Release threshold for composed ops benchmark per-domain p95 latency.
 
 ## Operational Notes
 

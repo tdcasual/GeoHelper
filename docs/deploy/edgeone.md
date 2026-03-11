@@ -134,6 +134,8 @@ Optional deploy hook secret:
 - optional: `COMPILE_TIMEOUT_MS` (default `30000`)
 - optional: `ADMIN_METRICS_TOKEN` (protects `/admin/version`, `/admin/metrics`, and `/admin/compile-events`)
 - optional: `COST_PER_REQUEST_USD`
+- optional: `OPS_BENCH_MIN_SUCCESS_RATE`
+- optional: `OPS_BENCH_MAX_P95_MS`
 - Template file: `.env.release.example`
 
 You can sync gateway/web deploy secrets from local env vars with:

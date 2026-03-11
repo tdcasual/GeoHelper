@@ -106,4 +106,60 @@ describe("gateway ops runner", () => {
     });
   });
 
+
+  it("fails the summary when smoke or benchmark thresholds are violated", () => {
+    const tmpRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "geohelper-ops-runner-thresholds-")
+    );
+    const artifactRoot = path.join(tmpRoot, "ops-output");
+    const stamp = "2026-03-11T15-40-00Z";
+
+    const run = spawnSync(
+      "node",
+      ["scripts/ops/run-gateway-ops-checks.mjs"],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          OPS_OUTPUT_ROOT: artifactRoot,
+          OPS_ARTIFACT_STAMP: stamp,
+          OPS_USE_DRY_RUN_SUBCOMMANDS: "1",
+          OPS_USE_MOCK_RESULTS: "1",
+          OPS_MOCK_SMOKE_JSON: JSON.stringify({
+            dry_run: false,
+            checks: [
+              { name: "GET /api/v1/health", ok: false },
+              { name: "GET /api/v1/ready", ok: true }
+            ]
+          }),
+          OPS_MOCK_BENCHMARK_JSON: JSON.stringify({
+            dry_run: false,
+            success_rate: 0.5,
+            by_domain: {
+              "2d": { p95_latency_ms: 2400 },
+              "3d": { p95_latency_ms: 900 },
+              "cas": { p95_latency_ms: 800 },
+              "probability": { p95_latency_ms: 700 }
+            }
+          }),
+          OPS_BENCH_MIN_SUCCESS_RATE: "0.95",
+          OPS_BENCH_MAX_P95_MS: "1200"
+        }
+      }
+    );
+
+    expect(run.status).toBe(1);
+    const payload = JSON.parse(run.stdout.trim()) as {
+      status: string;
+      failure_reasons: string[];
+    };
+
+    expect(payload.status).toBe("failed");
+    expect(payload.failure_reasons).toEqual([
+      "gateway_smoke_failed",
+      "benchmark_success_rate_below_threshold",
+      "benchmark_p95_latency_above_threshold"
+    ]);
+  });
+
 });

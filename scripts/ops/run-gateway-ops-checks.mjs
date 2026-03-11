@@ -2,6 +2,7 @@
 import { spawnSync } from "node:child_process";
 
 import { resolveOpsArtifactDir, writeJsonArtifact } from "./lib/artifact-paths.mjs";
+import { evaluateOpsThresholds } from "./lib/evaluate-thresholds.mjs";
 
 const parseArgs = (argv) => {
   const parsed = {};
@@ -44,14 +45,16 @@ const buildSteps = () => [
     artifactName: "smoke",
     command: "pnpm smoke:gateway-runtime -- --dry-run",
     script: "smoke:gateway-runtime",
-    dryRunArgs: ["--", "--dry-run"]
+    dryRunArgs: ["--", "--dry-run"],
+    mockEnvKey: "OPS_MOCK_SMOKE_JSON"
   },
   {
     name: "quality_benchmark",
     artifactName: "benchmark",
     command: "pnpm bench:quality -- --dry-run",
     script: "bench:quality",
-    dryRunArgs: ["--", "--dry-run"]
+    dryRunArgs: ["--", "--dry-run"],
+    mockEnvKey: "OPS_MOCK_BENCHMARK_JSON"
   }
 ];
 
@@ -77,6 +80,30 @@ const parseJsonMaybe = (value) => {
   } catch {
     return value;
   }
+};
+
+const runStep = ({ step, env, useDryRunSubcommands, useMockResults }) => {
+  if (useMockResults) {
+    return {
+      status: 0,
+      payload: parseJsonMaybe(env[step.mockEnvKey] ?? "null")
+    };
+  }
+
+  const run = spawnSync(
+    "pnpm",
+    [step.script, ...(useDryRunSubcommands ? step.dryRunArgs : [])],
+    {
+      encoding: "utf8",
+      env,
+      cwd: process.cwd()
+    }
+  );
+
+  return {
+    status: run.status ?? 1,
+    payload: parseJsonMaybe(run.stdout.trim())
+  };
 };
 
 export async function runGatewayOpsChecks({
@@ -112,41 +139,54 @@ export async function runGatewayOpsChecks({
 
   const outputDir = await resolveOpsArtifactDir(env);
   const useDryRunSubcommands = env.OPS_USE_DRY_RUN_SUBCOMMANDS === "1";
+  const useMockResults = env.OPS_USE_MOCK_RESULTS === "1";
   const results = [];
   let status = "ok";
   let exitCode = 0;
+  let smokePayload = null;
+  let benchmarkPayload = null;
 
   for (const step of steps) {
-    const run = spawnSync(
-      "pnpm",
-      [step.script, ...(useDryRunSubcommands ? step.dryRunArgs : [])],
-      {
-        encoding: "utf8",
-        env,
-        cwd: process.cwd()
-      }
-    );
-    const payload = parseJsonMaybe(run.stdout.trim());
-    const artifactFile = await writeJsonArtifact(outputDir, step.artifactName, payload);
+    const run = runStep({ step, env, useDryRunSubcommands, useMockResults });
+    const artifactFile = await writeJsonArtifact(outputDir, step.artifactName, run.payload);
     results.push({
       name: step.name,
-      command: useDryRunSubcommands ? step.command : `pnpm ${step.script}`,
+      command:
+        useMockResults || useDryRunSubcommands ? step.command : `pnpm ${step.script}`,
       ok: run.status === 0,
-      exit_code: run.status ?? 1,
+      exit_code: run.status,
       artifact: artifactFile
     });
 
+    if (step.artifactName === "smoke") {
+      smokePayload = run.payload;
+    }
+    if (step.artifactName === "benchmark") {
+      benchmarkPayload = run.payload;
+    }
+
     if (run.status !== 0) {
       status = "failed";
-      exitCode = run.status ?? 1;
+      exitCode = run.status;
       break;
     }
+  }
+
+  const thresholdOutcome = evaluateOpsThresholds({
+    smokeResult: smokePayload,
+    benchmarkResult: benchmarkPayload,
+    env
+  });
+  if (thresholdOutcome.status === "failed") {
+    status = "failed";
+    exitCode = exitCode || 1;
   }
 
   const summary = {
     dry_run: false,
     output_dir: outputDir,
     status,
+    failure_reasons: thresholdOutcome.failureReasons,
     steps: results
   };
   const summaryFile = await writeJsonArtifact(outputDir, "summary", summary);
