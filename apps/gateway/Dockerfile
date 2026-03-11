@@ -15,7 +15,11 @@ COPY --from=repo /packages/protocol/tsconfig.json ./packages/protocol/tsconfig.j
 RUN pnpm install --frozen-lockfile --filter @geohelper/gateway...
 
 FROM base AS runner
-ENV NODE_ENV=production
+ARG GEOHELPER_BUILD_SHA=dev
+ARG GEOHELPER_BUILD_TIME=unknown
+ENV NODE_ENV=production \
+    GEOHELPER_BUILD_SHA=${GEOHELPER_BUILD_SHA} \
+    GEOHELPER_BUILD_TIME=${GEOHELPER_BUILD_TIME}
 COPY --from=deps /app /app
 COPY src ./apps/gateway/src
 COPY --from=repo /packages/protocol/src ./packages/protocol/src

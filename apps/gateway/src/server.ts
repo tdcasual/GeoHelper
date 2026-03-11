@@ -12,6 +12,7 @@ import {
   RuntimeReadinessService
 } from "./services/runtime-readiness";
 import { sendAlert } from "./services/alerting";
+import { createGatewayBuildInfo } from "./services/build-info";
 import {
   buildTraceId,
   CompileEventSink,
@@ -72,6 +73,7 @@ export const buildServer = (
     }
   });
   const config = loadConfig(envOverrides);
+  const buildInfo = createGatewayBuildInfo(envOverrides, config);
   const ownedKvClient =
     !serviceOverrides.kvClient && config.redisUrl
       ? createRedisKvClient(config.redisUrl)
@@ -137,7 +139,8 @@ export const buildServer = (
   });
   registerAdminRoutes(app, config, {
     metricsStore: services.metricsStore,
-    compileEventSink: services.compileEventSink
+    compileEventSink: services.compileEventSink,
+    buildInfo
   });
   registerAuthRoutes(app, config, {
     sessionStore: services.sessionStore

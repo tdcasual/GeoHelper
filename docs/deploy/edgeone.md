@@ -165,6 +165,13 @@ curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
   "https://<gateway-domain>/admin/traces/<trace-id>"
 ```
 
+Verify the running gateway build identity when investigating deploy drift:
+
+```bash
+curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
+  "https://<gateway-domain>/admin/version"
+```
+
 Verify the self-hosted GeoGebra artifact before release:
 
 ```bash

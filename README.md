@@ -71,7 +71,7 @@ Build the self-hosted gateway image from the repo root:
 pnpm docker:gateway:build
 ```
 
-The image starts the Fastify gateway on `PORT=8787` and only includes the gateway workspace plus shared protocol sources.
+The image starts the Fastify gateway on `PORT=8787`, only includes the gateway workspace plus shared protocol sources, and embeds `GEOHELPER_BUILD_SHA` / `GEOHELPER_BUILD_TIME` for `/admin/version`.
 
 ## Gateway Runtime Smoke
 

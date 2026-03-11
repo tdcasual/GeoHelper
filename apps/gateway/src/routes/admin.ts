@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { GatewayConfig } from "../config";
+import { GatewayBuildInfo } from "../services/build-info";
 import {
   CompileEventSink,
   CompileFinalStatus,
@@ -14,6 +15,7 @@ import { GatewayMetricsStore } from "../services/metrics-store";
 interface AdminRouteDeps {
   metricsStore: GatewayMetricsStore;
   compileEventSink: CompileEventSink;
+  buildInfo: GatewayBuildInfo;
 }
 
 const AdminCompileEventsQuerySchema = z.object({
@@ -65,6 +67,14 @@ export const registerAdminRoutes = (
     }
 
     return reply.send(getGatewayMetricsSnapshot(deps.metricsStore));
+  });
+
+  app.get("/admin/version", async (request, reply) => {
+    if (!requireAdminToken(request, reply, config)) {
+      return reply;
+    }
+
+    return reply.send(deps.buildInfo);
   });
 
   app.get("/admin/compile-events", async (request, reply) => {
