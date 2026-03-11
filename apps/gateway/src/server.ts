@@ -21,7 +21,12 @@ import {
   createLogCompileEventSink,
   createMemoryCompileEventSink
 } from "./services/compile-events";
+import {
+  createMemoryBackupStore,
+  GatewayBackupStore
+} from "./services/backup-store";
 import { createRedisCompileEventSink } from "./services/redis-compile-event-sink";
+import { createRedisBackupStore } from "./services/redis-backup-store";
 import {
   createRedisKvClient,
   KvClient
@@ -58,6 +63,7 @@ export interface GatewayServices {
   runtimeReadinessService: RuntimeReadinessService;
   compileGuard: CompileGuard;
   buildInfo: GatewayBuildInfo;
+  backupStore: GatewayBackupStore;
   kvClient?: KvClient;
 }
 
@@ -124,6 +130,11 @@ export const buildServer = (
         timeoutMs: config.compileTimeoutMs
       }),
     buildInfo: serviceOverrides.buildInfo ?? buildInfo,
+    backupStore:
+      serviceOverrides.backupStore ??
+      (config.redisUrl && kvClient
+        ? createRedisBackupStore(kvClient)
+        : createMemoryBackupStore()),
     kvClient
   };
 
