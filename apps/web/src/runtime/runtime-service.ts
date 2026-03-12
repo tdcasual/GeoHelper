@@ -40,6 +40,12 @@ export const getRuntimeCapabilities = (
   runtimeTarget: RuntimeTarget
 ): RuntimeCapabilities => runtimeOrchestrator.getCapabilities(runtimeTarget);
 
+export const resolveRuntimeCapabilities = async (params: {
+  target: RuntimeTarget;
+  baseUrl?: string;
+  model?: string;
+}): Promise<RuntimeCapabilities> => runtimeOrchestrator.resolveCapabilities(params);
+
 export const compileWithRuntime = async (
   request: RuntimeCompileRequest
 ): Promise<RuntimeCompileResponse> => runtimeOrchestrator.compile(request);

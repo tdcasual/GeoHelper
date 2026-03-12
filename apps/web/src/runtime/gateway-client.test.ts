@@ -46,6 +46,43 @@ describe("gateway runtime client", () => {
     });
   });
 
+  it("resolves gateway vision capability from runtime identity", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        git_sha: "sha123",
+        build_time: "2026-03-12T00:00:00.000Z",
+        node_env: "production",
+        redis_enabled: true,
+        attachments_enabled: true
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createGatewayClient() as ReturnType<typeof createGatewayClient> & {
+      resolveCapabilities?: (params: { baseUrl?: string }) => Promise<{
+        supportsOfficialAuth: boolean;
+        supportsVision: boolean;
+        supportsAgentSteps: boolean;
+        supportsServerMetrics: boolean;
+        supportsRateLimitHeaders: boolean;
+      }>;
+    };
+
+    expect(client.resolveCapabilities).toBeTypeOf("function");
+    await expect(
+      client.resolveCapabilities?.({
+        baseUrl: "https://gateway.example.com"
+      })
+    ).resolves.toMatchObject({
+      supportsVision: true,
+      supportsOfficialAuth: true
+    });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://gateway.example.com/admin/version"
+    );
+  });
+
   it("passes attachments through to gateway compile payload", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

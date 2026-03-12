@@ -1,4 +1,5 @@
 import {
+  resolveRuntimeCapabilitiesForModel,
   RuntimeCapabilities,
   RuntimeCompileRequest,
   RuntimeCompileResponse,
@@ -22,6 +23,10 @@ export class RuntimeApiError extends Error {
 export interface RuntimeClient {
   target: RuntimeTarget;
   capabilities: RuntimeCapabilities;
+  resolveCapabilities?: (params: {
+    baseUrl?: string;
+    model?: string;
+  }) => Promise<RuntimeCapabilities>;
   compile: (request: RuntimeCompileRequest) => Promise<RuntimeCompileResponse>;
   loginWithPresetToken?: (
     request: RuntimeLoginRequest
@@ -49,19 +54,55 @@ const resolveClient = (
   return client;
 };
 
+const resolveClientCapabilities = async (
+  client: RuntimeClient,
+  params: {
+    baseUrl?: string;
+    model?: string;
+  }
+): Promise<RuntimeCapabilities> => {
+  if (client.resolveCapabilities) {
+    return client.resolveCapabilities(params);
+  }
+
+  return resolveRuntimeCapabilitiesForModel({
+    runtimeTarget: client.target,
+    model: params.model
+  });
+};
+
 export const createRuntimeOrchestrator = (clients: RuntimeOrchestratorDeps) => ({
   getCapabilities: (target: RuntimeTarget): RuntimeCapabilities =>
     resolveClient(clients, target).capabilities,
+
+  resolveCapabilities: async (params: {
+    target: RuntimeTarget;
+    baseUrl?: string;
+    model?: string;
+  }): Promise<RuntimeCapabilities> =>
+    resolveClientCapabilities(resolveClient(clients, params.target), params),
 
   compile: async (
     request: RuntimeCompileRequest
   ): Promise<RuntimeCompileResponse> => {
     const client = resolveClient(clients, request.target);
+    const capabilities = await resolveClientCapabilities(client, {
+      baseUrl: request.baseUrl,
+      model: request.model
+    });
 
-    if (request.mode === "official" && !client.capabilities.supportsOfficialAuth) {
+    if (request.mode === "official" && !capabilities.supportsOfficialAuth) {
       throw new RuntimeApiError(
         "RUNTIME_MODE_UNSUPPORTED",
         "Official mode requires a runtime target that supports official auth",
+        400
+      );
+    }
+
+    if ((request.attachments?.length ?? 0) > 0 && !capabilities.supportsVision) {
+      throw new RuntimeApiError(
+        "RUNTIME_ATTACHMENTS_UNSUPPORTED",
+        "Current runtime target does not support image attachments",
         400
       );
     }

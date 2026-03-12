@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createSettingsStore,
@@ -33,6 +33,11 @@ const createMemoryStorage = (): Storage => {
     }
   };
 };
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 describe("settings-store", () => {
   it("creates and updates byok preset with encrypted key", async () => {
@@ -125,13 +130,26 @@ describe("settings-store", () => {
     expect(inferModelSupportsVision("gpt-4.1-mini")).toBe(false);
   });
 
-  it("resolves runtime compile options with runtime target and capabilities", async () => {
-    vi.stubEnv("VITE_GATEWAY_URL", "https://gateway.env.example.com");
+  it("resolves runtime compile options with hydrated gateway capabilities", async () => {
+    vi.stubEnv("VITE_GATEWAY_URL", "https://gateway-capable.example.com");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          git_sha: "sha123",
+          build_time: "2026-03-12T00:00:00.000Z",
+          node_env: "production",
+          redis_enabled: true,
+          attachments_enabled: true
+        })
+      })
+    );
     settingsStore.getState().upsertRuntimeProfile({
       id: "runtime_gateway",
       name: "Gateway",
       target: "gateway",
-      baseUrl: "https://gateway.env.example.com"
+      baseUrl: "https://gateway-capable.example.com"
     });
     settingsStore.getState().setDefaultRuntimeProfile("runtime_gateway");
 
@@ -141,8 +159,9 @@ describe("settings-store", () => {
     });
 
     expect(options.runtimeTarget).toBe("gateway");
-    expect(options.runtimeBaseUrl).toBe("https://gateway.env.example.com");
+    expect(options.runtimeBaseUrl).toBe("https://gateway-capable.example.com");
     expect(options.runtimeCapabilities.supportsOfficialAuth).toBe(true);
+    expect(options.runtimeCapabilities.supportsVision).toBe(true);
   });
 
   it("avoids direct process.env access for gateway URL", async () => {

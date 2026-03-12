@@ -3,10 +3,11 @@ import { useStore } from "zustand";
 
 import {
   ChatMode,
+  resolveRuntimeCapabilitiesForModel,
   RuntimeCapabilities,
   RuntimeTarget,
-  runtimeCapabilitiesByTarget
 } from "../runtime/types";
+import { resolveRuntimeCapabilities } from "../runtime/runtime-service";
 import { persistSettingsSnapshotToIndexedDb } from "../storage/indexed-sync";
 import {
   browserSecretService,
@@ -952,37 +953,7 @@ const getDefaultPreset = (mode: ChatMode, state: SettingsStoreState) => {
   );
 };
 
-const VISION_MODEL_MARKERS = [
-  "gpt-4o",
-  "claude-3",
-  "gemini",
-  "vision",
-  "vl"
-] as const;
-
-export const inferModelSupportsVision = (model?: string): boolean => {
-  const normalized = (model ?? "").trim().toLowerCase();
-  if (!normalized) {
-    return false;
-  }
-
-  if (/(^|[-_/])mini($|[-_/])/.test(normalized) && !normalized.includes("vision")) {
-    return false;
-  }
-
-  return VISION_MODEL_MARKERS.some((marker) => normalized.includes(marker));
-};
-
-export const resolveRuntimeCapabilitiesForModel = (params: {
-  runtimeTarget: RuntimeTarget;
-  model?: string;
-}): RuntimeCapabilities => {
-  const base = runtimeCapabilitiesByTarget[params.runtimeTarget];
-  return {
-    ...base,
-    supportsVision: base.supportsVision && inferModelSupportsVision(params.model)
-  };
-};
+export { inferModelSupportsVision, resolveRuntimeCapabilitiesForModel } from "../runtime/types";
 
 const getDefaultRuntimeProfile = (
   state: SettingsStoreState
@@ -1019,8 +990,9 @@ export const resolveCompileRuntimeOptions = async (params: {
   const preset = getDefaultPreset(params.mode, state);
   const session = state.sessionOverrides[params.conversationId] ?? {};
   const activeModel = session.model ?? preset.model;
-  const runtimeCapabilities = resolveRuntimeCapabilitiesForModel({
-    runtimeTarget: runtimeProfile.target,
+  const runtimeCapabilities = await resolveRuntimeCapabilities({
+    target: runtimeProfile.target,
+    baseUrl: runtimeBaseUrl,
     model: activeModel
   });
 

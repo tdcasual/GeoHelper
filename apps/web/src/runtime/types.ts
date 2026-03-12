@@ -21,7 +21,6 @@ export interface RuntimeCapabilities {
 
 export type { RuntimeAttachment };
 
-
 export const runtimeCapabilitiesByTarget: Record<
   RuntimeTarget,
   RuntimeCapabilities
@@ -40,6 +39,44 @@ export const runtimeCapabilitiesByTarget: Record<
     supportsServerMetrics: false,
     supportsRateLimitHeaders: false
   }
+};
+
+const VISION_MODEL_MARKERS = [
+  "gpt-4o",
+  "claude-3",
+  "gemini",
+  "vision",
+  "vl"
+] as const;
+
+export const inferModelSupportsVision = (model?: string): boolean => {
+  const normalized = (model ?? "").trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  if (/(^|[-_/])mini($|[-_/])/.test(normalized) && !normalized.includes("vision")) {
+    return false;
+  }
+
+  return VISION_MODEL_MARKERS.some((marker) => normalized.includes(marker));
+};
+
+export const resolveRuntimeCapabilitiesForModel = (params: {
+  runtimeTarget: RuntimeTarget;
+  model?: string;
+}): RuntimeCapabilities => {
+  const base = runtimeCapabilitiesByTarget[params.runtimeTarget];
+  if (params.runtimeTarget !== "direct") {
+    return {
+      ...base
+    };
+  }
+
+  return {
+    ...base,
+    supportsVision: base.supportsVision && inferModelSupportsVision(params.model)
+  };
 };
 
 export interface RuntimeCompileRequest {

@@ -72,6 +72,100 @@ describe("runtime orchestrator", () => {
     expect(gatewayCompile).not.toHaveBeenCalled();
   });
 
+  it("consults gateway capability resolver before attachment compile", async () => {
+    const gatewayCompile = vi.fn().mockResolvedValue({
+      batch: {
+        version: "1.0",
+        scene_id: "s1",
+        transaction_id: "t1",
+        commands: [],
+        post_checks: [],
+        explanations: []
+      }
+    });
+    const resolveCapabilities = vi.fn().mockResolvedValue({
+      ...gatewayCapabilities,
+      supportsVision: true
+    });
+
+    const gatewayClient = {
+      target: "gateway" as const,
+      capabilities: gatewayCapabilities,
+      resolveCapabilities,
+      compile: gatewayCompile
+    } as RuntimeClient & {
+      resolveCapabilities?: (params: {
+        baseUrl?: string;
+        model?: string;
+      }) => Promise<RuntimeCapabilities>;
+    };
+
+    const orchestrator = createRuntimeOrchestrator({
+      gateway: gatewayClient
+    });
+
+    await orchestrator.compile({
+      target: "gateway",
+      baseUrl: "https://gateway.example.com",
+      mode: "byok",
+      message: "根据图片画出三角形",
+      attachments: [
+        {
+          id: "img_1",
+          kind: "image",
+          name: "triangle.png",
+          mimeType: "image/png",
+          size: 1234,
+          transportPayload: "data:image/png;base64,AAAA"
+        }
+      ]
+    });
+
+    expect(resolveCapabilities).toHaveBeenCalledWith({
+      baseUrl: "https://gateway.example.com",
+      model: undefined
+    });
+    expect(gatewayCompile).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks attachments on direct runtime when model lacks vision support", async () => {
+    const directClient: RuntimeClient = {
+      target: "direct",
+      capabilities: directCapabilities,
+      compile: vi.fn()
+    };
+
+    const orchestrator = createRuntimeOrchestrator({
+      direct: directClient,
+      gateway: {
+        target: "gateway",
+        capabilities: gatewayCapabilities,
+        compile: vi.fn()
+      }
+    });
+
+    await expect(
+      orchestrator.compile({
+        target: "direct",
+        mode: "byok",
+        model: "gpt-4.1-mini",
+        message: "根据图片画出三角形",
+        attachments: [
+          {
+            id: "img_1",
+            kind: "image",
+            name: "triangle.png",
+            mimeType: "image/png",
+            size: 1234,
+            transportPayload: "data:image/png;base64,AAAA"
+          }
+        ]
+      })
+    ).rejects.toMatchObject({
+      code: "RUNTIME_ATTACHMENTS_UNSUPPORTED"
+    });
+  });
+
   it("blocks official mode on direct target", async () => {
     const directClient: RuntimeClient = {
       target: "direct",
