@@ -215,9 +215,10 @@ test("slash command menu can apply template", async ({ page }) => {
   const composer = page.getByTestId("chat-composer-input");
   await composer.fill("/垂直");
 
-  await expect(page.getByTestId("slash-command-menu")).toBeVisible();
+  const slashMenu = page.getByTestId("slash-command-menu");
+  await expect(slashMenu).toBeVisible();
   await expect(page.getByRole("button", { name: "发送" })).toBeDisabled();
-  await page.getByRole("button", { name: /垂直平分线/ }).click();
+  await slashMenu.getByRole("button", { name: /垂直平分线/ }).click();
 
   await expect(composer).toHaveValue("过点A和B作线段AB的垂直平分线。");
   await expect(page.getByRole("button", { name: "发送" })).toBeEnabled();
@@ -227,8 +228,9 @@ test("plus menu can apply template action", async ({ page }) => {
   await page.goto("http://localhost:5173");
 
   await page.getByTestId("plus-menu-button").click();
-  await expect(page.getByTestId("plus-menu")).toBeVisible();
-  await page.getByRole("button", { name: "画圆" }).click();
+  const plusMenu = page.getByTestId("plus-menu");
+  await expect(plusMenu).toBeVisible();
+  await plusMenu.getByRole("button", { name: "画圆" }).click();
 
   await expect(page.getByTestId("chat-composer-input")).toHaveValue(
     "过点A为圆心，半径为3作圆。"
