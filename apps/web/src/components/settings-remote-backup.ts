@@ -129,12 +129,18 @@ export const formatRemoteBackupRestoreWarning = (
 ): string =>
   "导入前请确认恢复策略：合并会保留较新的同 id 本地记录，覆盖会直接替换本地数据。";
 
+export const shouldShowRemoteBackupForceUpload = (
+  status: RemoteBackupSyncStatus
+): boolean => status === "upload_conflict" || status === "force_upload_required";
+
 const formatRemoteBackupStatusLabel = (
   status: RemoteBackupSyncStatus
 ): string => {
   switch (status) {
     case "checking":
       return "检查中";
+    case "uploading":
+      return "上传中";
     case "up_to_date":
       return "已同步";
     case "local_newer":
@@ -143,6 +149,13 @@ const formatRemoteBackupStatusLabel = (
       return "云端较新";
     case "diverged":
       return "存在分叉";
+    case "upload_blocked_remote_newer":
+    case "upload_blocked_diverged":
+      return "上传已阻止";
+    case "upload_conflict":
+      return "上传冲突";
+    case "force_upload_required":
+      return "需要显式覆盖";
     case "idle":
     default:
       return "未检查";
@@ -155,6 +168,8 @@ const formatRemoteBackupStatusDescription = (
   switch (status) {
     case "checking":
       return "正在比对本地快照与云端最新快照。";
+    case "uploading":
+      return "正在校验云端前提并上传本地最新快照。";
     case "up_to_date":
       return "本地快照与云端最新快照一致。";
     case "local_newer":
@@ -163,6 +178,14 @@ const formatRemoteBackupStatusDescription = (
       return "云端快照较新，可先拉取最新快照再选择导入策略。";
     case "diverged":
       return "本地与云端快照存在分叉，请先拉取并确认导入策略。";
+    case "upload_blocked_remote_newer":
+      return "检测到云端较新，默认上传不会自动覆盖，请先拉取最新快照或显式确认覆盖。";
+    case "upload_blocked_diverged":
+      return "检测到本地与云端存在分叉，默认上传不会自动覆盖，请先拉取最新快照并确认导入策略。";
+    case "upload_conflict":
+      return "上传期间云端快照发生变化，默认上传未覆盖云端；如确认本地为准，请点击“仍然覆盖云端快照”。";
+    case "force_upload_required":
+      return "默认上传不会自动覆盖当前云端快照；如确认本地为准，请点击“仍然覆盖云端快照”。";
     case "idle":
     default:
       return "尚未检查云端快照状态。";

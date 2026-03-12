@@ -1048,6 +1048,290 @@ test("remote backup sync status stays metadata-only until user explicitly import
   ]);
 });
 
+test("remote backup upload defaults to guarded writes and only force-overwrites after explicit danger action", async ({
+  page
+}) => {
+  await seedGatewayRemoteBackupSettings(page);
+
+  let guardedCalls = 0;
+  let latestPutCalls = 0;
+
+  await page.route(
+    "https://gateway.example.com/admin/backups/guarded",
+    async (route) => {
+      guardedCalls += 1;
+      const payload = route.request().postDataJSON() as {
+        expected_remote_snapshot_id?: string | null;
+      };
+      expect(payload.expected_remote_snapshot_id ?? null).toBeNull();
+
+      await route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({
+          guarded_write: "conflict",
+          comparison_result: "remote_newer",
+          expected_remote_snapshot_id: null,
+          actual_remote_snapshot: {
+            summary: {
+              stored_at: "2026-03-12T10:05:00.000Z",
+              schema_version: 2,
+              created_at: "2026-03-12T10:00:00.000Z",
+              updated_at: "2026-03-12T10:04:00.000Z",
+              app_version: "0.0.1",
+              checksum: "checksum-remote",
+              conversation_count: 2,
+              snapshot_id: "snap-remote",
+              device_id: "device-remote"
+            }
+          },
+          build: {
+            git_sha: "backupsha",
+            build_time: "2026-03-12T10:05:30.000Z",
+            node_env: "test",
+            redis_enabled: true,
+            attachments_enabled: false
+          }
+        })
+      });
+    }
+  );
+  await page.route(
+    "https://gateway.example.com/admin/backups/latest",
+    async (route) => {
+      latestPutCalls += 1;
+      expect(route.request().method()).toBe("PUT");
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          backup: {
+            stored_at: "2026-03-12T10:06:00.000Z",
+            schema_version: 3,
+            created_at: "2026-03-12T09:59:00.000Z",
+            updated_at: "2026-03-12T10:06:00.000Z",
+            app_version: "0.0.1",
+            checksum: "checksum-local",
+            conversation_count: 1,
+            snapshot_id: "snap-local",
+            device_id: "device-local"
+          },
+          build: {
+            git_sha: "backupsha",
+            build_time: "2026-03-12T10:06:30.000Z",
+            node_env: "test",
+            redis_enabled: true,
+            attachments_enabled: false
+          }
+        })
+      });
+    }
+  );
+
+  await page.goto("http://localhost:5173");
+  await saveGatewayAdminToken(page);
+
+  await expect(
+    page.getByRole("button", { name: "仍然覆盖云端快照" })
+  ).toHaveCount(0);
+
+  await page.getByRole("button", { name: "上传最新快照" }).click();
+
+  await expect.poll(() => guardedCalls).toBe(1);
+  await expect.poll(() => latestPutCalls).toBe(0);
+  await expect(page.getByText("同步状态：需要显式覆盖")).toBeVisible();
+  await expect(
+    page.getByTestId("remote-backup-sync-status").getByText("不会自动覆盖")
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "仍然覆盖云端快照" })
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "仍然覆盖云端快照" }).click();
+  await expect.poll(() => latestPutCalls).toBe(1);
+  await expect(page.getByText("已上传到网关最新备份（1 个会话）")).toBeVisible();
+});
+
+test("remote backup compare warnings require explicit escalation before overwrite", async ({
+  page
+}) => {
+  await seedGatewayRemoteBackupSettings(page);
+
+  let guardedCalls = 0;
+  let latestPutCalls = 0;
+
+  await page.route(
+    "https://gateway.example.com/admin/backups/history?limit=5",
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          history: [
+            {
+              stored_at: "2026-03-12T10:05:00.000Z",
+              schema_version: 2,
+              created_at: "2026-03-12T10:00:00.000Z",
+              updated_at: "2026-03-12T10:04:00.000Z",
+              app_version: "0.0.1",
+              checksum: "checksum-remote",
+              conversation_count: 2,
+              snapshot_id: "snap-remote",
+              device_id: "device-remote"
+            }
+          ],
+          build: {
+            git_sha: "backupsha",
+            build_time: "2026-03-12T10:05:30.000Z",
+            node_env: "test",
+            redis_enabled: true,
+            attachments_enabled: false
+          }
+        })
+      });
+    }
+  );
+  await page.route(
+    "https://gateway.example.com/admin/backups/compare",
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          local_status: "summary",
+          remote_status: "available",
+          comparison_result: "remote_newer",
+          local_snapshot: {
+            summary: {
+              schema_version: 3,
+              created_at: "2026-03-12T09:59:00.000Z",
+              updated_at: "2026-03-12T10:01:00.000Z",
+              app_version: "0.0.1",
+              checksum: "checksum-local",
+              conversation_count: 1,
+              snapshot_id: "snap-local",
+              device_id: "device-local"
+            }
+          },
+          remote_snapshot: {
+            summary: {
+              stored_at: "2026-03-12T10:05:00.000Z",
+              schema_version: 2,
+              created_at: "2026-03-12T10:00:00.000Z",
+              updated_at: "2026-03-12T10:04:00.000Z",
+              app_version: "0.0.1",
+              checksum: "checksum-remote",
+              conversation_count: 2,
+              snapshot_id: "snap-remote",
+              device_id: "device-remote"
+            }
+          },
+          build: {
+            git_sha: "backupsha",
+            build_time: "2026-03-12T10:05:30.000Z",
+            node_env: "test",
+            redis_enabled: true,
+            attachments_enabled: false
+          }
+        })
+      });
+    }
+  );
+  await page.route(
+    "https://gateway.example.com/admin/backups/guarded",
+    async (route) => {
+      guardedCalls += 1;
+      await route.abort();
+    }
+  );
+  await page.route(
+    "https://gateway.example.com/admin/backups/latest",
+    async (route) => {
+      if (route.request().method() === "PUT") {
+        latestPutCalls += 1;
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            backup: {
+              stored_at: "2026-03-12T10:06:00.000Z",
+              schema_version: 3,
+              created_at: "2026-03-12T09:59:00.000Z",
+              updated_at: "2026-03-12T10:06:00.000Z",
+              app_version: "0.0.1",
+              checksum: "checksum-local",
+              conversation_count: 1,
+              snapshot_id: "snap-local",
+              device_id: "device-local"
+            },
+            build: {
+              git_sha: "backupsha",
+              build_time: "2026-03-12T10:06:30.000Z",
+              node_env: "test",
+              redis_enabled: true,
+              attachments_enabled: false
+            }
+          })
+        });
+        return;
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          backup: {
+            stored_at: "2026-03-12T10:05:00.000Z",
+            schema_version: 2,
+            created_at: "2026-03-12T10:00:00.000Z",
+            updated_at: "2026-03-12T10:04:00.000Z",
+            app_version: "0.0.1",
+            checksum: "checksum-remote",
+            conversation_count: 2,
+            snapshot_id: "snap-remote",
+            device_id: "device-remote",
+            envelope: {
+              schema_version: 2,
+              created_at: "2026-03-12T10:00:00.000Z",
+              updated_at: "2026-03-12T10:04:00.000Z",
+              app_version: "0.0.1",
+              checksum: "checksum-remote",
+              snapshot_id: "snap-remote",
+              device_id: "device-remote",
+              conversations: [],
+              settings: {}
+            }
+          },
+          build: {
+            git_sha: "backupsha",
+            build_time: "2026-03-12T10:05:30.000Z",
+            node_env: "test",
+            redis_enabled: true,
+            attachments_enabled: false
+          }
+        })
+      });
+    }
+  );
+
+  await page.goto("http://localhost:5173");
+  await saveGatewayAdminToken(page);
+  await page.getByRole("button", { name: "检查云端状态" }).click();
+  await expect(page.getByText("同步状态：云端较新")).toBeVisible();
+
+  await expect(
+    page.getByRole("button", { name: "仍然覆盖云端快照" })
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "上传最新快照" }).click();
+
+  await expect.poll(() => guardedCalls).toBe(0);
+  await expect.poll(() => latestPutCalls).toBe(0);
+  await expect(page.getByText("同步状态：需要显式覆盖")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "仍然覆盖云端快照" })
+  ).toBeVisible();
+});
+
 test("remote backup sync keeps gateway failures visible and non-destructive", async ({
   page
 }) => {
