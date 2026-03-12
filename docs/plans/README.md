@@ -2,6 +2,42 @@
 
 This directory stores dated design and implementation documents.
 
+## Topic Navigation
+
+Use this section when you know the problem domain first and only then want the right design/plan documents.
+
+### Runtime
+
+- App baseline: [`2026-03-04-geogebra-llm-app-design.md`](./2026-03-04-geogebra-llm-app-design.md), [`2026-03-04-geogebra-llm-m0-m1-implementation-plan.md`](./2026-03-04-geogebra-llm-m0-m1-implementation-plan.md)
+- Dual runtime model: [`2026-03-05-dual-runtime-architecture-design.md`](./2026-03-05-dual-runtime-architecture-design.md)
+- Composer vision + settings runtime flow: [`2026-03-06-composer-vision-settings-center-design.md`](./2026-03-06-composer-vision-settings-center-design.md), [`2026-03-06-composer-vision-settings-implementation-plan.md`](./2026-03-06-composer-vision-settings-implementation-plan.md)
+- Scene rehydrate and live backup sync: [`2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md`](./2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md)
+
+### UI
+
+- Chat redesign: [`2026-03-05-chat-ui-redesign-design.md`](./2026-03-05-chat-ui-redesign-design.md), [`2026-03-05-chat-ui-redesign-implementation-plan.md`](./2026-03-05-chat-ui-redesign-implementation-plan.md)
+- Settings center: [`2026-03-05-settings-center-design.md`](./2026-03-05-settings-center-design.md)
+- Desktop empty state: [`2026-03-07-desktop-empty-state-design.md`](./2026-03-07-desktop-empty-state-design.md), [`2026-03-07-desktop-empty-state-implementation-plan.md`](./2026-03-07-desktop-empty-state-implementation-plan.md)
+- Ultrawide settings drawer: [`2026-03-07-ultrawide-settings-drawer-design.md`](./2026-03-07-ultrawide-settings-drawer-design.md), [`2026-03-07-ultrawide-settings-drawer-implementation-plan.md`](./2026-03-07-ultrawide-settings-drawer-implementation-plan.md)
+
+### Responsive
+
+- Breakpoint stabilization: [`2026-03-07-responsive-breakpoint-stabilization-design.md`](./2026-03-07-responsive-breakpoint-stabilization-design.md), [`2026-03-07-responsive-breakpoint-stabilization-implementation-plan.md`](./2026-03-07-responsive-breakpoint-stabilization-implementation-plan.md)
+- Short-landscape density: [`2026-03-07-short-landscape-chat-density-design.md`](./2026-03-07-short-landscape-chat-density-design.md), [`2026-03-07-short-landscape-chat-density-implementation-plan.md`](./2026-03-07-short-landscape-chat-density-implementation-plan.md)
+- Mobile/short-height polish: [`2026-03-08-mobile-empty-settings-polish-implementation-plan.md`](./2026-03-08-mobile-empty-settings-polish-implementation-plan.md)
+- Responsive polish series: [`2026-03-08-responsive-polish-p0-p2-implementation-plan.md`](./2026-03-08-responsive-polish-p0-p2-implementation-plan.md), [`2026-03-08-responsive-overflow-round9-implementation-plan.md`](./2026-03-08-responsive-overflow-round9-implementation-plan.md), [`2026-03-08-short-landscape-overlay-menus-implementation-plan.md`](./2026-03-08-short-landscape-overlay-menus-implementation-plan.md)
+
+### Backup
+
+- Backup and restore runtime behavior: [`2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md`](./2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md)
+- Remote backup/ops closure on backend: [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md), [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md)
+- Runtime docs: [`../user/settings-backup-recovery.md`](../user/settings-backup-recovery.md), [`../BETA_CHECKLIST.md`](../BETA_CHECKLIST.md)
+
+### Backend
+
+- Gateway hardening baseline: [`2026-03-10-backend-gateway-hardening-implementation-plan.md`](./2026-03-10-backend-gateway-hardening-implementation-plan.md)
+- Roadmap sequence: [`2026-03-11-backend-v2-roadmap.md`](./2026-03-11-backend-v2-roadmap.md), [`2026-03-11-backend-v3-operability-roadmap.md`](./2026-03-11-backend-v3-operability-roadmap.md), [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md), [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md), [`2026-03-12-backend-v6-vision-attachments-roadmap.md`](./2026-03-12-backend-v6-vision-attachments-roadmap.md)
+
 ## Backend Roadmap Timeline
 
 The backend roadmap sequence currently spans `V2` through `V6`. Read them in order when you want the architecture story behind the current self-hosted gateway.
