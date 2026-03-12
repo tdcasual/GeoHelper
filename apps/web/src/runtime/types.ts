@@ -141,9 +141,13 @@ export interface RuntimeBackupMetadata {
   stored_at: string;
   schema_version: number;
   created_at: string;
+  updated_at: string;
   app_version: string;
   checksum: string;
   conversation_count: number;
+  snapshot_id: string;
+  device_id: string;
+  base_snapshot_id?: string;
 }
 
 export interface RuntimeBackupUploadRequest {

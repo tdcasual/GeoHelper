@@ -13,8 +13,12 @@ export interface GatewayBackupSummary {
   checksum: string;
   schemaVersion: number;
   createdAt: string;
+  updatedAt: string;
   appVersion: string;
   conversationCount: number;
+  snapshotId: string;
+  deviceId: string;
+  baseSnapshotId?: string;
 }
 
 export interface GatewayBackupRecord extends GatewayBackupSummary {
@@ -45,8 +49,12 @@ const createSummary = (
   checksum: envelope.checksum,
   schemaVersion: envelope.schema_version,
   createdAt: envelope.created_at,
+  updatedAt: envelope.updated_at,
   appVersion: envelope.app_version,
-  conversationCount: envelope.conversations.length
+  conversationCount: envelope.conversations.length,
+  snapshotId: envelope.snapshot_id,
+  deviceId: envelope.device_id,
+  ...(envelope.base_snapshot_id ? { baseSnapshotId: envelope.base_snapshot_id } : {})
 });
 
 export const parseGatewayBackupEnvelope = (

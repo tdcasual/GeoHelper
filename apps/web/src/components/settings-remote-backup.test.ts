@@ -26,9 +26,12 @@ const metadata = {
   stored_at: "2026-03-12T10:00:00.000Z",
   schema_version: 2,
   created_at: "2026-03-12T09:58:00.000Z",
+  updated_at: "2026-03-12T09:59:00.000Z",
   app_version: "0.0.1",
   checksum: "checksum-remote",
-  conversation_count: 2
+  conversation_count: 2,
+  snapshot_id: "snap-remote",
+  device_id: "device-remote"
 };
 
 describe("settings remote backup helpers", () => {

@@ -57,9 +57,12 @@ describe("admin backup routes", () => {
         stored_at: "2026-03-11T16:05:00.000Z",
         schema_version: 2,
         created_at: "2026-03-11T16:00:00.000Z",
+        updated_at: "2026-03-11T16:00:00.000Z",
         app_version: "0.0.1",
         checksum: envelope.checksum,
-        conversation_count: 1
+        conversation_count: 1,
+        snapshot_id: envelope.snapshot_id,
+        device_id: envelope.device_id
       },
       build: {
         git_sha: "backupsha",
@@ -84,9 +87,12 @@ describe("admin backup routes", () => {
         stored_at: "2026-03-11T16:05:00.000Z",
         schema_version: 2,
         created_at: "2026-03-11T16:00:00.000Z",
+        updated_at: "2026-03-11T16:00:00.000Z",
         app_version: "0.0.1",
         checksum: envelope.checksum,
         conversation_count: 1,
+        snapshot_id: envelope.snapshot_id,
+        device_id: envelope.device_id,
         envelope
       },
       build: {

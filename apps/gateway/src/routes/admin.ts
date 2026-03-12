@@ -70,9 +70,13 @@ const serializeBackupSummary = (summary: GatewayBackupSummary) => ({
   stored_at: summary.storedAt,
   schema_version: summary.schemaVersion,
   created_at: summary.createdAt,
+  updated_at: summary.updatedAt,
   app_version: summary.appVersion,
   checksum: summary.checksum,
-  conversation_count: summary.conversationCount
+  conversation_count: summary.conversationCount,
+  snapshot_id: summary.snapshotId,
+  device_id: summary.deviceId,
+  ...(summary.baseSnapshotId ? { base_snapshot_id: summary.baseSnapshotId } : {})
 });
 
 const serializeBackupRecord = (record: GatewayBackupRecord) => ({

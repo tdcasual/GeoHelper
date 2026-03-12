@@ -29,6 +29,11 @@ export const BACKUP_FILENAME = "geochat-backup.json";
 
 export type { BackupEnvelope, BackupInspection, BackupPayload };
 
+const BACKUP_DEVICE_ID_KEY = "geohelper.backup.device_id";
+
+const makeBackupDeviceId = (): string =>
+  `device_${Date.now().toString(36)}_${Math.random().toString(16).slice(2, 10)}`;
+
 const canUseStorage = (): boolean =>
   typeof localStorage !== "undefined" &&
   typeof localStorage.getItem === "function" &&
@@ -445,14 +450,33 @@ const writeSnapshotToStorage = (
   }
 };
 
-export const exportBackup = async (payload: BackupPayload): Promise<Blob> =>
-  createBackupBlob(
+const getOrCreateBackupDeviceId = (): string => {
+  if (!canUseStorage()) {
+    return "device_local";
+  }
+
+  const existing = localStorage.getItem(BACKUP_DEVICE_ID_KEY)?.trim();
+  if (existing) {
+    return existing;
+  }
+
+  const next = makeBackupDeviceId();
+  localStorage.setItem(BACKUP_DEVICE_ID_KEY, next);
+  return next;
+};
+
+export const exportBackup = async (payload: BackupPayload): Promise<Blob> => {
+  const createdAt = new Date().toISOString();
+  return createBackupBlob(
     createBackupEnvelope(payload, {
       schemaVersion: STORAGE_SCHEMA_VERSION,
-      createdAt: new Date().toISOString(),
-      appVersion: "0.0.1"
+      createdAt,
+      updatedAt: createdAt,
+      appVersion: "0.0.1",
+      deviceId: getOrCreateBackupDeviceId()
     })
   );
+};
 
 export const importBackup = async (blob: Blob): Promise<BackupEnvelope> => {
   const text = await blob.text();

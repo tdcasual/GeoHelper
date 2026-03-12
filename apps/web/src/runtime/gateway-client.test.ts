@@ -1,3 +1,4 @@
+import { createBackupEnvelope } from "@geohelper/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createGatewayClient } from "./gateway-client";
@@ -136,14 +137,20 @@ describe("gateway runtime client", () => {
   });
 
   it("uploads the latest backup envelope through the admin backup route", async () => {
-    const envelope = {
-      schema_version: 2,
-      created_at: "2026-03-11T16:20:00.000Z",
-      app_version: "0.0.1",
-      checksum: "checksum-remote",
-      conversations: [{ id: "conv_remote", title: "Remote backup" }],
-      settings: { defaultMode: "byok" }
-    };
+    const envelope = createBackupEnvelope(
+      {
+        conversations: [{ id: "conv_remote", title: "Remote backup" }],
+        settings: { defaultMode: "byok" }
+      },
+      {
+        schemaVersion: 2,
+        createdAt: "2026-03-11T16:20:00.000Z",
+        updatedAt: "2026-03-11T16:20:00.000Z",
+        appVersion: "0.0.1",
+        snapshotId: "snap_remote",
+        deviceId: "device_remote"
+      }
+    );
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -151,9 +158,12 @@ describe("gateway runtime client", () => {
           stored_at: "2026-03-11T16:21:00.000Z",
           schema_version: 2,
           created_at: "2026-03-11T16:20:00.000Z",
+          updated_at: "2026-03-11T16:20:00.000Z",
           app_version: "0.0.1",
-          checksum: "checksum-remote",
-          conversation_count: 1
+          checksum: envelope.checksum,
+          conversation_count: 1,
+          snapshot_id: envelope.snapshot_id,
+          device_id: envelope.device_id
         },
         build: {
           git_sha: "backupsha",
@@ -185,14 +195,20 @@ describe("gateway runtime client", () => {
   });
 
   it("downloads the latest remote backup envelope", async () => {
-    const envelope = {
-      schema_version: 2,
-      created_at: "2026-03-11T16:20:00.000Z",
-      app_version: "0.0.1",
-      checksum: "checksum-remote",
-      conversations: [{ id: "conv_remote", title: "Remote backup" }],
-      settings: { defaultMode: "byok" }
-    };
+    const envelope = createBackupEnvelope(
+      {
+        conversations: [{ id: "conv_remote", title: "Remote backup" }],
+        settings: { defaultMode: "byok" }
+      },
+      {
+        schemaVersion: 2,
+        createdAt: "2026-03-11T16:20:00.000Z",
+        updatedAt: "2026-03-11T16:20:00.000Z",
+        appVersion: "0.0.1",
+        snapshotId: "snap_remote",
+        deviceId: "device_remote"
+      }
+    );
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -200,9 +216,12 @@ describe("gateway runtime client", () => {
           stored_at: "2026-03-11T16:21:00.000Z",
           schema_version: 2,
           created_at: "2026-03-11T16:20:00.000Z",
+          updated_at: "2026-03-11T16:20:00.000Z",
           app_version: "0.0.1",
-          checksum: "checksum-remote",
+          checksum: envelope.checksum,
           conversation_count: 1,
+          snapshot_id: envelope.snapshot_id,
+          device_id: envelope.device_id,
           envelope
         },
         build: {
@@ -222,7 +241,7 @@ describe("gateway runtime client", () => {
       adminToken: "admin-secret"
     });
 
-    expect(response.backup.envelope.checksum).toBe("checksum-remote");
+    expect(response.backup.envelope.checksum).toBe(envelope.checksum);
     const call = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(call[0]).toBe("https://gateway.example.com/admin/backups/latest");
     expect(call[1].method).toBe("GET");
