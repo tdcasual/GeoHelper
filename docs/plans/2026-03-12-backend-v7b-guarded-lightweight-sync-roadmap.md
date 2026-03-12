@@ -8,6 +8,17 @@
 
 **Tech Stack:** `@geohelper/protocol`, Fastify admin routes, Redis-compatible KV, React + Zustand, existing backup/restore helpers, existing remote sync controller, Vitest workspace tests, Playwright settings coverage.
 
+**Status (2026-03-12):** Completed. Browser sync now defaults to guarded writes, delayed upload no longer silently overwrites newer/diverged remote snapshots, settings UX requires an explicit danger action before force overwrite, and docs/release gates have been refreshed. Fresh verification completed with:
+
+- `pnpm --filter @geohelper/protocol test`
+- `pnpm --filter @geohelper/gateway test`
+- `pnpm --filter @geohelper/web test -- --run src/storage/backup.test.ts src/storage/remote-sync.test.ts src/runtime/gateway-client.test.ts src/state/settings-store.test.ts src/components/settings-remote-backup.test.ts`
+- `pnpm exec vitest run tests/workspace/gateway-backup-restore.test.ts tests/workspace/gateway-ops-runner.test.ts tests/workspace/gateway-ops-scheduled.test.ts tests/workspace/beta-checklist.test.ts tests/workspace/deploy-docs.test.ts tests/workspace/remote-sync-docs.test.ts`
+- `pnpm typecheck`
+- `pnpm smoke:gateway-backup-restore -- --dry-run`
+- `pnpm ops:gateway:scheduled -- --dry-run`
+- `pnpm exec playwright test tests/e2e/settings-drawer.spec.ts --grep "remote backup sync|force overwrite"`
+
 ---
 
 ## Phase Map
