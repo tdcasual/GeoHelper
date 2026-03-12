@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatRemoteBackupActionMessage,
+  formatRemoteBackupSelectedPullMessage,
   formatRemoteBackupRestoreWarning,
+  shouldRecommendRemoteHistoryResolution,
   shouldShowRemoteBackupForceUpload,
+  resolveRemoteBackupHistorySelectionPresentation,
   resolveRemoteBackupSyncPresentation,
   resolveRemoteBackupActions
 } from "./settings-remote-backup";
@@ -99,6 +102,27 @@ describe("settings remote backup helpers", () => {
     );
   });
 
+  it("formats selected history snapshot details and selected pull success", () => {
+    expect(formatRemoteBackupSelectedPullMessage(metadata)).toBe(
+      "已从网关拉取所选快照（2 个会话）"
+    );
+
+    expect(
+      resolveRemoteBackupHistorySelectionPresentation(metadata, metadata.snapshot_id)
+    ).toMatchObject({
+      statusLabel: "当前选择：云端最新快照",
+      snapshotIdLabel: "快照 ID：snap-remote",
+      deviceIdLabel: "设备 ID：device-remote",
+      conversationCountLabel: "会话数：2"
+    });
+
+    expect(
+      resolveRemoteBackupHistorySelectionPresentation(metadata, "snap-other")
+    ).toMatchObject({
+      statusLabel: "当前选择：历史快照"
+    });
+  });
+
   it("formats compare-driven cloud sync labels and latest snapshot summary", () => {
     expect(
       resolveRemoteBackupSyncPresentation({
@@ -133,6 +157,8 @@ describe("settings remote backup helpers", () => {
     });
     expect(remoteNewer.latestSummary).toContain("2 个会话");
     expect(remoteNewer.latestSummary).toContain("snap-remote");
+    expect(remoteNewer.description).toContain("保留历史");
+    expect(remoteNewer.description).toContain("所选快照");
 
     expect(
       resolveRemoteBackupSyncPresentation({
@@ -170,6 +196,7 @@ describe("settings remote backup helpers", () => {
     expect(blockedRemoteNewer.statusLabel).toBe("上传已阻止");
     expect(blockedRemoteNewer.description).toContain("云端较新");
     expect(blockedRemoteNewer.description).toContain("不会自动覆盖");
+    expect(blockedRemoteNewer.description).toContain("保留历史");
 
     const blockedDiverged = resolveRemoteBackupSyncPresentation({
       status: "upload_blocked_diverged",
@@ -179,6 +206,7 @@ describe("settings remote backup helpers", () => {
     });
     expect(blockedDiverged.statusLabel).toBe("上传已阻止");
     expect(blockedDiverged.description).toContain("存在分叉");
+    expect(blockedDiverged.description).toContain("保留历史");
 
     const uploadConflict = resolveRemoteBackupSyncPresentation({
       status: "upload_conflict",
@@ -188,6 +216,7 @@ describe("settings remote backup helpers", () => {
     });
     expect(uploadConflict.statusLabel).toBe("上传冲突");
     expect(uploadConflict.description).toContain("云端快照发生变化");
+    expect(uploadConflict.description).toContain("保留历史");
 
     const forceRequired = resolveRemoteBackupSyncPresentation({
       status: "force_upload_required",
@@ -197,9 +226,13 @@ describe("settings remote backup helpers", () => {
     });
     expect(forceRequired.statusLabel).toBe("需要显式覆盖");
     expect(forceRequired.description).toContain("仍然覆盖云端快照");
+    expect(forceRequired.description).toContain("保留历史");
 
     expect(shouldShowRemoteBackupForceUpload("remote_newer")).toBe(false);
     expect(shouldShowRemoteBackupForceUpload("upload_conflict")).toBe(true);
     expect(shouldShowRemoteBackupForceUpload("force_upload_required")).toBe(true);
+    expect(shouldRecommendRemoteHistoryResolution("remote_newer")).toBe(true);
+    expect(shouldRecommendRemoteHistoryResolution("upload_blocked_diverged")).toBe(true);
+    expect(shouldRecommendRemoteHistoryResolution("up_to_date")).toBe(false);
   });
 });

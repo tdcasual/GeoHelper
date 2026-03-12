@@ -260,6 +260,7 @@ describe("remote sync controller", () => {
       snapshot_id: "snap-remote",
       device_id: "device-remote"
     });
+    const retainedHistory = [remoteSummary];
     let currentStatus = "idle";
     let latestRemoteBackup: typeof remoteSummary | null = null;
     const setRemoteBackupSyncResult = vi.fn((input) => {
@@ -322,7 +323,16 @@ describe("remote sync controller", () => {
         lastError: null
       }),
       exportLocalBackupEnvelope: vi.fn(async () => envelope),
-      fetchBackupHistory: vi.fn(),
+      fetchBackupHistory: vi.fn(async () => ({
+        history: retainedHistory,
+        build: {
+          git_sha: "backupsha",
+          build_time: "2026-03-12T10:05:30.000Z",
+          node_env: "test",
+          redis_enabled: true,
+          attachments_enabled: false
+        }
+      })),
       compareBackup,
       uploadBackup: vi.fn(),
       uploadBackupGuarded,
@@ -341,7 +351,8 @@ describe("remote sync controller", () => {
     expect(setRemoteBackupSyncResult).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "upload_blocked_remote_newer",
-        latestRemoteBackup: remoteSummary
+        latestRemoteBackup: remoteSummary,
+        history: retainedHistory
       })
     );
 
@@ -367,6 +378,7 @@ describe("remote sync controller", () => {
     let currentStatus = "idle";
     let latestRemoteBackup: typeof movedRemoteSummary | null =
       comparedRemoteSummary;
+    const retainedHistory = [movedRemoteSummary, comparedRemoteSummary];
     const setRemoteBackupSyncResult = vi.fn((input) => {
       currentStatus = input.status ?? "idle";
       latestRemoteBackup =
@@ -399,7 +411,16 @@ describe("remote sync controller", () => {
         lastError: null
       }),
       exportLocalBackupEnvelope: vi.fn(async () => envelope),
-      fetchBackupHistory: vi.fn(),
+      fetchBackupHistory: vi.fn(async () => ({
+        history: retainedHistory,
+        build: {
+          git_sha: "backupsha",
+          build_time: "2026-03-12T10:06:30.000Z",
+          node_env: "test",
+          redis_enabled: true,
+          attachments_enabled: false
+        }
+      })),
       compareBackup: vi.fn(async () => ({
         local_status: "summary" as const,
         remote_status: "available" as const,
@@ -456,7 +477,8 @@ describe("remote sync controller", () => {
     expect(setRemoteBackupSyncResult).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "upload_conflict",
-        latestRemoteBackup: movedRemoteSummary
+        latestRemoteBackup: movedRemoteSummary,
+        history: retainedHistory
       })
     );
   });

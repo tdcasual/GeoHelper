@@ -26,6 +26,14 @@ export interface RemoteBackupSyncPresentation {
   checkedAtLabel: string | null;
 }
 
+export interface RemoteBackupHistorySelectionPresentation {
+  statusLabel: string;
+  snapshotIdLabel: string;
+  deviceIdLabel: string;
+  updatedAtLabel: string;
+  conversationCountLabel: string;
+}
+
 interface ResolveRemoteBackupSyncPresentationParams {
   status: RemoteBackupSyncStatus;
   lastError: string | null;
@@ -129,6 +137,35 @@ export const formatRemoteBackupRestoreWarning = (
 ): string =>
   "导入前请确认恢复策略：合并会保留较新的同 id 本地记录，覆盖会直接替换本地数据。";
 
+export const formatRemoteBackupSelectedPullMessage = (
+  backup: Pick<RuntimeBackupMetadata, "conversation_count">
+): string => `已从网关拉取所选快照（${backup.conversation_count} 个会话）`;
+
+export const shouldRecommendRemoteHistoryResolution = (
+  status: RemoteBackupSyncStatus
+): boolean =>
+  status === "remote_newer" ||
+  status === "diverged" ||
+  status === "upload_blocked_remote_newer" ||
+  status === "upload_blocked_diverged" ||
+  status === "upload_conflict" ||
+  status === "force_upload_required";
+
+export const resolveRemoteBackupHistorySelectionPresentation = (
+  backup: Pick<
+    RuntimeBackupMetadata,
+    "snapshot_id" | "device_id" | "updated_at" | "conversation_count"
+  >,
+  latestSnapshotId?: string | null
+): RemoteBackupHistorySelectionPresentation => ({
+  statusLabel:
+    backup.snapshot_id === latestSnapshotId ? "当前选择：云端最新快照" : "当前选择：历史快照",
+  snapshotIdLabel: `快照 ID：${backup.snapshot_id}`,
+  deviceIdLabel: `设备 ID：${backup.device_id}`,
+  updatedAtLabel: `更新时间：${new Date(backup.updated_at).toLocaleString("zh-CN")}`,
+  conversationCountLabel: `会话数：${backup.conversation_count}`
+});
+
 export const shouldShowRemoteBackupForceUpload = (
   status: RemoteBackupSyncStatus
 ): boolean => status === "upload_conflict" || status === "force_upload_required";
@@ -175,17 +212,17 @@ const formatRemoteBackupStatusDescription = (
     case "local_newer":
       return "本地快照较新，可按需上传最新快照到云端。";
     case "remote_newer":
-      return "云端快照较新，可先拉取最新快照再选择导入策略。";
+      return "云端快照较新，建议先检查云端保留历史并按需拉取所选快照，再决定导入策略。";
     case "diverged":
-      return "本地与云端快照存在分叉，请先拉取并确认导入策略。";
+      return "本地与云端快照存在分叉，建议先检查云端保留历史并拉取要恢复的快照，再确认导入策略。";
     case "upload_blocked_remote_newer":
-      return "检测到云端较新，默认上传不会自动覆盖，请先拉取最新快照或显式确认覆盖。";
+      return "检测到云端较新，默认上传不会自动覆盖；建议先检查云端保留历史并拉取要恢复的快照，或显式确认覆盖。";
     case "upload_blocked_diverged":
-      return "检测到本地与云端存在分叉，默认上传不会自动覆盖，请先拉取最新快照并确认导入策略。";
+      return "检测到本地与云端存在分叉，默认上传不会自动覆盖；建议先检查云端保留历史并拉取要恢复的快照，再确认导入策略。";
     case "upload_conflict":
-      return "上传期间云端快照发生变化，默认上传未覆盖云端；如确认本地为准，请点击“仍然覆盖云端快照”。";
+      return "上传期间云端快照发生变化，默认上传未覆盖云端；建议先检查云端保留历史并拉取要恢复的快照，如确认本地为准再点击“仍然覆盖云端快照”。";
     case "force_upload_required":
-      return "默认上传不会自动覆盖当前云端快照；如确认本地为准，请点击“仍然覆盖云端快照”。";
+      return "默认上传不会自动覆盖当前云端快照；建议先检查云端保留历史并拉取要恢复的快照，如确认本地为准再点击“仍然覆盖云端快照”。";
     case "idle":
     default:
       return "尚未检查云端快照状态。";

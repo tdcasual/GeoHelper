@@ -212,6 +212,133 @@ describe("admin backup routes", () => {
     });
   });
 
+  it("returns one retained backup snapshot by snapshot id", async () => {
+    let tick = 0;
+    const timestamps = [
+      "2026-03-11T16:05:00.000Z",
+      "2026-03-11T16:06:00.000Z"
+    ];
+    const app = buildServer(
+      {
+        ADMIN_METRICS_TOKEN: "secret-metrics-token",
+        NODE_ENV: "test",
+        GEOHELPER_BUILD_SHA: buildIdentity.git_sha,
+        GEOHELPER_BUILD_TIME: buildIdentity.build_time
+      },
+      {
+        backupStore: createMemoryBackupStore({
+          maxHistory: 5,
+          now: () => timestamps[Math.min(tick++, timestamps.length - 1)]
+        })
+      }
+    );
+
+    const first = createEnvelope("1");
+    const second = createEnvelope("2", {
+      base_snapshot_id: first.snapshot_id
+    });
+
+    await app.inject({
+      method: "PUT",
+      url: "/admin/backups/latest",
+      headers: {
+        "x-admin-token": "secret-metrics-token"
+      },
+      payload: first
+    });
+    await app.inject({
+      method: "PUT",
+      url: "/admin/backups/latest",
+      headers: {
+        "x-admin-token": "secret-metrics-token"
+      },
+      payload: second
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/admin/backups/history/${first.snapshot_id}`,
+      headers: {
+        "x-admin-token": "secret-metrics-token"
+      }
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual({
+      backup: {
+        stored_at: "2026-03-11T16:05:00.000Z",
+        schema_version: first.schema_version,
+        created_at: first.created_at,
+        updated_at: first.updated_at,
+        app_version: first.app_version,
+        checksum: first.checksum,
+        conversation_count: first.conversations.length,
+        snapshot_id: first.snapshot_id,
+        device_id: first.device_id,
+        envelope: first
+      },
+      build: buildIdentity
+    });
+  });
+
+  it("rejects invalid tokens and returns 404 when a retained snapshot is missing", async () => {
+    const app = buildServer(
+      {
+        ADMIN_METRICS_TOKEN: "secret-metrics-token",
+        NODE_ENV: "test",
+        GEOHELPER_BUILD_SHA: buildIdentity.git_sha,
+        GEOHELPER_BUILD_TIME: buildIdentity.build_time
+      },
+      {
+        backupStore: createMemoryBackupStore({
+          maxHistory: 5,
+          now: () => "2026-03-11T16:05:00.000Z"
+        })
+      }
+    );
+
+    await app.inject({
+      method: "PUT",
+      url: "/admin/backups/latest",
+      headers: {
+        "x-admin-token": "secret-metrics-token"
+      },
+      payload: createEnvelope("1")
+    });
+
+    const forbidden = await app.inject({
+      method: "GET",
+      url: "/admin/backups/history/snap-1",
+      headers: {
+        "x-admin-token": "wrong-token"
+      }
+    });
+
+    expect(forbidden.statusCode).toBe(403);
+    expect(JSON.parse(forbidden.payload)).toEqual({
+      error: {
+        code: "FORBIDDEN",
+        message: "Admin token is invalid"
+      }
+    });
+
+    const missing = await app.inject({
+      method: "GET",
+      url: "/admin/backups/history/snap-missing",
+      headers: {
+        "x-admin-token": "secret-metrics-token"
+      }
+    });
+
+    expect(missing.statusCode).toBe(404);
+    expect(JSON.parse(missing.payload)).toEqual({
+      error: {
+        code: "BACKUP_NOT_FOUND",
+        message: "Backup was not found"
+      }
+    });
+  });
+
   it("compares a local summary against the latest remote snapshot using metadata only", async () => {
     let tick = 0;
     const timestamps = [

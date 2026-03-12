@@ -215,6 +215,7 @@ export type RuntimeBackupGuardedUploadResponse =
 export interface RuntimeBackupDownloadRequest {
   baseUrl?: string;
   adminToken?: string;
+  snapshotId?: string;
 }
 
 export interface RuntimeBackupDownloadResponse {

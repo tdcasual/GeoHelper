@@ -54,7 +54,7 @@ Export includes:
 
 ## Remote Recovery Drill
 
-For personal self-hosted deployments, `设置` -> `数据与安全` -> `网关远端备份` now exposes 轻量云同步. This remains snapshot-based recovery/sync, not message-by-message live sync, and 不是完整云端聊天历史.
+For personal self-hosted deployments, `设置` -> `数据与安全` -> `网关远端备份` now exposes 轻量云同步. This remains snapshot-based recovery/sync, not message-by-message live sync, and 不是完整云端聊天历史. The gateway keeps retained remote snapshot history for explicit inspection/recovery; users can fetch one selected historical snapshot by `snapshot_id` when needed.
 
 For personal self-hosted deployments that enable gateway backup sync, operators can verify the latest remote backup without importing it into the browser.
 
@@ -88,19 +88,20 @@ In `设置` -> `数据与安全` -> `网关远端备份`, the workflow is explic
 
 1. Save the gateway admin token.
 2. Choose `关闭` / `仅提醒（启动检查）` / `延迟上传` based on how proactive you want remote snapshot handling to be.
-3. Click `检查云端状态` to compare local and remote freshness without downloading a full backup.
-4. Click `上传最新快照` to publish the current local backup snapshot.
-5. Click `拉取最新快照` to inspect the latest remote backup metadata and fetch the latest snapshot only when you explicitly want recovery.
+3. Click `检查云端状态` to compare local and remote freshness without downloading a full backup. This also surfaces retained remote snapshot history in the settings UI.
+4. Review the retained history list, select the target snapshot, and note its `snapshot_id`, `device_id`, `updated_at`, and conversation count before recovery.
+5. Click `拉取最新快照` when you want the latest remote snapshot, or click `拉取所选历史快照` when you want one explicitly selected historical snapshot.
 6. Choose `拉取后导入（合并）` or `拉取后覆盖导入` based on recovery intent.
 
 默认浏览器路径现在使用 guarded 写入：
 
 - `上传最新快照` 默认上传不会自动覆盖较新的云端快照。
-- 当 compare 已显示 `云端较新` / `存在分叉`，或 guarded 写入返回冲突时，界面会要求你先确认风险。
+- 当 compare 已显示 `云端较新` / `存在分叉`，或 guarded 写入返回冲突时，界面会要求你先检查保留历史并确认风险。
 - 只有显式危险操作才会覆盖云端：你需要看到并点击 `仍然覆盖云端快照`。
+- 阻塞/冲突状态的建议路径是：先看保留历史、再拉取所选快照预览、最后决定是否导入或覆盖云端。
 - 网关的 `/admin/backups/latest` 仍然保留给 operator/manual recovery 使用，但浏览器侧同步默认先走 guarded 写入。
 
-The UI does not background-sync full history, poll continuously, or auto-restore. 启动检查只拉取元数据；延迟上传也不会自动拉取或自动导入。 正常流程不会自动合并或自动覆盖云端；every remote mutation remains operator-triggered until you explicitly choose an import action.
+The UI does not background-sync full history, poll continuously, or auto-restore. 启动检查只拉取元数据；延迟上传也不会自动拉取或自动导入。 正常流程不会自动合并或自动覆盖云端；every remote mutation remains operator-triggered until you explicitly choose an import action. This route still does not require SQL or a generic cloud history backend.
 
 ## Troubleshooting
 

@@ -132,6 +132,18 @@ const buildHistoryUrl = (baseUrl: string, limit?: number): string => {
   return `${baseUrl}/admin/backups/history${query ? `?${query}` : ""}`;
 };
 
+const buildBackupDownloadUrl = (
+  baseUrl: string,
+  snapshotId?: string
+): string => {
+  const normalizedSnapshotId = snapshotId?.trim();
+  if (!normalizedSnapshotId) {
+    return `${baseUrl}/admin/backups/latest`;
+  }
+
+  return `${baseUrl}/admin/backups/history/${encodeURIComponent(normalizedSnapshotId)}`;
+};
+
 export const createGatewayClient = (): GatewayRuntimeClient => {
   const capabilityCache = new Map<string, RuntimeCapabilities>();
 
@@ -351,7 +363,7 @@ export const createGatewayClient = (): GatewayRuntimeClient => {
 
     downloadBackup: async (request) => {
       const baseUrl = resolveGatewayBaseUrl(request.baseUrl);
-      const response = await fetch(`${baseUrl}/admin/backups/latest`, {
+      const response = await fetch(buildBackupDownloadUrl(baseUrl, request.snapshotId), {
         method: "GET",
         headers: buildAdminHeaders(request.adminToken)
       });

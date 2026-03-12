@@ -393,6 +393,66 @@ describe("gateway runtime client", () => {
     });
   });
 
+  it("downloads a selected remote backup snapshot by snapshot id", async () => {
+    const envelope = createBackupEnvelope(
+      {
+        conversations: [{ id: "conv_history", title: "History backup" }],
+        settings: { defaultMode: "byok" }
+      },
+      {
+        schemaVersion: 2,
+        createdAt: "2026-03-11T16:18:00.000Z",
+        updatedAt: "2026-03-11T16:19:00.000Z",
+        appVersion: "0.0.1",
+        snapshotId: "snap-history-1",
+        deviceId: "device-history"
+      }
+    );
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        backup: {
+          stored_at: "2026-03-11T16:21:00.000Z",
+          schema_version: 2,
+          created_at: "2026-03-11T16:18:00.000Z",
+          updated_at: "2026-03-11T16:19:00.000Z",
+          app_version: "0.0.1",
+          checksum: envelope.checksum,
+          conversation_count: 1,
+          snapshot_id: envelope.snapshot_id,
+          device_id: envelope.device_id,
+          envelope
+        },
+        build: {
+          git_sha: "backupsha",
+          build_time: "2026-03-11T16:19:00.000Z",
+          node_env: "production",
+          redis_enabled: true,
+          attachments_enabled: false
+        }
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createGatewayClient();
+    const response = await client.downloadBackup({
+      baseUrl: "https://gateway.example.com",
+      adminToken: "admin-secret",
+      snapshotId: envelope.snapshot_id
+    } as Parameters<typeof client.downloadBackup>[0] & { snapshotId: string });
+
+    expect(response.backup.snapshot_id).toBe("snap-history-1");
+    expect(response.backup.envelope.snapshot_id).toBe("snap-history-1");
+    const call = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(call[0]).toBe(
+      "https://gateway.example.com/admin/backups/history/snap-history-1"
+    );
+    expect(call[1].method).toBe("GET");
+    expect(call[1].headers).toMatchObject({
+      "x-admin-token": "admin-secret"
+    });
+  });
+
   it("fetches latest remote backup metadata through the history route", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

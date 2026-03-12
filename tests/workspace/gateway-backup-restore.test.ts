@@ -136,5 +136,7 @@ describe("gateway backup restore smoke", () => {
     expect(txt).toContain("browser sync defaults to guarded writes");
     expect(txt).toContain("force overwrite requires an explicit danger action");
     expect(txt).toContain("operator/manual tooling compatibility");
+    expect(txt).toContain("Retained remote snapshot history can be inspected explicitly");
+    expect(txt).toContain("selected historical snapshot by `snapshot_id`");
   });
 });

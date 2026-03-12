@@ -18,6 +18,9 @@ interface RedisBackupStoreOptions extends BackupStoreOptions {
 const DEFAULT_BACKUP_PREFIX = "geohelper:backup";
 const DEFAULT_BACKUP_TTL_SECONDS = 60 * 60 * 24 * 30;
 
+const createSnapshotKey = (prefix: string, snapshotId: string): string =>
+  `${prefix}:snapshot:${snapshotId}`;
+
 const readJson = async <T>(
   kvClient: KvClient,
   key: string,
@@ -109,6 +112,33 @@ const readHistory = async (
   return history ?? [];
 };
 
+const syncRetainedSnapshotRecord = async (
+  kvClient: KvClient,
+  prefix: string,
+  record: GatewayBackupRecord,
+  history: GatewayBackupSummary[],
+  ttlSeconds: number,
+  maxHistory: number
+): Promise<GatewayBackupSummary[]> => {
+  const nextHistory = [record, ...history].slice(0, maxHistory);
+  const retainedSnapshotIds = new Set(nextHistory.map((entry) => entry.snapshotId));
+  const prunedSnapshotIds = history
+    .map((entry) => entry.snapshotId)
+    .filter((snapshotId) => !retainedSnapshotIds.has(snapshotId));
+
+  await kvClient.set(createSnapshotKey(prefix, record.snapshotId), JSON.stringify(record), {
+    ttlSeconds
+  });
+
+  await Promise.all(
+    prunedSnapshotIds.map((snapshotId) =>
+      kvClient.delete(createSnapshotKey(prefix, snapshotId))
+    )
+  );
+
+  return nextHistory;
+};
+
 const toExpectedValue = (value?: string | null): string | null => {
   if (typeof value !== "string") {
     return value ?? null;
@@ -159,7 +189,16 @@ export const createRedisBackupStore = (
       const latest = await memoryFallback.writeLatest(envelopeInput);
       const record = await memoryFallback.readLatest();
       const history = await readHistory(kvClient, historyKey);
-      const nextHistory = [latest, ...history].slice(0, maxHistory);
+      const nextHistory = record
+        ? await syncRetainedSnapshotRecord(
+            kvClient,
+            prefix,
+            record,
+            history,
+            ttlSeconds,
+            maxHistory
+          )
+        : [latest, ...history].slice(0, maxHistory);
 
       await kvClient.set(latestKey, JSON.stringify(record), {
         ttlSeconds
@@ -179,7 +218,16 @@ export const createRedisBackupStore = (
       const backup = await memoryFallback.writeLatest(input.envelope);
       const record = await memoryFallback.readLatest();
       const history = await readHistory(kvClient, historyKey);
-      const nextHistory = [backup, ...history].slice(0, maxHistory);
+      const nextHistory = record
+        ? await syncRetainedSnapshotRecord(
+            kvClient,
+            prefix,
+            record,
+            history,
+            ttlSeconds,
+            maxHistory
+          )
+        : [backup, ...history].slice(0, maxHistory);
 
       await kvClient.set(latestKey, JSON.stringify(record), {
         ttlSeconds
@@ -199,6 +247,23 @@ export const createRedisBackupStore = (
       const normalizedLimit =
         typeof limit === "number" ? Math.max(0, Math.floor(limit)) : maxHistory;
       return history.slice(0, normalizedLimit);
+    },
+    readSnapshot: async (snapshotId) => {
+      const normalizedSnapshotId = snapshotId.trim();
+      if (normalizedSnapshotId.length === 0) {
+        return null;
+      }
+
+      const latest = await readJson(kvClient, latestKey, toRecord);
+      if (latest?.snapshotId === normalizedSnapshotId) {
+        return latest;
+      }
+
+      return readJson(
+        kvClient,
+        createSnapshotKey(prefix, normalizedSnapshotId),
+        toRecord
+      );
     }
   };
 };
