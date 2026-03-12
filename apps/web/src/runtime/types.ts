@@ -97,6 +97,7 @@ export interface RuntimeBuildIdentity {
   build_time: string | null;
   node_env: string;
   redis_enabled: boolean;
+  attachments_enabled: boolean;
 }
 
 export interface RuntimeBackupMetadata {

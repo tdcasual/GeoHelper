@@ -144,7 +144,7 @@ export const registerAdminRoutes = (
       return reply;
     }
 
-    return reply.send(deps.buildInfo);
+    return reply.send(getGatewayBuildIdentity(deps.buildInfo));
   });
 
   app.get("/admin/compile-events", async (request, reply) => {

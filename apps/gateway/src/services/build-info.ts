@@ -5,6 +5,7 @@ export interface GatewayBuildInfo {
   build_time: string | null;
   node_env: string;
   redis_enabled: boolean;
+  attachments_enabled: boolean;
 }
 
 export interface GatewayBuildIdentity {
@@ -12,6 +13,7 @@ export interface GatewayBuildIdentity {
   build_time: string | null;
   node_env: string;
   redis_enabled: boolean;
+  attachments_enabled: boolean;
 }
 
 export const createGatewayBuildInfo = (
@@ -24,7 +26,8 @@ export const createGatewayBuildInfo = (
     git_sha: env.GEOHELPER_BUILD_SHA?.trim() || null,
     build_time: env.GEOHELPER_BUILD_TIME?.trim() || null,
     node_env: env.NODE_ENV?.trim() || "development",
-    redis_enabled: Boolean(config.redisUrl)
+    redis_enabled: Boolean(config.redisUrl),
+    attachments_enabled: config.attachmentsEnabled
   };
 };
 
@@ -34,5 +37,6 @@ export const getGatewayBuildIdentity = (
   git_sha: buildInfo.git_sha,
   build_time: buildInfo.build_time,
   node_env: buildInfo.node_env,
-  redis_enabled: buildInfo.redis_enabled
+  redis_enabled: buildInfo.redis_enabled,
+  attachments_enabled: buildInfo.attachments_enabled
 });

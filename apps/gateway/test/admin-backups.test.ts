@@ -65,7 +65,8 @@ describe("admin backup routes", () => {
         git_sha: "backupsha",
         build_time: "2026-03-11T16:04:00.000Z",
         node_env: "test",
-        redis_enabled: false
+        redis_enabled: false,
+        attachments_enabled: false
       }
     });
 
@@ -92,7 +93,8 @@ describe("admin backup routes", () => {
         git_sha: "backupsha",
         build_time: "2026-03-11T16:04:00.000Z",
         node_env: "test",
-        redis_enabled: false
+        redis_enabled: false,
+        attachments_enabled: false
       }
     });
   });

@@ -20,6 +20,7 @@ export interface GatewayConfig {
   costPerRequestUsd: number;
   compileMaxInFlight: number;
   compileTimeoutMs: number;
+  attachmentsEnabled: boolean;
 }
 
 const deriveSessionSecret = (appSecret: string): string =>
@@ -88,6 +89,7 @@ export const loadConfig = (
       : Math.max(1, Math.floor(compileMaxInFlightFromEnv)),
     compileTimeoutMs: Number.isNaN(compileTimeoutFromEnv)
       ? 30000
-      : Math.max(10, Math.floor(compileTimeoutFromEnv))
+      : Math.max(10, Math.floor(compileTimeoutFromEnv)),
+    attachmentsEnabled: env.GATEWAY_ENABLE_ATTACHMENTS === "1"
   };
 };

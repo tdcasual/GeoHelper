@@ -8,7 +8,8 @@ describe("GET /admin/version", () => {
       NODE_ENV: "development",
       GEOHELPER_BUILD_SHA: "abc123def",
       GEOHELPER_BUILD_TIME: "2026-03-11T14:40:00.000Z",
-      REDIS_URL: "redis://shared-test"
+      REDIS_URL: "redis://shared-test",
+      GATEWAY_ENABLE_ATTACHMENTS: "1"
     });
 
     const res = await app.inject({
@@ -21,7 +22,24 @@ describe("GET /admin/version", () => {
       git_sha: "abc123def",
       build_time: "2026-03-11T14:40:00.000Z",
       node_env: "development",
-      redis_enabled: true
+      redis_enabled: true,
+      attachments_enabled: true
+    });
+  });
+
+  it("defaults attachment capability to disabled", async () => {
+    const app = buildServer({
+      NODE_ENV: "development"
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/admin/version"
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toMatchObject({
+      attachments_enabled: false
     });
   });
 

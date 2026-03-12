@@ -27,6 +27,22 @@ describe("gateway config secret derivation", () => {
     expect(config.sessionSecret).toBe("explicit-session-secret");
   });
 
+  it("parses attachment capability from explicit env flag", () => {
+    expect(
+      loadConfig({
+        GATEWAY_ENABLE_ATTACHMENTS: "1"
+      }).attachmentsEnabled
+    ).toBe(true);
+
+    expect(
+      loadConfig({
+        GATEWAY_ENABLE_ATTACHMENTS: "0"
+      }).attachmentsEnabled
+    ).toBe(false);
+
+    expect(loadConfig({}).attachmentsEnabled).toBe(false);
+  });
+
   it("fails fast in production when app secret is missing", () => {
     expect(() =>
       loadConfig({

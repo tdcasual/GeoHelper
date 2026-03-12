@@ -122,7 +122,8 @@ describe("gateway runtime client", () => {
           git_sha: "backupsha",
           build_time: "2026-03-11T16:19:00.000Z",
           node_env: "production",
-          redis_enabled: true
+          redis_enabled: true,
+          attachments_enabled: false
         }
       })
     });
@@ -171,7 +172,8 @@ describe("gateway runtime client", () => {
           git_sha: "backupsha",
           build_time: "2026-03-11T16:19:00.000Z",
           node_env: "production",
-          redis_enabled: true
+          redis_enabled: true,
+          attachments_enabled: false
         }
       })
     });
