@@ -15,5 +15,8 @@ describe("beta checklist docs", () => {
     expect(txt).toContain("no SQL or full cloud history backend is required");
     expect(txt).toContain("startup freshness checks are metadata-only");
     expect(txt).toContain("delayed upload is opt-in and never auto-restores");
+    expect(txt).toContain("browser sync defaults to guarded writes");
+    expect(txt).toContain("force overwrite requires an explicit danger action");
+    expect(txt).toContain("unconditional admin latest write remains operator-only");
   });
 });

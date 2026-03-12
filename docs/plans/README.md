@@ -49,7 +49,8 @@ The backend roadmap sequence currently spans `V2` through `V6`. Read them in ord
 | `V4` | 2026-03-11 | Operator automation, evidence artifacts, and gateway backup flows | [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md) | Completed |
 | `V5` | 2026-03-12 | Ops closure, scheduled verification, published evidence, and remote recovery | [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md) | Completed / historical context |
 | `V6` | 2026-03-12 | Gateway vision capability and image attachment support | [`2026-03-12-backend-v6-vision-attachments-roadmap.md`](./2026-03-12-backend-v6-vision-attachments-roadmap.md) | Completed / historical context |
-| `V7-A` | 2026-03-12 | Local-first lightweight cloud sync via remote snapshots | [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md) | Completed / current latest roadmap |
+| `V7-A` | 2026-03-12 | Local-first lightweight cloud sync via remote snapshots | [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md) | Completed / historical context |
+| `V7-B` | 2026-03-12 | Guarded lightweight sync writes and conflict resolution | [`2026-03-12-backend-v7b-guarded-lightweight-sync-roadmap.md`](./2026-03-12-backend-v7b-guarded-lightweight-sync-roadmap.md) | Proposed / current latest roadmap |
 
 ## Frontend & Product Timeline
 
@@ -92,7 +93,8 @@ The frontend documents split naturally into two layers:
 2. Continue through [`2026-03-11-backend-v3-operability-roadmap.md`](./2026-03-11-backend-v3-operability-roadmap.md) and [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md).
 3. Read [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md) for the ops-closure layer.
 4. Continue with [`2026-03-12-backend-v6-vision-attachments-roadmap.md`](./2026-03-12-backend-v6-vision-attachments-roadmap.md) for the current gateway vision/attachment layer.
-5. Read [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md) if you want the next local-first cloud sync step without adding SQL.
+5. Read [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md) for the baseline lightweight cloud sync layer.
+6. Read [`2026-03-12-backend-v7b-guarded-lightweight-sync-roadmap.md`](./2026-03-12-backend-v7b-guarded-lightweight-sync-roadmap.md) if you want the next Route 1 step: conflict-safe uploads without adding SQL.
 
 ### Frontend
 

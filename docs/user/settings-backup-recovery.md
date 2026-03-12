@@ -93,7 +93,14 @@ In `设置` -> `数据与安全` -> `网关远端备份`, the workflow is explic
 5. Click `拉取最新快照` to inspect the latest remote backup metadata and fetch the latest snapshot only when you explicitly want recovery.
 6. Choose `拉取后导入（合并）` or `拉取后覆盖导入` based on recovery intent.
 
-The UI does not background-sync full history, poll continuously, or auto-restore. 启动检查只拉取元数据；延迟上传也不会自动拉取或自动导入。 Every remote mutation remains operator-triggered until you explicitly choose an import action.
+默认浏览器路径现在使用 guarded 写入：
+
+- `上传最新快照` 默认上传不会自动覆盖较新的云端快照。
+- 当 compare 已显示 `云端较新` / `存在分叉`，或 guarded 写入返回冲突时，界面会要求你先确认风险。
+- 只有显式危险操作才会覆盖云端：你需要看到并点击 `仍然覆盖云端快照`。
+- 网关的 `/admin/backups/latest` 仍然保留给 operator/manual recovery 使用，但浏览器侧同步默认先走 guarded 写入。
+
+The UI does not background-sync full history, poll continuously, or auto-restore. 启动检查只拉取元数据；延迟上传也不会自动拉取或自动导入。 正常流程不会自动合并或自动覆盖云端；every remote mutation remains operator-triggered until you explicitly choose an import action.
 
 ## Troubleshooting
 

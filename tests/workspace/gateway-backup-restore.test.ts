@@ -133,5 +133,8 @@ describe("gateway backup restore smoke", () => {
     expect(txt).toMatch(/startup freshness checks stay metadata-only/i);
     expect(txt).toContain("delayed upload is opt-in");
     expect(txt).toContain("never auto-restores");
+    expect(txt).toContain("browser sync defaults to guarded writes");
+    expect(txt).toContain("force overwrite requires an explicit danger action");
+    expect(txt).toContain("operator/manual tooling compatibility");
   });
 });

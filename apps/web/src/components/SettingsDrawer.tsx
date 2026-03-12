@@ -1,6 +1,15 @@
 import { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import { ChatMode, type RuntimeBackupDownloadResponse } from "../runtime/types";
+import {
+  ChatMode,
+  type RemoteBackupSyncStatus,
+  type RuntimeBackupComparableSummary,
+  type RuntimeBackupCompareResponse,
+  type RuntimeBackupDownloadResponse,
+  type RuntimeBackupGuardedUploadConflictResponse,
+  type RuntimeBackupMetadata,
+  type RuntimeBuildIdentity
+} from "../runtime/types";
 import {
   ByokPreset,
   OfficialPreset,
@@ -11,14 +20,16 @@ import {
   downloadGatewayBackup,
   compareGatewayBackup,
   fetchGatewayBackupHistory,
-  uploadGatewayBackup
+  uploadGatewayBackup,
+  uploadGatewayBackupGuarded
 } from "../runtime/runtime-service";
 import {
   createComparableSummaryFromBackupEnvelope,
   formatRemoteBackupActionMessage,
   formatRemoteBackupRestoreWarning,
   resolveRemoteBackupSyncPresentation,
-  resolveRemoteBackupActions
+  resolveRemoteBackupActions,
+  shouldShowRemoteBackupForceUpload
 } from "./settings-remote-backup";
 import {
   BACKUP_FILENAME,
@@ -150,6 +161,56 @@ const fromRuntimeProfile = (profile: RuntimeProfile | undefined): RuntimeDraft =
   baseUrl: profile?.baseUrl ?? ""
 });
 
+const MANUAL_REMOTE_OVERWRITE_BLOCKED_STATUSES = new Set<RemoteBackupSyncStatus>([
+  "remote_newer",
+  "diverged",
+  "upload_blocked_remote_newer",
+  "upload_blocked_diverged",
+  "upload_conflict",
+  "force_upload_required"
+]);
+
+const shouldEscalateManualRemoteOverwrite = (
+  status: RemoteBackupSyncStatus
+): boolean => MANUAL_REMOTE_OVERWRITE_BLOCKED_STATUSES.has(status);
+
+const createRemoteBackupIdenticalComparison = (input: {
+  localSummary: RuntimeBackupComparableSummary;
+  remoteBackup: RuntimeBackupMetadata;
+  build: RuntimeBuildIdentity;
+}): RuntimeBackupCompareResponse => ({
+  local_status: "summary",
+  remote_status: "available",
+  comparison_result: "identical",
+  local_snapshot: {
+    summary: input.localSummary
+  },
+  remote_snapshot: {
+    summary: input.remoteBackup
+  },
+  build: input.build
+});
+
+const createRemoteBackupGuardedConflictComparison = (input: {
+  localSummary: RuntimeBackupComparableSummary;
+  response: RuntimeBackupGuardedUploadConflictResponse;
+  fallbackRemoteBackup: RuntimeBackupMetadata | null;
+}): RuntimeBackupCompareResponse => {
+  const remoteSummary =
+    input.response.actual_remote_snapshot?.summary ?? input.fallbackRemoteBackup;
+
+  return {
+    local_status: "summary",
+    remote_status: remoteSummary ? "available" : "missing",
+    comparison_result: input.response.comparison_result,
+    local_snapshot: {
+      summary: input.localSummary
+    },
+    remote_snapshot: remoteSummary ? { summary: remoteSummary } : null,
+    build: input.response.build
+  };
+};
+
 export const SettingsDrawer = ({
   open,
   activeConversationId,
@@ -230,6 +291,9 @@ export const SettingsDrawer = ({
   );
   const beginRemoteBackupSyncCheck = useSettingsStore(
     (state) => state.beginRemoteBackupSyncCheck
+  );
+  const beginRemoteBackupSyncUpload = useSettingsStore(
+    (state) => state.beginRemoteBackupSyncUpload
   );
   const setRemoteBackupSyncResult = useSettingsStore(
     (state) => state.setRemoteBackupSyncResult
@@ -516,7 +580,7 @@ export const SettingsDrawer = ({
     }
   };
 
-  const handleUploadRemoteBackup = async () => {
+  const handleUploadRemoteBackup = async (mode: "guarded" | "force" = "guarded") => {
     if (!remoteBackupActions.upload.enabled || !remoteBackupActions.gatewayProfile) {
       setBackupMessage(
         remoteBackupActions.upload.reason ?? "当前无法上传到网关"
@@ -524,7 +588,25 @@ export const SettingsDrawer = ({
       return;
     }
 
-    setRemoteBackupBusyAction("upload");
+    if (
+      mode === "guarded" &&
+      shouldEscalateManualRemoteOverwrite(remoteBackupSync.status) &&
+      remoteBackupSync.lastComparison
+    ) {
+      setRemoteBackupSyncResult({
+        status: "force_upload_required",
+        latestRemoteBackup: remoteBackupSync.latestRemoteBackup,
+        comparison: remoteBackupSync.lastComparison,
+        checkedAt: new Date().toISOString()
+      });
+      setBackupMessage(
+        "默认上传不会自动覆盖当前云端快照；如确认本地为准，请点击“仍然覆盖云端快照”。"
+      );
+      return;
+    }
+
+    setRemoteBackupBusyAction(mode === "force" ? "force-upload" : "upload");
+    beginRemoteBackupSyncUpload();
     try {
       const adminToken = await readRemoteBackupAdminToken();
       if (!adminToken) {
@@ -532,16 +614,73 @@ export const SettingsDrawer = ({
       }
 
       const envelope = await exportCurrentAppBackupEnvelope();
+      const localSummary = createComparableSummaryFromBackupEnvelope(envelope);
+      if (mode === "guarded") {
+        const guardedResponse = await uploadGatewayBackupGuarded({
+          baseUrl: remoteBackupActions.gatewayProfile.baseUrl,
+          adminToken,
+          envelope,
+          expectedRemoteSnapshotId:
+            remoteBackupSync.latestRemoteBackup?.snapshot_id ?? null,
+          expectedRemoteChecksum: remoteBackupSync.latestRemoteBackup?.checksum
+        });
+
+        if (guardedResponse.guarded_write === "conflict") {
+          setRemoteBackupSyncResult({
+            status: "force_upload_required",
+            latestRemoteBackup:
+              guardedResponse.actual_remote_snapshot?.summary ??
+              remoteBackupSync.latestRemoteBackup,
+            comparison: createRemoteBackupGuardedConflictComparison({
+              localSummary,
+              response: guardedResponse,
+              fallbackRemoteBackup: remoteBackupSync.latestRemoteBackup
+            }),
+            checkedAt: new Date().toISOString()
+          });
+          setBackupMessage(
+            "云端快照已变化，默认上传未覆盖；如确认本地为准，请点击“仍然覆盖云端快照”。"
+          );
+          return;
+        }
+
+        setRemoteBackupSyncResult({
+          latestRemoteBackup: guardedResponse.backup,
+          history: [guardedResponse.backup],
+          comparison: createRemoteBackupIdenticalComparison({
+            localSummary,
+            remoteBackup: guardedResponse.backup,
+            build: guardedResponse.build
+          }),
+          checkedAt: new Date().toISOString()
+        });
+        setBackupMessage(
+          formatRemoteBackupActionMessage("push", guardedResponse.backup)
+        );
+        return;
+      }
+
       const response = await uploadGatewayBackup({
         baseUrl: remoteBackupActions.gatewayProfile.baseUrl,
         adminToken,
         envelope
       });
+
       setBackupMessage(formatRemoteBackupActionMessage("push", response.backup));
+      setRemoteBackupSyncResult({
+        latestRemoteBackup: response.backup,
+        history: [response.backup],
+        comparison: createRemoteBackupIdenticalComparison({
+          localSummary,
+          remoteBackup: response.backup,
+          build: response.build
+        }),
+        checkedAt: new Date().toISOString()
+      });
     } catch (error) {
-      setBackupMessage(
-        error instanceof Error ? error.message : "上传到网关失败"
-      );
+      const message = error instanceof Error ? error.message : "上传到网关失败";
+      setRemoteBackupSyncError(message);
+      setBackupMessage(message);
     } finally {
       setRemoteBackupBusyAction(null);
     }
@@ -1445,7 +1584,9 @@ export const SettingsDrawer = ({
               <button
                 type="button"
                 disabled={Boolean(remoteBackupBusyAction) || !remoteBackupActions.upload.enabled}
-                onClick={handleUploadRemoteBackup}
+                onClick={() => {
+                  void handleUploadRemoteBackup();
+                }}
               >
                 上传最新快照
               </button>
@@ -1457,6 +1598,21 @@ export const SettingsDrawer = ({
                 拉取最新快照
               </button>
             </div>
+            {shouldShowRemoteBackupForceUpload(remoteBackupSync.status) &&
+            remoteBackupActions.upload.enabled ? (
+              <div className="settings-inline-actions">
+                <button
+                  type="button"
+                  className="top-bar-button-danger"
+                  disabled={Boolean(remoteBackupBusyAction)}
+                  onClick={() => {
+                    void handleUploadRemoteBackup("force");
+                  }}
+                >
+                  仍然覆盖云端快照
+                </button>
+              </div>
+            ) : null}
             {remoteBackupPullResult ? (
               <article className="settings-import-preview">
                 <p>{`拉取时间：${new Date(remoteBackupPullResult.backup.stored_at).toLocaleString("zh-CN")}`}</p>

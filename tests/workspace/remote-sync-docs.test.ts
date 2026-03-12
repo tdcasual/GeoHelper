@@ -18,7 +18,13 @@ describe("remote sync docs", () => {
     expect(txt).toContain("启动检查只拉取元数据");
     expect(txt).toContain("不会自动拉取或自动导入");
     expect(txt).toContain("不是完整云端聊天历史");
+    expect(txt).toContain("guarded 写入");
+    expect(txt).toContain("默认上传不会自动覆盖");
+    expect(txt).toContain("仍然覆盖云端快照");
+    expect(txt).toContain("显式危险操作");
     expect(txt).not.toContain("上传到网关");
     expect(txt).not.toContain("从网关拉取");
+    expect(txt).not.toContain("会自动合并云端");
+    expect(txt).not.toContain("会自动覆盖云端");
   });
 });

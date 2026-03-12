@@ -83,6 +83,7 @@ export interface RemoteBackupSyncState {
 }
 
 export interface RemoteBackupSyncResultInput {
+  status?: RemoteBackupSyncStatus;
   latestRemoteBackup?: RuntimeBackupMetadata | null;
   history?: RuntimeBackupMetadata[];
   comparison: RuntimeBackupCompareResponse;
@@ -127,6 +128,7 @@ export interface SettingsStoreState extends PersistedSettingsSnapshot {
   setByokRuntimeIssue: (issue: ByokRuntimeIssue | null) => void;
   setRemoteBackupSyncMode: (mode: RemoteBackupSyncMode) => void;
   beginRemoteBackupSyncCheck: () => void;
+  beginRemoteBackupSyncUpload: () => void;
   setRemoteBackupSyncResult: (input: RemoteBackupSyncResultInput) => void;
   setRemoteBackupSyncError: (message: string) => void;
   upsertRuntimeProfile: (input: {
@@ -572,12 +574,20 @@ export const createSettingsStore = (
           lastError: null
         }
       })),
+    beginRemoteBackupSyncUpload: () =>
+      set((state) => ({
+        remoteBackupSync: {
+          ...state.remoteBackupSync,
+          status: "uploading",
+          lastError: null
+        }
+      })),
     setRemoteBackupSyncResult: (input) =>
       set((state) => ({
         remoteBackupSync: {
-          status: mapComparisonResultToSyncStatus(
-            input.comparison.comparison_result
-          ),
+          status:
+            input.status ??
+            mapComparisonResultToSyncStatus(input.comparison.comparison_result),
           latestRemoteBackup:
             input.latestRemoteBackup ??
             input.comparison.remote_snapshot?.summary ??

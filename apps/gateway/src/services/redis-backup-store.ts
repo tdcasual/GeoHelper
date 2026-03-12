@@ -1,7 +1,9 @@
 import { KvClient } from "./kv-client";
 import {
   BackupStoreOptions,
+  createGuardedWriteConflict,
   createMemoryBackupStore,
+  GuardedGatewayBackupWriteInput,
   GatewayBackupRecord,
   GatewayBackupStore,
   GatewayBackupSummary,
@@ -107,6 +109,37 @@ const readHistory = async (
   return history ?? [];
 };
 
+const toExpectedValue = (value?: string | null): string | null => {
+  if (typeof value !== "string") {
+    return value ?? null;
+  }
+
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
+const doesGuardExpectationMatch = (
+  latest: GatewayBackupRecord | null,
+  input: GuardedGatewayBackupWriteInput
+): boolean => {
+  const expectedRemoteSnapshotId = toExpectedValue(input.expectedRemoteSnapshotId);
+  const expectedRemoteChecksum = toExpectedValue(input.expectedRemoteChecksum);
+
+  if (!latest) {
+    return expectedRemoteSnapshotId === null && expectedRemoteChecksum === null;
+  }
+
+  if (expectedRemoteSnapshotId !== latest.snapshotId) {
+    return false;
+  }
+
+  if (expectedRemoteChecksum !== null && expectedRemoteChecksum !== latest.checksum) {
+    return false;
+  }
+
+  return true;
+};
+
 export const createRedisBackupStore = (
   kvClient: KvClient,
   options: RedisBackupStoreOptions = {}
@@ -136,6 +169,29 @@ export const createRedisBackupStore = (
       });
 
       return latest;
+    },
+    writeLatestGuarded: async (input) => {
+      const latest = await readJson(kvClient, latestKey, toRecord);
+      if (!doesGuardExpectationMatch(latest, input)) {
+        return createGuardedWriteConflict(latest, input);
+      }
+
+      const backup = await memoryFallback.writeLatest(input.envelope);
+      const record = await memoryFallback.readLatest();
+      const history = await readHistory(kvClient, historyKey);
+      const nextHistory = [backup, ...history].slice(0, maxHistory);
+
+      await kvClient.set(latestKey, JSON.stringify(record), {
+        ttlSeconds
+      });
+      await kvClient.set(historyKey, JSON.stringify(nextHistory), {
+        ttlSeconds
+      });
+
+      return {
+        status: "written",
+        backup
+      };
     },
     readLatest: async () => readJson(kvClient, latestKey, toRecord),
     readHistory: async (limit) => {

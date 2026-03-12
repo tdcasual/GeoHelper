@@ -5,6 +5,9 @@ import {
   RuntimeBackupCompareResponse,
   RuntimeBackupDownloadRequest,
   RuntimeBackupDownloadResponse,
+  RuntimeBackupGuardedUploadConflictResponse,
+  RuntimeBackupGuardedUploadRequest,
+  RuntimeBackupGuardedUploadResponse,
   RuntimeBackupHistoryRequest,
   RuntimeBackupHistoryResponse,
   RuntimeBackupLatestMetadataRequest,
@@ -34,6 +37,9 @@ export interface GatewayRuntimeClient extends RuntimeClient {
   uploadBackup: (
     request: RuntimeBackupUploadRequest
   ) => Promise<RuntimeBackupUploadResponse>;
+  uploadBackupGuarded: (
+    request: RuntimeBackupGuardedUploadRequest
+  ) => Promise<RuntimeBackupGuardedUploadResponse>;
   downloadBackup: (
     request: RuntimeBackupDownloadRequest
   ) => Promise<RuntimeBackupDownloadResponse>;
@@ -310,6 +316,37 @@ export const createGatewayClient = (): GatewayRuntimeClient => {
       }
 
       return response.json() as Promise<RuntimeBackupUploadResponse>;
+    },
+
+    uploadBackupGuarded: async (request) => {
+      const baseUrl = resolveGatewayBaseUrl(request.baseUrl);
+      const response = await fetch(`${baseUrl}/admin/backups/guarded`, {
+        method: "POST",
+        headers: buildAdminHeaders(request.adminToken, true),
+        body: JSON.stringify({
+          envelope: request.envelope,
+          expected_remote_snapshot_id: request.expectedRemoteSnapshotId ?? null,
+          ...(request.expectedRemoteChecksum !== undefined
+            ? {
+                expected_remote_checksum: request.expectedRemoteChecksum
+              }
+            : {})
+        })
+      });
+
+      if (response.status === 409) {
+        return response.json() as Promise<RuntimeBackupGuardedUploadConflictResponse>;
+      }
+
+      if (!response.ok) {
+        return parseApiError(
+          response,
+          "REMOTE_BACKUP_GUARDED_UPLOAD_FAILED",
+          "Remote backup guarded upload failed"
+        );
+      }
+
+      return response.json() as Promise<RuntimeBackupGuardedUploadResponse>;
     },
 
     downloadBackup: async (request) => {

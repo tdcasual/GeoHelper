@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatRemoteBackupActionMessage,
   formatRemoteBackupRestoreWarning,
+  shouldShowRemoteBackupForceUpload,
   resolveRemoteBackupSyncPresentation,
   resolveRemoteBackupActions
 } from "./settings-remote-backup";
@@ -157,5 +158,48 @@ describe("settings remote backup helpers", () => {
       statusLabel: "检查失败",
       description: "Gateway unavailable"
     });
+  });
+
+  it("formats blocked sync states with explicit conflict guidance", () => {
+    const blockedRemoteNewer = resolveRemoteBackupSyncPresentation({
+      status: "upload_blocked_remote_newer",
+      lastError: null,
+      latestRemoteBackup: metadata,
+      lastCheckedAt: "2026-03-12T10:02:00.000Z"
+    });
+    expect(blockedRemoteNewer.statusLabel).toBe("上传已阻止");
+    expect(blockedRemoteNewer.description).toContain("云端较新");
+    expect(blockedRemoteNewer.description).toContain("不会自动覆盖");
+
+    const blockedDiverged = resolveRemoteBackupSyncPresentation({
+      status: "upload_blocked_diverged",
+      lastError: null,
+      latestRemoteBackup: metadata,
+      lastCheckedAt: "2026-03-12T10:02:00.000Z"
+    });
+    expect(blockedDiverged.statusLabel).toBe("上传已阻止");
+    expect(blockedDiverged.description).toContain("存在分叉");
+
+    const uploadConflict = resolveRemoteBackupSyncPresentation({
+      status: "upload_conflict",
+      lastError: null,
+      latestRemoteBackup: metadata,
+      lastCheckedAt: "2026-03-12T10:02:00.000Z"
+    });
+    expect(uploadConflict.statusLabel).toBe("上传冲突");
+    expect(uploadConflict.description).toContain("云端快照发生变化");
+
+    const forceRequired = resolveRemoteBackupSyncPresentation({
+      status: "force_upload_required",
+      lastError: null,
+      latestRemoteBackup: metadata,
+      lastCheckedAt: "2026-03-12T10:02:00.000Z"
+    });
+    expect(forceRequired.statusLabel).toBe("需要显式覆盖");
+    expect(forceRequired.description).toContain("仍然覆盖云端快照");
+
+    expect(shouldShowRemoteBackupForceUpload("remote_newer")).toBe(false);
+    expect(shouldShowRemoteBackupForceUpload("upload_conflict")).toBe(true);
+    expect(shouldShowRemoteBackupForceUpload("force_upload_required")).toBe(true);
   });
 });

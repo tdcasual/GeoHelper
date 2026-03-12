@@ -78,6 +78,14 @@ const AdminBackupCompareRequestSchema = z
     }
   );
 
+const AdminBackupGuardedRequestSchema = z
+  .object({
+    envelope: GatewayBackupEnvelopeSchema,
+    expected_remote_snapshot_id: z.string().trim().min(1).nullable().optional(),
+    expected_remote_checksum: z.string().trim().min(1).nullable().optional()
+  })
+  .strict();
+
 const requireAdminToken = (
   request: FastifyRequest,
   reply: FastifyReply,
@@ -176,6 +184,48 @@ export const registerAdminRoutes = (
     const summary = await deps.backupStore.writeLatest(parsed.data);
 
     return reply.send(createBackupResponse(serializeBackupSummary(summary), deps.buildInfo));
+  });
+
+  app.post("/admin/backups/guarded", async (request, reply) => {
+    if (!requireAdminToken(request, reply, config)) {
+      return reply;
+    }
+
+    const parsed = AdminBackupGuardedRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: {
+          code: "INVALID_BACKUP_ENVELOPE",
+          message: "Backup envelope is invalid"
+        }
+      });
+    }
+
+    const result = await deps.backupStore.writeLatestGuarded({
+      envelope: parsed.data.envelope,
+      expectedRemoteSnapshotId: parsed.data.expected_remote_snapshot_id ?? null,
+      expectedRemoteChecksum: parsed.data.expected_remote_checksum ?? null
+    });
+
+    if (result.status === "written") {
+      return reply.send({
+        guarded_write: "written",
+        backup: serializeBackupSummary(result.backup),
+        build: getGatewayBuildIdentity(deps.buildInfo)
+      });
+    }
+
+    return reply.status(409).send({
+      guarded_write: "conflict",
+      comparison_result: result.comparison.relation,
+      expected_remote_snapshot_id: result.expectedRemoteSnapshotId,
+      actual_remote_snapshot: result.actualRemote
+        ? {
+            summary: serializeBackupSummary(result.actualRemote)
+          }
+        : null,
+      build: getGatewayBuildIdentity(deps.buildInfo)
+    });
   });
 
   app.get("/admin/backups/latest", async (request, reply) => {
