@@ -28,8 +28,30 @@ export interface GatewayBackupRecord extends GatewayBackupSummary {
   envelope: GatewayBackupEnvelope;
 }
 
+export interface GuardedGatewayBackupWriteInput {
+  envelope: GatewayBackupEnvelope;
+  expectedRemoteSnapshotId?: string | null;
+  expectedRemoteChecksum?: string | null;
+}
+
+export type GuardedGatewayBackupWriteResult =
+  | {
+      status: "written";
+      backup: GatewayBackupSummary;
+    }
+  | {
+      status: "conflict";
+      expectedRemoteSnapshotId: string | null;
+      expectedRemoteChecksum: string | null;
+      actualRemote: GatewayBackupRecord | null;
+      comparison: BackupSyncComparison;
+    };
+
 export interface GatewayBackupStore {
   writeLatest: (envelope: GatewayBackupEnvelope) => Promise<GatewayBackupSummary>;
+  writeLatestGuarded: (
+    input: GuardedGatewayBackupWriteInput
+  ) => Promise<GuardedGatewayBackupWriteResult>;
   readLatest: () => Promise<GatewayBackupRecord | null>;
   readHistory: (limit?: number) => Promise<GatewayBackupSummary[]>;
 }
@@ -140,6 +162,67 @@ const createSummary = (
   ...createGatewayBackupComparableSummary(envelope)
 });
 
+const createMissingRemoteComparison = (
+  local: GatewayBackupEnvelope
+): BackupSyncComparison => ({
+  relation: "local_newer",
+  sameChecksum: false,
+  newer: "local",
+  localSnapshotId: local.snapshot_id,
+  remoteSnapshotId: "",
+  localUpdatedAt: local.updated_at,
+  remoteUpdatedAt: ""
+});
+
+const toExpectedValue = (value?: string | null): string | null => {
+  if (typeof value !== "string") {
+    return value ?? null;
+  }
+
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
+const doesGuardExpectationMatch = (
+  latest: GatewayBackupRecord | null,
+  input: GuardedGatewayBackupWriteInput
+): boolean => {
+  const expectedRemoteSnapshotId = toExpectedValue(input.expectedRemoteSnapshotId);
+  const expectedRemoteChecksum = toExpectedValue(input.expectedRemoteChecksum);
+
+  if (!latest) {
+    return expectedRemoteSnapshotId === null && expectedRemoteChecksum === null;
+  }
+
+  if (expectedRemoteSnapshotId !== latest.snapshotId) {
+    return false;
+  }
+
+  if (expectedRemoteChecksum !== null && expectedRemoteChecksum !== latest.checksum) {
+    return false;
+  }
+
+  return true;
+};
+
+export const createGuardedWriteConflict = (
+  latest: GatewayBackupRecord | null,
+  input: GuardedGatewayBackupWriteInput
+): GuardedGatewayBackupWriteResult => ({
+  status: "conflict",
+  expectedRemoteSnapshotId: toExpectedValue(input.expectedRemoteSnapshotId),
+  expectedRemoteChecksum: toExpectedValue(input.expectedRemoteChecksum),
+  actualRemote: latest,
+  comparison: latest
+    ? compareGatewayBackupSummaries(
+        createGatewayBackupComparableSummary(
+          parseGatewayBackupEnvelope(input.envelope)
+        ),
+        latest
+      )
+    : createMissingRemoteComparison(parseGatewayBackupEnvelope(input.envelope))
+});
+
 export const parseGatewayBackupEnvelope = (
   value: unknown
 ): GatewayBackupEnvelope => parseBackupEnvelope(value);
@@ -163,6 +246,25 @@ export const createMemoryBackupStore = (
       };
       history = [summary, ...history].slice(0, maxHistory);
       return summary;
+    },
+    writeLatestGuarded: async (input) => {
+      if (!doesGuardExpectationMatch(latest, input)) {
+        return createGuardedWriteConflict(latest, input);
+      }
+
+      const envelope = parseGatewayBackupEnvelope(input.envelope);
+      const storedAt = now();
+      const backup = createSummary(envelope, storedAt);
+      latest = {
+        ...backup,
+        envelope
+      };
+      history = [backup, ...history].slice(0, maxHistory);
+
+      return {
+        status: "written",
+        backup
+      };
     },
     readLatest: async () => latest,
     readHistory: async (limit) => {

@@ -292,6 +292,152 @@ describe("admin backup routes", () => {
     });
   });
 
+  it("writes a guarded backup when the expected remote snapshot matches", async () => {
+    let tick = 0;
+    const timestamps = [
+      "2026-03-11T16:05:00.000Z",
+      "2026-03-11T16:06:00.000Z"
+    ];
+    const app = buildServer(
+      {
+        ADMIN_METRICS_TOKEN: "secret-metrics-token",
+        NODE_ENV: "test",
+        GEOHELPER_BUILD_SHA: buildIdentity.git_sha,
+        GEOHELPER_BUILD_TIME: buildIdentity.build_time
+      },
+      {
+        backupStore: createMemoryBackupStore({
+          maxHistory: 5,
+          now: () => timestamps[Math.min(tick++, timestamps.length - 1)]
+        })
+      }
+    );
+
+    const first = createEnvelope("1");
+    const second = createEnvelope("2", {
+      base_snapshot_id: first.snapshot_id
+    });
+
+    await app.inject({
+      method: "PUT",
+      url: "/admin/backups/latest",
+      headers: {
+        "x-admin-token": "secret-metrics-token"
+      },
+      payload: first
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/admin/backups/guarded",
+      headers: {
+        "x-admin-token": "secret-metrics-token"
+      },
+      payload: {
+        envelope: second,
+        expected_remote_snapshot_id: first.snapshot_id,
+        expected_remote_checksum: first.checksum
+      }
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual({
+      guarded_write: "written",
+      backup: {
+        stored_at: "2026-03-11T16:06:00.000Z",
+        schema_version: second.schema_version,
+        created_at: second.created_at,
+        updated_at: second.updated_at,
+        app_version: second.app_version,
+        checksum: second.checksum,
+        conversation_count: second.conversations.length,
+        snapshot_id: second.snapshot_id,
+        device_id: second.device_id,
+        base_snapshot_id: second.base_snapshot_id
+      },
+      build: buildIdentity
+    });
+  });
+
+  it("returns 409 from guarded writes when the remote snapshot changed", async () => {
+    let tick = 0;
+    const timestamps = [
+      "2026-03-11T16:05:00.000Z",
+      "2026-03-11T16:06:00.000Z"
+    ];
+    const app = buildServer(
+      {
+        ADMIN_METRICS_TOKEN: "secret-metrics-token",
+        NODE_ENV: "test",
+        GEOHELPER_BUILD_SHA: buildIdentity.git_sha,
+        GEOHELPER_BUILD_TIME: buildIdentity.build_time
+      },
+      {
+        backupStore: createMemoryBackupStore({
+          maxHistory: 5,
+          now: () => timestamps[Math.min(tick++, timestamps.length - 1)]
+        })
+      }
+    );
+
+    const first = createEnvelope("1");
+    const second = createEnvelope("2", {
+      base_snapshot_id: first.snapshot_id
+    });
+
+    await app.inject({
+      method: "PUT",
+      url: "/admin/backups/latest",
+      headers: {
+        "x-admin-token": "secret-metrics-token"
+      },
+      payload: first
+    });
+    await app.inject({
+      method: "PUT",
+      url: "/admin/backups/latest",
+      headers: {
+        "x-admin-token": "secret-metrics-token"
+      },
+      payload: second
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/admin/backups/guarded",
+      headers: {
+        "x-admin-token": "secret-metrics-token"
+      },
+      payload: {
+        envelope: first,
+        expected_remote_snapshot_id: first.snapshot_id,
+        expected_remote_checksum: first.checksum
+      }
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.payload)).toEqual({
+      guarded_write: "conflict",
+      comparison_result: "remote_newer",
+      expected_remote_snapshot_id: first.snapshot_id,
+      actual_remote_snapshot: {
+        summary: {
+          stored_at: "2026-03-11T16:06:00.000Z",
+          schema_version: second.schema_version,
+          created_at: second.created_at,
+          updated_at: second.updated_at,
+          app_version: second.app_version,
+          checksum: second.checksum,
+          conversation_count: second.conversations.length,
+          snapshot_id: second.snapshot_id,
+          device_id: second.device_id,
+          base_snapshot_id: second.base_snapshot_id
+        }
+      },
+      build: buildIdentity
+    });
+  });
+
   it("reuses the admin token guard for latest, history, and compare routes", async () => {
     const app = buildServer({
       ADMIN_METRICS_TOKEN: "secret-metrics-token"
@@ -324,6 +470,16 @@ describe("admin backup routes", () => {
       }
     });
     expect(forbiddenCompare.statusCode).toBe(403);
+
+    const forbiddenGuarded = await app.inject({
+      method: "POST",
+      url: "/admin/backups/guarded",
+      payload: {
+        envelope: createEnvelope(),
+        expected_remote_snapshot_id: null
+      }
+    });
+    expect(forbiddenGuarded.statusCode).toBe(403);
   });
 
   it("rejects malformed backup envelopes", async () => {
