@@ -89,6 +89,34 @@ describe("settings-store", () => {
     expect(store.getState().requestDefaults.retryAttempts).toBe(2);
   });
 
+  it("persists lightweight cloud sync mode preference", () => {
+    const originalLocalStorage = globalThis.localStorage;
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: createMemoryStorage()
+    });
+
+    try {
+      const store = createSettingsStore();
+      expect(store.getState().remoteBackupSyncPreferences.mode).toBe("off");
+
+      store.getState().setRemoteBackupSyncMode("delayed_upload");
+      expect(store.getState().remoteBackupSyncPreferences.mode).toBe(
+        "delayed_upload"
+      );
+
+      const reloaded = createSettingsStore();
+      expect(reloaded.getState().remoteBackupSyncPreferences.mode).toBe(
+        "delayed_upload"
+      );
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: originalLocalStorage
+      });
+    }
+  });
+
   it("defaults runtime profile to gateway when gateway env is absent", () => {
     vi.unstubAllEnvs();
     const store = createSettingsStore();

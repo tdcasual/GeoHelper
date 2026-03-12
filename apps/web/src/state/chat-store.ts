@@ -5,6 +5,10 @@ import { useStore } from "zustand";
 import { executeBatch } from "../geogebra/command-executor";
 import { persistChatSnapshotToIndexedDb } from "../storage/indexed-sync";
 import {
+  ensureRemoteSyncStartupCheck,
+  notifyRemoteSyncLocalMutation
+} from "../storage/remote-sync";
+import {
   compileWithRuntime,
   RuntimeApiError
 } from "../runtime/runtime-service";
@@ -336,6 +340,7 @@ const persistSnapshot = (snapshot: PersistedChatSnapshot): void => {
 
   localStorage.setItem(CHAT_STORE_KEY, JSON.stringify(snapshot));
   void persistChatSnapshotToIndexedDb(snapshot as unknown as Record<string, unknown>);
+  notifyRemoteSyncLocalMutation();
 };
 
 export const createChatStore = (
@@ -862,6 +867,8 @@ export const createChatStore = (
 };
 
 export const chatStore = createChatStore();
+
+void Promise.resolve().then(() => ensureRemoteSyncStartupCheck());
 
 const applyChatSnapshotToStore = (
   store: ReturnType<typeof createChatStore>,

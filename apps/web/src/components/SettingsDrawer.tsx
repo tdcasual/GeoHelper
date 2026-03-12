@@ -30,6 +30,7 @@ import {
   importAppBackupToLocalStorage,
   importRemoteBackupToLocalStorage
 } from "../storage/backup";
+import { setRemoteSyncImportInProgress } from "../storage/remote-sync";
 
 interface SettingsDrawerProps {
   open: boolean;
@@ -177,6 +178,9 @@ export const SettingsDrawer = ({
   const remoteBackupAdminTokenCipher = useSettingsStore(
     (state) => state.remoteBackupAdminTokenCipher
   );
+  const remoteBackupSyncPreferences = useSettingsStore(
+    (state) => state.remoteBackupSyncPreferences
+  );
   const remoteBackupSync = useSettingsStore((state) => state.remoteBackupSync);
   const upsertRuntimeProfile = useSettingsStore(
     (state) => state.upsertRuntimeProfile
@@ -217,6 +221,9 @@ export const SettingsDrawer = ({
   );
   const clearRemoteBackupAdminToken = useSettingsStore(
     (state) => state.clearRemoteBackupAdminToken
+  );
+  const setRemoteBackupSyncMode = useSettingsStore(
+    (state) => state.setRemoteBackupSyncMode
   );
   const setByokRuntimeIssue = useSettingsStore(
     (state) => state.setByokRuntimeIssue
@@ -469,6 +476,7 @@ export const SettingsDrawer = ({
     }
 
     setImportingBackup(true);
+    setRemoteSyncImportInProgress(true);
     try {
       await importAppBackupToLocalStorage(pendingBackupFile, { mode });
       setBackupMessage(
@@ -482,6 +490,7 @@ export const SettingsDrawer = ({
     } catch {
       setBackupMessage("备份导入失败，请检查文件格式");
     } finally {
+      setRemoteSyncImportInProgress(false);
       setImportingBackup(false);
     }
   };
@@ -622,6 +631,7 @@ export const SettingsDrawer = ({
     }
 
     setRemoteBackupBusyAction(`restore-${mode}`);
+    setRemoteSyncImportInProgress(true);
     try {
       await importRemoteBackupToLocalStorage(remoteBackupPullResult.backup, {
         mode
@@ -639,6 +649,7 @@ export const SettingsDrawer = ({
         error instanceof Error ? error.message : "导入网关备份失败"
       );
     } finally {
+      setRemoteSyncImportInProgress(false);
       setRemoteBackupBusyAction(null);
     }
   };
@@ -1354,10 +1365,31 @@ export const SettingsDrawer = ({
                 }
               />
             </label>
+            <label>
+              轻量云同步
+              <select
+                value={remoteBackupSyncPreferences.mode}
+                onChange={(event) =>
+                  setRemoteBackupSyncMode(
+                    event.target.value as
+                      | "off"
+                      | "remind_only"
+                      | "delayed_upload"
+                  )
+                }
+              >
+                <option value="off">关闭</option>
+                <option value="remind_only">仅提醒（启动检查）</option>
+                <option value="delayed_upload">延迟上传</option>
+              </select>
+            </label>
             <p className="settings-hint">
               {remoteBackupActions.gatewayProfile
                 ? `远端网关：${remoteBackupActions.gatewayProfile.name}（${remoteBackupActions.gatewayProfile.baseUrl}）`
                 : remoteBackupActions.upload.reason}
+            </p>
+            <p className="settings-hint">
+              启动检查只拉取元数据；延迟上传也不会自动拉取或自动导入。
             </p>
             <article
               className="settings-import-preview"

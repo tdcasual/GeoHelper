@@ -2,6 +2,7 @@ import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
 
 import { persistTemplatesSnapshotToIndexedDb } from "../storage/indexed-sync";
+import { notifyRemoteSyncLocalMutation } from "../storage/remote-sync";
 
 export interface PromptTemplate {
   id: string;
@@ -128,6 +129,7 @@ const persistSnapshot = (snapshot: PersistedTemplateSnapshot): void => {
   void persistTemplatesSnapshotToIndexedDb(
     snapshot as unknown as Record<string, unknown>
   );
+  notifyRemoteSyncLocalMutation();
 };
 
 export const createTemplateStore = () => {

@@ -5,6 +5,7 @@ import { useStore } from "zustand";
 import { getGeoGebraAdapter } from "../geogebra/adapter";
 import { executeBatchWithAdapter } from "../geogebra/command-executor";
 import { persistSceneSnapshotToIndexedDb } from "../storage/indexed-sync";
+import { notifyRemoteSyncLocalMutation } from "../storage/remote-sync";
 import {
   createDefaultSceneSnapshot,
   createManualSceneTransaction,
@@ -57,6 +58,7 @@ const persistSnapshot = (snapshot: PersistedSceneSnapshot): void => {
   void persistSceneSnapshotToIndexedDb(
     snapshot as unknown as Record<string, unknown>
   );
+  notifyRemoteSyncLocalMutation();
 };
 
 const replayTransactions = async (
