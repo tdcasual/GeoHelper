@@ -18,6 +18,7 @@ import { SettingsDrawer } from "./SettingsDrawer";
 import { TokenGateDialog } from "./TokenGateDialog";
 import {
   loginWithRuntime,
+  resolveRuntimeCapabilities,
   revokeRuntimeSession
 } from "../runtime/runtime-service";
 import { runtimeCapabilitiesByTarget } from "../runtime/types";
@@ -313,11 +314,44 @@ export const WorkspaceShell = () => {
     (activeConversationId
       ? sessionOverrides[activeConversationId]?.model
       : undefined) ?? activePresetModel;
-  const composerCapabilities = resolveRuntimeCapabilitiesForModel({
-    runtimeTarget,
-    model: activeModel
-  });
+  const unsupportedVisionNotice = "当前运行时或模型未开启图片能力";
+  const [composerCapabilities, setComposerCapabilities] = useState(() =>
+    resolveRuntimeCapabilitiesForModel({
+      runtimeTarget,
+      model: activeModel
+    })
+  );
   const supportsVisionUpload = composerCapabilities.supportsVision;
+
+  useEffect(() => {
+    const fallback = resolveRuntimeCapabilitiesForModel({
+      runtimeTarget,
+      model: activeModel
+    });
+    let cancelled = false;
+
+    setComposerCapabilities(fallback);
+    void resolveRuntimeCapabilities({
+      target: runtimeTarget,
+      baseUrl: runtimeBaseUrl,
+      model: activeModel
+    })
+      .then((capabilities) => {
+        if (!cancelled) {
+          setComposerCapabilities(capabilities);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setComposerCapabilities(fallback);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeModel, runtimeBaseUrl, runtimeTarget]);
+
   const slashTemplates = useMemo(() => {
     if (!draft.startsWith("/")) {
       return [];
@@ -479,7 +513,7 @@ export const WorkspaceShell = () => {
 
   const appendImageAttachments = async (files: FileList | File[]) => {
     if (!supportsVisionUpload) {
-      setComposerNotice("当前运行时或模型不支持图片输入");
+      setComposerNotice(unsupportedVisionNotice);
       return;
     }
 
@@ -614,6 +648,12 @@ export const WorkspaceShell = () => {
 
     const message = draft.trim();
     const attachmentsToSend = draftAttachments;
+    if (attachmentsToSend.length > 0 && !supportsVisionUpload) {
+      setComposerNotice(unsupportedVisionNotice);
+      setPlusMenuOpen(false);
+      return;
+    }
+
     setDraftStateForActiveConversation({
       text: "",
       attachments: []
@@ -1128,7 +1168,7 @@ export const WorkspaceShell = () => {
                       </button>
                     ))}
                     {!supportsVisionUpload ? (
-                      <div className="plus-menu-note">当前运行时或模型不支持图片输入</div>
+                      <div className="plus-menu-note">{unsupportedVisionNotice}</div>
                     ) : null}
                   </div>
                 ) : null}

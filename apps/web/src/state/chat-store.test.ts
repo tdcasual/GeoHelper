@@ -99,7 +99,21 @@ describe("chat-store", () => {
       },
       agent_steps: []
     });
-    const store = createChatStore({ compile });
+    const resolveCompileOptions = vi.fn().mockResolvedValue({
+      runtimeTarget: "direct",
+      runtimeBaseUrl: "https://openrouter.ai/api/v1",
+      runtimeCapabilities: {
+        supportsOfficialAuth: false,
+        supportsVision: true,
+        supportsAgentSteps: false,
+        supportsServerMetrics: false,
+        supportsRateLimitHeaders: false
+      },
+      model: "gpt-4o",
+      retryAttempts: 0,
+      extraHeaders: {}
+    });
+    const store = createChatStore({ compile, resolveCompileOptions });
     const attachments = [
       {
         id: "img_1",
@@ -241,6 +255,47 @@ describe("chat-store", () => {
     ).toBe(true);
 
     sceneStore.getState().clearHistory();
+  });
+
+  it("blocks attachment sends before compile when runtime capability disables vision", async () => {
+    const compile = vi.fn();
+    const resolveCompileOptions = vi.fn().mockResolvedValue({
+      runtimeTarget: "gateway",
+      runtimeBaseUrl: "https://gateway.example.com",
+      runtimeCapabilities: {
+        supportsOfficialAuth: true,
+        supportsVision: false,
+        supportsAgentSteps: true,
+        supportsServerMetrics: true,
+        supportsRateLimitHeaders: true
+      },
+      model: "gpt-4.1-mini",
+      retryAttempts: 0,
+      extraHeaders: {}
+    });
+    const store = createChatStore({
+      compile,
+      resolveCompileOptions,
+      logEvent: vi.fn()
+    });
+
+    await store.getState().send({
+      content: "根据图片画出三角形",
+      attachments: [
+        {
+          id: "img_1",
+          kind: "image",
+          name: "triangle.png",
+          mimeType: "image/png",
+          size: 1234,
+          previewUrl: "blob:triangle",
+          transportPayload: "data:image/png;base64,AAAA"
+        }
+      ]
+    } as never);
+
+    expect(compile).not.toHaveBeenCalled();
+    expect(store.getState().messages.at(-1)?.content).toContain("图片能力");
   });
 
   it("skips compile when runtime does not support official mode", async () => {

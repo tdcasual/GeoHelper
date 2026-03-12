@@ -71,6 +71,74 @@ const seedVisionDirectSettings = async (
   });
 };
 
+const seedVisionGatewaySettings = async (
+  page: import("@playwright/test").Page
+) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "geohelper.settings.snapshot",
+      JSON.stringify({
+        schemaVersion: 3,
+        defaultMode: "byok",
+        runtimeProfiles: [
+          {
+            id: "runtime_gateway",
+            name: "Gateway",
+            target: "gateway",
+            baseUrl: "https://gateway.example.com",
+            updatedAt: 1
+          },
+          {
+            id: "runtime_direct",
+            name: "Direct BYOK",
+            target: "direct",
+            baseUrl: "https://openrouter.ai/api/v1",
+            updatedAt: 1
+          }
+        ],
+        defaultRuntimeProfileId: "runtime_gateway",
+        byokPresets: [
+          {
+            id: "byok_test",
+            name: "Gateway Vision",
+            model: "gpt-4.1-mini",
+            endpoint: "https://gateway.example.com",
+            temperature: 0.2,
+            maxTokens: 1200,
+            timeoutMs: 20000,
+            updatedAt: 1
+          }
+        ],
+        officialPresets: [
+          {
+            id: "official_test",
+            name: "Official",
+            model: "gpt-4o-mini",
+            temperature: 0.2,
+            maxTokens: 1200,
+            timeoutMs: 20000,
+            updatedAt: 1
+          }
+        ],
+        defaultByokPresetId: "byok_test",
+        defaultOfficialPresetId: "official_test",
+        sessionOverrides: {},
+        experimentFlags: {
+          showAgentSteps: false,
+          autoRetryEnabled: false,
+          requestTimeoutEnabled: true,
+          strictValidationEnabled: false,
+          fallbackSingleAgentEnabled: false,
+          debugLogPanelEnabled: false,
+          performanceSamplingEnabled: false
+        },
+        requestDefaults: { retryAttempts: 1 },
+        debugEvents: []
+      })
+    );
+  });
+};
+
 const createImageFile = (name = "triangle.png") => ({
   name,
   mimeType: "image/png",
@@ -245,6 +313,64 @@ test("pasting an image into composer adds an attachment", async ({ page }) => {
   await expect(page.getByText("triangle-paste.png")).toBeVisible();
 });
 
+test("gateway mode can upload and send images when capability is enabled", async ({ page }) => {
+  await seedVisionGatewaySettings(page);
+
+  let compilePayload: Record<string, unknown> | undefined;
+  await page.route("https://gateway.example.com/admin/version", async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*"
+      },
+      body: JSON.stringify({
+        git_sha: "sha123",
+        build_time: "2026-03-12T00:00:00.000Z",
+        node_env: "production",
+        redis_enabled: true,
+        attachments_enabled: true
+      })
+    });
+  });
+  await page.route("https://gateway.example.com/api/v1/chat/compile", async (route) => {
+    compilePayload = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*"
+      },
+      body: JSON.stringify({
+        trace_id: "tr_gateway_1",
+        batch: {
+          version: "1.0",
+          scene_id: "s1",
+          transaction_id: "t1",
+          commands: [],
+          post_checks: [],
+          explanations: []
+        },
+        agent_steps: []
+      })
+    });
+  });
+
+  await page.goto("http://localhost:5173");
+  await page.getByTestId("plus-menu-button").click();
+  await expect(
+    page.getByRole("button", { name: "上传图片", exact: true })
+  ).toBeEnabled();
+
+  await page.getByRole("button", { name: "上传图片", exact: true }).click();
+  await page.getByTestId("composer-image-input").setInputFiles(createImageFile());
+  await expect(page.getByTestId("composer-attachment-item")).toHaveCount(1);
+
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect.poll(() => ((compilePayload?.attachments as unknown[]) ?? []).length).toBe(1);
+  await expect(page.getByText("已生成 0 条指令")).toBeVisible();
+});
+
 test("plus menu disables image upload when vision is unavailable", async ({ page }) => {
   await page.goto("http://localhost:5173");
   await page.getByTestId("plus-menu-button").click();
@@ -252,5 +378,5 @@ test("plus menu disables image upload when vision is unavailable", async ({ page
   await expect(
     page.getByRole("button", { name: "上传图片", exact: true })
   ).toBeDisabled();
-  await expect(page.getByText("当前运行时或模型不支持图片输入")).toBeVisible();
+  await expect(page.getByText("当前运行时或模型未开启图片能力")).toBeVisible();
 });

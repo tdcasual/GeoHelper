@@ -149,6 +149,9 @@ const defaultDeps: ChatStoreDeps = {
 };
 
 const makeId = (): string => `${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+const ATTACHMENT_CAPABILITY_MESSAGE =
+  "当前运行时或模型未开启图片能力，请切换到支持图片的运行时或模型后重试。";
+
 export const CHAT_STORE_KEY = "geohelper.chat.snapshot";
 
 const buildConversationTitle = (input: ChatSendInput | string): string => {
@@ -574,6 +577,50 @@ export const createChatStore = (
         }
 
         if (
+          normalizedInput.attachments.length > 0 &&
+          !runtime.runtimeCapabilities.supportsVision
+        ) {
+          const assistantMessage: ChatMessage = {
+            id: makeId(),
+            role: "assistant",
+            content: ATTACHMENT_CAPABILITY_MESSAGE
+          };
+          set((state) => {
+            const targetConversation = state.conversations.find(
+              (item) => item.id === targetConversationId
+            );
+            const updatedConversation = targetConversation
+              ? {
+                  ...targetConversation,
+                  updatedAt: Date.now(),
+                  messages: [...targetConversation.messages, assistantMessage]
+                }
+              : undefined;
+            const conversations = updatedConversation
+              ? moveConversationToTop(state.conversations, updatedConversation)
+              : state.conversations;
+            const messages = getMessagesForConversation(
+              conversations,
+              state.activeConversationId
+            );
+            persistSnapshot({
+              mode: state.mode,
+              sessionToken: state.sessionToken,
+              conversations,
+              activeConversationId: state.activeConversationId,
+              messages,
+              reauthRequired: state.reauthRequired
+            });
+            return {
+              conversations,
+              messages,
+              isSending: false
+            };
+          });
+          return;
+        }
+
+        if (
           get().mode === "byok" &&
           runtime.byokRuntimeIssue?.code === "BYOK_KEY_DECRYPT_FAILED"
         ) {
@@ -760,12 +807,18 @@ export const createChatStore = (
             error.code === "MISSING_AUTH_HEADER") &&
           get().mode === "official";
 
+        const isAttachmentsUnsupported =
+          error instanceof RuntimeApiError &&
+          error.code === "RUNTIME_ATTACHMENTS_UNSUPPORTED";
+
         const assistantMessage: ChatMessage = {
           id: makeId(),
           role: "assistant",
           content: isSessionExpired
             ? "官方会话已过期，请重新输入 Token"
-            : "生成失败，请重试"
+            : isAttachmentsUnsupported
+              ? ATTACHMENT_CAPABILITY_MESSAGE
+              : "生成失败，请重试"
         };
         set((state) => {
           const targetConversation = state.conversations.find(
