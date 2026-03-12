@@ -1,12 +1,16 @@
+import { compareBackupEnvelopes } from "@geohelper/protocol";
 import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { GatewayConfig } from "../config";
 import {
+  GatewayBackupComparableSummary,
   GatewayBackupEnvelopeSchema,
   GatewayBackupRecord,
   GatewayBackupStore,
-  GatewayBackupSummary
+  GatewayBackupSummary,
+  compareGatewayBackupSummaries,
+  createGatewayBackupComparableSummary
 } from "../services/backup-store";
 import {
   GatewayBuildInfo,
@@ -43,6 +47,37 @@ const AdminCompileEventsQuerySchema = z.object({
   since: z.string().trim().min(1).optional()
 });
 
+const AdminBackupHistoryQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).optional()
+});
+
+const GatewayBackupCompareSummarySchema = z
+  .object({
+    schema_version: z.number().int().positive(),
+    created_at: z.string().trim().min(1),
+    updated_at: z.string().trim().min(1),
+    app_version: z.string().trim().min(1),
+    checksum: z.string().trim().min(1),
+    conversation_count: z.number().int().nonnegative(),
+    snapshot_id: z.string().trim().min(1),
+    device_id: z.string().trim().min(1),
+    base_snapshot_id: z.string().trim().min(1).optional()
+  })
+  .strict();
+
+const AdminBackupCompareRequestSchema = z
+  .object({
+    local_envelope: GatewayBackupEnvelopeSchema.optional(),
+    local_summary: GatewayBackupCompareSummarySchema.optional()
+  })
+  .strict()
+  .refine(
+    (value) => Number(Boolean(value.local_envelope)) + Number(Boolean(value.local_summary)) === 1,
+    {
+      message: "Exactly one of local_envelope or local_summary is required"
+    }
+  );
+
 const requireAdminToken = (
   request: FastifyRequest,
   reply: FastifyReply,
@@ -70,9 +105,25 @@ const serializeBackupSummary = (summary: GatewayBackupSummary) => ({
   stored_at: summary.storedAt,
   schema_version: summary.schemaVersion,
   created_at: summary.createdAt,
+  updated_at: summary.updatedAt,
   app_version: summary.appVersion,
   checksum: summary.checksum,
-  conversation_count: summary.conversationCount
+  conversation_count: summary.conversationCount,
+  snapshot_id: summary.snapshotId,
+  device_id: summary.deviceId,
+  ...(summary.baseSnapshotId ? { base_snapshot_id: summary.baseSnapshotId } : {})
+});
+
+const serializeComparableSummary = (summary: GatewayBackupComparableSummary) => ({
+  schema_version: summary.schemaVersion,
+  created_at: summary.createdAt,
+  updated_at: summary.updatedAt,
+  app_version: summary.appVersion,
+  checksum: summary.checksum,
+  conversation_count: summary.conversationCount,
+  snapshot_id: summary.snapshotId,
+  device_id: summary.deviceId,
+  ...(summary.baseSnapshotId ? { base_snapshot_id: summary.baseSnapshotId } : {})
 });
 
 const serializeBackupRecord = (record: GatewayBackupRecord) => ({
@@ -86,6 +137,20 @@ const createBackupResponse = (
 ) => ({
   backup,
   build: getGatewayBuildIdentity(buildInfo)
+});
+
+const parseComparableSummaryInput = (
+  summary: z.infer<typeof GatewayBackupCompareSummarySchema>
+): GatewayBackupComparableSummary => ({
+  checksum: summary.checksum,
+  schemaVersion: summary.schema_version,
+  createdAt: summary.created_at,
+  updatedAt: summary.updated_at,
+  appVersion: summary.app_version,
+  conversationCount: summary.conversation_count,
+  snapshotId: summary.snapshot_id,
+  deviceId: summary.device_id,
+  ...(summary.base_snapshot_id ? { baseSnapshotId: summary.base_snapshot_id } : {})
 });
 
 export const registerAdminRoutes = (
@@ -129,6 +194,64 @@ export const registerAdminRoutes = (
     }
 
     return reply.send(createBackupResponse(serializeBackupRecord(latest), deps.buildInfo));
+  });
+
+  app.get("/admin/backups/history", async (request, reply) => {
+    if (!requireAdminToken(request, reply, config)) {
+      return reply;
+    }
+
+    const parsed = AdminBackupHistoryQuerySchema.safeParse(request.query);
+    const limit = parsed.success ? parsed.data.limit : undefined;
+    const history = await deps.backupStore.readHistory(limit);
+
+    return reply.send({
+      history: history.map((entry) => serializeBackupSummary(entry)),
+      build: getGatewayBuildIdentity(deps.buildInfo)
+    });
+  });
+
+  app.post("/admin/backups/compare", async (request, reply) => {
+    if (!requireAdminToken(request, reply, config)) {
+      return reply;
+    }
+
+    const parsed = AdminBackupCompareRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: {
+          code: "INVALID_BACKUP_COMPARE_REQUEST",
+          message: "Backup compare request is invalid"
+        }
+      });
+    }
+
+    const latest = await deps.backupStore.readLatest();
+    const localStatus = parsed.data.local_envelope ? "envelope" : "summary";
+    const localSummary = parsed.data.local_envelope
+      ? createGatewayBackupComparableSummary(parsed.data.local_envelope)
+      : parseComparableSummaryInput(parsed.data.local_summary!);
+
+    const comparisonResult = !latest
+      ? "local_newer"
+      : parsed.data.local_envelope
+        ? compareBackupEnvelopes(parsed.data.local_envelope, latest.envelope).relation
+        : compareGatewayBackupSummaries(localSummary, latest).relation;
+
+    return reply.send({
+      local_status: localStatus,
+      remote_status: latest ? "available" : "missing",
+      comparison_result: comparisonResult,
+      local_snapshot: {
+        summary: serializeComparableSummary(localSummary)
+      },
+      remote_snapshot: latest
+        ? {
+            summary: serializeBackupSummary(latest)
+          }
+        : null,
+      build: getGatewayBuildIdentity(deps.buildInfo)
+    });
   });
 
   app.get("/admin/metrics", async (request, reply) => {

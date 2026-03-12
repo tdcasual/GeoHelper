@@ -44,8 +44,11 @@ const toSummary = (value: unknown): GatewayBackupSummary | null => {
     typeof summary.checksum !== "string" ||
     typeof summary.schemaVersion !== "number" ||
     typeof summary.createdAt !== "string" ||
+    typeof summary.updatedAt !== "string" ||
     typeof summary.appVersion !== "string" ||
-    typeof summary.conversationCount !== "number"
+    typeof summary.conversationCount !== "number" ||
+    typeof summary.snapshotId !== "string" ||
+    typeof summary.deviceId !== "string"
   ) {
     return null;
   }
@@ -55,8 +58,14 @@ const toSummary = (value: unknown): GatewayBackupSummary | null => {
     checksum: summary.checksum,
     schemaVersion: summary.schemaVersion,
     createdAt: summary.createdAt,
+    updatedAt: summary.updatedAt,
     appVersion: summary.appVersion,
-    conversationCount: summary.conversationCount
+    conversationCount: summary.conversationCount,
+    snapshotId: summary.snapshotId,
+    deviceId: summary.deviceId,
+    ...(typeof summary.baseSnapshotId === "string"
+      ? { baseSnapshotId: summary.baseSnapshotId }
+      : {})
   };
 };
 

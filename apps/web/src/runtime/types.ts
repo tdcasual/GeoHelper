@@ -137,14 +137,36 @@ export interface RuntimeBuildIdentity {
   attachments_enabled: boolean;
 }
 
-export interface RuntimeBackupMetadata {
-  stored_at: string;
+export interface RuntimeBackupComparableSummary {
   schema_version: number;
   created_at: string;
+  updated_at: string;
   app_version: string;
   checksum: string;
   conversation_count: number;
+  snapshot_id: string;
+  device_id: string;
+  base_snapshot_id?: string;
 }
+
+export interface RuntimeBackupMetadata extends RuntimeBackupComparableSummary {
+  stored_at: string;
+}
+
+export type RuntimeBackupLocalStatus = "summary" | "envelope";
+export type RuntimeBackupRemoteStatus = "available" | "missing";
+export type RuntimeBackupComparisonResult =
+  | "identical"
+  | "local_newer"
+  | "remote_newer"
+  | "diverged";
+export type RemoteBackupSyncStatus =
+  | "idle"
+  | "checking"
+  | "up_to_date"
+  | "local_newer"
+  | "remote_newer"
+  | "diverged";
 
 export interface RuntimeBackupUploadRequest {
   baseUrl?: string;
@@ -166,5 +188,45 @@ export interface RuntimeBackupDownloadResponse {
   backup: RuntimeBackupMetadata & {
     envelope: BackupEnvelope;
   };
+  build: RuntimeBuildIdentity;
+}
+
+export interface RuntimeBackupHistoryRequest {
+  baseUrl?: string;
+  adminToken?: string;
+  limit?: number;
+}
+
+export interface RuntimeBackupHistoryResponse {
+  history: RuntimeBackupMetadata[];
+  build: RuntimeBuildIdentity;
+}
+
+export interface RuntimeBackupLatestMetadataRequest {
+  baseUrl?: string;
+  adminToken?: string;
+}
+
+export interface RuntimeBackupLatestMetadataResponse {
+  backup: RuntimeBackupMetadata | null;
+  build: RuntimeBuildIdentity;
+}
+
+export interface RuntimeBackupCompareRequest {
+  baseUrl?: string;
+  adminToken?: string;
+  localSummary: RuntimeBackupComparableSummary;
+}
+
+export interface RuntimeBackupCompareResponse {
+  local_status: RuntimeBackupLocalStatus;
+  remote_status: RuntimeBackupRemoteStatus;
+  comparison_result: RuntimeBackupComparisonResult;
+  local_snapshot: {
+    summary: RuntimeBackupComparableSummary;
+  };
+  remote_snapshot: {
+    summary: RuntimeBackupMetadata;
+  } | null;
   build: RuntimeBuildIdentity;
 }

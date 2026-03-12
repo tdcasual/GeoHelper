@@ -3,8 +3,11 @@ import { useStore } from "zustand";
 
 import {
   ChatMode,
+  RemoteBackupSyncStatus,
   resolveRuntimeCapabilitiesForModel,
+  RuntimeBackupCompareResponse,
   RuntimeCapabilities,
+  RuntimeBackupMetadata,
   RuntimeTarget,
 } from "../runtime/types";
 import { resolveRuntimeCapabilities } from "../runtime/runtime-service";
@@ -64,6 +67,28 @@ export interface ByokRuntimeIssue {
   message: string;
 }
 
+export type RemoteBackupSyncMode = "off" | "remind_only" | "delayed_upload";
+
+export interface RemoteBackupSyncPreferences {
+  mode: RemoteBackupSyncMode;
+}
+
+export interface RemoteBackupSyncState {
+  status: RemoteBackupSyncStatus;
+  latestRemoteBackup: RuntimeBackupMetadata | null;
+  history: RuntimeBackupMetadata[];
+  lastComparison: RuntimeBackupCompareResponse | null;
+  lastCheckedAt: string | null;
+  lastError: string | null;
+}
+
+export interface RemoteBackupSyncResultInput {
+  latestRemoteBackup?: RuntimeBackupMetadata | null;
+  history?: RuntimeBackupMetadata[];
+  comparison: RuntimeBackupCompareResponse;
+  checkedAt?: string;
+}
+
 interface RequestDefaults {
   retryAttempts: number;
 }
@@ -86,6 +111,7 @@ interface PersistedSettingsSnapshot {
   defaultByokPresetId: string;
   defaultOfficialPresetId: string;
   remoteBackupAdminTokenCipher?: EncryptedSecret;
+  remoteBackupSyncPreferences: RemoteBackupSyncPreferences;
   sessionOverrides: Record<string, SessionOverride>;
   experimentFlags: ExperimentFlags;
   requestDefaults: RequestDefaults;
@@ -95,8 +121,14 @@ interface PersistedSettingsSnapshot {
 export interface SettingsStoreState extends PersistedSettingsSnapshot {
   drawerOpen: boolean;
   byokRuntimeIssue: ByokRuntimeIssue | null;
+  remoteBackupSyncPreferences: RemoteBackupSyncPreferences;
+  remoteBackupSync: RemoteBackupSyncState;
   setDrawerOpen: (open: boolean) => void;
   setByokRuntimeIssue: (issue: ByokRuntimeIssue | null) => void;
+  setRemoteBackupSyncMode: (mode: RemoteBackupSyncMode) => void;
+  beginRemoteBackupSyncCheck: () => void;
+  setRemoteBackupSyncResult: (input: RemoteBackupSyncResultInput) => void;
+  setRemoteBackupSyncError: (message: string) => void;
   upsertRuntimeProfile: (input: {
     id?: string;
     name: string;
@@ -177,6 +209,25 @@ const clampNumber = (
 };
 
 const makeId = (): string => `${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+
+const createInitialRemoteBackupSyncState = (): RemoteBackupSyncState => ({
+  status: "idle",
+  latestRemoteBackup: null,
+  history: [],
+  lastComparison: null,
+  lastCheckedAt: null,
+  lastError: null
+});
+
+const createDefaultRemoteBackupSyncPreferences =
+  (): RemoteBackupSyncPreferences => ({
+    mode: "off"
+  });
+
+const mapComparisonResultToSyncStatus = (
+  result: RuntimeBackupCompareResponse["comparison_result"]
+): RemoteBackupSyncStatus =>
+  result === "identical" ? "up_to_date" : result;
 
 const readGatewayBaseUrlFromEnv = (): string => {
   const viteGatewayUrl =
@@ -300,6 +351,7 @@ const makeDefaultSnapshot = (): PersistedSettingsSnapshot => {
     officialPresets: [official],
     defaultByokPresetId: byok.id,
     defaultOfficialPresetId: official.id,
+    remoteBackupSyncPreferences: createDefaultRemoteBackupSyncPreferences(),
     sessionOverrides: {},
     experimentFlags: defaultExperimentFlags(),
     requestDefaults: {
@@ -383,6 +435,13 @@ const normalizeSnapshot = (
     remoteBackupAdminTokenCipher: asEncryptedSecret(
       raw?.remoteBackupAdminTokenCipher
     ),
+    remoteBackupSyncPreferences: {
+      mode:
+        raw?.remoteBackupSyncPreferences?.mode === "remind_only" ||
+        raw?.remoteBackupSyncPreferences?.mode === "delayed_upload"
+          ? raw.remoteBackupSyncPreferences.mode
+          : "off"
+    },
     sessionOverrides:
       raw?.sessionOverrides && typeof raw.sessionOverrides === "object"
         ? raw.sessionOverrides
@@ -469,6 +528,7 @@ export const createSettingsStore = (
       defaultByokPresetId: state.defaultByokPresetId,
       defaultOfficialPresetId: state.defaultOfficialPresetId,
       remoteBackupAdminTokenCipher: state.remoteBackupAdminTokenCipher,
+      remoteBackupSyncPreferences: state.remoteBackupSyncPreferences,
       sessionOverrides: state.sessionOverrides,
       experimentFlags: state.experimentFlags,
       requestDefaults: state.requestDefaults,
@@ -480,6 +540,22 @@ export const createSettingsStore = (
     ...initial,
     drawerOpen: false,
     byokRuntimeIssue: null,
+    remoteBackupSync: createInitialRemoteBackupSyncState(),
+    setRemoteBackupSyncMode: (mode) =>
+      set((state) => {
+        const next = {
+          ...state,
+          remoteBackupSyncPreferences: {
+            mode
+          }
+        };
+        saveState(next);
+        return {
+          remoteBackupSyncPreferences: {
+            mode
+          }
+        };
+      }),
     setDrawerOpen: (open) =>
       set(() => ({
         drawerOpen: open
@@ -487,6 +563,40 @@ export const createSettingsStore = (
     setByokRuntimeIssue: (issue) =>
       set(() => ({
         byokRuntimeIssue: issue
+      })),
+    beginRemoteBackupSyncCheck: () =>
+      set((state) => ({
+        remoteBackupSync: {
+          ...state.remoteBackupSync,
+          status: "checking",
+          lastError: null
+        }
+      })),
+    setRemoteBackupSyncResult: (input) =>
+      set((state) => ({
+        remoteBackupSync: {
+          status: mapComparisonResultToSyncStatus(
+            input.comparison.comparison_result
+          ),
+          latestRemoteBackup:
+            input.latestRemoteBackup ??
+            input.comparison.remote_snapshot?.summary ??
+            state.remoteBackupSync.latestRemoteBackup,
+          history: input.history ?? state.remoteBackupSync.history,
+          lastComparison: input.comparison,
+          lastCheckedAt:
+            input.checkedAt ?? state.remoteBackupSync.lastCheckedAt,
+          lastError: null
+        }
+      })),
+    setRemoteBackupSyncError: (message) =>
+      set((state) => ({
+        remoteBackupSync: {
+          ...state.remoteBackupSync,
+          status: "idle",
+          lastComparison: null,
+          lastError: message
+        }
       })),
     upsertRuntimeProfile: (input) => {
       const id = input.id ?? `runtime_${makeId()}`;
@@ -906,12 +1016,14 @@ const applySettingsSnapshotToStore = (
     defaultByokPresetId: snapshot.defaultByokPresetId,
     defaultOfficialPresetId: snapshot.defaultOfficialPresetId,
     remoteBackupAdminTokenCipher: snapshot.remoteBackupAdminTokenCipher,
+    remoteBackupSyncPreferences: snapshot.remoteBackupSyncPreferences,
     sessionOverrides: snapshot.sessionOverrides,
     experimentFlags: snapshot.experimentFlags,
     requestDefaults: snapshot.requestDefaults,
     debugEvents: snapshot.debugEvents,
     drawerOpen: state.drawerOpen,
-    byokRuntimeIssue: state.byokRuntimeIssue
+    byokRuntimeIssue: state.byokRuntimeIssue,
+    remoteBackupSync: state.remoteBackupSync
   }));
   return snapshot;
 };

@@ -89,6 +89,34 @@ describe("settings-store", () => {
     expect(store.getState().requestDefaults.retryAttempts).toBe(2);
   });
 
+  it("persists lightweight cloud sync mode preference", () => {
+    const originalLocalStorage = globalThis.localStorage;
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: createMemoryStorage()
+    });
+
+    try {
+      const store = createSettingsStore();
+      expect(store.getState().remoteBackupSyncPreferences.mode).toBe("off");
+
+      store.getState().setRemoteBackupSyncMode("delayed_upload");
+      expect(store.getState().remoteBackupSyncPreferences.mode).toBe(
+        "delayed_upload"
+      );
+
+      const reloaded = createSettingsStore();
+      expect(reloaded.getState().remoteBackupSyncPreferences.mode).toBe(
+        "delayed_upload"
+      );
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: originalLocalStorage
+      });
+    }
+  });
+
   it("defaults runtime profile to gateway when gateway env is absent", () => {
     vi.unstubAllEnvs();
     const store = createSettingsStore();
@@ -180,55 +208,215 @@ describe("settings-store", () => {
     });
 
     try {
-    const secret = {
-      encrypt: vi.fn(async (value: string) => ({
-        version: 1 as const,
-        algorithm: "AES-GCM" as const,
-        iv: "iv",
-        ciphertext: `enc:${value}`
-      })),
-      decrypt: vi.fn(async (payload: { ciphertext: string }) =>
-        payload.ciphertext.replace("enc:", "")
-      ),
-      clear: vi.fn(async () => undefined)
-    };
-    const store = createSettingsStore({
-      secretService: secret
-    });
+      const secret = {
+        encrypt: vi.fn(async (value: string) => ({
+          version: 1 as const,
+          algorithm: "AES-GCM" as const,
+          iv: "iv",
+          ciphertext: `enc:${value}`
+        })),
+        decrypt: vi.fn(async (payload: { ciphertext: string }) =>
+          payload.ciphertext.replace("enc:", "")
+        ),
+        clear: vi.fn(async () => undefined)
+      };
+      const store = createSettingsStore({
+        secretService: secret
+      });
 
-    await store.getState().setRemoteBackupAdminToken("admin-secret");
+      await store.getState().setRemoteBackupAdminToken("admin-secret");
 
-    expect(secret.encrypt).toHaveBeenCalledWith("admin-secret");
-    expect(store.getState().remoteBackupAdminTokenCipher?.ciphertext).toBe(
-      "enc:admin-secret"
-    );
+      expect(secret.encrypt).toHaveBeenCalledWith("admin-secret");
+      expect(store.getState().remoteBackupAdminTokenCipher?.ciphertext).toBe(
+        "enc:admin-secret"
+      );
 
-    const reloaded = createSettingsStore({
-      secretService: secret
-    });
-    await expect(reloaded.getState().readRemoteBackupAdminToken()).resolves.toBe(
-      "admin-secret"
-    );
-    expect(secret.decrypt).toHaveBeenCalledWith(
-      expect.objectContaining({ ciphertext: "enc:admin-secret" })
-    );
+      const reloaded = createSettingsStore({
+        secretService: secret
+      });
+      await expect(reloaded.getState().readRemoteBackupAdminToken()).resolves.toBe(
+        "admin-secret"
+      );
+      expect(secret.decrypt).toHaveBeenCalledWith(
+        expect.objectContaining({ ciphertext: "enc:admin-secret" })
+      );
 
-    reloaded.getState().clearRemoteBackupAdminToken();
-    expect(reloaded.getState().remoteBackupAdminTokenCipher).toBeUndefined();
+      reloaded.getState().clearRemoteBackupAdminToken();
+      expect(reloaded.getState().remoteBackupAdminTokenCipher).toBeUndefined();
 
-    const cleared = createSettingsStore({
-      secretService: secret
-    });
-    await expect(cleared.getState().readRemoteBackupAdminToken()).resolves.toBeNull();
-    expect(globalThis.localStorage.getItem(SETTINGS_KEY)).not.toContain(
-      "enc:admin-secret"
-    );
-  } finally {
-    Object.defineProperty(globalThis, "localStorage", {
-      configurable: true,
-      value: originalLocalStorage
-    });
-  }
+      const cleared = createSettingsStore({
+        secretService: secret
+      });
+      await expect(cleared.getState().readRemoteBackupAdminToken()).resolves.toBeNull();
+      expect(globalThis.localStorage.getItem(SETTINGS_KEY)).not.toContain(
+        "enc:admin-secret"
+      );
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: originalLocalStorage
+      });
+    }
   });
 
+  it("tracks lightweight remote backup sync states from compare results", () => {
+    const store = createSettingsStore();
+
+    expect(store.getState().remoteBackupSync.status).toBe("idle");
+
+    store.getState().beginRemoteBackupSyncCheck();
+    expect(store.getState().remoteBackupSync.status).toBe("checking");
+
+    const remoteSummary = {
+      stored_at: "2026-03-12T10:00:00.000Z",
+      schema_version: 2,
+      created_at: "2026-03-12T09:58:00.000Z",
+      updated_at: "2026-03-12T09:59:00.000Z",
+      app_version: "0.0.1",
+      checksum: "checksum-remote",
+      conversation_count: 2,
+      snapshot_id: "snap-remote",
+      device_id: "device-remote"
+    };
+
+    store.getState().setRemoteBackupSyncResult({
+      latestRemoteBackup: remoteSummary,
+      history: [remoteSummary],
+      comparison: {
+        local_status: "summary",
+        remote_status: "available",
+        comparison_result: "identical",
+        local_snapshot: {
+          summary: {
+            schema_version: 2,
+            created_at: "2026-03-12T09:58:00.000Z",
+            updated_at: "2026-03-12T09:59:00.000Z",
+            app_version: "0.0.1",
+            checksum: "checksum-remote",
+            conversation_count: 2,
+            snapshot_id: "snap-remote",
+            device_id: "device-local"
+          }
+        },
+        remote_snapshot: {
+          summary: remoteSummary
+        },
+        build: {
+          git_sha: "backupsha",
+          build_time: "2026-03-12T09:59:30.000Z",
+          node_env: "production",
+          redis_enabled: true,
+          attachments_enabled: false
+        }
+      },
+      checkedAt: "2026-03-12T10:01:00.000Z"
+    });
+    expect(store.getState().remoteBackupSync.status).toBe("up_to_date");
+
+    store.getState().setRemoteBackupSyncResult({
+      comparison: {
+        local_status: "summary",
+        remote_status: "missing",
+        comparison_result: "local_newer",
+        local_snapshot: {
+          summary: {
+            schema_version: 2,
+            created_at: "2026-03-12T10:02:00.000Z",
+            updated_at: "2026-03-12T10:02:00.000Z",
+            app_version: "0.0.1",
+            checksum: "checksum-local",
+            conversation_count: 3,
+            snapshot_id: "snap-local",
+            device_id: "device-local"
+          }
+        },
+        remote_snapshot: null,
+        build: {
+          git_sha: "backupsha",
+          build_time: "2026-03-12T10:02:30.000Z",
+          node_env: "production",
+          redis_enabled: true,
+          attachments_enabled: false
+        }
+      }
+    });
+    expect(store.getState().remoteBackupSync.status).toBe("local_newer");
+
+    store.getState().setRemoteBackupSyncResult({
+      comparison: {
+        local_status: "summary",
+        remote_status: "available",
+        comparison_result: "remote_newer",
+        local_snapshot: {
+          summary: {
+            schema_version: 2,
+            created_at: "2026-03-12T10:02:00.000Z",
+            updated_at: "2026-03-12T10:02:00.000Z",
+            app_version: "0.0.1",
+            checksum: "checksum-local",
+            conversation_count: 3,
+            snapshot_id: "snap-local",
+            device_id: "device-local"
+          }
+        },
+        remote_snapshot: {
+          summary: remoteSummary
+        },
+        build: {
+          git_sha: "backupsha",
+          build_time: "2026-03-12T10:03:30.000Z",
+          node_env: "production",
+          redis_enabled: true,
+          attachments_enabled: false
+        }
+      }
+    });
+    expect(store.getState().remoteBackupSync.status).toBe("remote_newer");
+
+    store.getState().setRemoteBackupSyncResult({
+      comparison: {
+        local_status: "summary",
+        remote_status: "available",
+        comparison_result: "diverged",
+        local_snapshot: {
+          summary: {
+            schema_version: 2,
+            created_at: "2026-03-12T10:04:00.000Z",
+            updated_at: "2026-03-12T10:04:00.000Z",
+            app_version: "0.0.1",
+            checksum: "checksum-local-2",
+            conversation_count: 4,
+            snapshot_id: "snap-local-2",
+            device_id: "device-local"
+          }
+        },
+        remote_snapshot: {
+          summary: remoteSummary
+        },
+        build: {
+          git_sha: "backupsha",
+          build_time: "2026-03-12T10:04:30.000Z",
+          node_env: "production",
+          redis_enabled: true,
+          attachments_enabled: false
+        }
+      }
+    });
+    expect(store.getState().remoteBackupSync.status).toBe("diverged");
+    expect(store.getState().remoteBackupSync.history).toEqual([remoteSummary]);
+    expect(store.getState().remoteBackupSync.latestRemoteBackup).toEqual(remoteSummary);
+  });
+
+  it("keeps gateway-unavailable sync checks explicit and non-fatal", () => {
+    const store = createSettingsStore();
+
+    store.getState().beginRemoteBackupSyncCheck();
+    store.getState().setRemoteBackupSyncError("Gateway unavailable");
+
+    expect(store.getState().remoteBackupSync.status).toBe("idle");
+    expect(store.getState().remoteBackupSync.lastError).toBe(
+      "Gateway unavailable"
+    );
+    expect(store.getState().remoteBackupSync.lastComparison).toBeNull();
+  });
 });

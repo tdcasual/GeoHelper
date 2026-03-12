@@ -11,5 +11,9 @@ describe("beta checklist docs", () => {
     expect(txt).toContain("GATEWAY_ENABLE_ATTACHMENTS");
     expect(txt).toContain("vision smoke failures block promotion");
     expect(txt).toContain("direct runtime and gateway runtime can legitimately differ in vision support");
+    expect(txt).toContain("lightweight cloud sync remains snapshot-based");
+    expect(txt).toContain("no SQL or full cloud history backend is required");
+    expect(txt).toContain("startup freshness checks are metadata-only");
+    expect(txt).toContain("delayed upload is opt-in and never auto-restores");
   });
 });

@@ -116,7 +116,7 @@ ADMIN_METRICS_TOKEN=<admin-token> \
 pnpm smoke:gateway-backup-restore
 ```
 
-Remote backup UI stays opt-in in `设置` -> `数据与安全`: operators must save a gateway admin token before `上传到网关` or `从网关拉取` becomes available, and all remote restore actions remain manual.
+Remote backup UI stays opt-in in `设置` -> `数据与安全` -> `网关远端备份`. GeoHelper now exposes lightweight cloud sync, but the contract remains snapshot-based rather than full cloud chat sync. Startup freshness checks stay metadata-only, delayed upload is opt-in, and the browser never auto-restores remote data. This route does not require SQL or a full cloud history backend: the browser remains local-first while the gateway stores the latest validated snapshot plus compact compare metadata. Operators must save a gateway admin token before `检查云端状态`, `上传最新快照`, or `拉取最新快照` becomes available, and every remote import remains manual.
 
 Scheduled operator wrapper dry-run:
 

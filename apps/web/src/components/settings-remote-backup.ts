@@ -1,4 +1,9 @@
-import type { RuntimeBackupMetadata } from "../runtime/types";
+import type {
+  RemoteBackupSyncStatus,
+  RuntimeBackupComparableSummary,
+  RuntimeBackupMetadata
+} from "../runtime/types";
+import type { BackupEnvelope } from "../storage/backup";
 import type { RuntimeProfile } from "../state/settings-store";
 
 export interface RemoteBackupActionStatus {
@@ -8,9 +13,24 @@ export interface RemoteBackupActionStatus {
 
 export interface RemoteBackupActionState {
   gatewayProfile: RuntimeProfile | null;
+  check: RemoteBackupActionStatus;
   upload: RemoteBackupActionStatus;
   pull: RemoteBackupActionStatus;
   restore: RemoteBackupActionStatus;
+}
+
+export interface RemoteBackupSyncPresentation {
+  statusLabel: string;
+  description: string;
+  latestSummary: string | null;
+  checkedAtLabel: string | null;
+}
+
+interface ResolveRemoteBackupSyncPresentationParams {
+  status: RemoteBackupSyncStatus;
+  lastError: string | null;
+  latestRemoteBackup: RuntimeBackupMetadata | null;
+  lastCheckedAt: string | null;
 }
 
 interface ResolveRemoteBackupActionsParams {
@@ -55,6 +75,10 @@ export const resolveRemoteBackupActions = (
   if (!gatewayProfile) {
     return {
       gatewayProfile: null,
+      check: {
+        enabled: false,
+        reason: GATEWAY_RUNTIME_REQUIRED
+      },
       upload: {
         enabled: false,
         reason: GATEWAY_RUNTIME_REQUIRED
@@ -82,6 +106,7 @@ export const resolveRemoteBackupActions = (
 
   return {
     gatewayProfile,
+    check: uploadAndPullState,
     upload: uploadAndPullState,
     pull: uploadAndPullState,
     restore: {
@@ -103,3 +128,106 @@ export const formatRemoteBackupRestoreWarning = (
   _backup: Pick<RuntimeBackupMetadata, "stored_at" | "conversation_count">
 ): string =>
   "导入前请确认恢复策略：合并会保留较新的同 id 本地记录，覆盖会直接替换本地数据。";
+
+const formatRemoteBackupStatusLabel = (
+  status: RemoteBackupSyncStatus
+): string => {
+  switch (status) {
+    case "checking":
+      return "检查中";
+    case "up_to_date":
+      return "已同步";
+    case "local_newer":
+      return "本地较新";
+    case "remote_newer":
+      return "云端较新";
+    case "diverged":
+      return "存在分叉";
+    case "idle":
+    default:
+      return "未检查";
+  }
+};
+
+const formatRemoteBackupStatusDescription = (
+  status: RemoteBackupSyncStatus
+): string => {
+  switch (status) {
+    case "checking":
+      return "正在比对本地快照与云端最新快照。";
+    case "up_to_date":
+      return "本地快照与云端最新快照一致。";
+    case "local_newer":
+      return "本地快照较新，可按需上传最新快照到云端。";
+    case "remote_newer":
+      return "云端快照较新，可先拉取最新快照再选择导入策略。";
+    case "diverged":
+      return "本地与云端快照存在分叉，请先拉取并确认导入策略。";
+    case "idle":
+    default:
+      return "尚未检查云端快照状态。";
+  }
+};
+
+const formatLatestRemoteBackupSummary = (
+  backup: RuntimeBackupMetadata | null
+): string | null => {
+  if (!backup) {
+    return null;
+  }
+
+  return `云端最新快照：${new Date(backup.stored_at).toLocaleString(
+    "zh-CN"
+  )} · ${backup.conversation_count} 个会话 · ${backup.snapshot_id}`;
+};
+
+export const resolveRemoteBackupSyncPresentation = (
+  params: ResolveRemoteBackupSyncPresentationParams
+): RemoteBackupSyncPresentation => {
+  if (params.lastError) {
+    return {
+      statusLabel: "检查失败",
+      description: params.lastError,
+      latestSummary: formatLatestRemoteBackupSummary(params.latestRemoteBackup),
+      checkedAtLabel: params.lastCheckedAt
+        ? `最近检查：${new Date(params.lastCheckedAt).toLocaleString("zh-CN")}`
+        : null
+    };
+  }
+
+  return {
+    statusLabel: formatRemoteBackupStatusLabel(params.status),
+    description: formatRemoteBackupStatusDescription(params.status),
+    latestSummary: formatLatestRemoteBackupSummary(params.latestRemoteBackup),
+    checkedAtLabel: params.lastCheckedAt
+      ? `最近检查：${new Date(params.lastCheckedAt).toLocaleString("zh-CN")}`
+      : null
+  };
+};
+
+export const createComparableSummaryFromBackupEnvelope = (
+  envelope: Pick<
+    BackupEnvelope,
+    | "schema_version"
+    | "created_at"
+    | "updated_at"
+    | "app_version"
+    | "checksum"
+    | "snapshot_id"
+    | "device_id"
+    | "base_snapshot_id"
+    | "conversations"
+  >
+): RuntimeBackupComparableSummary => ({
+  schema_version: envelope.schema_version,
+  created_at: envelope.created_at,
+  updated_at: envelope.updated_at,
+  app_version: envelope.app_version,
+  checksum: envelope.checksum,
+  conversation_count: envelope.conversations.length,
+  snapshot_id: envelope.snapshot_id,
+  device_id: envelope.device_id,
+  ...(envelope.base_snapshot_id
+    ? { base_snapshot_id: envelope.base_snapshot_id }
+    : {})
+});

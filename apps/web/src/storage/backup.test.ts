@@ -408,6 +408,9 @@ describe("backup", () => {
     const envelope = await exportCurrentAppBackupEnvelope();
 
     expect(envelope.conversations[0]?.id).toBe("conv_local");
+    expect(envelope.snapshot_id.length).toBeGreaterThan(0);
+    expect(envelope.device_id.length).toBeGreaterThan(0);
+    expect(envelope.updated_at.length).toBeGreaterThan(0);
     expect(envelope.checksum.length).toBeGreaterThan(0);
   });
 
@@ -470,7 +473,7 @@ describe("backup", () => {
     expect(uiPreferences.chatVisible).toBe(false);
   });
 
-  it("inspects schema direction for migration hint", async () => {
+  it("inspects schema direction and sync metadata for migration hint", async () => {
     const blob = await exportBackup({
       conversations: [],
       settings: {}
@@ -478,6 +481,9 @@ describe("backup", () => {
 
     const inspected = await inspectBackup(blob);
     expect(inspected.schemaVersion).toBeGreaterThan(0);
+    expect(inspected.snapshotId.length).toBeGreaterThan(0);
+    expect(inspected.deviceId.length).toBeGreaterThan(0);
+    expect(inspected.updatedAt.length).toBeGreaterThan(0);
     expect(inspected.migrationHint).toBe("compatible");
   });
 

@@ -10,5 +10,10 @@ describe("deploy docs", () => {
     expect(txt).toContain("vendor/geogebra/manifest.json");
     expect(txt).toContain("GATEWAY_ENABLE_ATTACHMENTS");
     expect(txt).toContain("attachments_enabled");
+    expect(txt).toContain("lightweight cloud sync");
+    expect(txt).toContain("snapshot-based");
+    expect(txt).toContain("metadata-only startup freshness checks");
+    expect(txt).toContain("delayed upload");
+    expect(txt).toContain("never auto-restores");
   });
 });

@@ -147,6 +147,8 @@ bash scripts/deploy/configure-release-secrets.sh --repo <owner/repo>
 
 Production gateway startup validates `APP_SECRET` and `LITELLM_ENDPOINT` before listening. `/api/v1/health` stays liveness-only, while `/api/v1/ready` is the deploy gate that should be green before traffic shifts. When `REDIS_URL` is set, session revoke, fixed-window rate limits, compile event retention, and the single-tenant latest backup slot/history are shared across instances. `REDIS_URL` remains the only supported shared fast-state dependency for Gateway V4; without it, backup storage falls back to process memory and is not restart-safe. Every response also includes `x-trace-id` (compile responses include matching `trace_id`) so operator alerts, smoke runs, `/admin/compile-events`, and `/admin/traces/:traceId` can be joined on the same trace handle. `/admin/version` is the release identity source of truth for deploy drift checks. Per-instance compile protection is controlled by `COMPILE_MAX_IN_FLIGHT` and `COMPILE_TIMEOUT_MS`, returning `GATEWAY_BUSY` or `COMPILE_TIMEOUT` before a stuck upstream can monopolize the runtime.
 
+Web-side lightweight cloud sync is also available for personal self-hosted deployments, but it remains snapshot-based. Treat metadata-only startup freshness checks as advisory only: the browser does not download full backups during normal startup, delayed upload stays opt-in, and the app never auto-restores remote data. No SQL or full cloud history backend is required for this path; the gateway only needs the existing latest-backup surface plus compare metadata.
+
 ## F. Post-deploy Verification
 
 ```bash
@@ -249,6 +251,7 @@ Then open the web staging URL and verify:
 - official mode is available only when gateway runtime is configured
 - compile pipeline returns rendered result
 - compile responses include `x-trace-id` / `trace_id` for debugging
+- lightweight cloud sync settings stay snapshot-based, metadata-only startup freshness checks do not trigger full restore, and delayed upload never auto-restores
 - `vendor/geogebra/manifest.json` is present in the deployed static assets
 - page resources do not request `geogebra.org`
 

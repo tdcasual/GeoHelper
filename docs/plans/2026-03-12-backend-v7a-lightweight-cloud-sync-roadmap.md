@@ -1,6 +1,8 @@
 # Backend V7-A Lightweight Cloud Sync Roadmap Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+>
+> Status: Completed on 2026-03-12. Tasks 1-7 landed on `codex/backend-v7a-lightweight-sync`; fresh verification covered protocol, gateway, focused web/workspace suites, `pnpm typecheck`, `pnpm smoke:gateway-backup-restore -- --dry-run`, `pnpm ops:gateway:scheduled -- --dry-run`, and Playwright remote backup sync coverage in `tests/e2e/settings-drawer.spec.ts`.
 
 **Goal:** Upgrade the current single-tenant remote backup flow into a local-first lightweight cloud sync system that helps personal self-hosted users keep chat history recoverable across devices without turning GeoHelper into a full cloud chat backend.
 
@@ -299,7 +301,7 @@ git commit -m "docs: add lightweight cloud sync release guidance"
 **Step 2: Run focused smoke / browser verification**
 - Run: `pnpm smoke:gateway-backup-restore -- --dry-run`
 - Run: `pnpm ops:gateway:scheduled -- --dry-run`
-- Run: `pnpm exec playwright test tests/e2e/chat-to-render.spec.ts --grep "backup|sync|restore"`
+- Run: `pnpm exec playwright test tests/e2e/settings-drawer.spec.ts --grep "remote backup sync"`
 - Expected: PASS, or document any pre-existing unrelated failures explicitly before release claims.
 
 **Step 3: Refresh plan status notes**
@@ -332,3 +334,4 @@ git commit -m "docs: refresh backend v7a lightweight sync roadmap"
 - Treat this roadmap as `Route 1`: cloud sync is still backup-centric and local-first.
 - Prefer metadata probes over full remote snapshot downloads during normal app startup.
 - The browser remains the live editing authority; the gateway stores validated recovery snapshots plus bounded comparison history.
+- Completion note (2026-03-12): final verification stayed green after correcting the Playwright target from `chat-to-render.spec.ts` to the actual remote-backup coverage in `settings-drawer.spec.ts`.

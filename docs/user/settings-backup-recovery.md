@@ -54,6 +54,8 @@ Export includes:
 
 ## Remote Recovery Drill
 
+For personal self-hosted deployments, `设置` -> `数据与安全` -> `网关远端备份` now exposes 轻量云同步. This remains snapshot-based recovery/sync, not message-by-message live sync, and 不是完整云端聊天历史.
+
 For personal self-hosted deployments that enable gateway backup sync, operators can verify the latest remote backup without importing it into the browser.
 
 Dry-run the operator checklist:
@@ -76,14 +78,22 @@ Remote backup capability and runtime image capability are separate concerns: sav
 
 When the web app stores a gateway backup admin token, it is encrypted separately from BYOK keys and persisted inside the local settings snapshot as ciphertext only. After moving backups across browser profiles or clearing local secure keys, you may need to re-enter the remote admin token before upload/download actions work again.
 
+### Lightweight Cloud Sync Modes
+
+- `关闭`: no startup check and no delayed upload.
+- `仅提醒（启动检查）`: startup freshness check only. 启动检查只拉取元数据，不会下载完整快照。
+- `延迟上传`: after local snapshot writes, the browser can upload the latest snapshot on a delay, but it still does not pull remote data automatically.
+
 In `设置` -> `数据与安全` -> `网关远端备份`, the workflow is explicit and manual:
 
 1. Save the gateway admin token.
-2. Click `上传到网关` to publish the current local backup snapshot.
-3. Click `从网关拉取` to inspect the latest remote backup metadata.
-4. Choose `拉取后导入（合并）` or `拉取后覆盖导入` based on recovery intent.
+2. Choose `关闭` / `仅提醒（启动检查）` / `延迟上传` based on how proactive you want remote snapshot handling to be.
+3. Click `检查云端状态` to compare local and remote freshness without downloading a full backup.
+4. Click `上传最新快照` to publish the current local backup snapshot.
+5. Click `拉取最新快照` to inspect the latest remote backup metadata and fetch the latest snapshot only when you explicitly want recovery.
+6. Choose `拉取后导入（合并）` or `拉取后覆盖导入` based on recovery intent.
 
-The UI does not background-sync, poll, or auto-restore. Every remote mutation remains operator-triggered.
+The UI does not background-sync full history, poll continuously, or auto-restore. 启动检查只拉取元数据；延迟上传也不会自动拉取或自动导入。 Every remote mutation remains operator-triggered until you explicitly choose an import action.
 
 ## Troubleshooting
 
@@ -124,7 +134,7 @@ Action:
 
 1. Open `设置` -> `备份与恢复` after remote sync actions are available.
 2. Re-enter the gateway admin token.
-3. Retry `上传到网关` or `从网关拉取`.
+3. Retry `上传最新快照` or `拉取最新快照`.
 
 ### "BYOK 密钥不可用" after restore
 
