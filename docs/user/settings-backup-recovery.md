@@ -52,6 +52,37 @@ Export includes:
 - `older`: imported schema is lower than current schema; app applies best-effort compatibility import.
 - `newer`: imported schema is higher than current schema; import is still allowed, but unknown future fields may be ignored.
 
+## Remote Recovery Drill
+
+For personal self-hosted deployments that enable gateway backup sync, operators can verify the latest remote backup without importing it into the browser.
+
+Dry-run the operator checklist:
+
+```bash
+pnpm smoke:gateway-backup-restore -- --dry-run
+```
+
+Inspect the latest remote backup metadata from the gateway:
+
+```bash
+GATEWAY_URL=https://<gateway-domain> \
+ADMIN_METRICS_TOKEN=<admin-token> \
+pnpm smoke:gateway-backup-restore
+```
+
+The drill validates the downloaded `backup.envelope` with the shared protocol checksum logic and reports: `stored_at`, `schema_version`, `created_at`, `app_version`, and `conversation_count`. It does not write to browser storage or trigger an import.
+
+When the web app stores a gateway backup admin token, it is encrypted separately from BYOK keys and persisted inside the local settings snapshot as ciphertext only. After moving backups across browser profiles or clearing local secure keys, you may need to re-enter the remote admin token before upload/download actions work again.
+
+In `设置` -> `数据与安全` -> `网关远端备份`, the workflow is explicit and manual:
+
+1. Save the gateway admin token.
+2. Click `上传到网关` to publish the current local backup snapshot.
+3. Click `从网关拉取` to inspect the latest remote backup metadata.
+4. Choose `拉取后导入（合并）` or `拉取后覆盖导入` based on recovery intent.
+
+The UI does not background-sync, poll, or auto-restore. Every remote mutation remains operator-triggered.
+
 ## Troubleshooting
 
 ### "备份读取失败，请检查文件格式"
@@ -79,6 +110,19 @@ Action:
 
 1. Retry with `覆盖导入` if full replacement is intended.
 2. For `合并导入`, verify `updatedAt` in source backup is newer.
+
+### Remote backup admin token is unavailable
+
+Cause:
+
+- the encrypted gateway admin token was restored into a different browser profile
+- local secure keys were cleared after the token was saved
+
+Action:
+
+1. Open `设置` -> `备份与恢复` after remote sync actions are available.
+2. Re-enter the gateway admin token.
+3. Retry `上传到网关` or `从网关拉取`.
 
 ### "BYOK 密钥不可用" after restore
 

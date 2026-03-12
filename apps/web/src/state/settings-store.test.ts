@@ -6,8 +6,33 @@ import {
   inferModelSupportsVision,
   resolveCompileRuntimeOptions,
   resolveRuntimeCapabilitiesForModel,
-  settingsStore
+  settingsStore,
+  SETTINGS_KEY
 } from "./settings-store";
+
+const createMemoryStorage = (): Storage => {
+  const map = new Map<string, string>();
+  return {
+    get length() {
+      return map.size;
+    },
+    clear() {
+      map.clear();
+    },
+    getItem(key: string) {
+      return map.has(key) ? map.get(key)! : null;
+    },
+    key(index: number) {
+      return Array.from(map.keys())[index] ?? null;
+    },
+    removeItem(key: string) {
+      map.delete(key);
+    },
+    setItem(key: string, value: string) {
+      map.set(key, String(value));
+    }
+  };
+};
 
 describe("settings-store", () => {
   it("creates and updates byok preset with encrypted key", async () => {
@@ -127,4 +152,64 @@ describe("settings-store", () => {
     );
     expect(code).not.toContain("process.env.VITE_GATEWAY_URL");
   });
+
+  it("stores, reads, and clears the encrypted remote backup admin token", async () => {
+    const originalLocalStorage = globalThis.localStorage;
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: createMemoryStorage()
+    });
+
+    try {
+    const secret = {
+      encrypt: vi.fn(async (value: string) => ({
+        version: 1 as const,
+        algorithm: "AES-GCM" as const,
+        iv: "iv",
+        ciphertext: `enc:${value}`
+      })),
+      decrypt: vi.fn(async (payload: { ciphertext: string }) =>
+        payload.ciphertext.replace("enc:", "")
+      ),
+      clear: vi.fn(async () => undefined)
+    };
+    const store = createSettingsStore({
+      secretService: secret
+    });
+
+    await store.getState().setRemoteBackupAdminToken("admin-secret");
+
+    expect(secret.encrypt).toHaveBeenCalledWith("admin-secret");
+    expect(store.getState().remoteBackupAdminTokenCipher?.ciphertext).toBe(
+      "enc:admin-secret"
+    );
+
+    const reloaded = createSettingsStore({
+      secretService: secret
+    });
+    await expect(reloaded.getState().readRemoteBackupAdminToken()).resolves.toBe(
+      "admin-secret"
+    );
+    expect(secret.decrypt).toHaveBeenCalledWith(
+      expect.objectContaining({ ciphertext: "enc:admin-secret" })
+    );
+
+    reloaded.getState().clearRemoteBackupAdminToken();
+    expect(reloaded.getState().remoteBackupAdminTokenCipher).toBeUndefined();
+
+    const cleared = createSettingsStore({
+      secretService: secret
+    });
+    await expect(cleared.getState().readRemoteBackupAdminToken()).resolves.toBeNull();
+    expect(globalThis.localStorage.getItem(SETTINGS_KEY)).not.toContain(
+      "enc:admin-secret"
+    );
+  } finally {
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: originalLocalStorage
+    });
+  }
+  });
+
 });

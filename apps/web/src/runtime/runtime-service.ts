@@ -5,6 +5,10 @@ import {
   RuntimeApiError
 } from "./orchestrator";
 import {
+  RuntimeBackupDownloadRequest,
+  RuntimeBackupDownloadResponse,
+  RuntimeBackupUploadRequest,
+  RuntimeBackupUploadResponse,
   RuntimeCapabilities,
   RuntimeCompileRequest,
   RuntimeCompileResponse,
@@ -14,8 +18,9 @@ import {
   RuntimeTarget
 } from "./types";
 
+const gatewayRuntimeClient = createGatewayClient();
 const runtimeOrchestrator = createRuntimeOrchestrator({
-  gateway: createGatewayClient(),
+  gateway: gatewayRuntimeClient,
   direct: createDirectClient()
 });
 
@@ -47,3 +52,11 @@ export const loginWithRuntime = async (
 export const revokeRuntimeSession = async (
   request: RuntimeRevokeRequest
 ): Promise<void> => runtimeOrchestrator.revokeOfficialSessionToken(request);
+
+export const uploadGatewayBackup = async (
+  request: RuntimeBackupUploadRequest
+): Promise<RuntimeBackupUploadResponse> => gatewayRuntimeClient.uploadBackup(request);
+
+export const downloadGatewayBackup = async (
+  request: RuntimeBackupDownloadRequest
+): Promise<RuntimeBackupDownloadResponse> => gatewayRuntimeClient.downloadBackup(request);

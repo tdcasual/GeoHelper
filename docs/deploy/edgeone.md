@@ -189,6 +189,20 @@ curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
   "https://<gateway-domain>/admin/backups/latest"
 ```
 
+Gateway backup restore drill dry-run (no network calls):
+
+```bash
+pnpm smoke:gateway-backup-restore -- --dry-run
+```
+
+Gateway backup restore drill live run (recommended after backup upload; validates the envelope with the shared protocol helper and prints compact restore metadata only):
+
+```bash
+GATEWAY_URL=https://<gateway-domain> \
+ADMIN_METRICS_TOKEN=<admin-token> \
+pnpm smoke:gateway-backup-restore
+```
+
 Verify the self-hosted GeoGebra artifact before release:
 
 ```bash
@@ -249,5 +263,31 @@ pnpm ops:gateway:verify
 ```
 
 Live runs persist JSON artifacts under `output/ops/<timestamp>/`. When `OPS_BENCH_MIN_SUCCESS_RATE` or `OPS_BENCH_MAX_P95_MS` is configured, a threshold breach exits non-zero and should block release promotion until resolved.
+
+Scheduler-facing wrapper dry-run:
+
+```bash
+OPS_RUN_LABEL=nightly-<date> \
+OPS_DEPLOYMENT=staging \
+pnpm ops:gateway:scheduled -- --dry-run
+```
+
+Use `ops:gateway:scheduled` as the stable recurring command for external cron platforms; the wrapper composes verify, artifact publish, and notify phases behind one entrypoint. Published artifact URLs from scheduled runs should be treated as the post-deploy evidence source of truth.
+
+Artifact publish envs for S3-compatible storage:
+
+- `OPS_ARTIFACT_BUCKET`
+- `OPS_ARTIFACT_PREFIX`
+- `OPS_ARTIFACT_REGION`
+- `OPS_ARTIFACT_ENDPOINT`
+- `OPS_ARTIFACT_ACCESS_KEY_ID`
+- `OPS_ARTIFACT_SECRET_ACCESS_KEY`
+- `OPS_ARTIFACT_PUBLIC_BASE_URL`
+- `OPS_NOTIFY_WEBHOOK_URL`
+
+When notify is enabled, the scheduled wrapper emits one compact JSON heartbeat/failure summary per run with `run_label`, `deployment`, `status`, threshold `failure_reasons`, and artifact URLs when publish is enabled. A failed restore drill should block release promotion alongside smoke/benchmark threshold failures.
+
+The web `设置` drawer exposes opt-in remote backup controls (`上传到网关`, `从网关拉取`, `拉取后导入`) only after a gateway admin token is saved locally. There is no automatic polling or background sync in this phase.
+
 
 Use `docs/BETA_CHECKLIST.md` as the final release gate before beta launch.

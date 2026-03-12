@@ -1,3 +1,4 @@
+import { createBackupEnvelope } from "@geohelper/protocol";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -10,24 +11,53 @@ import { createRedisBackupStore } from "../src/services/redis-backup-store";
 const createEnvelope = (
   id: string,
   overrides: Partial<GatewayBackupEnvelope> = {}
-): GatewayBackupEnvelope => ({
-  schema_version: 2,
-  created_at: `2026-03-11T15:40:0${id}Z`,
-  app_version: "0.0.1",
-  checksum: `checksum-${id}`,
-  conversations: [
+): GatewayBackupEnvelope =>
+  createBackupEnvelope(
     {
-      id: `conv-${id}`,
-      title: `Conversation ${id}`
+      conversations: overrides.conversations ?? [
+        {
+          id: `conv-${id}`,
+          title: `Conversation ${id}`
+        }
+      ],
+      settings: overrides.settings ?? {
+        defaultMode: "byok"
+      }
+    },
+    {
+      schemaVersion: overrides.schema_version ?? 2,
+      createdAt: overrides.created_at ?? `2026-03-11T15:40:0${id}Z`,
+      appVersion: overrides.app_version ?? "0.0.1"
     }
-  ],
-  settings: {
-    defaultMode: "byok"
-  },
-  ...overrides
-});
+  );
 
 describe("gateway backup store", () => {
+  it("accepts envelopes created by the shared backup protocol helper", async () => {
+    const store = createMemoryBackupStore({
+      now: () => "2026-03-12T00:34:00.000Z"
+    });
+
+    const envelope = createBackupEnvelope(
+      {
+        conversations: [{ id: "conv_shared", title: "Shared" }],
+        settings: { defaultMode: "byok" }
+      },
+      {
+        schemaVersion: 2,
+        createdAt: "2026-03-12T00:33:30.000Z",
+        appVersion: "0.0.1"
+      }
+    );
+
+    await expect(store.writeLatest(envelope)).resolves.toEqual(
+      expect.objectContaining({
+        checksum: envelope.checksum,
+        conversationCount: 1
+      })
+    );
+  });
+
+
   it("persists the latest validated backup envelope across store instances", async () => {
     const kvClient = createMemoryKvClient();
     const store = createRedisBackupStore(kvClient, {
@@ -50,7 +80,7 @@ describe("gateway backup store", () => {
       expect.objectContaining({
         storedAt: "2026-03-11T15:45:00.000Z",
         envelope: expect.objectContaining({
-          checksum: "checksum-1",
+          checksum: createEnvelope("1").checksum,
           schema_version: 2
         })
       })
@@ -58,7 +88,7 @@ describe("gateway backup store", () => {
     await expect(reloadedStore.readHistory(10)).resolves.toEqual([
       expect.objectContaining({
         storedAt: "2026-03-11T15:45:00.000Z",
-        checksum: "checksum-1",
+        checksum: createEnvelope("1").checksum,
         schemaVersion: 2,
         conversationCount: 1
       })
@@ -93,18 +123,18 @@ describe("gateway backup store", () => {
       expect.objectContaining({
         storedAt: "2026-03-11T15:51:00.000Z",
         envelope: expect.objectContaining({
-          checksum: "checksum-2"
+          checksum: createEnvelope("2").checksum
         })
       })
     );
     await expect(reloadedStore.readHistory(10)).resolves.toEqual([
       expect.objectContaining({
         storedAt: "2026-03-11T15:51:00.000Z",
-        checksum: "checksum-2"
+        checksum: createEnvelope("2").checksum
       }),
       expect.objectContaining({
         storedAt: "2026-03-11T15:50:00.000Z",
-        checksum: "checksum-1"
+        checksum: createEnvelope("1").checksum
       })
     ]);
   });
@@ -121,14 +151,14 @@ describe("gateway backup store", () => {
       expect.objectContaining({
         storedAt: "2026-03-11T16:00:00.000Z",
         envelope: expect.objectContaining({
-          checksum: "checksum-3"
+          checksum: createEnvelope("3").checksum
         })
       })
     );
     await expect(store.readHistory()).resolves.toEqual([
       expect.objectContaining({
         storedAt: "2026-03-11T16:00:00.000Z",
-        checksum: "checksum-3"
+        checksum: createEnvelope("3").checksum
       })
     ]);
   });

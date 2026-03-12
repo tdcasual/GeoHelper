@@ -1,7 +1,7 @@
 # GeoHelper Beta Checklist
 
 Status: Draft for M4 release gate
-Updated: 2026-03-11
+Updated: 2026-03-12
 
 ## Environment Variables
 
@@ -35,11 +35,14 @@ Updated: 2026-03-11
 ## Operational Notes
 
 - `/api/v1/health` is liveness-only; use `/api/v1/ready` as the dependency-aware deploy gate before switching traffic.
-- `pnpm ops:gateway:verify` is the recurring post-deploy entrypoint; live runs write JSON evidence under `output/ops/<timestamp>/`.
-- When `OPS_BENCH_MIN_SUCCESS_RATE` or `OPS_BENCH_MAX_P95_MS` is configured, threshold failures are release blockers and must stop promotion.
+- `pnpm ops:gateway:scheduled` is the recurring post-deploy entrypoint; it composes verify, artifact publish, and notify behind one stable cron command, and live runs can publish JSON evidence for each run.
+- When `OPS_BENCH_MIN_SUCCESS_RATE` or `OPS_BENCH_MAX_P95_MS` is configured, threshold failures are release blockers and must stop promotion. Failed gateway backup restore drills are release blockers too.
+- Published artifact URLs from scheduled runs are the post-deploy evidence source of truth.
 - `/admin/version`, `/admin/compile-events`, `/admin/metrics`, and `/admin/backups/latest` share the same `x-admin-token` gate; `/admin/version` remains the release identity source of truth and backup routes expose latest snapshot metadata for recovery workflows.
 - `x-trace-id` and compile `trace_id` are the main debugging join keys across alerts, smoke runs, `/admin/compile-events`, and `/admin/traces/:traceId`.
 - `REDIS_URL` remains the only supported shared fast-state dependency in Gateway V4; no SQL or extra backend datastore is required in this roadmap.
+- Gateway latest-backup recovery remains explicit and single-tenant; there is no background sync service or backup catalog in this phase.
+- Web remote backup UI is opt-in and requires a configured gateway admin token before upload/download actions are enabled.
 - When `REDIS_URL` is enabled, compile event retention and latest backup retention become durable across process restarts and power operator recovery queries.
 - Gateway compile currently rejects `attachments` with `ATTACHMENTS_UNSUPPORTED` (vision is not supported yet).
 - When fallback env vars are set, gateway retries transient upstream failures against the fallback target.
@@ -80,7 +83,10 @@ Updated: 2026-03-11
 - [ ] E2E tests pass (`pnpm test:e2e`)
 - [ ] Benchmark dry-run passes (`pnpm bench:quality -- --dry-run`)
 - [ ] Ops verify passes (`pnpm ops:gateway:verify -- --dry-run`, live runs persist JSON artifacts under `output/ops/`)
+- [ ] Scheduled ops wrapper checked (`pnpm ops:gateway:scheduled -- --dry-run`, optional publish stage returns artifact URLs when enabled and serves as the recurring scheduler entrypoint)
+- [ ] Scheduled notify heartbeat checked (`OPS_NOTIFY_WEBHOOK_URL` receives compact success/failure summaries with threshold reasons and artifact URLs when enabled)
 - [ ] Gateway runtime smoke checked (`pnpm smoke:gateway-runtime -- --dry-run`, plus optional live run verifying `/admin/version`, compile trace visibility, and metrics movement)
+- [ ] Gateway backup restore drill checked (`pnpm smoke:gateway-backup-restore -- --dry-run`, live restore drill failures block promotion)
 - [ ] Deploy runbook reviewed (`docs/deploy/edgeone.md`)
 - [ ] Alert webhook smoke-tested (trigger one fallback/repair compile and verify webhook receives event)
 - [ ] Liveness/readiness contract checked (`/api/v1/health` stays shallow, `/api/v1/ready` is green before traffic switch)
@@ -91,3 +97,4 @@ Updated: 2026-03-11
 - [ ] Redis shared-state verified when configured (`REDIS_URL` shares revoke + rate limit + backup retention)
 - [ ] Template backup recovery checked (export + import preserves `geohelper.templates.snapshot`)
 - [ ] Gateway backup admin routes checked (`PUT/GET /admin/backups/latest` returns metadata and latest envelope with valid admin token)
+- [ ] Remote backup settings flow checked (gateway admin token saved, `上传到网关` / `从网关拉取` stay explicit and manual)

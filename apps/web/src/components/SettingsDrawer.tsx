@@ -1,6 +1,6 @@
 import { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import { ChatMode } from "../runtime/types";
+import { ChatMode, type RuntimeBackupDownloadResponse } from "../runtime/types";
 import {
   ByokPreset,
   OfficialPreset,
@@ -8,12 +8,23 @@ import {
   useSettingsStore
 } from "../state/settings-store";
 import {
+  downloadGatewayBackup,
+  uploadGatewayBackup
+} from "../runtime/runtime-service";
+import {
+  formatRemoteBackupActionMessage,
+  formatRemoteBackupRestoreWarning,
+  resolveRemoteBackupActions
+} from "./settings-remote-backup";
+import {
   BACKUP_FILENAME,
   BackupImportMode,
   BackupInspection,
   exportCurrentAppBackup,
+  exportCurrentAppBackupEnvelope,
   inspectBackup,
-  importAppBackupToLocalStorage
+  importAppBackupToLocalStorage,
+  importRemoteBackupToLocalStorage
 } from "../storage/backup";
 
 interface SettingsDrawerProps {
@@ -159,6 +170,9 @@ export const SettingsDrawer = ({
   const requestDefaults = useSettingsStore((state) => state.requestDefaults);
   const debugEvents = useSettingsStore((state) => state.debugEvents);
   const byokRuntimeIssue = useSettingsStore((state) => state.byokRuntimeIssue);
+  const remoteBackupAdminTokenCipher = useSettingsStore(
+    (state) => state.remoteBackupAdminTokenCipher
+  );
   const upsertRuntimeProfile = useSettingsStore(
     (state) => state.upsertRuntimeProfile
   );
@@ -190,6 +204,15 @@ export const SettingsDrawer = ({
   );
   const clearDebugEvents = useSettingsStore((state) => state.clearDebugEvents);
   const clearStoredSecrets = useSettingsStore((state) => state.clearStoredSecrets);
+  const setRemoteBackupAdminToken = useSettingsStore(
+    (state) => state.setRemoteBackupAdminToken
+  );
+  const readRemoteBackupAdminToken = useSettingsStore(
+    (state) => state.readRemoteBackupAdminToken
+  );
+  const clearRemoteBackupAdminToken = useSettingsStore(
+    (state) => state.clearRemoteBackupAdminToken
+  );
   const setByokRuntimeIssue = useSettingsStore(
     (state) => state.setByokRuntimeIssue
   );
@@ -239,6 +262,14 @@ export const SettingsDrawer = ({
   const [savingOfficial, setSavingOfficial] = useState(false);
   const [savingRuntime, setSavingRuntime] = useState(false);
   const [backupMessage, setBackupMessage] = useState<string | null>(null);
+  const [remoteBackupAdminTokenDraft, setRemoteBackupAdminTokenDraft] =
+    useState("");
+  const [remoteBackupBusyAction, setRemoteBackupBusyAction] = useState<
+    string | null
+  >(null);
+  const [remoteBackupPullResult, setRemoteBackupPullResult] = useState<
+    RuntimeBackupDownloadResponse | null
+  >(null);
   const [activeSection, setActiveSection] =
     useState<SettingsSectionId>("general");
   const [pendingBackupFile, setPendingBackupFile] = useState<File | null>(null);
@@ -247,6 +278,21 @@ export const SettingsDrawer = ({
   const [importingBackup, setImportingBackup] = useState(false);
   const backupInputRef = useRef<HTMLInputElement | null>(null);
   const modalRef = useRef<HTMLElement | null>(null);
+  const remoteBackupActions = useMemo(
+    () =>
+      resolveRemoteBackupActions({
+        runtimeProfiles,
+        defaultRuntimeProfileId,
+        hasAdminToken: Boolean(remoteBackupAdminTokenCipher),
+        hasPulledBackup: Boolean(remoteBackupPullResult)
+      }),
+    [
+      defaultRuntimeProfileId,
+      remoteBackupAdminTokenCipher,
+      remoteBackupPullResult,
+      runtimeProfiles
+    ]
+  );
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -419,6 +465,114 @@ export const SettingsDrawer = ({
       setBackupMessage("备份导入失败，请检查文件格式");
     } finally {
       setImportingBackup(false);
+    }
+  };
+
+  const handleSaveRemoteBackupAdminToken = async () => {
+    const token = remoteBackupAdminTokenDraft.trim();
+    if (!token) {
+      setBackupMessage("请输入网关管理员令牌");
+      return;
+    }
+
+    setRemoteBackupBusyAction("save-token");
+    try {
+      await setRemoteBackupAdminToken(token);
+      setRemoteBackupAdminTokenDraft("");
+      setBackupMessage("网关管理员令牌已保存");
+    } catch (error) {
+      setBackupMessage(
+        error instanceof Error ? error.message : "管理员令牌保存失败"
+      );
+    } finally {
+      setRemoteBackupBusyAction(null);
+    }
+  };
+
+  const handleUploadRemoteBackup = async () => {
+    if (!remoteBackupActions.upload.enabled || !remoteBackupActions.gatewayProfile) {
+      setBackupMessage(
+        remoteBackupActions.upload.reason ?? "当前无法上传到网关"
+      );
+      return;
+    }
+
+    setRemoteBackupBusyAction("upload");
+    try {
+      const adminToken = await readRemoteBackupAdminToken();
+      if (!adminToken) {
+        throw new Error("请先保存网关管理员令牌");
+      }
+
+      const envelope = await exportCurrentAppBackupEnvelope();
+      const response = await uploadGatewayBackup({
+        baseUrl: remoteBackupActions.gatewayProfile.baseUrl,
+        adminToken,
+        envelope
+      });
+      setBackupMessage(formatRemoteBackupActionMessage("push", response.backup));
+    } catch (error) {
+      setBackupMessage(
+        error instanceof Error ? error.message : "上传到网关失败"
+      );
+    } finally {
+      setRemoteBackupBusyAction(null);
+    }
+  };
+
+  const handlePullRemoteBackup = async () => {
+    if (!remoteBackupActions.pull.enabled || !remoteBackupActions.gatewayProfile) {
+      setBackupMessage(remoteBackupActions.pull.reason ?? "当前无法从网关拉取");
+      return;
+    }
+
+    setRemoteBackupBusyAction("pull");
+    try {
+      const adminToken = await readRemoteBackupAdminToken();
+      if (!adminToken) {
+        throw new Error("请先保存网关管理员令牌");
+      }
+
+      const response = await downloadGatewayBackup({
+        baseUrl: remoteBackupActions.gatewayProfile.baseUrl,
+        adminToken
+      });
+      setRemoteBackupPullResult(response);
+      setBackupMessage(formatRemoteBackupActionMessage("pull", response.backup));
+    } catch (error) {
+      setBackupMessage(
+        error instanceof Error ? error.message : "从网关拉取失败"
+      );
+    } finally {
+      setRemoteBackupBusyAction(null);
+    }
+  };
+
+  const handleImportPulledRemoteBackup = async (mode: BackupImportMode) => {
+    if (!remoteBackupPullResult) {
+      setBackupMessage(remoteBackupActions.restore.reason ?? "请先从网关拉取最新备份");
+      return;
+    }
+
+    setRemoteBackupBusyAction(`restore-${mode}`);
+    try {
+      await importRemoteBackupToLocalStorage(remoteBackupPullResult.backup, {
+        mode
+      });
+      setBackupMessage(
+        mode === "merge"
+          ? "已将网关备份合并导入，正在刷新"
+          : "已用网关备份覆盖本地数据，正在刷新"
+      );
+      setTimeout(() => {
+        window.location.reload();
+      }, 300);
+    } catch (error) {
+      setBackupMessage(
+        error instanceof Error ? error.message : "导入网关备份失败"
+      );
+    } finally {
+      setRemoteBackupBusyAction(null);
     }
   };
 
@@ -1115,6 +1269,109 @@ export const SettingsDrawer = ({
               </div>
             </article>
           ) : null}
+
+          <section className="settings-section">
+            <h3>网关远端备份</h3>
+            <label>
+              管理员令牌
+              <input
+                type="password"
+                placeholder={
+                  remoteBackupAdminTokenCipher
+                    ? "已保存管理员令牌（重新输入可覆盖）"
+                    : "x-admin-token"
+                }
+                value={remoteBackupAdminTokenDraft}
+                onChange={(event) =>
+                  setRemoteBackupAdminTokenDraft(event.target.value)
+                }
+              />
+            </label>
+            <p className="settings-hint">
+              {remoteBackupActions.gatewayProfile
+                ? `远端网关：${remoteBackupActions.gatewayProfile.name}（${remoteBackupActions.gatewayProfile.baseUrl}）`
+                : remoteBackupActions.upload.reason}
+            </p>
+            {!remoteBackupActions.upload.enabled && remoteBackupActions.upload.reason ? (
+              <p className="settings-warning-text">
+                {remoteBackupActions.upload.reason}
+              </p>
+            ) : null}
+            <div className="settings-inline-actions">
+              <button
+                type="button"
+                disabled={Boolean(remoteBackupBusyAction) || !remoteBackupAdminTokenDraft.trim()}
+                onClick={handleSaveRemoteBackupAdminToken}
+              >
+                保存管理员令牌
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(remoteBackupBusyAction) || !remoteBackupAdminTokenCipher}
+                onClick={() => {
+                  clearRemoteBackupAdminToken();
+                  setRemoteBackupAdminTokenDraft("");
+                  setBackupMessage("已清除网关管理员令牌");
+                }}
+              >
+                清除管理员令牌
+              </button>
+            </div>
+            <div className="settings-inline-actions">
+              <button
+                type="button"
+                disabled={Boolean(remoteBackupBusyAction) || !remoteBackupActions.upload.enabled}
+                onClick={handleUploadRemoteBackup}
+              >
+                上传到网关
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(remoteBackupBusyAction) || !remoteBackupActions.pull.enabled}
+                onClick={handlePullRemoteBackup}
+              >
+                从网关拉取
+              </button>
+            </div>
+            {remoteBackupPullResult ? (
+              <article className="settings-import-preview">
+                <p>{`拉取时间：${new Date(remoteBackupPullResult.backup.stored_at).toLocaleString("zh-CN")}`}</p>
+                <p>{`schema：v${remoteBackupPullResult.backup.schema_version}`}</p>
+                <p>{`创建时间：${new Date(remoteBackupPullResult.backup.created_at).toLocaleString("zh-CN")}`}</p>
+                <p>{`会话数：${remoteBackupPullResult.backup.conversation_count}`}</p>
+                <p>{`来源版本：${remoteBackupPullResult.backup.app_version}`}</p>
+                <p className="settings-warning-text">
+                  {formatRemoteBackupRestoreWarning(remoteBackupPullResult.backup)}
+                </p>
+                <div className="settings-inline-actions">
+                  <button
+                    type="button"
+                    disabled={Boolean(remoteBackupBusyAction) || !remoteBackupActions.restore.enabled}
+                    onClick={() => handleImportPulledRemoteBackup("merge")}
+                  >
+                    拉取后导入（合并）
+                  </button>
+                  <button
+                    type="button"
+                    disabled={Boolean(remoteBackupBusyAction) || !remoteBackupActions.restore.enabled}
+                    onClick={() => handleImportPulledRemoteBackup("replace")}
+                  >
+                    拉取后覆盖导入
+                  </button>
+                  <button
+                    type="button"
+                    disabled={Boolean(remoteBackupBusyAction)}
+                    onClick={() => {
+                      setRemoteBackupPullResult(null);
+                      setBackupMessage("已清除本次网关拉取结果");
+                    }}
+                  >
+                    清除本次拉取
+                  </button>
+                </div>
+              </article>
+            ) : null}
+          </section>
           <input
             ref={backupInputRef}
             type="file"
