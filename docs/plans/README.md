@@ -48,8 +48,8 @@ The backend roadmap sequence currently spans `V2` through `V6`. Read them in ord
 | `V3` | 2026-03-11 | Durable operability, traceability, and runtime protection | [`2026-03-11-backend-v3-operability-roadmap.md`](./2026-03-11-backend-v3-operability-roadmap.md) | Completed |
 | `V4` | 2026-03-11 | Operator automation, evidence artifacts, and gateway backup flows | [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md) | Completed |
 | `V5` | 2026-03-12 | Ops closure, scheduled verification, published evidence, and remote recovery | [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md) | Completed / historical context |
-| `V6` | 2026-03-12 | Gateway vision capability and image attachment support | [`2026-03-12-backend-v6-vision-attachments-roadmap.md`](./2026-03-12-backend-v6-vision-attachments-roadmap.md) | Completed / current latest roadmap |
-| `V7-A` | 2026-03-12 | Local-first lightweight cloud sync via remote snapshots | [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md) | Proposed |
+| `V6` | 2026-03-12 | Gateway vision capability and image attachment support | [`2026-03-12-backend-v6-vision-attachments-roadmap.md`](./2026-03-12-backend-v6-vision-attachments-roadmap.md) | Completed / historical context |
+| `V7-A` | 2026-03-12 | Local-first lightweight cloud sync via remote snapshots | [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md) | Completed / current latest roadmap |
 
 ## Frontend & Product Timeline
 
