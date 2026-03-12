@@ -30,7 +30,7 @@ Use this section when you know the problem domain first and only then want the r
 ### Backup
 
 - Backup and restore runtime behavior: [`2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md`](./2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md)
-- Remote backup/ops closure on backend: [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md), [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md)
+- Remote backup/ops closure on backend: [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md), [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md), [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md)
 - Runtime docs: [`../user/settings-backup-recovery.md`](../user/settings-backup-recovery.md), [`../BETA_CHECKLIST.md`](../BETA_CHECKLIST.md)
 
 ### Backend
@@ -49,6 +49,7 @@ The backend roadmap sequence currently spans `V2` through `V6`. Read them in ord
 | `V4` | 2026-03-11 | Operator automation, evidence artifacts, and gateway backup flows | [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md) | Completed |
 | `V5` | 2026-03-12 | Ops closure, scheduled verification, published evidence, and remote recovery | [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md) | Completed / historical context |
 | `V6` | 2026-03-12 | Gateway vision capability and image attachment support | [`2026-03-12-backend-v6-vision-attachments-roadmap.md`](./2026-03-12-backend-v6-vision-attachments-roadmap.md) | Completed / current latest roadmap |
+| `V7-A` | 2026-03-12 | Local-first lightweight cloud sync via remote snapshots | [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md) | Proposed |
 
 ## Frontend & Product Timeline
 
@@ -90,7 +91,8 @@ The frontend documents split naturally into two layers:
 1. Start with [`2026-03-11-backend-v2-roadmap.md`](./2026-03-11-backend-v2-roadmap.md).
 2. Continue through [`2026-03-11-backend-v3-operability-roadmap.md`](./2026-03-11-backend-v3-operability-roadmap.md) and [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md).
 3. Read [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md) for the ops-closure layer.
-4. Finish with [`2026-03-12-backend-v6-vision-attachments-roadmap.md`](./2026-03-12-backend-v6-vision-attachments-roadmap.md) for the current gateway vision/attachment layer.
+4. Continue with [`2026-03-12-backend-v6-vision-attachments-roadmap.md`](./2026-03-12-backend-v6-vision-attachments-roadmap.md) for the current gateway vision/attachment layer.
+5. Read [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md) if you want the next local-first cloud sync step without adding SQL.
 
 ### Frontend
 
