@@ -1,5 +1,5 @@
 import type { BackupEnvelope } from "../storage/backup";
-import { CommandBatch } from "@geohelper/protocol";
+import { CommandBatch, type RuntimeAttachment } from "@geohelper/protocol";
 
 export type ChatMode = "byok" | "official";
 export type RuntimeTarget = "gateway" | "direct";
@@ -19,15 +19,8 @@ export interface RuntimeCapabilities {
   supportsRateLimitHeaders: boolean;
 }
 
-export interface RuntimeAttachment {
-  id: string;
-  kind: "image";
-  name: string;
-  mimeType: string;
-  size: number;
-  previewUrl?: string;
-  transportPayload: string;
-}
+export type { RuntimeAttachment };
+
 
 export const runtimeCapabilitiesByTarget: Record<
   RuntimeTarget,

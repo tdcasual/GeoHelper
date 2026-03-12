@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
+import { RuntimeAttachmentSchema } from "@geohelper/protocol";
 
 import { GatewayConfig } from "../config";
 import { GatewayBuildInfo } from "../services/build-info";
@@ -42,18 +43,7 @@ const CompileBodySchema = z.object({
   message: z.string().min(1),
   mode: z.enum(["byok", "official"]),
   model: z.string().optional(),
-  attachments: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        kind: z.literal("image"),
-        name: z.string().min(1),
-        mimeType: z.string().min(1),
-        size: z.number().int().nonnegative(),
-        transportPayload: z.string().min(1)
-      })
-    )
-    .optional(),
+  attachments: z.array(RuntimeAttachmentSchema).optional(),
   context: z
     .object({
       recentMessages: z
