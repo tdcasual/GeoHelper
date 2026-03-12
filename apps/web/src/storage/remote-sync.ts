@@ -1,14 +1,17 @@
 import {
   compareGatewayBackup,
   fetchGatewayBackupHistory,
-  uploadGatewayBackup
+  uploadGatewayBackup,
+  uploadGatewayBackupGuarded
 } from "../runtime/runtime-service";
 import type {
   RuntimeBackupCompareResponse,
+  RuntimeBackupGuardedUploadResponse,
   RuntimeBackupHistoryResponse,
   RuntimeBackupUploadResponse
 } from "../runtime/types";
 import {
+  type RemoteBackupSyncState,
   type RemoteBackupSyncMode,
   type RemoteBackupSyncResultInput,
   settingsStore
@@ -28,6 +31,7 @@ interface RemoteSyncReadyConfig {
 
 export interface RemoteSyncControllerDeps {
   getSyncMode: () => RemoteBackupSyncMode;
+  getRemoteBackupSyncState: () => RemoteBackupSyncState;
   getGatewayBaseUrl: () => string | null;
   readAdminToken: () => Promise<string | null>;
   exportLocalBackupEnvelope: () => Promise<BackupEnvelope>;
@@ -46,7 +50,15 @@ export interface RemoteSyncControllerDeps {
     adminToken: string;
     envelope: BackupEnvelope;
   }) => Promise<RuntimeBackupUploadResponse>;
+  uploadBackupGuarded: (params: {
+    baseUrl: string;
+    adminToken: string;
+    envelope: BackupEnvelope;
+    expectedRemoteSnapshotId?: string | null;
+    expectedRemoteChecksum?: string | null;
+  }) => Promise<RuntimeBackupGuardedUploadResponse>;
   beginRemoteBackupSyncCheck: () => void;
+  beginRemoteBackupSyncUpload: () => void;
   setRemoteBackupSyncResult: (input: RemoteBackupSyncResultInput) => void;
   setRemoteBackupSyncError: (message: string) => void;
   nowIso?: () => string;
@@ -111,6 +123,7 @@ const toComparableSummary = (
 
 const defaultDeps: RemoteSyncControllerDeps = {
   getSyncMode: () => settingsStore.getState().remoteBackupSyncPreferences.mode,
+  getRemoteBackupSyncState: () => settingsStore.getState().remoteBackupSync,
   getGatewayBaseUrl: getDefaultGatewayBaseUrl,
   readAdminToken: () => settingsStore.getState().readRemoteBackupAdminToken(),
   exportLocalBackupEnvelope: async () => {
@@ -135,8 +148,24 @@ const defaultDeps: RemoteSyncControllerDeps = {
       adminToken,
       envelope
     }),
+  uploadBackupGuarded: ({
+    baseUrl,
+    adminToken,
+    envelope,
+    expectedRemoteSnapshotId,
+    expectedRemoteChecksum
+  }) =>
+    uploadGatewayBackupGuarded({
+      baseUrl,
+      adminToken,
+      envelope,
+      expectedRemoteSnapshotId,
+      expectedRemoteChecksum
+    }),
   beginRemoteBackupSyncCheck: () =>
     settingsStore.getState().beginRemoteBackupSyncCheck(),
+  beginRemoteBackupSyncUpload: () =>
+    settingsStore.getState().beginRemoteBackupSyncUpload(),
   setRemoteBackupSyncResult: (input) =>
     settingsStore.getState().setRemoteBackupSyncResult(input),
   setRemoteBackupSyncError: (message) =>
@@ -152,6 +181,41 @@ const toErrorMessage = (error: unknown, fallback: string): string =>
     ? error.message
     : fallback;
 
+const BLOCKED_DELAYED_UPLOAD_STATUSES = new Set<RemoteBackupSyncState["status"]>([
+  "upload_blocked_remote_newer",
+  "upload_blocked_diverged",
+  "upload_conflict",
+  "force_upload_required"
+]);
+
+const shouldSuppressDelayedUpload = (
+  status: RemoteBackupSyncState["status"]
+): boolean => BLOCKED_DELAYED_UPLOAD_STATUSES.has(status);
+
+const createGuardedConflictComparison = (input: {
+  localSummary: RemoteBackupSyncResultInput["comparison"]["local_snapshot"]["summary"];
+  response: Extract<RuntimeBackupGuardedUploadResponse, { guarded_write: "conflict" }>;
+  fallbackRemoteSummary?: NonNullable<
+    RuntimeBackupCompareResponse["remote_snapshot"]
+  >["summary"];
+}): RuntimeBackupCompareResponse => {
+  const remoteSummary =
+    input.response.actual_remote_snapshot?.summary ??
+    input.fallbackRemoteSummary ??
+    null;
+
+  return {
+    local_status: "summary",
+    remote_status: remoteSummary ? "available" : "missing",
+    comparison_result: input.response.comparison_result,
+    local_snapshot: {
+      summary: input.localSummary
+    },
+    remote_snapshot: remoteSummary ? { summary: remoteSummary } : null,
+    build: input.response.build
+  };
+};
+
 export const createRemoteSyncController = (
   depsInput: Partial<RemoteSyncControllerDeps> &
     Pick<
@@ -162,7 +226,6 @@ export const createRemoteSyncController = (
       | "exportLocalBackupEnvelope"
       | "fetchBackupHistory"
       | "compareBackup"
-      | "uploadBackup"
       | "beginRemoteBackupSyncCheck"
       | "setRemoteBackupSyncResult"
       | "setRemoteBackupSyncError"
@@ -247,6 +310,9 @@ export const createRemoteSyncController = (
     if (disposed || importInProgress || uploadInFlight) {
       return;
     }
+    if (shouldSuppressDelayedUpload(deps.getRemoteBackupSyncState().status)) {
+      return;
+    }
 
     const config = await readReadyConfig("delayed_upload");
     if (!config) {
@@ -255,13 +321,63 @@ export const createRemoteSyncController = (
 
     uploadInFlight = true;
     try {
+      deps.beginRemoteBackupSyncUpload();
       const envelope = await deps.exportLocalBackupEnvelope();
       const localSummary = toComparableSummary(envelope);
-      const response = await deps.uploadBackup({
+      const comparison = await deps.compareBackup({
         baseUrl: config.baseUrl,
         adminToken: config.adminToken,
-        envelope
+        localSummary
       });
+
+      if (comparison.comparison_result === "remote_newer") {
+        deps.setRemoteBackupSyncResult({
+          status: "upload_blocked_remote_newer",
+          latestRemoteBackup:
+            comparison.remote_snapshot?.summary ??
+            deps.getRemoteBackupSyncState().latestRemoteBackup,
+          comparison,
+          checkedAt: deps.nowIso?.() ?? new Date().toISOString()
+        });
+        return;
+      }
+
+      if (comparison.comparison_result === "diverged") {
+        deps.setRemoteBackupSyncResult({
+          status: "upload_blocked_diverged",
+          latestRemoteBackup:
+            comparison.remote_snapshot?.summary ??
+            deps.getRemoteBackupSyncState().latestRemoteBackup,
+          comparison,
+          checkedAt: deps.nowIso?.() ?? new Date().toISOString()
+        });
+        return;
+      }
+
+      const response = await deps.uploadBackupGuarded({
+        baseUrl: config.baseUrl,
+        adminToken: config.adminToken,
+        envelope,
+        expectedRemoteSnapshotId: comparison.remote_snapshot?.summary.snapshot_id,
+        expectedRemoteChecksum: comparison.remote_snapshot?.summary.checksum
+      });
+
+      if (response.guarded_write === "conflict") {
+        deps.setRemoteBackupSyncResult({
+          status: "upload_conflict",
+          latestRemoteBackup:
+            response.actual_remote_snapshot?.summary ??
+            comparison.remote_snapshot?.summary ??
+            deps.getRemoteBackupSyncState().latestRemoteBackup,
+          comparison: createGuardedConflictComparison({
+            localSummary,
+            response,
+            fallbackRemoteSummary: comparison.remote_snapshot?.summary
+          }),
+          checkedAt: deps.nowIso?.() ?? new Date().toISOString()
+        });
+        return;
+      }
 
       deps.setRemoteBackupSyncResult({
         latestRemoteBackup: response.backup,
@@ -323,6 +439,9 @@ export const createRemoteSyncController = (
     },
     notifyLocalMutation: () => {
       if (disposed || importInProgress || deps.getSyncMode() !== "delayed_upload") {
+        return;
+      }
+      if (shouldSuppressDelayedUpload(deps.getRemoteBackupSyncState().status)) {
         return;
       }
 
