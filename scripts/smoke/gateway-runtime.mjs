@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 
 const DEFAULT_COMPILE_MESSAGE = "创建点A=(0,0)，画一个半径为3的圆";
+const DEFAULT_ATTACHMENT_COMPILE_MESSAGE = "根据图片给出几何作图步骤";
+const DEFAULT_ATTACHMENT_DATA_URL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF9sAAAAASUVORK5CYII=";
+const ATTACHMENT_CHECK_NAME = "POST /api/v1/chat/compile (attachment)";
 
 export function parseArgs(argv) {
   const parsed = {};
@@ -37,7 +41,32 @@ export function parseArgs(argv) {
   return parsed;
 }
 
-export function buildGatewayRuntimeChecks(env = process.env) {
+const parseJsonEnv = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
+
+const resolveAttachmentCapability = (runtimeIdentity, env = process.env) =>
+  Boolean(runtimeIdentity?.attachments_enabled) || env.SMOKE_FORCE_ATTACHMENT_CHECK === "1";
+
+const buildAttachmentCheck = () => ({
+  name: ATTACHMENT_CHECK_NAME,
+  method: "POST",
+  path: "/api/v1/chat/compile",
+  capability: "attachments"
+});
+
+export function buildGatewayRuntimeChecks(
+  env = process.env,
+  runtimeIdentity = parseJsonEnv(env.SMOKE_GATEWAY_IDENTITY_JSON)
+) {
   const checks = [
     {
       name: "GET /api/v1/health",
@@ -77,6 +106,10 @@ export function buildGatewayRuntimeChecks(env = process.env) {
     method: "POST",
     path: "/api/v1/chat/compile"
   });
+
+  if (resolveAttachmentCapability(runtimeIdentity, env)) {
+    checks.push(buildAttachmentCheck());
+  }
 
   if (env.ADMIN_METRICS_TOKEN) {
     checks.push({
@@ -125,8 +158,34 @@ const getAdminHeaders = (env) => ({
   "x-admin-token": env.ADMIN_METRICS_TOKEN
 });
 
+const buildAttachmentCompileRequestBody = (env) => ({
+  message: env.SMOKE_ATTACHMENT_COMPILE_MESSAGE ?? DEFAULT_ATTACHMENT_COMPILE_MESSAGE,
+  mode: "byok",
+  ...(env.LITELLM_MODEL ? { model: env.LITELLM_MODEL } : {}),
+  attachments: [
+    {
+      id: "smoke_img_1",
+      kind: "image",
+      name: "gateway-smoke.png",
+      mimeType: "image/png",
+      size: 68,
+      transportPayload: env.SMOKE_ATTACHMENT_DATA_URL ?? DEFAULT_ATTACHMENT_DATA_URL
+    }
+  ]
+});
+
+const validateCompileResponse = (label, response, body) => {
+  if (!Array.isArray(body?.batch?.commands) || !body?.trace_id) {
+    throw new Error(`${label} failed: missing batch.commands or trace_id`);
+  }
+  if (response.headers.get("x-trace-id") !== body.trace_id) {
+    throw new Error(`${label} failed: trace header mismatch`);
+  }
+};
+
 const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
   const checks = [];
+  let runtimeIdentity = parseJsonEnv(env.SMOKE_GATEWAY_IDENTITY_JSON);
 
   const { body: healthBody } = await fetchJson(
     fetchImpl,
@@ -172,12 +231,14 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
     ) {
       throw new Error("admin version failed: missing runtime identity fields");
     }
+    runtimeIdentity = versionBody;
     checks.push({
       name: "GET /admin/version",
       ok: true,
       git_sha: versionBody.git_sha ?? null,
       build_time: versionBody.build_time ?? null,
-      redis_enabled: versionBody.redis_enabled
+      redis_enabled: versionBody.redis_enabled,
+      attachments_enabled: Boolean(versionBody.attachments_enabled)
     });
 
     const { body: metricsBody } = await fetchJson(
@@ -256,17 +317,42 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
     },
     "compile"
   );
-  if (!Array.isArray(compileBody?.batch?.commands) || !compileBody?.trace_id) {
-    throw new Error("compile failed: missing batch.commands or trace_id");
-  }
-  if (compileResponse.headers.get("x-trace-id") !== compileBody.trace_id) {
-    throw new Error("compile failed: trace header mismatch");
-  }
+  validateCompileResponse("compile", compileResponse, compileBody);
   checks.push({
     name: "POST /api/v1/chat/compile",
     ok: true,
     trace_id: compileBody.trace_id
   });
+
+  const attachmentSmokeEnabled = resolveAttachmentCapability(runtimeIdentity, env);
+  if (attachmentSmokeEnabled) {
+    const {
+      response: attachmentCompileResponse,
+      body: attachmentCompileBody
+    } = await fetchJson(
+      fetchImpl,
+      `${gatewayUrl}/api/v1/chat/compile`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(buildAttachmentCompileRequestBody(env))
+      },
+      "attachment compile"
+    );
+    validateCompileResponse(
+      "attachment compile",
+      attachmentCompileResponse,
+      attachmentCompileBody
+    );
+    checks.push({
+      name: ATTACHMENT_CHECK_NAME,
+      ok: true,
+      trace_id: attachmentCompileBody.trace_id,
+      attachments_count: 1
+    });
+  }
 
   if (env.ADMIN_METRICS_TOKEN) {
     const traceId = String(compileBody.trace_id);
@@ -306,9 +392,10 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
     if (typeof metricsBody?.compile?.total_requests !== "number") {
       throw new Error("admin metrics failed: missing compile totals");
     }
+    const expectedAdvance = attachmentSmokeEnabled ? 2 : 1;
     if (
       typeof metricsBefore === "number" &&
-      metricsBody.compile.total_requests < metricsBefore + 1
+      metricsBody.compile.total_requests < metricsBefore + expectedAdvance
     ) {
       throw new Error("admin metrics failed: compile totals did not advance");
     }
@@ -316,7 +403,9 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
       name: "GET /admin/metrics",
       ok: true,
       total_requests_before: metricsBefore,
-      total_requests_after: metricsBody.compile.total_requests
+      total_requests_after: metricsBody.compile.total_requests,
+      total_requests_expected_min:
+        typeof metricsBefore === "number" ? metricsBefore + expectedAdvance : null
     });
   }
 
@@ -346,7 +435,8 @@ export async function runGatewayRuntimeSmoke({
   const checks = buildGatewayRuntimeChecks(env).map((check) => ({
     name: check.name,
     method: check.method,
-    path: check.path
+    path: check.path,
+    ...(check.capability ? { capability: check.capability } : {})
   }));
 
   const gatewayUrl = normalizeBaseUrl(args["gateway-url"] ?? env.GATEWAY_URL);

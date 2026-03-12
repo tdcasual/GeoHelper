@@ -215,6 +215,14 @@ Gateway runtime smoke dry-run (no network calls):
 pnpm smoke:gateway-runtime -- --dry-run
 ```
 
+Simulate an attachment-capable gateway in dry-run output:
+
+```bash
+ADMIN_METRICS_TOKEN=<admin-token> \
+SMOKE_GATEWAY_IDENTITY_JSON='{"attachments_enabled":true}' \
+pnpm smoke:gateway-runtime -- --dry-run
+```
+
 Gateway runtime live smoke (recommended after deploy; validates `/admin/version`, one compile trace, `/admin/compile-events`, and `/admin/metrics` when admin auth is configured):
 
 ```bash

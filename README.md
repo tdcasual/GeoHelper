@@ -82,7 +82,15 @@ Dry-run the ordered verification plan without network calls:
 pnpm smoke:gateway-runtime -- --dry-run
 ```
 
-Run it against a live gateway. The smoke now validates `/admin/version`, one compile request, trace visibility in `/admin/compile-events`, and post-compile totals in `/admin/metrics` when `ADMIN_METRICS_TOKEN` is present:
+Simulate an attachment-capable gateway in dry-run output:
+
+```bash
+ADMIN_METRICS_TOKEN=<admin-token> \
+SMOKE_GATEWAY_IDENTITY_JSON='{"attachments_enabled":true}' \
+pnpm smoke:gateway-runtime -- --dry-run
+```
+
+Run it against a live gateway. The smoke now validates `/admin/version`, one compile request, trace visibility in `/admin/compile-events`, and post-compile totals in `/admin/metrics` when `ADMIN_METRICS_TOKEN` is present. If `/admin/version` advertises `attachments_enabled: true`, it automatically adds one attachment-bearing compile check with a synthetic in-memory PNG payload:
 
 ```bash
 GATEWAY_URL=https://<gateway-domain> \
