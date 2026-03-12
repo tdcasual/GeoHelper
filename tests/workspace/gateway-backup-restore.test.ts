@@ -125,4 +125,13 @@ describe("gateway backup restore smoke", () => {
       }
     });
   });
+
+  it("documents restore drill as snapshot recovery with metadata-only startup checks", () => {
+    const txt = fs.readFileSync("README.md", "utf8");
+    expect(txt).toContain("lightweight cloud sync");
+    expect(txt).toContain("snapshot-based");
+    expect(txt).toMatch(/startup freshness checks stay metadata-only/i);
+    expect(txt).toContain("delayed upload is opt-in");
+    expect(txt).toContain("never auto-restores");
+  });
 });
