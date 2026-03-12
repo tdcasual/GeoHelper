@@ -8,5 +8,7 @@ describe("deploy docs", () => {
     expect(txt).toContain("latest");
     expect(txt).toContain("fallback");
     expect(txt).toContain("vendor/geogebra/manifest.json");
+    expect(txt).toContain("GATEWAY_ENABLE_ATTACHMENTS");
+    expect(txt).toContain("attachments_enabled");
   });
 });

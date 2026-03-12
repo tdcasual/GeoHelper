@@ -133,6 +133,7 @@ Optional deploy hook secret:
 - optional: `COMPILE_MAX_IN_FLIGHT` (default `4`)
 - optional: `COMPILE_TIMEOUT_MS` (default `30000`)
 - optional: `ADMIN_METRICS_TOKEN` (protects `/admin/version`, `/admin/metrics`, and `/admin/compile-events`)
+- optional: `GATEWAY_ENABLE_ATTACHMENTS=1` (explicitly enables gateway image attachments; `/admin/version` will then advertise `attachments_enabled: true`)
 - optional: `COST_PER_REQUEST_USD`
 - optional: `OPS_BENCH_MIN_SUCCESS_RATE`
 - optional: `OPS_BENCH_MAX_P95_MS`
@@ -223,7 +224,7 @@ SMOKE_GATEWAY_IDENTITY_JSON='{"attachments_enabled":true}' \
 pnpm smoke:gateway-runtime -- --dry-run
 ```
 
-Gateway runtime live smoke (recommended after deploy; validates `/admin/version`, one compile trace, `/admin/compile-events`, and `/admin/metrics` when admin auth is configured):
+Gateway runtime live smoke (recommended after deploy; validates `/admin/version`, one compile trace, `/admin/compile-events`, and `/admin/metrics` when admin auth is configured). If `/admin/version` advertises `attachments_enabled: true`, the smoke also runs one synthetic attachment compile and that vision smoke becomes a release gate for image-input deployments:
 
 ```bash
 GATEWAY_URL=https://<gateway-domain> \

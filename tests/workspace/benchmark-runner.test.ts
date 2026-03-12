@@ -22,9 +22,17 @@ describe("quality benchmark runner", () => {
       dry_run: boolean;
       total_cases: number;
       by_domain: Record<string, number>;
+      capability_gates: {
+        gateway_attachments: string;
+        vision_smoke_required_when_enabled: boolean;
+      };
     };
 
     expect(payload.dry_run).toBe(true);
+    expect(payload.capability_gates).toEqual({
+      gateway_attachments: "explicit_flag",
+      vision_smoke_required_when_enabled: true
+    });
     expect(payload.total_cases).toBe(80);
     expect(payload.by_domain["2d"]).toBe(20);
     expect(payload.by_domain["3d"]).toBe(20);

@@ -62,6 +62,7 @@ Notes:
 - `REDIS_URL` is recommended when running multiple gateway instances so session revoke, rate-limit state, and latest backup retention stay shared.
 - Gateway operators can push/pull the latest single-tenant backup through `/admin/backups/latest` with `x-admin-token` when remote recovery is needed.
 - Optional upstream fallback envs `LITELLM_FALLBACK_ENDPOINT`, `LITELLM_FALLBACK_API_KEY`, and `LITELLM_FALLBACK_MODEL` let Gateway retry transient model failures against a secondary provider.
+- `GATEWAY_ENABLE_ATTACHMENTS=1` explicitly enables gateway image attachments; direct runtime and gateway runtime can legitimately differ in vision support.
 - `PRESET_TOKEN` is required only when you intend to expose `Official` mode login.
 
 ## Gateway Container Build

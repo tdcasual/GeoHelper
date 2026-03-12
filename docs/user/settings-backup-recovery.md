@@ -72,6 +72,8 @@ pnpm smoke:gateway-backup-restore
 
 The drill validates the downloaded `backup.envelope` with the shared protocol checksum logic and reports: `stored_at`, `schema_version`, `created_at`, `app_version`, and `conversation_count`. It does not write to browser storage or trigger an import.
 
+Remote backup capability and runtime image capability are separate concerns: saving a gateway admin token or enabling remote restore does not imply gateway image attachments are enabled. In mixed deployments, direct runtime and gateway runtime can legitimately differ in vision support.
+
 When the web app stores a gateway backup admin token, it is encrypted separately from BYOK keys and persisted inside the local settings snapshot as ciphertext only. After moving backups across browser profiles or clearing local secure keys, you may need to re-enter the remote admin token before upload/download actions work again.
 
 In `设置` -> `数据与安全` -> `网关远端备份`, the workflow is explicit and manual:

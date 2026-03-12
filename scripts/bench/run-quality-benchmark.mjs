@@ -4,6 +4,10 @@ import path from "node:path";
 
 const DEFAULT_CASES_PATH = "benchmarks/command-quality-cases.json";
 const DOMAIN_LIST = ["2d", "3d", "cas", "probability"];
+const CAPABILITY_GATES = {
+  gateway_attachments: "explicit_flag",
+  vision_smoke_required_when_enabled: true
+};
 
 const args = parseArgs(process.argv.slice(2));
 
@@ -43,7 +47,8 @@ if (args["dry-run"]) {
     dry_run: true,
     case_file: path.relative(process.cwd(), absoluteCasesPath),
     total_cases: cases.length,
-    by_domain: byDomain
+    by_domain: byDomain,
+    capability_gates: CAPABILITY_GATES
   };
   writeResult(dryRunPayload, args.output);
   process.exit(0);
@@ -143,7 +148,8 @@ const summary = {
   success_rate: toFixedNumber(successCount / Math.max(results.length, 1)),
   elapsed_ms: completedAt - startedAt,
   by_domain: buildDomainSummary(results),
-  failures: failedResults
+  failures: failedResults,
+  capability_gates: CAPABILITY_GATES
 };
 
 writeResult(summary, args.output);

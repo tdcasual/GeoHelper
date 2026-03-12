@@ -29,6 +29,7 @@ Updated: 2026-03-12
 - `COMPILE_TIMEOUT_MS` (optional, default `30000`): Timeout budget per compile request before returning `COMPILE_TIMEOUT`.
 - `ADMIN_METRICS_TOKEN` (optional): Required `x-admin-token` for `/admin/version`, `/admin/metrics`, `/admin/compile-events`, and `/admin/backups/latest`.
 - `COST_PER_REQUEST_USD` (optional, default `0`): Estimated USD cost per upstream model request, used for ops metrics.
+- `GATEWAY_ENABLE_ATTACHMENTS` (optional, default `0`): Explicitly enables gateway image attachments; attachment support is never implied by model name alone.
 - `OPS_BENCH_MIN_SUCCESS_RATE` (optional): Release threshold for composed ops benchmark success rate.
 - `OPS_BENCH_MAX_P95_MS` (optional): Release threshold for composed ops benchmark per-domain p95 latency.
 
@@ -36,7 +37,7 @@ Updated: 2026-03-12
 
 - `/api/v1/health` is liveness-only; use `/api/v1/ready` as the dependency-aware deploy gate before switching traffic.
 - `pnpm ops:gateway:scheduled` is the recurring post-deploy entrypoint; it composes verify, artifact publish, and notify behind one stable cron command, and live runs can publish JSON evidence for each run.
-- When `OPS_BENCH_MIN_SUCCESS_RATE` or `OPS_BENCH_MAX_P95_MS` is configured, threshold failures are release blockers and must stop promotion. Failed gateway backup restore drills are release blockers too.
+- When `OPS_BENCH_MIN_SUCCESS_RATE` or `OPS_BENCH_MAX_P95_MS` is configured, threshold failures are release blockers and must stop promotion. Failed gateway backup restore drills are release blockers too. When a deployment intends to support image input, vision smoke failures block promotion as well.
 - Published artifact URLs from scheduled runs are the post-deploy evidence source of truth.
 - `/admin/version`, `/admin/compile-events`, `/admin/metrics`, and `/admin/backups/latest` share the same `x-admin-token` gate; `/admin/version` remains the release identity source of truth and backup routes expose latest snapshot metadata for recovery workflows.
 - `x-trace-id` and compile `trace_id` are the main debugging join keys across alerts, smoke runs, `/admin/compile-events`, and `/admin/traces/:traceId`.
@@ -44,7 +45,8 @@ Updated: 2026-03-12
 - Gateway latest-backup recovery remains explicit and single-tenant; there is no background sync service or backup catalog in this phase.
 - Web remote backup UI is opt-in and requires a configured gateway admin token before upload/download actions are enabled.
 - When `REDIS_URL` is enabled, compile event retention and latest backup retention become durable across process restarts and power operator recovery queries.
-- Gateway compile currently rejects `attachments` with `ATTACHMENTS_UNSUPPORTED` (vision is not supported yet).
+- Gateway image attachments are an explicitly gated capability: `GATEWAY_ENABLE_ATTACHMENTS=1` plus passing vision smoke are required before promotion.
+- direct runtime and gateway runtime can legitimately differ in vision support.
 - When fallback env vars are set, gateway retries transient upstream failures against the fallback target.
 - Compile runtime protection is instance-local: overlapping requests beyond `COMPILE_MAX_IN_FLIGHT` return `503 GATEWAY_BUSY`, and stalled compiles beyond `COMPILE_TIMEOUT_MS` return `504 COMPILE_TIMEOUT` with traceable operator events.
 
@@ -93,7 +95,7 @@ Updated: 2026-03-12
 - [ ] Metrics contract checked (`/admin/metrics` includes `fallback_rate`, `p95_latency_ms`, `cost_per_request_usd`)
 - [ ] Operator events contract checked (`/admin/compile-events?limit=20` returns recent traceable records)
 - [ ] Trace id contract checked (compile returns `trace_id` and `x-trace-id` header)
-- [ ] Attachments contract checked (compile rejects with `ATTACHMENTS_UNSUPPORTED`)
+- [ ] Attachments contract checked (gateway attachment support is explicit, `/admin/version` reflects `attachments_enabled`, and vision smoke failures block promotion when image input is intended)
 - [ ] Redis shared-state verified when configured (`REDIS_URL` shares revoke + rate limit + backup retention)
 - [ ] Template backup recovery checked (export + import preserves `geohelper.templates.snapshot`)
 - [ ] Gateway backup admin routes checked (`PUT/GET /admin/backups/latest` returns metadata and latest envelope with valid admin token)

@@ -8,5 +8,8 @@ describe("beta checklist docs", () => {
     expect(txt).toContain("## Rollback Plan");
     expect(txt).toContain("## Known Limits");
     expect(txt).toContain("## On-call & Contacts");
+    expect(txt).toContain("GATEWAY_ENABLE_ATTACHMENTS");
+    expect(txt).toContain("vision smoke failures block promotion");
+    expect(txt).toContain("direct runtime and gateway runtime can legitimately differ in vision support");
   });
 });
