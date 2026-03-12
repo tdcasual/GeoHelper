@@ -15,5 +15,8 @@ describe("deploy docs", () => {
     expect(txt).toContain("metadata-only startup freshness checks");
     expect(txt).toContain("delayed upload");
     expect(txt).toContain("never auto-restores");
+    expect(txt).toContain("browser sync defaults to guarded writes");
+    expect(txt).toContain("force overwrite requires an explicit danger action");
+    expect(txt).toContain("unconditional admin latest write remains available for operator/manual recovery");
   });
 });
