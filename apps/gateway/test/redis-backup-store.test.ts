@@ -160,6 +160,50 @@ describe("gateway backup store", () => {
     ]);
   });
 
+  it("returns deterministic bounded history slices from newest to oldest", async () => {
+    const kvClient = createMemoryKvClient();
+    let tick = 0;
+    const timestamps = [
+      "2026-03-11T15:50:00.000Z",
+      "2026-03-11T15:51:00.000Z",
+      "2026-03-11T15:52:00.000Z"
+    ];
+    const store = createRedisBackupStore(kvClient, {
+      prefix: "geohelper:test:backup:slices",
+      ttlSeconds: 300,
+      maxHistory: 2,
+      now: () => timestamps[Math.min(tick++, timestamps.length - 1)]
+    });
+
+    await store.writeLatest(createEnvelope("1"));
+    await store.writeLatest(createEnvelope("2", { base_snapshot_id: "snap-1" }));
+    await store.writeLatest(createEnvelope("3", { base_snapshot_id: "snap-2" }));
+
+    const reloadedStore = createRedisBackupStore(kvClient, {
+      prefix: "geohelper:test:backup:slices",
+      ttlSeconds: 300,
+      maxHistory: 2,
+      now: () => "2026-03-11T15:53:00.000Z"
+    });
+
+    await expect(reloadedStore.readHistory()).resolves.toEqual([
+      expect.objectContaining({
+        storedAt: "2026-03-11T15:52:00.000Z",
+        snapshotId: "snap-3"
+      }),
+      expect.objectContaining({
+        storedAt: "2026-03-11T15:51:00.000Z",
+        snapshotId: "snap-2"
+      })
+    ]);
+    await expect(reloadedStore.readHistory(1)).resolves.toEqual([
+      expect.objectContaining({
+        storedAt: "2026-03-11T15:52:00.000Z",
+        snapshotId: "snap-3"
+      })
+    ]);
+  });
+
   it("keeps memory fallback behavior for local or dev mode", async () => {
     const store = createMemoryBackupStore({
       maxHistory: 2,
