@@ -15,9 +15,12 @@ describe("remote sync docs", () => {
     expect(txt).toContain("检查云端状态");
     expect(txt).toContain("上传最新快照");
     expect(txt).toContain("拉取最新快照");
+    expect(txt).toContain("拉取所选历史快照");
     expect(txt).toContain("启动检查只拉取元数据");
     expect(txt).toContain("不会自动拉取或自动导入");
     expect(txt).toContain("不是完整云端聊天历史");
+    expect(txt).toContain("保留历史");
+    expect(txt).toContain("snapshot_id");
     expect(txt).toContain("guarded 写入");
     expect(txt).toContain("默认上传不会自动覆盖");
     expect(txt).toContain("仍然覆盖云端快照");

@@ -43,7 +43,8 @@ Updated: 2026-03-12
 - `x-trace-id` and compile `trace_id` are the main debugging join keys across alerts, smoke runs, `/admin/compile-events`, and `/admin/traces/:traceId`.
 - `REDIS_URL` remains the only supported shared fast-state dependency in Gateway V4; no SQL or extra backend datastore is required in this roadmap.
 - Web lightweight cloud sync remains snapshot-based; no SQL or full cloud history backend is required, startup freshness checks are metadata-only, and delayed upload is opt-in and never auto-restores.
-- Browser sync defaults to guarded writes, force overwrite requires an explicit danger action, and the unconditional admin latest write remains operator-only.
+- browser sync defaults to guarded writes, force overwrite requires an explicit danger action, and the unconditional admin latest write remains operator-only.
+- Retained remote snapshot history can be inspected explicitly, selected historical snapshots can be fetched by `snapshot_id`, and blocked/conflict sync states should be resolved through explicit selected-snapshot pull/import or explicit overwrite.
 - Gateway latest-backup recovery remains explicit and single-tenant; there is no background sync service or backup catalog in this phase.
 - Web remote backup UI is opt-in and requires a configured gateway admin token before upload/download actions are enabled.
 - When `REDIS_URL` is enabled, compile event retention and latest backup retention become durable across process restarts and power operator recovery queries.
@@ -101,4 +102,4 @@ Updated: 2026-03-12
 - [ ] Redis shared-state verified when configured (`REDIS_URL` shares revoke + rate limit + backup retention)
 - [ ] Template backup recovery checked (export + import preserves `geohelper.templates.snapshot`)
 - [ ] Gateway backup admin routes checked (`PUT/GET /admin/backups/latest` returns metadata and latest envelope with valid admin token)
-- [ ] Remote backup settings flow checked (gateway admin token saved, browser sync defaults to guarded writes, force overwrite requires an explicit danger action, and `检查云端状态` / `上传最新快照` / `拉取最新快照` stay explicit and manual)
+- [ ] Remote backup settings flow checked (gateway admin token saved, retained history is visible after `检查云端状态`, selected historical snapshots can be fetched by `snapshot_id`, blocked/conflict states point users to explicit pull/import or explicit overwrite, and `检查云端状态` / `上传最新快照` / `拉取最新快照` stay explicit and manual)

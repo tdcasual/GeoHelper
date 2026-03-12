@@ -306,6 +306,21 @@ export const createRemoteSyncController = (
     });
   };
 
+  const readResolutionHistory = async (
+    config: RemoteSyncReadyConfig
+  ): Promise<RuntimeBackupHistoryResponse["history"]> => {
+    try {
+      const response = await deps.fetchBackupHistory({
+        baseUrl: config.baseUrl,
+        adminToken: config.adminToken,
+        limit: 5
+      });
+      return response.history;
+    } catch {
+      return deps.getRemoteBackupSyncState().history;
+    }
+  };
+
   const runDelayedUpload = async () => {
     if (disposed || importInProgress || uploadInFlight) {
       return;
@@ -331,11 +346,14 @@ export const createRemoteSyncController = (
       });
 
       if (comparison.comparison_result === "remote_newer") {
+        const history = await readResolutionHistory(config);
         deps.setRemoteBackupSyncResult({
           status: "upload_blocked_remote_newer",
           latestRemoteBackup:
+            history[0] ??
             comparison.remote_snapshot?.summary ??
             deps.getRemoteBackupSyncState().latestRemoteBackup,
+          history,
           comparison,
           checkedAt: deps.nowIso?.() ?? new Date().toISOString()
         });
@@ -343,11 +361,14 @@ export const createRemoteSyncController = (
       }
 
       if (comparison.comparison_result === "diverged") {
+        const history = await readResolutionHistory(config);
         deps.setRemoteBackupSyncResult({
           status: "upload_blocked_diverged",
           latestRemoteBackup:
+            history[0] ??
             comparison.remote_snapshot?.summary ??
             deps.getRemoteBackupSyncState().latestRemoteBackup,
+          history,
           comparison,
           checkedAt: deps.nowIso?.() ?? new Date().toISOString()
         });
@@ -363,12 +384,15 @@ export const createRemoteSyncController = (
       });
 
       if (response.guarded_write === "conflict") {
+        const history = await readResolutionHistory(config);
         deps.setRemoteBackupSyncResult({
           status: "upload_conflict",
           latestRemoteBackup:
+            history[0] ??
             response.actual_remote_snapshot?.summary ??
             comparison.remote_snapshot?.summary ??
             deps.getRemoteBackupSyncState().latestRemoteBackup,
+          history,
           comparison: createGuardedConflictComparison({
             localSummary,
             response,

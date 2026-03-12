@@ -54,6 +54,7 @@ export interface GatewayBackupStore {
   ) => Promise<GuardedGatewayBackupWriteResult>;
   readLatest: () => Promise<GatewayBackupRecord | null>;
   readHistory: (limit?: number) => Promise<GatewayBackupSummary[]>;
+  readSnapshot: (snapshotId: string) => Promise<GatewayBackupRecord | null>;
 }
 
 export interface BackupStoreOptions {
@@ -162,6 +163,19 @@ const createSummary = (
   ...createGatewayBackupComparableSummary(envelope)
 });
 
+const createRecord = (
+  envelope: GatewayBackupEnvelope,
+  storedAt: string
+): GatewayBackupRecord => ({
+  ...createSummary(envelope, storedAt),
+  envelope
+});
+
+const toSummary = ({
+  envelope: _envelope,
+  ...summary
+}: GatewayBackupRecord): GatewayBackupSummary => summary;
+
 const createMissingRemoteComparison = (
   local: GatewayBackupEnvelope
 ): BackupSyncComparison => ({
@@ -233,19 +247,15 @@ export const createMemoryBackupStore = (
   const maxHistory = normalizeMaxHistory(options.maxHistory);
   const now = options.now ?? (() => new Date().toISOString());
   let latest: GatewayBackupRecord | null = null;
-  let history: GatewayBackupSummary[] = [];
+  let history: GatewayBackupRecord[] = [];
 
   return {
     writeLatest: async (envelopeInput) => {
       const envelope = parseGatewayBackupEnvelope(envelopeInput);
-      const storedAt = now();
-      const summary = createSummary(envelope, storedAt);
-      latest = {
-        ...summary,
-        envelope
-      };
-      history = [summary, ...history].slice(0, maxHistory);
-      return summary;
+      const record = createRecord(envelope, now());
+      latest = record;
+      history = [record, ...history].slice(0, maxHistory);
+      return toSummary(record);
     },
     writeLatestGuarded: async (input) => {
       if (!doesGuardExpectationMatch(latest, input)) {
@@ -253,24 +263,34 @@ export const createMemoryBackupStore = (
       }
 
       const envelope = parseGatewayBackupEnvelope(input.envelope);
-      const storedAt = now();
-      const backup = createSummary(envelope, storedAt);
-      latest = {
-        ...backup,
-        envelope
-      };
-      history = [backup, ...history].slice(0, maxHistory);
+      const record = createRecord(envelope, now());
+      latest = record;
+      history = [record, ...history].slice(0, maxHistory);
 
       return {
         status: "written",
-        backup
+        backup: toSummary(record)
       };
     },
     readLatest: async () => latest,
     readHistory: async (limit) => {
       const normalizedLimit =
         typeof limit === "number" ? Math.max(0, Math.floor(limit)) : maxHistory;
-      return history.slice(0, normalizedLimit);
+      return history.slice(0, normalizedLimit).map((record) => toSummary(record));
+    },
+    readSnapshot: async (snapshotId) => {
+      const normalizedSnapshotId = snapshotId.trim();
+      if (normalizedSnapshotId.length === 0) {
+        return null;
+      }
+
+      if (latest?.snapshotId === normalizedSnapshotId) {
+        return latest;
+      }
+
+      return (
+        history.find((record) => record.snapshotId === normalizedSnapshotId) ?? null
+      );
     }
   };
 };

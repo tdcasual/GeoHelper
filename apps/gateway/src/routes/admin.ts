@@ -51,6 +51,10 @@ const AdminBackupHistoryQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).optional()
 });
 
+const AdminBackupHistorySnapshotParamsSchema = z.object({
+  snapshotId: z.string().trim().min(1)
+});
+
 const GatewayBackupCompareSummarySchema = z
   .object({
     schema_version: z.number().int().positive(),
@@ -259,6 +263,34 @@ export const registerAdminRoutes = (
       history: history.map((entry) => serializeBackupSummary(entry)),
       build: getGatewayBuildIdentity(deps.buildInfo)
     });
+  });
+
+  app.get("/admin/backups/history/:snapshotId", async (request, reply) => {
+    if (!requireAdminToken(request, reply, config)) {
+      return reply;
+    }
+
+    const parsed = AdminBackupHistorySnapshotParamsSchema.safeParse(request.params);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: {
+          code: "INVALID_BACKUP_SNAPSHOT_ID",
+          message: "Backup snapshot id is invalid"
+        }
+      });
+    }
+
+    const backup = await deps.backupStore.readSnapshot(parsed.data.snapshotId);
+    if (!backup) {
+      return reply.status(404).send({
+        error: {
+          code: "BACKUP_NOT_FOUND",
+          message: "Backup was not found"
+        }
+      });
+    }
+
+    return reply.send(createBackupResponse(serializeBackupRecord(backup), deps.buildInfo));
   });
 
   app.post("/admin/backups/compare", async (request, reply) => {

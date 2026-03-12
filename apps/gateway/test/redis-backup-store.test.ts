@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   createMemoryBackupStore,
-  GatewayBackupEnvelope
+  GatewayBackupEnvelope,
+  GatewayBackupStore
 } from "../src/services/backup-store";
 import { createMemoryKvClient } from "../src/services/kv-client";
 import { createRedisBackupStore } from "../src/services/redis-backup-store";
@@ -202,6 +203,88 @@ describe("gateway backup store", () => {
         snapshotId: "snap-3"
       })
     ]);
+  });
+
+  it("reads an exact retained snapshot by snapshot id without changing latest or history order", async () => {
+    const kvClient = createMemoryKvClient();
+    let tick = 0;
+    const timestamps = [
+      "2026-03-11T15:50:00.000Z",
+      "2026-03-11T15:51:00.000Z",
+      "2026-03-11T15:52:00.000Z"
+    ];
+    const store = createRedisBackupStore(kvClient, {
+      prefix: "geohelper:test:backup:read-snapshot",
+      ttlSeconds: 300,
+      maxHistory: 5,
+      now: () => timestamps[Math.min(tick++, timestamps.length - 1)]
+    });
+
+    const first = createEnvelope("1");
+    const second = createEnvelope("2", { base_snapshot_id: "snap-1" });
+    const third = createEnvelope("3", { base_snapshot_id: "snap-2" });
+
+    await store.writeLatest(first);
+    await store.writeLatest(second);
+    await store.writeLatest(third);
+
+    const reloadedStore = createRedisBackupStore(kvClient, {
+      prefix: "geohelper:test:backup:read-snapshot",
+      ttlSeconds: 300,
+      maxHistory: 5,
+      now: () => "2026-03-11T15:53:00.000Z"
+    }) as typeof store & {
+      readSnapshot: (snapshotId: string) => Promise<Awaited<ReturnType<typeof store.readLatest>>>;
+    };
+
+    const historyBefore = await reloadedStore.readHistory(10);
+
+    await expect(reloadedStore.readSnapshot("snap-3")).resolves.toEqual(
+      expect.objectContaining({
+        storedAt: "2026-03-11T15:52:00.000Z",
+        snapshotId: "snap-3",
+        envelope: expect.objectContaining({
+          snapshot_id: "snap-3",
+          checksum: third.checksum,
+          base_snapshot_id: "snap-2"
+        })
+      })
+    );
+    await expect(reloadedStore.readSnapshot("snap-1")).resolves.toEqual(
+      expect.objectContaining({
+        storedAt: "2026-03-11T15:50:00.000Z",
+        snapshotId: "snap-1",
+        envelope: expect.objectContaining({
+          snapshot_id: "snap-1",
+          checksum: first.checksum
+        })
+      })
+    );
+    await expect(reloadedStore.readLatest()).resolves.toEqual(
+      expect.objectContaining({
+        snapshotId: "snap-3",
+        envelope: expect.objectContaining({
+          snapshot_id: "snap-3"
+        })
+      })
+    );
+    await expect(reloadedStore.readHistory(10)).resolves.toEqual(historyBefore);
+  });
+
+  it("returns null when an exact retained snapshot cannot be found", async () => {
+    const kvClient = createMemoryKvClient();
+    const store = createRedisBackupStore(kvClient, {
+      prefix: "geohelper:test:backup:missing-snapshot",
+      ttlSeconds: 300,
+      maxHistory: 2,
+      now: () => "2026-03-11T15:50:00.000Z"
+    }) as GatewayBackupStore & {
+      readSnapshot: (snapshotId: string) => Promise<Awaited<ReturnType<GatewayBackupStore["readLatest"]>>>;
+    };
+
+    await store.writeLatest(createEnvelope("1"));
+
+    await expect(store.readSnapshot("snap-missing")).resolves.toBeNull();
   });
 
   it("keeps memory fallback behavior for local or dev mode", async () => {

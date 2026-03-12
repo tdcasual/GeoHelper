@@ -18,5 +18,7 @@ describe("deploy docs", () => {
     expect(txt).toContain("browser sync defaults to guarded writes");
     expect(txt).toContain("force overwrite requires an explicit danger action");
     expect(txt).toContain("unconditional admin latest write remains available for operator/manual recovery");
+    expect(txt).toContain("selected historical snapshots can be fetched by `snapshot_id`");
+    expect(txt).toContain("/admin/backups/history/<snapshot-id>");
   });
 });

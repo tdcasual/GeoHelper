@@ -26,9 +26,12 @@ import {
 import {
   createComparableSummaryFromBackupEnvelope,
   formatRemoteBackupActionMessage,
+  formatRemoteBackupSelectedPullMessage,
   formatRemoteBackupRestoreWarning,
+  resolveRemoteBackupHistorySelectionPresentation,
   resolveRemoteBackupSyncPresentation,
   resolveRemoteBackupActions,
+  shouldRecommendRemoteHistoryResolution,
   shouldShowRemoteBackupForceUpload
 } from "./settings-remote-backup";
 import {
@@ -355,6 +358,8 @@ export const SettingsDrawer = ({
   const [remoteBackupPullResult, setRemoteBackupPullResult] = useState<
     RuntimeBackupDownloadResponse | null
   >(null);
+  const [selectedRemoteHistorySnapshotId, setSelectedRemoteHistorySnapshotId] =
+    useState<string | null>(null);
   const [activeSection, setActiveSection] =
     useState<SettingsSectionId>("general");
   const [pendingBackupFile, setPendingBackupFile] = useState<File | null>(null);
@@ -381,6 +386,27 @@ export const SettingsDrawer = ({
   const remoteBackupSyncPresentation = useMemo(
     () => resolveRemoteBackupSyncPresentation(remoteBackupSync),
     [remoteBackupSync]
+  );
+  const latestRemoteHistorySnapshotId =
+    remoteBackupSync.history[0]?.snapshot_id ??
+    remoteBackupSync.latestRemoteBackup?.snapshot_id ??
+    null;
+  const selectedRemoteHistoryBackup = useMemo(
+    () =>
+      remoteBackupSync.history.find(
+        (backup) => backup.snapshot_id === selectedRemoteHistorySnapshotId
+      ) ?? remoteBackupSync.history[0] ?? null,
+    [remoteBackupSync.history, selectedRemoteHistorySnapshotId]
+  );
+  const selectedRemoteHistoryPresentation = useMemo(
+    () =>
+      selectedRemoteHistoryBackup
+        ? resolveRemoteBackupHistorySelectionPresentation(
+            selectedRemoteHistoryBackup,
+            latestRemoteHistorySnapshotId
+          )
+        : null,
+    [latestRemoteHistorySnapshotId, selectedRemoteHistoryBackup]
   );
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -417,6 +443,24 @@ export const SettingsDrawer = ({
     const profile = runtimeProfiles.find((item) => item.id === selectedRuntimeId);
     setRuntimeDraft(fromRuntimeProfile(profile));
   }, [runtimeProfiles, selectedRuntimeId]);
+
+  useEffect(() => {
+    if (remoteBackupSync.history.length === 0) {
+      setSelectedRemoteHistorySnapshotId(null);
+      return;
+    }
+
+    if (
+      selectedRemoteHistorySnapshotId &&
+      remoteBackupSync.history.some(
+        (backup) => backup.snapshot_id === selectedRemoteHistorySnapshotId
+      )
+    ) {
+      return;
+    }
+
+    setSelectedRemoteHistorySnapshotId(remoteBackupSync.history[0]?.snapshot_id ?? null);
+  }, [remoteBackupSync.history, selectedRemoteHistorySnapshotId]);
 
   useEffect(() => {
     if (open) {
@@ -626,11 +670,22 @@ export const SettingsDrawer = ({
         });
 
         if (guardedResponse.guarded_write === "conflict") {
+          const historyResponse = await fetchGatewayBackupHistory({
+            baseUrl: remoteBackupActions.gatewayProfile.baseUrl,
+            adminToken,
+            limit: 5
+          }).catch(() => ({
+            history: remoteBackupSync.history,
+            build: guardedResponse.build
+          }));
+
           setRemoteBackupSyncResult({
             status: "force_upload_required",
             latestRemoteBackup:
+              historyResponse.history[0] ??
               guardedResponse.actual_remote_snapshot?.summary ??
               remoteBackupSync.latestRemoteBackup,
+            history: historyResponse.history,
             comparison: createRemoteBackupGuardedConflictComparison({
               localSummary,
               response: guardedResponse,
@@ -735,7 +790,7 @@ export const SettingsDrawer = ({
     }
   };
 
-  const handlePullRemoteBackup = async () => {
+  const handlePullRemoteBackup = async (snapshotId?: string) => {
     if (!remoteBackupActions.pull.enabled || !remoteBackupActions.gatewayProfile) {
       setBackupMessage(remoteBackupActions.pull.reason ?? "当前无法从网关拉取");
       return;
@@ -750,10 +805,15 @@ export const SettingsDrawer = ({
 
       const response = await downloadGatewayBackup({
         baseUrl: remoteBackupActions.gatewayProfile.baseUrl,
-        adminToken
+        adminToken,
+        snapshotId
       });
       setRemoteBackupPullResult(response);
-      setBackupMessage(formatRemoteBackupActionMessage("pull", response.backup));
+      setBackupMessage(
+        snapshotId
+          ? formatRemoteBackupSelectedPullMessage(response.backup)
+          : formatRemoteBackupActionMessage("pull", response.backup)
+      );
     } catch (error) {
       setBackupMessage(
         error instanceof Error ? error.message : "从网关拉取失败"
@@ -1548,6 +1608,75 @@ export const SettingsDrawer = ({
                 <p>{remoteBackupSyncPresentation.checkedAtLabel}</p>
               ) : null}
             </article>
+            {remoteBackupSync.history.length > 0 ? (
+              <article
+                className="settings-import-preview"
+                data-testid="remote-backup-history"
+              >
+                <p>{`云端保留历史：${remoteBackupSync.history.length} 条`}</p>
+                <div className="settings-remote-backup-history-list">
+                  {remoteBackupSync.history.map((backup, index) => {
+                    const isSelected =
+                      backup.snapshot_id === selectedRemoteHistoryBackup?.snapshot_id;
+                    const isLatest =
+                      backup.snapshot_id === latestRemoteHistorySnapshotId || index === 0;
+
+                    return (
+                      <button
+                        key={backup.snapshot_id}
+                        type="button"
+                        className={`settings-remote-backup-history-item${
+                          isSelected
+                            ? " settings-remote-backup-history-item-selected"
+                            : ""
+                        }`}
+                        onClick={() =>
+                          setSelectedRemoteHistorySnapshotId(backup.snapshot_id)
+                        }
+                      >
+                        <span>{isLatest ? "最新" : "历史"}</span>
+                        <span>{`${backup.conversation_count} 个会话`}</span>
+                        <span>{backup.snapshot_id}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedRemoteHistoryPresentation ? (
+                  <div data-testid="remote-backup-selected-history">
+                    <p>{selectedRemoteHistoryPresentation.statusLabel}</p>
+                    <p>{selectedRemoteHistoryPresentation.snapshotIdLabel}</p>
+                    <p>{selectedRemoteHistoryPresentation.deviceIdLabel}</p>
+                    <p>{selectedRemoteHistoryPresentation.updatedAtLabel}</p>
+                    <p>{selectedRemoteHistoryPresentation.conversationCountLabel}</p>
+                    {shouldRecommendRemoteHistoryResolution(
+                      remoteBackupSync.status
+                    ) ? (
+                      <p className="settings-hint">
+                        建议先拉取当前选中的快照预览，再决定合并、覆盖或仍然覆盖云端。
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+                {selectedRemoteHistoryBackup &&
+                selectedRemoteHistoryBackup.snapshot_id !== latestRemoteHistorySnapshotId ? (
+                  <div className="settings-inline-actions">
+                    <button
+                      type="button"
+                      disabled={
+                        Boolean(remoteBackupBusyAction) || !remoteBackupActions.pull.enabled
+                      }
+                      onClick={() => {
+                        void handlePullRemoteBackup(
+                          selectedRemoteHistoryBackup.snapshot_id
+                        );
+                      }}
+                    >
+                      拉取所选历史快照
+                    </button>
+                  </div>
+                ) : null}
+              </article>
+            ) : null}
             {!remoteBackupActions.upload.enabled && remoteBackupActions.upload.reason ? (
               <p className="settings-warning-text">
                 {remoteBackupActions.upload.reason}
@@ -1593,7 +1722,9 @@ export const SettingsDrawer = ({
               <button
                 type="button"
                 disabled={Boolean(remoteBackupBusyAction) || !remoteBackupActions.pull.enabled}
-                onClick={handlePullRemoteBackup}
+                onClick={() => {
+                  void handlePullRemoteBackup();
+                }}
               >
                 拉取最新快照
               </button>
@@ -1618,6 +1749,8 @@ export const SettingsDrawer = ({
                 <p>{`拉取时间：${new Date(remoteBackupPullResult.backup.stored_at).toLocaleString("zh-CN")}`}</p>
                 <p>{`schema：v${remoteBackupPullResult.backup.schema_version}`}</p>
                 <p>{`创建时间：${new Date(remoteBackupPullResult.backup.created_at).toLocaleString("zh-CN")}`}</p>
+                <p>{`快照 ID：${remoteBackupPullResult.backup.snapshot_id}`}</p>
+                <p>{`设备 ID：${remoteBackupPullResult.backup.device_id}`}</p>
                 <p>{`会话数：${remoteBackupPullResult.backup.conversation_count}`}</p>
                 <p>{`来源版本：${remoteBackupPullResult.backup.app_version}`}</p>
                 <p className="settings-warning-text">
