@@ -5,8 +5,14 @@ import {
   RuntimeApiError
 } from "./orchestrator";
 import {
+  RuntimeBackupCompareRequest,
+  RuntimeBackupCompareResponse,
   RuntimeBackupDownloadRequest,
   RuntimeBackupDownloadResponse,
+  RuntimeBackupHistoryRequest,
+  RuntimeBackupHistoryResponse,
+  RuntimeBackupLatestMetadataRequest,
+  RuntimeBackupLatestMetadataResponse,
   RuntimeBackupUploadRequest,
   RuntimeBackupUploadResponse,
   RuntimeCapabilities,
@@ -25,6 +31,16 @@ const runtimeOrchestrator = createRuntimeOrchestrator({
 });
 
 export type {
+  RuntimeBackupCompareRequest,
+  RuntimeBackupCompareResponse,
+  RuntimeBackupDownloadRequest,
+  RuntimeBackupDownloadResponse,
+  RuntimeBackupHistoryRequest,
+  RuntimeBackupHistoryResponse,
+  RuntimeBackupLatestMetadataRequest,
+  RuntimeBackupLatestMetadataResponse,
+  RuntimeBackupUploadRequest,
+  RuntimeBackupUploadResponse,
   RuntimeTarget,
   RuntimeCapabilities,
   RuntimeCompileRequest,
@@ -66,3 +82,18 @@ export const uploadGatewayBackup = async (
 export const downloadGatewayBackup = async (
   request: RuntimeBackupDownloadRequest
 ): Promise<RuntimeBackupDownloadResponse> => gatewayRuntimeClient.downloadBackup(request);
+
+export const fetchGatewayBackupHistory = async (
+  request: RuntimeBackupHistoryRequest
+): Promise<RuntimeBackupHistoryResponse> =>
+  gatewayRuntimeClient.fetchBackupHistory(request);
+
+export const fetchGatewayLatestBackupMetadata = async (
+  request: RuntimeBackupLatestMetadataRequest
+): Promise<RuntimeBackupLatestMetadataResponse> =>
+  gatewayRuntimeClient.fetchLatestBackupMetadata(request);
+
+export const compareGatewayBackup = async (
+  request: RuntimeBackupCompareRequest
+): Promise<RuntimeBackupCompareResponse> =>
+  gatewayRuntimeClient.compareBackup(request);

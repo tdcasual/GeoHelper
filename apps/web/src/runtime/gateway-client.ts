@@ -1,8 +1,14 @@
 import { RuntimeApiError, RuntimeClient } from "./orchestrator";
 import { verifyCommandBatch } from "./compile-pipeline";
 import {
+  RuntimeBackupCompareRequest,
+  RuntimeBackupCompareResponse,
   RuntimeBackupDownloadRequest,
   RuntimeBackupDownloadResponse,
+  RuntimeBackupHistoryRequest,
+  RuntimeBackupHistoryResponse,
+  RuntimeBackupLatestMetadataRequest,
+  RuntimeBackupLatestMetadataResponse,
   RuntimeBackupUploadRequest,
   RuntimeBackupUploadResponse,
   RuntimeBuildIdentity,
@@ -31,6 +37,15 @@ export interface GatewayRuntimeClient extends RuntimeClient {
   downloadBackup: (
     request: RuntimeBackupDownloadRequest
   ) => Promise<RuntimeBackupDownloadResponse>;
+  fetchBackupHistory: (
+    request: RuntimeBackupHistoryRequest
+  ) => Promise<RuntimeBackupHistoryResponse>;
+  fetchLatestBackupMetadata: (
+    request: RuntimeBackupLatestMetadataRequest
+  ) => Promise<RuntimeBackupLatestMetadataResponse>;
+  compareBackup: (
+    request: RuntimeBackupCompareRequest
+  ) => Promise<RuntimeBackupCompareResponse>;
   resolveCapabilities: (params?: {
     baseUrl?: string;
     model?: string;
@@ -101,6 +116,16 @@ const buildGatewayCapabilities = (
   supportsVision: Boolean(identity?.attachments_enabled)
 });
 
+const buildHistoryUrl = (baseUrl: string, limit?: number): string => {
+  const params = new URLSearchParams();
+  if (typeof limit === "number" && Number.isFinite(limit) && limit > 0) {
+    params.set("limit", String(Math.floor(limit)));
+  }
+
+  const query = params.toString();
+  return `${baseUrl}/admin/backups/history${query ? `?${query}` : ""}`;
+};
+
 export const createGatewayClient = (): GatewayRuntimeClient => {
   const capabilityCache = new Map<string, RuntimeCapabilities>();
 
@@ -139,6 +164,63 @@ export const createGatewayClient = (): GatewayRuntimeClient => {
       capabilityCache.set(cacheKey, capabilities);
     }
     return capabilities;
+  };
+
+  const fetchBackupHistory = async (
+    request: RuntimeBackupHistoryRequest
+  ): Promise<RuntimeBackupHistoryResponse> => {
+    const baseUrl = resolveGatewayBaseUrl(request.baseUrl);
+    const response = await fetch(buildHistoryUrl(baseUrl, request.limit), {
+      method: "GET",
+      headers: buildAdminHeaders(request.adminToken)
+    });
+
+    if (!response.ok) {
+      return parseApiError(
+        response,
+        "REMOTE_BACKUP_HISTORY_FAILED",
+        "Remote backup history failed"
+      );
+    }
+
+    return response.json() as Promise<RuntimeBackupHistoryResponse>;
+  };
+
+  const fetchLatestBackupMetadata = async (
+    request: RuntimeBackupLatestMetadataRequest
+  ): Promise<RuntimeBackupLatestMetadataResponse> => {
+    const response = await fetchBackupHistory({
+      ...request,
+      limit: 1
+    });
+
+    return {
+      backup: response.history[0] ?? null,
+      build: response.build
+    };
+  };
+
+  const compareBackup = async (
+    request: RuntimeBackupCompareRequest
+  ): Promise<RuntimeBackupCompareResponse> => {
+    const baseUrl = resolveGatewayBaseUrl(request.baseUrl);
+    const response = await fetch(`${baseUrl}/admin/backups/compare`, {
+      method: "POST",
+      headers: buildAdminHeaders(request.adminToken, true),
+      body: JSON.stringify({
+        local_summary: request.localSummary
+      })
+    });
+
+    if (!response.ok) {
+      return parseApiError(
+        response,
+        "REMOTE_BACKUP_COMPARE_FAILED",
+        "Remote backup compare failed"
+      );
+    }
+
+    return response.json() as Promise<RuntimeBackupCompareResponse>;
   };
 
   return {
@@ -247,6 +329,10 @@ export const createGatewayClient = (): GatewayRuntimeClient => {
 
       return response.json() as Promise<RuntimeBackupDownloadResponse>;
     },
+
+    fetchBackupHistory,
+    fetchLatestBackupMetadata,
+    compareBackup,
 
     loginWithPresetToken: async (request) => {
       const baseUrl = resolveGatewayBaseUrl(request.baseUrl);
