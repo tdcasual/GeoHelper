@@ -9,6 +9,8 @@ import {
   RuntimeBackupCompareResponse,
   RuntimeBackupDownloadRequest,
   RuntimeBackupDownloadResponse,
+  RuntimeBackupGuardedUploadRequest,
+  RuntimeBackupGuardedUploadResponse,
   RuntimeBackupHistoryRequest,
   RuntimeBackupHistoryResponse,
   RuntimeBackupLatestMetadataRequest,
@@ -35,6 +37,8 @@ export type {
   RuntimeBackupCompareResponse,
   RuntimeBackupDownloadRequest,
   RuntimeBackupDownloadResponse,
+  RuntimeBackupGuardedUploadRequest,
+  RuntimeBackupGuardedUploadResponse,
   RuntimeBackupHistoryRequest,
   RuntimeBackupHistoryResponse,
   RuntimeBackupLatestMetadataRequest,
@@ -78,6 +82,11 @@ export const revokeRuntimeSession = async (
 export const uploadGatewayBackup = async (
   request: RuntimeBackupUploadRequest
 ): Promise<RuntimeBackupUploadResponse> => gatewayRuntimeClient.uploadBackup(request);
+
+export const uploadGatewayBackupGuarded = async (
+  request: RuntimeBackupGuardedUploadRequest
+): Promise<RuntimeBackupGuardedUploadResponse> =>
+  gatewayRuntimeClient.uploadBackupGuarded(request);
 
 export const downloadGatewayBackup = async (
   request: RuntimeBackupDownloadRequest

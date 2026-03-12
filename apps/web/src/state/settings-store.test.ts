@@ -419,4 +419,83 @@ describe("settings-store", () => {
     );
     expect(store.getState().remoteBackupSync.lastComparison).toBeNull();
   });
+
+  it("tracks guarded upload statuses without dropping remote summary metadata", () => {
+    const store = createSettingsStore();
+    const remoteSummary = {
+      stored_at: "2026-03-12T10:10:00.000Z",
+      schema_version: 2,
+      created_at: "2026-03-12T10:08:00.000Z",
+      updated_at: "2026-03-12T10:09:00.000Z",
+      app_version: "0.0.1",
+      checksum: "checksum-remote",
+      conversation_count: 2,
+      snapshot_id: "snap-remote",
+      device_id: "device-remote"
+    };
+    const comparison = {
+      local_status: "summary" as const,
+      remote_status: "available" as const,
+      comparison_result: "remote_newer" as const,
+      local_snapshot: {
+        summary: {
+          schema_version: 2,
+          created_at: "2026-03-12T10:08:00.000Z",
+          updated_at: "2026-03-12T10:08:30.000Z",
+          app_version: "0.0.1",
+          checksum: "checksum-local",
+          conversation_count: 1,
+          snapshot_id: "snap-local",
+          device_id: "device-local"
+        }
+      },
+      remote_snapshot: {
+        summary: remoteSummary
+      },
+      build: {
+        git_sha: "backupsha",
+        build_time: "2026-03-12T10:10:30.000Z",
+        node_env: "production",
+        redis_enabled: true,
+        attachments_enabled: false
+      }
+    };
+
+    store.getState().beginRemoteBackupSyncUpload();
+    expect(store.getState().remoteBackupSync.status).toBe("uploading");
+
+    store.getState().setRemoteBackupSyncResult({
+      status: "upload_blocked_remote_newer",
+      latestRemoteBackup: remoteSummary,
+      history: [remoteSummary],
+      comparison,
+      checkedAt: "2026-03-12T10:11:00.000Z"
+    });
+    expect(store.getState().remoteBackupSync.status).toBe(
+      "upload_blocked_remote_newer"
+    );
+    expect(store.getState().remoteBackupSync.latestRemoteBackup).toEqual(
+      remoteSummary
+    );
+
+    store.getState().setRemoteBackupSyncResult({
+      status: "force_upload_required",
+      comparison,
+      checkedAt: "2026-03-12T10:12:00.000Z"
+    });
+    expect(store.getState().remoteBackupSync.status).toBe(
+      "force_upload_required"
+    );
+
+    store.getState().setRemoteBackupSyncResult({
+      status: "upload_conflict",
+      comparison,
+      checkedAt: "2026-03-12T10:13:00.000Z"
+    });
+    expect(store.getState().remoteBackupSync.status).toBe("upload_conflict");
+    expect(store.getState().remoteBackupSync.latestRemoteBackup).toEqual(
+      remoteSummary
+    );
+    expect(store.getState().remoteBackupSync.history).toEqual([remoteSummary]);
+  });
 });

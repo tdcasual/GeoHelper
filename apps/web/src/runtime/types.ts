@@ -163,10 +163,15 @@ export type RuntimeBackupComparisonResult =
 export type RemoteBackupSyncStatus =
   | "idle"
   | "checking"
+  | "uploading"
   | "up_to_date"
   | "local_newer"
   | "remote_newer"
-  | "diverged";
+  | "diverged"
+  | "upload_blocked_remote_newer"
+  | "upload_blocked_diverged"
+  | "upload_conflict"
+  | "force_upload_required";
 
 export interface RuntimeBackupUploadRequest {
   baseUrl?: string;
@@ -178,6 +183,34 @@ export interface RuntimeBackupUploadResponse {
   backup: RuntimeBackupMetadata;
   build: RuntimeBuildIdentity;
 }
+
+export interface RuntimeBackupGuardedUploadRequest {
+  baseUrl?: string;
+  adminToken?: string;
+  envelope: BackupEnvelope;
+  expectedRemoteSnapshotId?: string | null;
+  expectedRemoteChecksum?: string | null;
+}
+
+export interface RuntimeBackupGuardedUploadWrittenResponse {
+  guarded_write: "written";
+  backup: RuntimeBackupMetadata;
+  build: RuntimeBuildIdentity;
+}
+
+export interface RuntimeBackupGuardedUploadConflictResponse {
+  guarded_write: "conflict";
+  comparison_result: RuntimeBackupComparisonResult;
+  expected_remote_snapshot_id: string | null;
+  actual_remote_snapshot: {
+    summary: RuntimeBackupMetadata;
+  } | null;
+  build: RuntimeBuildIdentity;
+}
+
+export type RuntimeBackupGuardedUploadResponse =
+  | RuntimeBackupGuardedUploadWrittenResponse
+  | RuntimeBackupGuardedUploadConflictResponse;
 
 export interface RuntimeBackupDownloadRequest {
   baseUrl?: string;
