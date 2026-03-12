@@ -17,6 +17,114 @@ const openSettingsSection = async (
   await page.getByRole("button", { name: section, exact: true }).click();
 };
 
+const seedGatewayRemoteBackupSettings = async (
+  page: import("@playwright/test").Page
+) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "geohelper.settings.snapshot",
+      JSON.stringify({
+        schemaVersion: 3,
+        defaultMode: "byok",
+        runtimeProfiles: [
+          {
+            id: "runtime_gateway",
+            name: "Gateway",
+            target: "gateway",
+            baseUrl: "https://gateway.example.com",
+            updatedAt: 1
+          },
+          {
+            id: "runtime_direct",
+            name: "Direct BYOK",
+            target: "direct",
+            baseUrl: "https://openrouter.ai/api/v1",
+            updatedAt: 1
+          }
+        ],
+        defaultRuntimeProfileId: "runtime_gateway",
+        byokPresets: [
+          {
+            id: "byok_default",
+            name: "Default BYOK",
+            model: "gpt-4o-mini",
+            endpoint: "https://openrouter.ai/api/v1",
+            temperature: 0.2,
+            maxTokens: 1200,
+            timeoutMs: 20000,
+            updatedAt: 1
+          }
+        ],
+        officialPresets: [
+          {
+            id: "official_default",
+            name: "Official",
+            model: "gpt-4o-mini",
+            temperature: 0.2,
+            maxTokens: 1200,
+            timeoutMs: 20000,
+            updatedAt: 1
+          }
+        ],
+        defaultByokPresetId: "byok_default",
+        defaultOfficialPresetId: "official_default",
+        sessionOverrides: {},
+        experimentFlags: {
+          showAgentSteps: false,
+          autoRetryEnabled: false,
+          requestTimeoutEnabled: true,
+          strictValidationEnabled: false,
+          fallbackSingleAgentEnabled: false,
+          debugLogPanelEnabled: false,
+          performanceSamplingEnabled: false
+        },
+        requestDefaults: { retryAttempts: 1 },
+        debugEvents: []
+      })
+    );
+    localStorage.setItem(
+      "geohelper.chat.snapshot",
+      JSON.stringify({
+        mode: "byok",
+        sessionToken: null,
+        reauthRequired: false,
+        activeConversationId: "conv_local",
+        messages: [
+          {
+            id: "msg_local",
+            role: "user",
+            content: "local only"
+          }
+        ],
+        conversations: [
+          {
+            id: "conv_local",
+            title: "local only",
+            createdAt: 1,
+            updatedAt: 2,
+            messages: [
+              {
+                id: "msg_local",
+                role: "user",
+                content: "local only"
+              }
+            ]
+          }
+        ]
+      })
+    );
+  });
+};
+
+const saveGatewayAdminToken = async (
+  page: import("@playwright/test").Page
+) => {
+  await openSettingsSection(page, "数据与安全");
+  await page.getByPlaceholder("x-admin-token").fill("admin-secret");
+  await page.getByRole("button", { name: "保存管理员令牌" }).click();
+  await expect(page.getByText("网关管理员令牌已保存")).toBeVisible();
+};
+
 const createBackupFile = (input: {
   schemaVersion?: number;
   appVersion?: string;
@@ -777,4 +885,203 @@ test("mobile model preset selector stays within section with long preset names",
   expect(metrics.sectionScrollWidth).toBeLessThanOrEqual(metrics.sectionClientWidth + 1);
   expect(metrics.selectorRight).toBeLessThanOrEqual(metrics.sectionRight + 1);
   expect(metrics.selectorWidth).toBeLessThanOrEqual(metrics.sectionWidth);
+});
+
+test("remote backup sync status stays metadata-only until user explicitly imports", async ({
+  page
+}) => {
+  await seedGatewayRemoteBackupSettings(page);
+
+  await page.route(
+    "https://gateway.example.com/admin/backups/history?limit=5",
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          history: [
+            {
+              stored_at: "2026-03-12T10:05:00.000Z",
+              schema_version: 2,
+              created_at: "2026-03-12T10:00:00.000Z",
+              updated_at: "2026-03-12T10:04:00.000Z",
+              app_version: "0.0.1",
+              checksum: "checksum-remote",
+              conversation_count: 2,
+              snapshot_id: "snap-remote",
+              device_id: "device-remote"
+            }
+          ],
+          build: {
+            git_sha: "backupsha",
+            build_time: "2026-03-12T10:05:30.000Z",
+            node_env: "test",
+            redis_enabled: true,
+            attachments_enabled: false
+          }
+        })
+      });
+    }
+  );
+  await page.route(
+    "https://gateway.example.com/admin/backups/compare",
+    async (route) => {
+      const payload = route.request().postDataJSON() as {
+        local_summary?: {
+          snapshot_id?: string;
+          checksum?: string;
+        };
+      };
+      expect(payload.local_summary?.snapshot_id).toBeTruthy();
+      expect(payload.local_summary?.checksum).toBeTruthy();
+
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          local_status: "summary",
+          remote_status: "available",
+          comparison_result: "remote_newer",
+          local_snapshot: {
+            summary: {
+              schema_version: 3,
+              created_at: "2026-03-12T09:59:00.000Z",
+              updated_at: "2026-03-12T10:01:00.000Z",
+              app_version: "0.0.1",
+              checksum: "checksum-local",
+              conversation_count: 1,
+              snapshot_id: "snap-local",
+              device_id: "device-local"
+            }
+          },
+          remote_snapshot: {
+            summary: {
+              stored_at: "2026-03-12T10:05:00.000Z",
+              schema_version: 2,
+              created_at: "2026-03-12T10:00:00.000Z",
+              updated_at: "2026-03-12T10:04:00.000Z",
+              app_version: "0.0.1",
+              checksum: "checksum-remote",
+              conversation_count: 2,
+              snapshot_id: "snap-remote",
+              device_id: "device-remote"
+            }
+          },
+          build: {
+            git_sha: "backupsha",
+            build_time: "2026-03-12T10:05:30.000Z",
+            node_env: "test",
+            redis_enabled: true,
+            attachments_enabled: false
+          }
+        })
+      });
+    }
+  );
+  await page.route(
+    "https://gateway.example.com/admin/backups/latest",
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          backup: {
+            stored_at: "2026-03-12T10:05:00.000Z",
+            schema_version: 2,
+            created_at: "2026-03-12T10:00:00.000Z",
+            updated_at: "2026-03-12T10:04:00.000Z",
+            app_version: "0.0.1",
+            checksum: "checksum-remote",
+            conversation_count: 2,
+            snapshot_id: "snap-remote",
+            device_id: "device-remote",
+            envelope: {
+              schema_version: 2,
+              created_at: "2026-03-12T10:00:00.000Z",
+              updated_at: "2026-03-12T10:04:00.000Z",
+              app_version: "0.0.1",
+              checksum: "checksum-remote",
+              snapshot_id: "snap-remote",
+              device_id: "device-remote",
+              conversations: [],
+              settings: {}
+            }
+          },
+          build: {
+            git_sha: "backupsha",
+            build_time: "2026-03-12T10:05:30.000Z",
+            node_env: "test",
+            redis_enabled: true,
+            attachments_enabled: false
+          }
+        })
+      });
+    }
+  );
+
+  await page.goto("http://localhost:5173");
+  await saveGatewayAdminToken(page);
+  await page.getByRole("button", { name: "检查云端状态" }).click();
+
+  await expect(page.getByText("同步状态：云端较新")).toBeVisible();
+  await expect(page.getByText(/云端最新快照：.*2 个会话/)).toBeVisible();
+  await expect(page.getByText("快照 ID：snap-remote")).toBeVisible();
+  await expect(page.getByRole("button", { name: "上传最新快照" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "拉取最新快照" })).toBeVisible();
+
+  const chatSnapshotAfterCheck = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "null")
+  );
+  expect(chatSnapshotAfterCheck.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_local"
+  ]);
+
+  await page.getByRole("button", { name: "拉取最新快照" }).click();
+  await expect(page.getByRole("button", { name: "拉取后导入（合并）" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "拉取后覆盖导入" })).toBeVisible();
+
+  const chatSnapshotAfterPull = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "null")
+  );
+  expect(chatSnapshotAfterPull.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_local"
+  ]);
+});
+
+test("remote backup sync keeps gateway failures visible and non-destructive", async ({
+  page
+}) => {
+  await seedGatewayRemoteBackupSettings(page);
+
+  await page.route(
+    "https://gateway.example.com/admin/backups/history?limit=5",
+    async (route) => {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: {
+            code: "GATEWAY_UNAVAILABLE",
+            message: "Gateway unavailable"
+          }
+        })
+      });
+    }
+  );
+
+  await page.goto("http://localhost:5173");
+  await saveGatewayAdminToken(page);
+  await page.getByRole("button", { name: "检查云端状态" }).click();
+
+  await expect(page.getByText("同步状态：检查失败")).toBeVisible();
+  await expect(
+    page.getByTestId("remote-backup-sync-status").getByText("Gateway unavailable")
+  ).toBeVisible();
+
+  const chatSnapshot = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "null")
+  );
+  expect(chatSnapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_local"
+  ]);
 });

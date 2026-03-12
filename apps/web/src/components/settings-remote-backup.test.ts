@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatRemoteBackupActionMessage,
   formatRemoteBackupRestoreWarning,
+  resolveRemoteBackupSyncPresentation,
   resolveRemoteBackupActions
 } from "./settings-remote-backup";
 
@@ -44,6 +45,10 @@ describe("settings remote backup helpers", () => {
     });
 
     expect(state.gatewayProfile).toBeNull();
+    expect(state.check).toEqual({
+      enabled: false,
+      reason: "请先配置可用的 Gateway 运行时地址"
+    });
     expect(state.upload).toEqual({
       enabled: false,
       reason: "请先配置可用的 Gateway 运行时地址"
@@ -63,6 +68,10 @@ describe("settings remote backup helpers", () => {
     });
 
     expect(state.gatewayProfile?.id).toBe(gatewayProfile.id);
+    expect(state.check).toEqual({
+      enabled: false,
+      reason: "请先保存网关管理员令牌"
+    });
     expect(state.upload).toEqual({
       enabled: false,
       reason: "请先保存网关管理员令牌"
@@ -87,5 +96,66 @@ describe("settings remote backup helpers", () => {
     expect(formatRemoteBackupRestoreWarning(metadata)).toBe(
       "导入前请确认恢复策略：合并会保留较新的同 id 本地记录，覆盖会直接替换本地数据。"
     );
+  });
+
+  it("formats compare-driven cloud sync labels and latest snapshot summary", () => {
+    expect(
+      resolveRemoteBackupSyncPresentation({
+        status: "up_to_date",
+        lastError: null,
+        latestRemoteBackup: metadata,
+        lastCheckedAt: "2026-03-12T10:02:00.000Z"
+      })
+    ).toMatchObject({
+      statusLabel: "已同步"
+    });
+
+    expect(
+      resolveRemoteBackupSyncPresentation({
+        status: "local_newer",
+        lastError: null,
+        latestRemoteBackup: metadata,
+        lastCheckedAt: "2026-03-12T10:02:00.000Z"
+      })
+    ).toMatchObject({
+      statusLabel: "本地较新"
+    });
+
+    const remoteNewer = resolveRemoteBackupSyncPresentation({
+      status: "remote_newer",
+      lastError: null,
+      latestRemoteBackup: metadata,
+      lastCheckedAt: "2026-03-12T10:02:00.000Z"
+    });
+    expect(remoteNewer).toMatchObject({
+      statusLabel: "云端较新"
+    });
+    expect(remoteNewer.latestSummary).toContain("2 个会话");
+    expect(remoteNewer.latestSummary).toContain("snap-remote");
+
+    expect(
+      resolveRemoteBackupSyncPresentation({
+        status: "diverged",
+        lastError: null,
+        latestRemoteBackup: metadata,
+        lastCheckedAt: "2026-03-12T10:02:00.000Z"
+      })
+    ).toMatchObject({
+      statusLabel: "存在分叉"
+    });
+  });
+
+  it("keeps gateway-unavailable sync failures explicit", () => {
+    expect(
+      resolveRemoteBackupSyncPresentation({
+        status: "idle",
+        lastError: "Gateway unavailable",
+        latestRemoteBackup: null,
+        lastCheckedAt: "2026-03-12T10:02:00.000Z"
+      })
+    ).toMatchObject({
+      statusLabel: "检查失败",
+      description: "Gateway unavailable"
+    });
   });
 });

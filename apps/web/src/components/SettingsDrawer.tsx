@@ -9,11 +9,15 @@ import {
 } from "../state/settings-store";
 import {
   downloadGatewayBackup,
+  compareGatewayBackup,
+  fetchGatewayBackupHistory,
   uploadGatewayBackup
 } from "../runtime/runtime-service";
 import {
+  createComparableSummaryFromBackupEnvelope,
   formatRemoteBackupActionMessage,
   formatRemoteBackupRestoreWarning,
+  resolveRemoteBackupSyncPresentation,
   resolveRemoteBackupActions
 } from "./settings-remote-backup";
 import {
@@ -173,6 +177,7 @@ export const SettingsDrawer = ({
   const remoteBackupAdminTokenCipher = useSettingsStore(
     (state) => state.remoteBackupAdminTokenCipher
   );
+  const remoteBackupSync = useSettingsStore((state) => state.remoteBackupSync);
   const upsertRuntimeProfile = useSettingsStore(
     (state) => state.upsertRuntimeProfile
   );
@@ -215,6 +220,15 @@ export const SettingsDrawer = ({
   );
   const setByokRuntimeIssue = useSettingsStore(
     (state) => state.setByokRuntimeIssue
+  );
+  const beginRemoteBackupSyncCheck = useSettingsStore(
+    (state) => state.beginRemoteBackupSyncCheck
+  );
+  const setRemoteBackupSyncResult = useSettingsStore(
+    (state) => state.setRemoteBackupSyncResult
+  );
+  const setRemoteBackupSyncError = useSettingsStore(
+    (state) => state.setRemoteBackupSyncError
   );
 
   const [selectedByokId, setSelectedByokId] = useState(defaultByokPresetId);
@@ -292,6 +306,10 @@ export const SettingsDrawer = ({
       remoteBackupPullResult,
       runtimeProfiles
     ]
+  );
+  const remoteBackupSyncPresentation = useMemo(
+    () => resolveRemoteBackupSyncPresentation(remoteBackupSync),
+    [remoteBackupSync]
   );
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -515,6 +533,55 @@ export const SettingsDrawer = ({
       setBackupMessage(
         error instanceof Error ? error.message : "上传到网关失败"
       );
+    } finally {
+      setRemoteBackupBusyAction(null);
+    }
+  };
+
+  const handleCheckRemoteBackupSync = async () => {
+    if (!remoteBackupActions.check.enabled || !remoteBackupActions.gatewayProfile) {
+      setBackupMessage(
+        remoteBackupActions.check.reason ?? "当前无法检查云端状态"
+      );
+      return;
+    }
+
+    setRemoteBackupBusyAction("check");
+    beginRemoteBackupSyncCheck();
+    try {
+      const adminToken = await readRemoteBackupAdminToken();
+      if (!adminToken) {
+        throw new Error("请先保存网关管理员令牌");
+      }
+
+      const envelope = await exportCurrentAppBackupEnvelope();
+      const localSummary = createComparableSummaryFromBackupEnvelope(envelope);
+      const [historyResponse, comparison] = await Promise.all([
+        fetchGatewayBackupHistory({
+          baseUrl: remoteBackupActions.gatewayProfile.baseUrl,
+          adminToken,
+          limit: 5
+        }),
+        compareGatewayBackup({
+          baseUrl: remoteBackupActions.gatewayProfile.baseUrl,
+          adminToken,
+          localSummary
+        })
+      ]);
+
+      setRemoteBackupSyncResult({
+        latestRemoteBackup:
+          historyResponse.history[0] ?? comparison.remote_snapshot?.summary ?? null,
+        history: historyResponse.history,
+        comparison,
+        checkedAt: new Date().toISOString()
+      });
+      setBackupMessage("云端状态检查完成");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "检查云端状态失败";
+      setRemoteBackupSyncError(message);
+      setBackupMessage(message);
     } finally {
       setRemoteBackupBusyAction(null);
     }
@@ -1292,6 +1359,24 @@ export const SettingsDrawer = ({
                 ? `远端网关：${remoteBackupActions.gatewayProfile.name}（${remoteBackupActions.gatewayProfile.baseUrl}）`
                 : remoteBackupActions.upload.reason}
             </p>
+            <article
+              className="settings-import-preview"
+              data-testid="remote-backup-sync-status"
+            >
+              <p>{`同步状态：${remoteBackupSyncPresentation.statusLabel}`}</p>
+              <p>{remoteBackupSyncPresentation.description}</p>
+              {remoteBackupSyncPresentation.latestSummary ? (
+                <p>{remoteBackupSyncPresentation.latestSummary}</p>
+              ) : (
+                <p>云端最新快照：尚未获取摘要</p>
+              )}
+              {remoteBackupSync.latestRemoteBackup ? (
+                <p>{`快照 ID：${remoteBackupSync.latestRemoteBackup.snapshot_id}`}</p>
+              ) : null}
+              {remoteBackupSyncPresentation.checkedAtLabel ? (
+                <p>{remoteBackupSyncPresentation.checkedAtLabel}</p>
+              ) : null}
+            </article>
             {!remoteBackupActions.upload.enabled && remoteBackupActions.upload.reason ? (
               <p className="settings-warning-text">
                 {remoteBackupActions.upload.reason}
@@ -1320,17 +1405,24 @@ export const SettingsDrawer = ({
             <div className="settings-inline-actions">
               <button
                 type="button"
+                disabled={Boolean(remoteBackupBusyAction) || !remoteBackupActions.check.enabled}
+                onClick={handleCheckRemoteBackupSync}
+              >
+                检查云端状态
+              </button>
+              <button
+                type="button"
                 disabled={Boolean(remoteBackupBusyAction) || !remoteBackupActions.upload.enabled}
                 onClick={handleUploadRemoteBackup}
               >
-                上传到网关
+                上传最新快照
               </button>
               <button
                 type="button"
                 disabled={Boolean(remoteBackupBusyAction) || !remoteBackupActions.pull.enabled}
                 onClick={handlePullRemoteBackup}
               >
-                从网关拉取
+                拉取最新快照
               </button>
             </div>
             {remoteBackupPullResult ? (
