@@ -14,44 +14,56 @@ The backend roadmap sequence currently spans `V2` through `V6`. Read them in ord
 | `V5` | 2026-03-12 | Ops closure, scheduled verification, published evidence, and remote recovery | [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md) | Completed / historical context |
 | `V6` | 2026-03-12 | Gateway vision capability and image attachment support | [`2026-03-12-backend-v6-vision-attachments-roadmap.md`](./2026-03-12-backend-v6-vision-attachments-roadmap.md) | Completed / current latest roadmap |
 
-## What Each Version Added
+## Frontend & Product Timeline
 
-### `V2` Foundation
+The frontend documents split naturally into two layers:
 
-- Hardened the gateway into a more reliable self-hosted control plane.
-- Established readiness, operator visibility, smoke tooling, and deployability as first-class concerns.
-- Serves as the baseline for all later backend roadmap work.
+- product/runtime foundations that explain why the app is structured the way it is
+- iterative UI and responsive stabilization plans that refine the shipped experience across desktop, tablet, mobile, and short-height layouts
 
-### `V3` Operability
+### Product & Runtime Foundation
 
-- Added durable operator workflows such as retained compile events, trace drill-down, version identity, and bounded runtime protection.
-- Shifted the release process from ad-hoc smoke checks toward richer operator evidence.
-- Tightened failure diagnosis without expanding product scope.
+| Theme | Date | Design | Implementation | Status |
+| --- | --- | --- | --- | --- |
+| GeoHelper app baseline | 2026-03-04 | [`2026-03-04-geogebra-llm-app-design.md`](./2026-03-04-geogebra-llm-app-design.md) | [`2026-03-04-geogebra-llm-m0-m1-implementation-plan.md`](./2026-03-04-geogebra-llm-m0-m1-implementation-plan.md) | Baseline delivered |
+| Dual runtime architecture | 2026-03-05 | [`2026-03-05-dual-runtime-architecture-design.md`](./2026-03-05-dual-runtime-architecture-design.md) | — | Implemented in V1 baseline |
+| Settings center foundation | 2026-03-05 | [`2026-03-05-settings-center-design.md`](./2026-03-05-settings-center-design.md) | — | Validated + implemented via later UI work |
+| Composer vision + settings refresh | 2026-03-06 | [`2026-03-06-composer-vision-settings-center-design.md`](./2026-03-06-composer-vision-settings-center-design.md) | [`2026-03-06-composer-vision-settings-implementation-plan.md`](./2026-03-06-composer-vision-settings-implementation-plan.md) | Completed |
+| GeoGebra self-hosted latest vendor flow | 2026-03-06 | [`2026-03-06-geogebra-self-hosted-latest-design.md`](./2026-03-06-geogebra-self-hosted-latest-design.md) | [`2026-03-06-geogebra-self-hosted-latest-implementation-plan.md`](./2026-03-06-geogebra-self-hosted-latest-implementation-plan.md) | Completed |
+| Scene rehydrate + backup sync | 2026-03-07 | — | [`2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md`](./2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md) | Completed |
 
-### `V4` Automation & Backup
+### UI & Responsive Stabilization
 
-- Added `ops:gateway:verify`, persistent verification artifacts, threshold evaluation, and single-tenant backup flows.
-- Introduced gateway-side latest-backup admin routes and web-side remote backup integration.
-- Made the backend meaningfully more self-service for personal self-hosted teaching use.
-
-### `V5` Ops Closure & Recovery
-
-- Closed the loop around recurring verification by adding the scheduled ops wrapper, artifact publishing, webhook summaries, and restore drills.
-- Unified backup validation through `@geohelper/protocol` so browser, gateway, and CLI tooling share the same envelope contract.
-- Added explicit encrypted remote-backup admin-token handling and manual recovery actions in the web settings flow.
-
-### `V6` Vision & Attachments
-
-- Extended the gateway from text-only compile orchestration into capability-gated multimodal request handling.
-- Added a shared image attachment protocol, runtime capability discovery, gateway image forwarding, and vision-specific smoke/release gates.
-- Kept direct runtime and gateway runtime differences explicit so self-hosted deployments can enable vision intentionally.
+| Theme | Date | Design | Implementation | Status |
+| --- | --- | --- | --- | --- |
+| Chat UI redesign | 2026-03-05 | [`2026-03-05-chat-ui-redesign-design.md`](./2026-03-05-chat-ui-redesign-design.md) | [`2026-03-05-chat-ui-redesign-implementation-plan.md`](./2026-03-05-chat-ui-redesign-implementation-plan.md) | Completed |
+| UI stabilization baseline | 2026-03-06 | — | [`2026-03-06-ui-stabilization-implementation-plan.md`](./2026-03-06-ui-stabilization-implementation-plan.md) | Completed |
+| Desktop empty state | 2026-03-07 | [`2026-03-07-desktop-empty-state-design.md`](./2026-03-07-desktop-empty-state-design.md) | [`2026-03-07-desktop-empty-state-implementation-plan.md`](./2026-03-07-desktop-empty-state-implementation-plan.md) | Completed |
+| Responsive breakpoint stabilization | 2026-03-07 | [`2026-03-07-responsive-breakpoint-stabilization-design.md`](./2026-03-07-responsive-breakpoint-stabilization-design.md) | [`2026-03-07-responsive-breakpoint-stabilization-implementation-plan.md`](./2026-03-07-responsive-breakpoint-stabilization-implementation-plan.md) | Completed |
+| Short-landscape chat density | 2026-03-07 | [`2026-03-07-short-landscape-chat-density-design.md`](./2026-03-07-short-landscape-chat-density-design.md) | [`2026-03-07-short-landscape-chat-density-implementation-plan.md`](./2026-03-07-short-landscape-chat-density-implementation-plan.md) | Completed |
+| Ultrawide settings drawer | 2026-03-07 | [`2026-03-07-ultrawide-settings-drawer-design.md`](./2026-03-07-ultrawide-settings-drawer-design.md) | [`2026-03-07-ultrawide-settings-drawer-implementation-plan.md`](./2026-03-07-ultrawide-settings-drawer-implementation-plan.md) | Completed |
+| Mobile empty state + short settings polish | 2026-03-08 | — | [`2026-03-08-mobile-empty-settings-polish-implementation-plan.md`](./2026-03-08-mobile-empty-settings-polish-implementation-plan.md) | Completed |
+| Responsive polish P0-P2 | 2026-03-08 | — | [`2026-03-08-responsive-polish-p0-p2-implementation-plan.md`](./2026-03-08-responsive-polish-p0-p2-implementation-plan.md) | Completed |
+| Responsive overflow round 9 | 2026-03-08 | — | [`2026-03-08-responsive-overflow-round9-implementation-plan.md`](./2026-03-08-responsive-overflow-round9-implementation-plan.md) | Completed |
+| Short-landscape overlay menus | 2026-03-08 | — | [`2026-03-08-short-landscape-overlay-menus-implementation-plan.md`](./2026-03-08-short-landscape-overlay-menus-implementation-plan.md) | Completed |
 
 ## Suggested Reading Order
+
+### Backend
 
 1. Start with [`2026-03-11-backend-v2-roadmap.md`](./2026-03-11-backend-v2-roadmap.md).
 2. Continue through [`2026-03-11-backend-v3-operability-roadmap.md`](./2026-03-11-backend-v3-operability-roadmap.md) and [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md).
 3. Read [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md) for the ops-closure layer.
 4. Finish with [`2026-03-12-backend-v6-vision-attachments-roadmap.md`](./2026-03-12-backend-v6-vision-attachments-roadmap.md) for the current gateway vision/attachment layer.
+
+### Frontend
+
+1. Start with the product baseline: [`2026-03-04-geogebra-llm-app-design.md`](./2026-03-04-geogebra-llm-app-design.md) and [`2026-03-04-geogebra-llm-m0-m1-implementation-plan.md`](./2026-03-04-geogebra-llm-m0-m1-implementation-plan.md).
+2. Read [`2026-03-05-dual-runtime-architecture-design.md`](./2026-03-05-dual-runtime-architecture-design.md) for runtime mode context.
+3. Read the settings/composer path: [`2026-03-05-settings-center-design.md`](./2026-03-05-settings-center-design.md), [`2026-03-06-composer-vision-settings-center-design.md`](./2026-03-06-composer-vision-settings-center-design.md), and [`2026-03-06-composer-vision-settings-implementation-plan.md`](./2026-03-06-composer-vision-settings-implementation-plan.md).
+4. Read [`2026-03-06-geogebra-self-hosted-latest-design.md`](./2026-03-06-geogebra-self-hosted-latest-design.md) and [`2026-03-06-geogebra-self-hosted-latest-implementation-plan.md`](./2026-03-06-geogebra-self-hosted-latest-implementation-plan.md) for vendor-sync/self-hosting history.
+5. Read the chat and responsive series in order: [`2026-03-05-chat-ui-redesign-design.md`](./2026-03-05-chat-ui-redesign-design.md), [`2026-03-05-chat-ui-redesign-implementation-plan.md`](./2026-03-05-chat-ui-redesign-implementation-plan.md), then the 2026-03-06 to 2026-03-08 stabilization plans.
+6. Finish with [`2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md`](./2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md) when debugging restore, hydration, or in-place backup import behavior.
 
 ## Related Runtime Docs
 
