@@ -1,3 +1,5 @@
+import { type RuntimeAttachment } from "@geohelper/protocol";
+
 import {
   isTransientUpstreamStatus,
   resolveUpstreamTargets,
@@ -24,6 +26,7 @@ export interface CompileInput {
   model?: string;
   byokEndpoint?: string;
   byokKey?: string;
+  attachments?: RuntimeAttachment[];
   context?: CompileContext;
 }
 
@@ -85,7 +88,7 @@ const isTransientUpstreamError = (error: unknown): boolean => {
   return false;
 };
 
-const buildUserPrompt = (input: CompileInput): string => {
+const buildContextMessage = (input: Pick<CompileInput, "message" | "context">): string => {
   const contextLines: string[] = [];
   if (input.context?.recentMessages?.length) {
     const recent = input.context.recentMessages
@@ -113,9 +116,31 @@ const buildUserPrompt = (input: CompileInput): string => {
     : input.message;
 };
 
+const buildUserContent = (
+  input: Pick<CompileInput, "message" | "attachments" | "context">
+) => {
+  const message = buildContextMessage(input);
+  if (!input.attachments?.length) {
+    return message;
+  }
+
+  return [
+    {
+      type: "text" as const,
+      text: message
+    },
+    ...input.attachments.map((attachment) => ({
+      type: "image_url" as const,
+      image_url: {
+        url: attachment.transportPayload
+      }
+    }))
+  ];
+};
+
 const requestBatchFromTarget = async (
   target: UpstreamTarget,
-  userPrompt: string
+  input: CompileInput
 ): Promise<unknown> => {
   let response: Response;
 
@@ -137,7 +162,7 @@ const requestBatchFromTarget = async (
           },
           {
             role: "user",
-            content: userPrompt
+            content: buildUserContent(input)
           }
         ]
       })
@@ -171,7 +196,6 @@ const requestBatchFromTarget = async (
 };
 
 export const requestCommandBatch: RequestCommandBatch = async (input) => {
-  const userPrompt = buildUserPrompt(input);
   const targets = resolveUpstreamTargets(
     {
       byokEndpoint: input.byokEndpoint,
@@ -184,7 +208,7 @@ export const requestCommandBatch: RequestCommandBatch = async (input) => {
   let lastError: unknown;
   for (const [index, target] of targets.entries()) {
     try {
-      return await requestBatchFromTarget(target, userPrompt);
+      return await requestBatchFromTarget(target, input);
     } catch (error) {
       lastError = error;
       if (!isTransientUpstreamError(error) || index === targets.length - 1) {

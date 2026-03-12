@@ -168,6 +168,73 @@ describe("requestCommandBatch upstream fallback routing", () => {
     process.env = { ...originalEnv };
   });
 
+  it("serializes image attachments into multimodal upstream content", async () => {
+    process.env.LITELLM_ENDPOINT = "https://primary.example.com";
+    process.env.LITELLM_MODEL = "primary-model";
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                version: "1.0",
+                scene_id: "s1",
+                transaction_id: "t1",
+                commands: [],
+                post_checks: [],
+                explanations: []
+              })
+            }
+          }
+        ]
+      })
+    });
+
+    const input = {
+      message: "根据图片画出三角形",
+      mode: "byok",
+      attachments: [
+        {
+          id: "img_1",
+          kind: "image",
+          name: "triangle.png",
+          mimeType: "image/png",
+          size: 1234,
+          transportPayload: "data:image/png;base64,AAAA"
+        }
+      ]
+    } as Parameters<typeof requestCommandBatch>[0] & {
+      attachments: Array<{
+        id: string;
+        kind: "image";
+        name: string;
+        mimeType: string;
+        size: number;
+        transportPayload: string;
+      }>;
+    };
+
+    await requestCommandBatch(input);
+
+    const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(String(requestInit.body));
+    expect(body.messages[1].content).toEqual([
+      {
+        type: "text",
+        text: "根据图片画出三角形"
+      },
+      {
+        type: "image_url",
+        image_url: {
+          url: "data:image/png;base64,AAAA"
+        }
+      }
+    ]);
+  });
+
   it("retries transient upstream failures against configured fallback endpoint and model", async () => {
     process.env.LITELLM_ENDPOINT = "https://primary.example.com";
     process.env.LITELLM_API_KEY = "primary-key";

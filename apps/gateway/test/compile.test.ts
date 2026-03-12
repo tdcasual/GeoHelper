@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../src/server";
+import { createMemoryCompileEventSink } from "../src/services/compile-events";
 import { clearRateLimits } from "../src/services/rate-limit";
 
 describe("POST /api/v1/chat/compile", () => {
@@ -34,7 +35,7 @@ describe("POST /api/v1/chat/compile", () => {
   });
 
 
-  it("rejects attachments explicitly because gateway vision is not supported yet", async () => {
+  it("rejects attachments when gateway attachment capability is disabled", async () => {
     clearRateLimits();
 
     const app = buildServer({}, {
@@ -74,6 +75,70 @@ describe("POST /api/v1/chat/compile", () => {
         message: "Gateway runtime does not support attachments yet"
       }
     });
+  });
+
+  it("accepts image attachments when capability is enabled and records safe metadata", async () => {
+    clearRateLimits();
+
+    const compileEventSink = createMemoryCompileEventSink();
+    let capturedInput: { attachments?: Array<{ mimeType: string; transportPayload: string }> } | undefined;
+
+    const app = buildServer(
+      {
+        GATEWAY_ENABLE_ATTACHMENTS: "1"
+      },
+      {
+        compileEventSink,
+        requestCommandBatch: async (input) => {
+          capturedInput = input as typeof capturedInput;
+          return {
+            version: "1.0",
+            scene_id: "s1",
+            transaction_id: "t1",
+            commands: [],
+            post_checks: [],
+            explanations: []
+          };
+        }
+      }
+    );
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/chat/compile",
+      headers: {
+        "x-client-fallback-single-agent": "1"
+      },
+      payload: {
+        message: "根据图片画出三角形",
+        mode: "byok",
+        attachments: [
+          {
+            id: "img_1",
+            kind: "image",
+            name: "triangle.png",
+            mimeType: "image/png",
+            size: 1234,
+            transportPayload: "data:image/png;base64,AAAA"
+          }
+        ]
+      }
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(capturedInput?.attachments).toHaveLength(1);
+    expect(capturedInput?.attachments?.[0]?.mimeType).toBe("image/png");
+
+    const successEvent = compileEventSink
+      .readAll()
+      .find((event) => event.event === "compile_success");
+    expect(successEvent?.metadata).toEqual({
+      attachments_count: 1,
+      attachment_kinds: ["image"]
+    });
+    expect(JSON.stringify(compileEventSink.readAll())).not.toContain(
+      "data:image/png;base64,AAAA"
+    );
   });
 
   it("repairs invalid first draft and still succeeds", async () => {

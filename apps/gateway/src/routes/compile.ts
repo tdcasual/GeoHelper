@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
-import { RuntimeAttachmentSchema } from "@geohelper/protocol";
+import { RuntimeAttachmentSchema, type RuntimeAttachment } from "@geohelper/protocol";
 
 import { GatewayConfig } from "../config";
 import { GatewayBuildInfo } from "../services/build-info";
@@ -127,6 +127,26 @@ export const registerCompileRoute = (
       recentMessages,
       sceneTransactions
     };
+  };
+
+  const summarizeAttachments = (
+    attachments?: RuntimeAttachment[]
+  ): Record<string, unknown> | undefined => {
+    if (!attachments?.length) {
+      return undefined;
+    }
+
+    return {
+      attachments_count: attachments.length,
+      attachment_kinds: [...new Set(attachments.map((attachment) => attachment.kind))]
+    };
+  };
+
+  const mergeMetadata = (
+    ...parts: Array<Record<string, unknown> | undefined>
+  ): Record<string, unknown> | undefined => {
+    const merged = Object.assign({}, ...parts.filter(Boolean));
+    return Object.keys(merged).length > 0 ? merged : undefined;
   };
 
   app.post("/api/v1/chat/compile", async (request, reply) => {
@@ -291,10 +311,13 @@ export const registerCompileRoute = (
 
     const mode = parsed.data.mode as CompileMode;
     eventMode = mode;
+    const attachmentMetadata = summarizeAttachments(parsed.data.attachments);
+    const attachmentsPresent = (parsed.data.attachments?.length ?? 0) > 0;
 
-    if ((parsed.data.attachments?.length ?? 0) > 0) {
+    if (attachmentsPresent && !config.attachmentsEnabled) {
       await writeCompileEvent("compile_validation_failure", "validation_failure", 400, {
-        detail: "attachments_unsupported"
+        detail: "attachments_unsupported",
+        metadata: attachmentMetadata
       });
       return reply.status(400).send({
         error: {
@@ -336,7 +359,7 @@ export const registerCompileRoute = (
     const fallbackSingleAgent = request.headers["x-client-fallback-single-agent"];
     const performanceSampling = request.headers["x-client-performance-sampling"];
     const strictValidation = request.headers["x-client-strict-validation"];
-    const useSingleAgent = fallbackSingleAgent === "1";
+    const useSingleAgent = fallbackSingleAgent === "1" || attachmentsPresent;
     const samplePerf = performanceSampling === "1";
     const strictMode = strictValidation === "1";
 
@@ -347,6 +370,7 @@ export const registerCompileRoute = (
       byokEndpoint:
         typeof byokEndpoint === "string" ? byokEndpoint : undefined,
       byokKey: typeof byokKey === "string" ? byokKey : undefined,
+      attachments: parsed.data.attachments,
       context: normalizeContext(parsed.data.context)
     };
     const alertUpstream = buildCompileAlertUpstream(compileInput);
@@ -391,7 +415,8 @@ export const registerCompileRoute = (
         deps.metricsStore
       );
       await writeCompileEvent("compile_success", finalStatus, 200, {
-        upstreamCallCount: result.upstream_calls
+        upstreamCallCount: result.upstream_calls,
+        metadata: attachmentMetadata
       });
       if (samplePerf) {
         recordCompilePerfSample(
@@ -409,30 +434,30 @@ export const registerCompileRoute = (
         await writeCompileEvent("compile_fallback", "fallback", 200, {
           detail: fallbackSteps.map((step) => step.name).join(","),
           upstreamCallCount: result.upstream_calls,
-          metadata: {
+          metadata: mergeMetadata(attachmentMetadata, {
             fallback_steps: fallbackSteps.map((step) => step.name)
-          }
+          })
         });
         await sendCompileOperatorAlert("compile_fallback", "fallback", 200, {
           detail: fallbackSteps.map((step) => step.name).join(","),
-          metadata: {
+          metadata: mergeMetadata(attachmentMetadata, {
             fallback_steps: fallbackSteps.map((step) => step.name)
-          },
+          }),
           upstream: alertUpstream
         });
       } else if (repaired) {
         await writeCompileEvent("compile_repair", "repair", 200, {
           detail: "repair agent produced a valid batch",
           upstreamCallCount: result.upstream_calls,
-          metadata: {
+          metadata: mergeMetadata(attachmentMetadata, {
             repair: true
-          }
+          })
         });
         await sendCompileOperatorAlert("compile_repair", "repair", 200, {
           detail: "repair agent produced a valid batch",
-          metadata: {
+          metadata: mergeMetadata(attachmentMetadata, {
             repair: true
-          },
+          }),
           upstream: alertUpstream
         });
       }
@@ -448,15 +473,15 @@ export const registerCompileRoute = (
         recordCompileFailure(totalMs, 0, deps.metricsStore);
         await writeCompileEvent("compile_runtime_rejected", "runtime_rejected", 503, {
           detail: "max_in_flight_reached",
-          metadata: {
+          metadata: mergeMetadata(attachmentMetadata, {
             max_in_flight: config.compileMaxInFlight
-          }
+          })
         });
         deferCompileOperatorAlert("compile_runtime_rejected", "runtime_rejected", 503, {
           detail: "max_in_flight_reached",
-          metadata: {
+          metadata: mergeMetadata(attachmentMetadata, {
             max_in_flight: config.compileMaxInFlight
-          },
+          }),
           upstream: alertUpstream
         });
         return reply.status(503).send({
@@ -471,15 +496,15 @@ export const registerCompileRoute = (
         recordCompileFailure(totalMs, 0, deps.metricsStore);
         await writeCompileEvent("compile_timeout", "timeout", 504, {
           detail: "compile_timeout",
-          metadata: {
+          metadata: mergeMetadata(attachmentMetadata, {
             timeout_ms: config.compileTimeoutMs
-          }
+          })
         });
         deferCompileOperatorAlert("compile_timeout", "timeout", 504, {
           detail: "compile_timeout",
-          metadata: {
+          metadata: mergeMetadata(attachmentMetadata, {
             timeout_ms: config.compileTimeoutMs
-          },
+          }),
           upstream: alertUpstream
         });
         return reply.status(504).send({
@@ -494,9 +519,9 @@ export const registerCompileRoute = (
         recordCompileFailure(totalMs, 0, deps.metricsStore);
         await writeCompileEvent("compile_validation_failure", "validation_failure", 422, {
           detail: "invalid_command_batch",
-          metadata: {
+          metadata: mergeMetadata(attachmentMetadata, {
             issues: error.issues
-          }
+          })
         });
         return reply.status(422).send({
           error: {
@@ -511,7 +536,8 @@ export const registerCompileRoute = (
 
       recordCompileFailure(totalMs, 0, deps.metricsStore);
       await writeCompileEvent("compile_upstream_failure", "upstream_failure", 502, {
-        detail: error instanceof Error ? error.message : "upstream_failure"
+        detail: error instanceof Error ? error.message : "upstream_failure",
+        metadata: attachmentMetadata
       });
       deferCompileOperatorAlert("compile_upstream_failure", "upstream_failure", 502, {
         detail: error instanceof Error ? error.message : "upstream_failure",

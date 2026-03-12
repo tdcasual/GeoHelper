@@ -16,6 +16,62 @@ describe("api contract doc", () => {
     expect(doc).toContain("POST /api/v1/chat/compile");
   });
 
+  it("accepts an attachment compile request when gateway attachments are enabled", async () => {
+    clearRateLimits();
+
+    let attachmentCount = 0;
+    const app = buildServer(
+      {
+        GATEWAY_ENABLE_ATTACHMENTS: "1"
+      },
+      {
+        requestCommandBatch: async (input) => {
+          attachmentCount = ((input as { attachments?: unknown[] }).attachments ?? []).length;
+          return {
+            version: "1.0",
+            scene_id: "scene_contract_attachment",
+            transaction_id: "tx_contract_attachment",
+            commands: [],
+            post_checks: [],
+            explanations: []
+          };
+        }
+      }
+    );
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/chat/compile",
+      headers: {
+        "x-client-fallback-single-agent": "1"
+      },
+      payload: {
+        message: "根据图片画出三角形",
+        mode: "byok",
+        attachments: [
+          {
+            id: "img_contract",
+            kind: "image",
+            name: "triangle.png",
+            mimeType: "image/png",
+            size: 1234,
+            transportPayload: "data:image/png;base64,AAAA"
+          }
+        ]
+      }
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(attachmentCount).toBe(1);
+    expect(JSON.parse(res.payload)).toMatchObject({
+      trace_id: "tr_req-1",
+      batch: {
+        scene_id: "scene_contract_attachment",
+        transaction_id: "tx_contract_attachment"
+      }
+    });
+  });
+
   it("accepts a normal compile request without attachments", async () => {
     clearRateLimits();
 
