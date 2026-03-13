@@ -1,4 +1,9 @@
 import { describe, expect, it } from "vitest";
+import * as remoteBackupHelpers from "./settings-remote-backup";
+import type {
+  RuntimeBackupComparableSummary,
+  RuntimeBackupMetadata
+} from "../runtime/types";
 
 import {
   formatRemoteBackupActionMessage,
@@ -31,7 +36,7 @@ const gatewayProfile = {
   updatedAt: 2
 };
 
-const metadata = {
+const metadata: RuntimeBackupMetadata = {
   stored_at: "2026-03-12T10:00:00.000Z",
   schema_version: 2,
   created_at: "2026-03-12T09:58:00.000Z",
@@ -44,7 +49,7 @@ const metadata = {
   is_protected: false
 };
 
-const localSummary = {
+const localSummary: RuntimeBackupComparableSummary = {
   schema_version: 2,
   created_at: "2026-03-12T09:58:00.000Z",
   updated_at: "2026-03-12T10:05:00.000Z",
@@ -344,5 +349,81 @@ describe("settings remote backup helpers", () => {
       relationLabel: "与本地关系：存在分叉",
       recommendation: "当前所选云端快照与本地存在分叉，建议先拉取该快照预览，再决定合并或覆盖。"
     });
+  });
+
+  it("formats compact relation badges for retained history list items", () => {
+    const resolveRemoteBackupHistoryBadgePresentation = (
+      remoteBackupHelpers as {
+        resolveRemoteBackupHistoryBadgePresentation?: (
+          local:
+            | typeof localSummary
+            | null
+            | undefined,
+          selected:
+            | typeof metadata
+            | null
+            | undefined
+        ) =>
+          | {
+              label: string;
+              relation: string;
+            }
+          | null;
+      }
+    ).resolveRemoteBackupHistoryBadgePresentation;
+
+    expect(resolveRemoteBackupHistoryBadgePresentation).toBeTypeOf("function");
+
+    expect(
+      resolveRemoteBackupHistoryBadgePresentation?.(localSummary, {
+        ...metadata,
+        checksum: "checksum-local",
+        snapshot_id: "snap-same"
+      })
+    ).toEqual({
+      label: "内容一致",
+      relation: "identical"
+    });
+
+    expect(
+      resolveRemoteBackupHistoryBadgePresentation?.(localSummary, {
+        ...metadata,
+        checksum: "checksum-remote-newer",
+        snapshot_id: "snap-remote-newer",
+        updated_at: "2026-03-12T10:06:00.000Z",
+        base_snapshot_id: "snap-local"
+      })
+    ).toEqual({
+      label: "云端较新",
+      relation: "remote_newer"
+    });
+
+    expect(
+      resolveRemoteBackupHistoryBadgePresentation?.(localSummary, {
+        ...metadata,
+        checksum: "checksum-remote-older",
+        snapshot_id: "snap-remote-older",
+        updated_at: "2026-03-12T10:01:00.000Z"
+      })
+    ).toEqual({
+      label: "本地较新",
+      relation: "local_newer"
+    });
+
+    expect(
+      resolveRemoteBackupHistoryBadgePresentation?.(localSummary, {
+        ...metadata,
+        checksum: "checksum-remote-diverged",
+        snapshot_id: "snap-remote-diverged",
+        updated_at: "2026-03-12T10:05:00.000Z"
+      })
+    ).toEqual({
+      label: "已分叉",
+      relation: "diverged"
+    });
+
+    expect(
+      resolveRemoteBackupHistoryBadgePresentation?.(null, metadata)
+    ).toBeNull();
   });
 });

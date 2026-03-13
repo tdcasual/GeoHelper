@@ -28,6 +28,7 @@ import {
 import {
   createComparableSummaryFromBackupEnvelope,
   formatRemoteBackupActionMessage,
+  resolveRemoteBackupHistoryBadgePresentation,
   formatRemoteBackupHistorySummary,
   formatRemoteBackupProtectionActionMessage,
   formatRemoteBackupProtectionLimitMessage,
@@ -417,13 +418,15 @@ export const SettingsDrawer = ({
         : null,
     [latestRemoteHistorySnapshotId, selectedRemoteHistoryBackup]
   );
+  const remoteBackupLocalSummary =
+    remoteBackupSync.lastComparison?.local_snapshot.summary ?? null;
   const selectedRemoteHistoryComparisonPresentation = useMemo(
     () =>
       resolveRemoteBackupHistoryComparisonPresentation(
-        remoteBackupSync.lastComparison?.local_snapshot.summary ?? null,
+        remoteBackupLocalSummary,
         selectedRemoteHistoryBackup
       ),
-    [remoteBackupSync.lastComparison, selectedRemoteHistoryBackup]
+    [remoteBackupLocalSummary, selectedRemoteHistoryBackup]
   );
   const remoteBackupHistorySummary = useMemo(
     () => formatRemoteBackupHistorySummary(remoteBackupSync.history),
@@ -1727,6 +1730,11 @@ export const SettingsDrawer = ({
                       backup.snapshot_id === selectedRemoteHistoryBackup?.snapshot_id;
                     const isLatest =
                       backup.snapshot_id === latestRemoteHistorySnapshotId || index === 0;
+                    const historyBadgePresentation =
+                      resolveRemoteBackupHistoryBadgePresentation(
+                        remoteBackupLocalSummary,
+                        backup
+                      );
 
                     return (
                       <button
@@ -1741,8 +1749,17 @@ export const SettingsDrawer = ({
                           setSelectedRemoteHistorySnapshotId(backup.snapshot_id)
                         }
                       >
-                        <span>{isLatest ? "最新" : "历史"}</span>
-                        {backup.is_protected ? <span>已保护</span> : null}
+                        <div className="settings-remote-backup-history-item-badges">
+                          <span>{isLatest ? "最新" : "历史"}</span>
+                          {backup.is_protected ? <span>已保护</span> : null}
+                          {historyBadgePresentation ? (
+                            <span
+                              className={`settings-remote-backup-history-relation-badge settings-remote-backup-history-relation-badge-${historyBadgePresentation.relation}`}
+                            >
+                              {historyBadgePresentation.label}
+                            </span>
+                          ) : null}
+                        </div>
                         <span>{`${backup.conversation_count} 个会话`}</span>
                         <span>{backup.snapshot_id}</span>
                       </button>

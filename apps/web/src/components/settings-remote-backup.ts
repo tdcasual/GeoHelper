@@ -43,6 +43,11 @@ export interface RemoteBackupHistoryComparisonPresentation {
   recommendation: string;
 }
 
+export interface RemoteBackupHistoryBadgePresentation {
+  label: string;
+  relation: "identical" | "local_newer" | "remote_newer" | "diverged";
+}
+
 interface ResolveRemoteBackupSyncPresentationParams {
   status: RemoteBackupSyncStatus;
   lastError: string | null;
@@ -208,6 +213,57 @@ export const resolveRemoteBackupHistorySelectionPresentation = (
       : null
 });
 
+const REMOTE_BACKUP_HISTORY_RELATION_COPY: Record<
+  "identical" | "local_newer" | "remote_newer" | "diverged",
+  {
+    badgeLabel: string;
+    relationLabel: string;
+    recommendation: string;
+  }
+> = {
+  identical: {
+    badgeLabel: "内容一致",
+    relationLabel: "与本地关系：内容一致",
+    recommendation:
+      "当前所选快照与本地当前快照内容一致，如只做校验可不必重复拉取。"
+  },
+  local_newer: {
+    badgeLabel: "本地较新",
+    relationLabel: "与本地关系：本地当前快照较新",
+    recommendation:
+      "本地当前快照比所选云端快照更新；如果要回退到这个历史点，建议先拉取预览，再决定合并或覆盖。"
+  },
+  remote_newer: {
+    badgeLabel: "云端较新",
+    relationLabel: "与本地关系：所选云端快照较新",
+    recommendation:
+      "当前所选云端快照比本地更新，建议先拉取该快照预览，再决定合并或覆盖。"
+  },
+  diverged: {
+    badgeLabel: "已分叉",
+    relationLabel: "与本地关系：存在分叉",
+    recommendation:
+      "当前所选云端快照与本地存在分叉，建议先拉取该快照预览，再决定合并或覆盖。"
+  }
+};
+
+export const resolveRemoteBackupHistoryBadgePresentation = (
+  localSummary: RuntimeBackupComparableSummary | null | undefined,
+  selectedBackup: RuntimeBackupComparableSummary | null | undefined
+): RemoteBackupHistoryBadgePresentation | null => {
+  if (!localSummary || !selectedBackup) {
+    return null;
+  }
+
+  const comparison = compareBackupComparableSummaries(localSummary, selectedBackup);
+  const copy = REMOTE_BACKUP_HISTORY_RELATION_COPY[comparison.relation];
+
+  return {
+    label: copy.badgeLabel,
+    relation: comparison.relation
+  };
+};
+
 export const resolveRemoteBackupHistoryComparisonPresentation = (
   localSummary: RuntimeBackupComparableSummary | null | undefined,
   selectedBackup: RuntimeBackupComparableSummary | null | undefined
@@ -217,33 +273,12 @@ export const resolveRemoteBackupHistoryComparisonPresentation = (
   }
 
   const comparison = compareBackupComparableSummaries(localSummary, selectedBackup);
+  const copy = REMOTE_BACKUP_HISTORY_RELATION_COPY[comparison.relation];
 
-  switch (comparison.relation) {
-    case "identical":
-      return {
-        relationLabel: "与本地关系：内容一致",
-        recommendation: "当前所选快照与本地当前快照内容一致，如只做校验可不必重复拉取。"
-      };
-    case "local_newer":
-      return {
-        relationLabel: "与本地关系：本地当前快照较新",
-        recommendation:
-          "本地当前快照比所选云端快照更新；如果要回退到这个历史点，建议先拉取预览，再决定合并或覆盖。"
-      };
-    case "remote_newer":
-      return {
-        relationLabel: "与本地关系：所选云端快照较新",
-        recommendation:
-          "当前所选云端快照比本地更新，建议先拉取该快照预览，再决定合并或覆盖。"
-      };
-    case "diverged":
-    default:
-      return {
-        relationLabel: "与本地关系：存在分叉",
-        recommendation:
-          "当前所选云端快照与本地存在分叉，建议先拉取该快照预览，再决定合并或覆盖。"
-      };
-  }
+  return {
+    relationLabel: copy.relationLabel,
+    recommendation: copy.recommendation
+  };
 };
 
 export const shouldShowRemoteBackupForceUpload = (

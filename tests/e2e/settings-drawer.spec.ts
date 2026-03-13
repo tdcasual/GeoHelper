@@ -1200,6 +1200,16 @@ test("remote backup history allows selecting and previewing one retained histori
   await expect(page.getByTestId("remote-backup-history")).toBeVisible();
   await expect(page.getByText("云端保留历史：2 条")).toBeVisible();
   await expect(
+    page
+      .getByRole("button", { name: /snap-remote-2/ })
+      .getByText("云端较新")
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("button", { name: /snap-remote-1/ })
+      .getByText("本地较新")
+  ).toBeVisible();
+  await expect(
     page.getByTestId("remote-backup-selected-history").getByText("当前选择：云端最新快照")
   ).toBeVisible();
   await expect(

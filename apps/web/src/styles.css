@@ -1347,6 +1347,39 @@ body {
   cursor: pointer;
 }
 
+.settings-remote-backup-history-item-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.settings-remote-backup-history-relation-badge {
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-remote-backup-history-relation-badge-identical {
+  background: #edf4ff;
+  color: #2957a4;
+}
+
+.settings-remote-backup-history-relation-badge-local_newer {
+  background: #eef8ef;
+  color: #23653c;
+}
+
+.settings-remote-backup-history-relation-badge-remote_newer {
+  background: #fff2df;
+  color: #9a5a00;
+}
+
+.settings-remote-backup-history-relation-badge-diverged {
+  background: #f8ecff;
+  color: #7f3fbf;
+}
+
 .settings-remote-backup-history-item-selected {
   border-color: #4c7ed9;
   background: #eef4ff;
