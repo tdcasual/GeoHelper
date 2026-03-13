@@ -160,7 +160,7 @@ export const createGatewayClient = (): GatewayRuntimeClient => {
         return null;
       }
 
-      return response.json() as Promise<RuntimeBuildIdentity>;
+      return (await response.json()) as RuntimeBuildIdentity;
     } catch {
       return null;
     }
