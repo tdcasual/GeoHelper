@@ -123,6 +123,8 @@ const serializeBackupSummary = (summary: GatewayBackupSummary) => ({
   conversation_count: summary.conversationCount,
   snapshot_id: summary.snapshotId,
   device_id: summary.deviceId,
+  is_protected: summary.isProtected,
+  ...(summary.protectedAt ? { protected_at: summary.protectedAt } : {}),
   ...(summary.baseSnapshotId ? { base_snapshot_id: summary.baseSnapshotId } : {})
 });
 
@@ -164,6 +166,14 @@ const parseComparableSummaryInput = (
   deviceId: summary.device_id,
   ...(summary.base_snapshot_id ? { baseSnapshotId: summary.base_snapshot_id } : {})
 });
+
+const sendBackupNotFound = (reply: FastifyReply) =>
+  reply.status(404).send({
+    error: {
+      code: "BACKUP_NOT_FOUND",
+      message: "Backup was not found"
+    }
+  });
 
 export const registerAdminRoutes = (
   app: FastifyInstance,
@@ -282,15 +292,76 @@ export const registerAdminRoutes = (
 
     const backup = await deps.backupStore.readSnapshot(parsed.data.snapshotId);
     if (!backup) {
-      return reply.status(404).send({
+      return sendBackupNotFound(reply);
+    }
+
+    return reply.send(createBackupResponse(serializeBackupRecord(backup), deps.buildInfo));
+  });
+
+  app.post("/admin/backups/history/:snapshotId/protect", async (request, reply) => {
+    if (!requireAdminToken(request, reply, config)) {
+      return reply;
+    }
+
+    const parsed = AdminBackupHistorySnapshotParamsSchema.safeParse(request.params);
+    if (!parsed.success) {
+      return reply.status(400).send({
         error: {
-          code: "BACKUP_NOT_FOUND",
-          message: "Backup was not found"
+          code: "INVALID_BACKUP_SNAPSHOT_ID",
+          message: "Backup snapshot id is invalid"
         }
       });
     }
 
-    return reply.send(createBackupResponse(serializeBackupRecord(backup), deps.buildInfo));
+    const result = await deps.backupStore.protectSnapshot(parsed.data.snapshotId);
+
+    if (result.status === "not_found") {
+      return sendBackupNotFound(reply);
+    }
+
+    if (result.status === "limit_reached") {
+      return reply.status(409).send({
+        protection_status: "limit_reached",
+        snapshot_id: result.snapshotId,
+        protected_count: result.protectedCount,
+        max_protected: result.maxProtected,
+        build: getGatewayBuildIdentity(deps.buildInfo)
+      });
+    }
+
+    return reply.send({
+      protection_status: "protected",
+      backup: serializeBackupSummary(result.backup),
+      build: getGatewayBuildIdentity(deps.buildInfo)
+    });
+  });
+
+  app.delete("/admin/backups/history/:snapshotId/protect", async (request, reply) => {
+    if (!requireAdminToken(request, reply, config)) {
+      return reply;
+    }
+
+    const parsed = AdminBackupHistorySnapshotParamsSchema.safeParse(request.params);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: {
+          code: "INVALID_BACKUP_SNAPSHOT_ID",
+          message: "Backup snapshot id is invalid"
+        }
+      });
+    }
+
+    const result = await deps.backupStore.unprotectSnapshot(parsed.data.snapshotId);
+
+    if (result.status === "not_found") {
+      return sendBackupNotFound(reply);
+    }
+
+    return reply.send({
+      protection_status: "unprotected",
+      backup: serializeBackupSummary(result.backup),
+      build: getGatewayBuildIdentity(deps.buildInfo)
+    });
   });
 
   app.post("/admin/backups/compare", async (request, reply) => {

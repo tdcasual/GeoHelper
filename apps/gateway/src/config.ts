@@ -20,6 +20,8 @@ export interface GatewayConfig {
   costPerRequestUsd: number;
   compileMaxInFlight: number;
   compileTimeoutMs: number;
+  backupMaxHistory: number;
+  backupMaxProtected: number;
   attachmentsEnabled: boolean;
 }
 
@@ -58,6 +60,8 @@ export const loadConfig = (
   const costPerRequestFromEnv = Number(env.COST_PER_REQUEST_USD ?? 0);
   const compileMaxInFlightFromEnv = Number(env.COMPILE_MAX_IN_FLIGHT ?? 4);
   const compileTimeoutFromEnv = Number(env.COMPILE_TIMEOUT_MS ?? 30000);
+  const backupMaxHistoryFromEnv = Number(env.BACKUP_MAX_HISTORY ?? 10);
+  const backupMaxProtectedFromEnv = Number(env.BACKUP_MAX_PROTECTED ?? 20);
   const appSecret = env.APP_SECRET ?? "geohelper-dev-app-secret";
   const sessionSecret =
     env.SESSION_SECRET?.trim() || deriveSessionSecret(appSecret);
@@ -90,6 +94,12 @@ export const loadConfig = (
     compileTimeoutMs: Number.isNaN(compileTimeoutFromEnv)
       ? 30000
       : Math.max(10, Math.floor(compileTimeoutFromEnv)),
+    backupMaxHistory: Number.isNaN(backupMaxHistoryFromEnv)
+      ? 10
+      : Math.max(1, Math.floor(backupMaxHistoryFromEnv)),
+    backupMaxProtected: Number.isNaN(backupMaxProtectedFromEnv)
+      ? 20
+      : Math.max(1, Math.floor(backupMaxProtectedFromEnv)),
     attachmentsEnabled: env.GATEWAY_ENABLE_ATTACHMENTS === "1"
   };
 };

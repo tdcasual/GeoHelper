@@ -131,6 +131,7 @@ export interface SettingsStoreState extends PersistedSettingsSnapshot {
   beginRemoteBackupSyncUpload: () => void;
   setRemoteBackupSyncResult: (input: RemoteBackupSyncResultInput) => void;
   setRemoteBackupSyncError: (message: string) => void;
+  applyRemoteBackupSnapshotUpdate: (backup: RuntimeBackupMetadata) => void;
   upsertRuntimeProfile: (input: {
     id?: string;
     name: string;
@@ -225,6 +226,40 @@ const createDefaultRemoteBackupSyncPreferences =
   (): RemoteBackupSyncPreferences => ({
     mode: "off"
   });
+
+const applyRemoteBackupSnapshotToHistory = (
+  history: RuntimeBackupMetadata[],
+  backup: RuntimeBackupMetadata
+): RuntimeBackupMetadata[] => {
+  const existing = history.some((item) => item.snapshot_id === backup.snapshot_id);
+  if (existing) {
+    return history.map((item) =>
+      item.snapshot_id === backup.snapshot_id ? backup : item
+    );
+  }
+
+  return [backup, ...history];
+};
+
+const applyRemoteBackupSnapshotToComparison = (
+  comparison: RuntimeBackupCompareResponse | null,
+  backup: RuntimeBackupMetadata
+): RuntimeBackupCompareResponse | null => {
+  if (!comparison?.remote_snapshot) {
+    return comparison;
+  }
+
+  if (comparison.remote_snapshot.summary.snapshot_id !== backup.snapshot_id) {
+    return comparison;
+  }
+
+  return {
+    ...comparison,
+    remote_snapshot: {
+      summary: backup
+    }
+  };
+};
 
 const mapComparisonResultToSyncStatus = (
   result: RuntimeBackupCompareResponse["comparison_result"]
@@ -608,6 +643,29 @@ export const createSettingsStore = (
           lastError: message
         }
       })),
+    applyRemoteBackupSnapshotUpdate: (backup) =>
+      set((state) => {
+        const history = applyRemoteBackupSnapshotToHistory(
+          state.remoteBackupSync.history,
+          backup
+        );
+        const latestRemoteBackup =
+          state.remoteBackupSync.latestRemoteBackup?.snapshot_id === backup.snapshot_id
+            ? backup
+            : state.remoteBackupSync.latestRemoteBackup;
+
+        return {
+          remoteBackupSync: {
+            ...state.remoteBackupSync,
+            latestRemoteBackup,
+            history,
+            lastComparison: applyRemoteBackupSnapshotToComparison(
+              state.remoteBackupSync.lastComparison,
+              backup
+            )
+          }
+        };
+      }),
     upsertRuntimeProfile: (input) => {
       const id = input.id ?? `runtime_${makeId()}`;
       set((state) => {

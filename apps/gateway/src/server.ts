@@ -133,8 +133,14 @@ export const buildServer = (
     backupStore:
       serviceOverrides.backupStore ??
       (config.redisUrl && kvClient
-        ? createRedisBackupStore(kvClient)
-        : createMemoryBackupStore()),
+        ? createRedisBackupStore(kvClient, {
+            maxHistory: config.backupMaxHistory,
+            maxProtected: config.backupMaxProtected
+          })
+        : createMemoryBackupStore({
+            maxHistory: config.backupMaxHistory,
+            maxProtected: config.backupMaxProtected
+          })),
     kvClient
   };
 

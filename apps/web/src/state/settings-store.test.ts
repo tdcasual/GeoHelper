@@ -276,7 +276,8 @@ describe("settings-store", () => {
       checksum: "checksum-remote",
       conversation_count: 2,
       snapshot_id: "snap-remote",
-      device_id: "device-remote"
+      device_id: "device-remote",
+      is_protected: false
     };
 
     store.getState().setRemoteBackupSyncResult({
@@ -431,7 +432,8 @@ describe("settings-store", () => {
       checksum: "checksum-remote",
       conversation_count: 2,
       snapshot_id: "snap-remote",
-      device_id: "device-remote"
+      device_id: "device-remote",
+      is_protected: false
     };
     const comparison = {
       local_status: "summary" as const,
@@ -510,7 +512,8 @@ describe("settings-store", () => {
       checksum: "checksum-remote",
       conversation_count: 2,
       snapshot_id: "snap-remote",
-      device_id: "device-remote"
+      device_id: "device-remote",
+      is_protected: false
     };
 
     store.getState().setRemoteBackupSyncResult({
@@ -586,5 +589,95 @@ describe("settings-store", () => {
     expect(store.getState().remoteBackupSync.latestRemoteBackup).toEqual(
       remoteSummary
     );
+  });
+
+  it("updates one retained remote snapshot after protect or unprotect without dropping compare state", () => {
+    const store = createSettingsStore();
+    const latestRemoteSummary = {
+      stored_at: "2026-03-12T10:10:00.000Z",
+      schema_version: 2,
+      created_at: "2026-03-12T10:08:00.000Z",
+      updated_at: "2026-03-12T10:09:00.000Z",
+      app_version: "0.0.1",
+      checksum: "checksum-latest",
+      conversation_count: 2,
+      snapshot_id: "snap-latest",
+      device_id: "device-latest",
+      is_protected: false
+    };
+    const selectedRemoteSummary = {
+      stored_at: "2026-03-12T10:00:00.000Z",
+      schema_version: 2,
+      created_at: "2026-03-12T09:58:00.000Z",
+      updated_at: "2026-03-12T09:59:00.000Z",
+      app_version: "0.0.1",
+      checksum: "checksum-selected",
+      conversation_count: 1,
+      snapshot_id: "snap-selected",
+      device_id: "device-selected",
+      is_protected: false
+    };
+
+    store.getState().setRemoteBackupSyncResult({
+      latestRemoteBackup: latestRemoteSummary,
+      history: [latestRemoteSummary, selectedRemoteSummary],
+      comparison: {
+        local_status: "summary",
+        remote_status: "available",
+        comparison_result: "remote_newer",
+        local_snapshot: {
+          summary: {
+            schema_version: 2,
+            created_at: "2026-03-12T09:57:00.000Z",
+            updated_at: "2026-03-12T09:57:30.000Z",
+            app_version: "0.0.1",
+            checksum: "checksum-local",
+            conversation_count: 1,
+            snapshot_id: "snap-local",
+            device_id: "device-local"
+          }
+        },
+        remote_snapshot: {
+          summary: latestRemoteSummary
+        },
+        build: {
+          git_sha: "backupsha",
+          build_time: "2026-03-12T10:10:30.000Z",
+          node_env: "production",
+          redis_enabled: true,
+          attachments_enabled: false
+        }
+      },
+      checkedAt: "2026-03-12T10:11:00.000Z"
+    });
+
+    store.getState().applyRemoteBackupSnapshotUpdate({
+      ...selectedRemoteSummary,
+      is_protected: true,
+      protected_at: "2026-03-12T10:12:00.000Z"
+    });
+
+    expect(store.getState().remoteBackupSync.history).toEqual([
+      latestRemoteSummary,
+      {
+        ...selectedRemoteSummary,
+        is_protected: true,
+        protected_at: "2026-03-12T10:12:00.000Z"
+      }
+    ]);
+    expect(store.getState().remoteBackupSync.latestRemoteBackup).toEqual(
+      latestRemoteSummary
+    );
+    expect(store.getState().remoteBackupSync.lastComparison).toMatchObject({
+      remote_snapshot: {
+        summary: latestRemoteSummary
+      }
+    });
+
+    store.getState().applyRemoteBackupSnapshotUpdate(selectedRemoteSummary);
+    expect(store.getState().remoteBackupSync.history).toEqual([
+      latestRemoteSummary,
+      selectedRemoteSummary
+    ]);
   });
 });

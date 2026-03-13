@@ -394,6 +394,7 @@ describe("gateway runtime client", () => {
           conversation_count: 1,
           snapshot_id: envelope.snapshot_id,
           device_id: envelope.device_id,
+          is_protected: false,
           envelope
         },
         build: {
@@ -414,6 +415,7 @@ describe("gateway runtime client", () => {
     });
 
     expect(response.backup.envelope.checksum).toBe(envelope.checksum);
+    expect(response.backup.is_protected).toBe(false);
     const call = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(call[0]).toBe("https://gateway.example.com/admin/backups/latest");
     expect(call[1].method).toBe("GET");
@@ -450,6 +452,8 @@ describe("gateway runtime client", () => {
           conversation_count: 1,
           snapshot_id: envelope.snapshot_id,
           device_id: envelope.device_id,
+          is_protected: true,
+          protected_at: "2026-03-11T16:21:30.000Z",
           envelope
         },
         build: {
@@ -472,6 +476,8 @@ describe("gateway runtime client", () => {
 
     expect(response.backup.snapshot_id).toBe("snap-history-1");
     expect(response.backup.envelope.snapshot_id).toBe("snap-history-1");
+    expect(response.backup.is_protected).toBe(true);
+    expect(response.backup.protected_at).toBe("2026-03-11T16:21:30.000Z");
     const call = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(call[0]).toBe(
       "https://gateway.example.com/admin/backups/history/snap-history-1"
@@ -553,6 +559,8 @@ describe("gateway runtime client", () => {
             conversation_count: 2,
             snapshot_id: "snap-2",
             device_id: "device-2",
+            is_protected: true,
+            protected_at: "2026-03-11T16:22:30.000Z",
             base_snapshot_id: "snap-1"
           },
           {
@@ -564,7 +572,8 @@ describe("gateway runtime client", () => {
             checksum: "checksum-1",
             conversation_count: 1,
             snapshot_id: "snap-1",
-            device_id: "device-1"
+            device_id: "device-1",
+            is_protected: false
           }
         ],
         build: {
@@ -599,11 +608,194 @@ describe("gateway runtime client", () => {
       "snap-2",
       "snap-1"
     ]);
+    expect(response?.history[0]).toMatchObject({
+      is_protected: true,
+      protected_at: "2026-03-11T16:22:30.000Z"
+    });
     const call = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(call[0]).toBe(
       "https://gateway.example.com/admin/backups/history?limit=2"
     );
     expect(call[1].method).toBe("GET");
+  });
+
+  it("protects a retained remote snapshot through the admin route", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 200,
+      ok: true,
+      json: async () => ({
+        protection_status: "protected",
+        backup: {
+          stored_at: "2026-03-11T16:22:00.000Z",
+          schema_version: 2,
+          created_at: "2026-03-11T16:21:00.000Z",
+          updated_at: "2026-03-11T16:21:00.000Z",
+          app_version: "0.0.1",
+          checksum: "checksum-2",
+          conversation_count: 2,
+          snapshot_id: "snap-2",
+          device_id: "device-2",
+          is_protected: true,
+          protected_at: "2026-03-11T16:23:00.000Z"
+        },
+        build: {
+          git_sha: "backupsha",
+          build_time: "2026-03-11T16:19:00.000Z",
+          node_env: "production",
+          redis_enabled: true,
+          attachments_enabled: false
+        }
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createGatewayClient() as ReturnType<typeof createGatewayClient> & {
+      protectBackupSnapshot?: (params: {
+        baseUrl?: string;
+        adminToken?: string;
+        snapshotId: string;
+      }) => Promise<{
+        protection_status: "protected" | "limit_reached";
+        backup?: { snapshot_id: string; is_protected: boolean };
+      }>;
+    };
+
+    expect(client.protectBackupSnapshot).toBeTypeOf("function");
+    const response = await client.protectBackupSnapshot?.({
+      baseUrl: "https://gateway.example.com",
+      adminToken: "admin-secret",
+      snapshotId: "snap-2"
+    });
+
+    expect(response).toMatchObject({
+      protection_status: "protected",
+      backup: {
+        snapshot_id: "snap-2",
+        is_protected: true
+      }
+    });
+    const call = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(call[0]).toBe(
+      "https://gateway.example.com/admin/backups/history/snap-2/protect"
+    );
+    expect(call[1].method).toBe("POST");
+    expect(call[1].headers).toMatchObject({
+      "x-admin-token": "admin-secret"
+    });
+  });
+
+  it("returns a structured limit response when protected snapshot capacity is full", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 409,
+      ok: false,
+      json: async () => ({
+        protection_status: "limit_reached",
+        snapshot_id: "snap-2",
+        protected_count: 1,
+        max_protected: 1,
+        build: {
+          git_sha: "backupsha",
+          build_time: "2026-03-11T16:19:00.000Z",
+          node_env: "production",
+          redis_enabled: true,
+          attachments_enabled: false
+        }
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createGatewayClient() as ReturnType<typeof createGatewayClient> & {
+      protectBackupSnapshot?: (params: {
+        baseUrl?: string;
+        adminToken?: string;
+        snapshotId: string;
+      }) => Promise<{
+        protection_status: "protected" | "limit_reached";
+        snapshot_id?: string;
+        protected_count?: number;
+        max_protected?: number;
+      }>;
+    };
+
+    const response = await client.protectBackupSnapshot?.({
+      baseUrl: "https://gateway.example.com",
+      adminToken: "admin-secret",
+      snapshotId: "snap-2"
+    });
+
+    expect(response).toEqual({
+      protection_status: "limit_reached",
+      snapshot_id: "snap-2",
+      protected_count: 1,
+      max_protected: 1,
+      build: {
+        git_sha: "backupsha",
+        build_time: "2026-03-11T16:19:00.000Z",
+        node_env: "production",
+        redis_enabled: true,
+        attachments_enabled: false
+      }
+    });
+  });
+
+  it("unprotects a retained remote snapshot through the admin route", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 200,
+      ok: true,
+      json: async () => ({
+        protection_status: "unprotected",
+        backup: {
+          stored_at: "2026-03-11T16:22:00.000Z",
+          schema_version: 2,
+          created_at: "2026-03-11T16:21:00.000Z",
+          updated_at: "2026-03-11T16:21:00.000Z",
+          app_version: "0.0.1",
+          checksum: "checksum-2",
+          conversation_count: 2,
+          snapshot_id: "snap-2",
+          device_id: "device-2",
+          is_protected: false
+        },
+        build: {
+          git_sha: "backupsha",
+          build_time: "2026-03-11T16:19:00.000Z",
+          node_env: "production",
+          redis_enabled: true,
+          attachments_enabled: false
+        }
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createGatewayClient() as ReturnType<typeof createGatewayClient> & {
+      unprotectBackupSnapshot?: (params: {
+        baseUrl?: string;
+        adminToken?: string;
+        snapshotId: string;
+      }) => Promise<{
+        protection_status: "unprotected";
+        backup: { snapshot_id: string; is_protected: boolean };
+      }>;
+    };
+
+    const response = await client.unprotectBackupSnapshot?.({
+      baseUrl: "https://gateway.example.com",
+      adminToken: "admin-secret",
+      snapshotId: "snap-2"
+    });
+
+    expect(response).toMatchObject({
+      protection_status: "unprotected",
+      backup: {
+        snapshot_id: "snap-2",
+        is_protected: false
+      }
+    });
+    const call = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(call[0]).toBe(
+      "https://gateway.example.com/admin/backups/history/snap-2/protect"
+    );
+    expect(call[1].method).toBe("DELETE");
   });
 
   it("posts local snapshot summaries to compare against the remote latest snapshot", async () => {

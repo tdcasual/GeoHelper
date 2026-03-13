@@ -68,4 +68,23 @@ describe("gateway config secret derivation", () => {
     expect(config.sessionTtlSeconds).toBe(1800);
     expect(config.rateLimitMax).toBe(120);
   });
+
+  it("parses explicit backup retention limits and keeps bounded defaults", () => {
+    const defaults = loadConfig({}) as ReturnType<typeof loadConfig> & {
+      backupMaxHistory: number;
+      backupMaxProtected: number;
+    };
+    const configured = loadConfig({
+      BACKUP_MAX_HISTORY: "7",
+      BACKUP_MAX_PROTECTED: "33"
+    }) as ReturnType<typeof loadConfig> & {
+      backupMaxHistory: number;
+      backupMaxProtected: number;
+    };
+
+    expect(defaults.backupMaxHistory).toBe(10);
+    expect(defaults.backupMaxProtected).toBe(20);
+    expect(configured.backupMaxHistory).toBe(7);
+    expect(configured.backupMaxProtected).toBe(33);
+  });
 });

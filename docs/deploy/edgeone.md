@@ -133,6 +133,8 @@ Optional deploy hook secret:
 - optional: `COMPILE_MAX_IN_FLIGHT` (default `4`)
 - optional: `COMPILE_TIMEOUT_MS` (default `30000`)
 - optional: `ADMIN_METRICS_TOKEN` (protects `/admin/version`, `/admin/metrics`, and `/admin/compile-events`)
+- optional: `BACKUP_MAX_HISTORY` (default `10`, bounds ordinary retained snapshot history)
+- optional: `BACKUP_MAX_PROTECTED` (default `20`, bounds retained protected snapshots)
 - optional: `GATEWAY_ENABLE_ATTACHMENTS=1` (explicitly enables gateway image attachments; `/admin/version` will then advertise `attachments_enabled: true`)
 - optional: `COST_PER_REQUEST_USD`
 - optional: `OPS_BENCH_MIN_SUCCESS_RATE`
@@ -148,6 +150,15 @@ bash scripts/deploy/configure-release-secrets.sh --repo <owner/repo>
 Production gateway startup validates `APP_SECRET` and `LITELLM_ENDPOINT` before listening. `/api/v1/health` stays liveness-only, while `/api/v1/ready` is the deploy gate that should be green before traffic shifts. When `REDIS_URL` is set, session revoke, fixed-window rate limits, compile event retention, and the single-tenant latest backup slot/history are shared across instances. `REDIS_URL` remains the only supported shared fast-state dependency for Gateway V4; without it, backup storage falls back to process memory and is not restart-safe. Every response also includes `x-trace-id` (compile responses include matching `trace_id`) so operator alerts, smoke runs, `/admin/compile-events`, and `/admin/traces/:traceId` can be joined on the same trace handle. `/admin/version` is the release identity source of truth for deploy drift checks. Per-instance compile protection is controlled by `COMPILE_MAX_IN_FLIGHT` and `COMPILE_TIMEOUT_MS`, returning `GATEWAY_BUSY` or `COMPILE_TIMEOUT` before a stuck upstream can monopolize the runtime.
 
 Web-side lightweight cloud sync is also available for personal self-hosted deployments, but it remains snapshot-based. Treat metadata-only startup freshness checks as advisory only: the browser does not download full backups during normal startup, delayed upload stays opt-in, and the app never auto-restores remote data. browser sync defaults to guarded writes, force overwrite requires an explicit danger action, and the unconditional admin latest write remains available for operator/manual recovery. Retained remote snapshot history can be inspected explicitly, selected historical snapshots can be fetched by `snapshot_id`, and blocked/conflict states should be resolved through explicit selected-snapshot pull/import or explicit overwrite. No SQL or full cloud history backend is required for this path; the gateway only needs the existing latest-backup surface plus compare metadata.
+
+Self-hosted retention policy:
+
+- ordinary retained history and protected retained snapshots are bounded separately
+- `BACKUP_MAX_HISTORY` controls ordinary retained history
+- `BACKUP_MAX_PROTECTED` controls protected retained snapshots
+- protected snapshots do not auto-expire
+- new protect requests fail explicitly when protected capacity is full
+- settings-side protect/unprotect is a manual metadata operation that does not imply import or restore
 
 ## F. Post-deploy Verification
 
@@ -200,6 +211,17 @@ curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
 curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
   "https://<gateway-domain>/admin/backups/history/<snapshot-id>"
 ```
+
+Protect or unprotect one selected retained snapshot explicitly:
+
+```bash
+curl -fsS -X POST \
+  -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
+  "https://<gateway-domain>/admin/backups/history/<snapshot-id>/protect"
+
+curl -fsS -X DELETE \
+  -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
+  "https://<gateway-domain>/admin/backups/history/<snapshot-id>/protect"
 ```
 
 Gateway backup restore drill dry-run (no network calls):

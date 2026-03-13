@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatRemoteBackupActionMessage,
+  formatRemoteBackupHistorySummary,
+  formatRemoteBackupProtectionActionMessage,
+  formatRemoteBackupProtectionLimitMessage,
   formatRemoteBackupSelectedPullMessage,
   formatRemoteBackupRestoreWarning,
   shouldRecommendRemoteHistoryResolution,
@@ -36,7 +39,8 @@ const metadata = {
   checksum: "checksum-remote",
   conversation_count: 2,
   snapshot_id: "snap-remote",
-  device_id: "device-remote"
+  device_id: "device-remote",
+  is_protected: false
 };
 
 describe("settings remote backup helpers", () => {
@@ -113,7 +117,8 @@ describe("settings remote backup helpers", () => {
       statusLabel: "当前选择：云端最新快照",
       snapshotIdLabel: "快照 ID：snap-remote",
       deviceIdLabel: "设备 ID：device-remote",
-      conversationCountLabel: "会话数：2"
+      conversationCountLabel: "会话数：2",
+      protectionLabel: "保护状态：未保护"
     });
 
     expect(
@@ -197,6 +202,7 @@ describe("settings remote backup helpers", () => {
     expect(blockedRemoteNewer.description).toContain("云端较新");
     expect(blockedRemoteNewer.description).toContain("不会自动覆盖");
     expect(blockedRemoteNewer.description).toContain("保留历史");
+    expect(blockedRemoteNewer.description).toContain("保护当前选中的快照");
 
     const blockedDiverged = resolveRemoteBackupSyncPresentation({
       status: "upload_blocked_diverged",
@@ -207,6 +213,7 @@ describe("settings remote backup helpers", () => {
     expect(blockedDiverged.statusLabel).toBe("上传已阻止");
     expect(blockedDiverged.description).toContain("存在分叉");
     expect(blockedDiverged.description).toContain("保留历史");
+    expect(blockedDiverged.description).toContain("保护当前选中的快照");
 
     const uploadConflict = resolveRemoteBackupSyncPresentation({
       status: "upload_conflict",
@@ -217,6 +224,7 @@ describe("settings remote backup helpers", () => {
     expect(uploadConflict.statusLabel).toBe("上传冲突");
     expect(uploadConflict.description).toContain("云端快照发生变化");
     expect(uploadConflict.description).toContain("保留历史");
+    expect(uploadConflict.description).toContain("保护当前选中的快照");
 
     const forceRequired = resolveRemoteBackupSyncPresentation({
       status: "force_upload_required",
@@ -227,6 +235,7 @@ describe("settings remote backup helpers", () => {
     expect(forceRequired.statusLabel).toBe("需要显式覆盖");
     expect(forceRequired.description).toContain("仍然覆盖云端快照");
     expect(forceRequired.description).toContain("保留历史");
+    expect(forceRequired.description).toContain("保护当前选中的快照");
 
     expect(shouldShowRemoteBackupForceUpload("remote_newer")).toBe(false);
     expect(shouldShowRemoteBackupForceUpload("upload_conflict")).toBe(true);
@@ -234,5 +243,41 @@ describe("settings remote backup helpers", () => {
     expect(shouldRecommendRemoteHistoryResolution("remote_newer")).toBe(true);
     expect(shouldRecommendRemoteHistoryResolution("upload_blocked_diverged")).toBe(true);
     expect(shouldRecommendRemoteHistoryResolution("up_to_date")).toBe(false);
+  });
+
+  it("formats protected snapshot history summary and protection action messages", () => {
+    const protectedMetadata = {
+      ...metadata,
+      snapshot_id: "snap-protected",
+      is_protected: true,
+      protected_at: "2026-03-12T10:06:00.000Z"
+    };
+
+    expect(
+      formatRemoteBackupHistorySummary([protectedMetadata, metadata])
+    ).toBe("云端保留历史：2 条（已保护 1 条）");
+
+    expect(
+      resolveRemoteBackupHistorySelectionPresentation(
+        protectedMetadata,
+        protectedMetadata.snapshot_id
+      )
+    ).toMatchObject({
+      protectionLabel: "保护状态：已保护",
+      protectedAtLabel: expect.stringContaining("保护时间：")
+    });
+
+    expect(
+      formatRemoteBackupProtectionActionMessage("protect", protectedMetadata)
+    ).toBe("已保护所选快照（snap-protected）");
+    expect(
+      formatRemoteBackupProtectionActionMessage("unprotect", protectedMetadata)
+    ).toBe("已取消保护所选快照（snap-protected）");
+    expect(
+      formatRemoteBackupProtectionLimitMessage({
+        protected_count: 1,
+        max_protected: 1
+      })
+    ).toBe("受保护快照已达上限（1/1），请先取消保护旧快照。");
   });
 });
