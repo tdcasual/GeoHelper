@@ -1,13 +1,5 @@
+import { createBackupEnvelope } from "../../packages/protocol/src";
 import { expect, test } from "@playwright/test";
-
-const checksumOf = (value: string): string => {
-  let hash = 2166136261;
-  for (let i = 0; i < value.length; i += 1) {
-    hash ^= value.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(16).padStart(8, "0");
-};
 
 const openSettingsSection = async (
   page: import("@playwright/test").Page,
@@ -129,25 +121,33 @@ const createBackupFile = (input: {
   schemaVersion?: number;
   appVersion?: string;
   createdAt?: string;
+  updatedAt?: string;
   conversations?: Array<Record<string, unknown>>;
   settings?: Record<string, unknown>;
   invalidChecksum?: boolean;
 }) => {
-  const envelopeWithoutChecksum = {
-    schema_version: input.schemaVersion ?? 1,
-    created_at: input.createdAt ?? "2026-03-05T00:00:00.000Z",
-    app_version: input.appVersion ?? "0.0.1",
-    conversations: input.conversations ?? [],
-    settings: input.settings ?? {}
-  };
-  const checksum = input.invalidChecksum
-    ? "deadbeef"
-    : checksumOf(JSON.stringify(envelopeWithoutChecksum));
-  const body = JSON.stringify(
+  const createdAt = input.createdAt ?? "2026-03-05T00:00:00.000Z";
+  const envelope = createBackupEnvelope(
     {
-      ...envelopeWithoutChecksum,
-      checksum
+      conversations: input.conversations ?? [],
+      settings: input.settings ?? {}
     },
+    {
+      schemaVersion: input.schemaVersion ?? 1,
+      createdAt,
+      updatedAt: input.updatedAt ?? createdAt,
+      appVersion: input.appVersion ?? "0.0.1",
+      snapshotId: "snap_e2e_backup",
+      deviceId: "device_e2e_backup"
+    }
+  );
+  const body = JSON.stringify(
+    input.invalidChecksum
+      ? {
+          ...envelope,
+          checksum: "deadbeef"
+        }
+      : envelope,
     null,
     2
   );

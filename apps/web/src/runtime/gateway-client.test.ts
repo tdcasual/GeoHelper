@@ -98,6 +98,35 @@ describe("gateway runtime client", () => {
     );
   });
 
+  it("falls back to default capabilities when admin version returns non-json html", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new SyntaxError("Unexpected token < in JSON");
+      }
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createGatewayClient() as ReturnType<typeof createGatewayClient> & {
+      resolveCapabilities?: (params: { baseUrl?: string }) => Promise<{
+        supportsOfficialAuth: boolean;
+        supportsVision: boolean;
+        supportsAgentSteps: boolean;
+        supportsServerMetrics: boolean;
+        supportsRateLimitHeaders: boolean;
+      }>;
+    };
+
+    await expect(
+      client.resolveCapabilities?.({
+        baseUrl: "https://gateway.example.com"
+      })
+    ).resolves.toMatchObject({
+      supportsVision: false,
+      supportsOfficialAuth: true
+    });
+  });
+
   it("passes attachments through to gateway compile payload", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
