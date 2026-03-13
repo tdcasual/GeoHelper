@@ -1,6 +1,7 @@
 import {
   BackupEnvelope,
   BackupEnvelopeSchema,
+  compareBackupComparableSummaries,
   BackupSyncComparison,
   parseBackupEnvelope
 } from "@geohelper/protocol";
@@ -110,11 +111,6 @@ const normalizeMaxHistory = (value?: number): number =>
 const normalizeMaxProtected = (value?: number): number =>
   Math.max(1, Math.floor(value ?? DEFAULT_BACKUP_PROTECTED));
 
-const toTimestamp = (value: string): number | null => {
-  const timestamp = Date.parse(value);
-  return Number.isNaN(timestamp) ? null : timestamp;
-};
-
 export const createGatewayBackupComparableSummary = (
   envelope: GatewayBackupEnvelope
 ): GatewayBackupComparableSummary => ({
@@ -129,74 +125,30 @@ export const createGatewayBackupComparableSummary = (
   ...(envelope.base_snapshot_id ? { baseSnapshotId: envelope.base_snapshot_id } : {})
 });
 
+const toProtocolComparableSummary = (
+  summary: GatewayBackupComparableSummary
+) => ({
+  schema_version: summary.schemaVersion,
+  created_at: summary.createdAt,
+  updated_at: summary.updatedAt,
+  app_version: summary.appVersion,
+  checksum: summary.checksum,
+  conversation_count: summary.conversationCount,
+  snapshot_id: summary.snapshotId,
+  device_id: summary.deviceId,
+  ...(summary.baseSnapshotId
+    ? { base_snapshot_id: summary.baseSnapshotId }
+    : {})
+});
+
 export const compareGatewayBackupSummaries = (
   local: GatewayBackupComparableSummary,
   remote: GatewayBackupComparableSummary
-): BackupSyncComparison => {
-  if (local.checksum === remote.checksum) {
-    return {
-      relation: "identical",
-      sameChecksum: true,
-      newer: "same",
-      localSnapshotId: local.snapshotId,
-      remoteSnapshotId: remote.snapshotId,
-      localUpdatedAt: local.updatedAt,
-      remoteUpdatedAt: remote.updatedAt
-    };
-  }
-
-  const localExtendsRemote = local.baseSnapshotId === remote.snapshotId;
-  const remoteExtendsLocal = remote.baseSnapshotId === local.snapshotId;
-
-  if (localExtendsRemote && !remoteExtendsLocal) {
-    return {
-      relation: "local_newer",
-      sameChecksum: false,
-      newer: "local",
-      localSnapshotId: local.snapshotId,
-      remoteSnapshotId: remote.snapshotId,
-      localUpdatedAt: local.updatedAt,
-      remoteUpdatedAt: remote.updatedAt
-    };
-  }
-
-  if (remoteExtendsLocal && !localExtendsRemote) {
-    return {
-      relation: "remote_newer",
-      sameChecksum: false,
-      newer: "remote",
-      localSnapshotId: local.snapshotId,
-      remoteSnapshotId: remote.snapshotId,
-      localUpdatedAt: local.updatedAt,
-      remoteUpdatedAt: remote.updatedAt
-    };
-  }
-
-  const localTimestamp = toTimestamp(local.updatedAt);
-  const remoteTimestamp = toTimestamp(remote.updatedAt);
-
-  if (localTimestamp !== null && remoteTimestamp !== null && localTimestamp !== remoteTimestamp) {
-    return {
-      relation: localTimestamp > remoteTimestamp ? "local_newer" : "remote_newer",
-      sameChecksum: false,
-      newer: localTimestamp > remoteTimestamp ? "local" : "remote",
-      localSnapshotId: local.snapshotId,
-      remoteSnapshotId: remote.snapshotId,
-      localUpdatedAt: local.updatedAt,
-      remoteUpdatedAt: remote.updatedAt
-    };
-  }
-
-  return {
-    relation: "diverged",
-    sameChecksum: false,
-    newer: "same",
-    localSnapshotId: local.snapshotId,
-    remoteSnapshotId: remote.snapshotId,
-    localUpdatedAt: local.updatedAt,
-    remoteUpdatedAt: remote.updatedAt
-  };
-};
+): BackupSyncComparison =>
+  compareBackupComparableSummaries(
+    toProtocolComparableSummary(local),
+    toProtocolComparableSummary(remote)
+  );
 
 const createSummary = (
   envelope: GatewayBackupEnvelope,

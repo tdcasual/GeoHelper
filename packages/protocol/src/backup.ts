@@ -52,6 +52,18 @@ export interface BackupSyncComparison {
   remoteUpdatedAt: string;
 }
 
+export interface BackupComparableSummary {
+  schema_version: number;
+  created_at: string;
+  updated_at: string;
+  app_version: string;
+  checksum: string;
+  conversation_count: number;
+  snapshot_id: string;
+  device_id: string;
+  base_snapshot_id?: string;
+}
+
 type BackupEnvelopeBodyWithoutChecksum = Omit<BackupEnvelope, "checksum">;
 type BackupEnvelopeBodyBeforeSnapshot = Omit<BackupEnvelopeBodyWithoutChecksum, "snapshot_id">;
 
@@ -192,6 +204,40 @@ export const compareBackupEnvelopes = (
   const local = parseBackupEnvelope(localInput);
   const remote = parseBackupEnvelope(remoteInput);
 
+  return compareBackupComparableSummaries(
+    {
+      schema_version: local.schema_version,
+      created_at: local.created_at,
+      updated_at: local.updated_at,
+      app_version: local.app_version,
+      checksum: local.checksum,
+      conversation_count: local.conversations.length,
+      snapshot_id: local.snapshot_id,
+      device_id: local.device_id,
+      ...(local.base_snapshot_id
+        ? { base_snapshot_id: local.base_snapshot_id }
+        : {})
+    },
+    {
+      schema_version: remote.schema_version,
+      created_at: remote.created_at,
+      updated_at: remote.updated_at,
+      app_version: remote.app_version,
+      checksum: remote.checksum,
+      conversation_count: remote.conversations.length,
+      snapshot_id: remote.snapshot_id,
+      device_id: remote.device_id,
+      ...(remote.base_snapshot_id
+        ? { base_snapshot_id: remote.base_snapshot_id }
+        : {})
+    }
+  );
+};
+
+export const compareBackupComparableSummaries = (
+  local: BackupComparableSummary,
+  remote: BackupComparableSummary
+): BackupSyncComparison => {
   if (local.checksum === remote.checksum) {
     return {
       relation: "identical",

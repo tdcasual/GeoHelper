@@ -1202,6 +1202,16 @@ test("remote backup history allows selecting and previewing one retained histori
   await expect(
     page.getByTestId("remote-backup-selected-history").getByText("当前选择：云端最新快照")
   ).toBeVisible();
+  await expect(
+    page
+      .getByTestId("remote-backup-selected-history")
+      .getByText("与本地关系：所选云端快照较新")
+  ).toBeVisible();
+  await expect(
+    page
+      .getByTestId("remote-backup-selected-history")
+      .getByText("当前所选云端快照比本地更新，建议先拉取该快照预览，再决定合并或覆盖。")
+  ).toBeVisible();
 
   await page.getByRole("button", { name: /snap-remote-1/ }).click();
 
@@ -1211,6 +1221,14 @@ test("remote backup history allows selecting and previewing one retained histori
   await expect(selectedHistory.getByText("设备 ID：device-remote-1")).toBeVisible();
   await expect(selectedHistory.getByText("会话数：1")).toBeVisible();
   await expect(selectedHistory.getByText(/更新时间：/)).toBeVisible();
+  await expect(
+    selectedHistory.getByText("与本地关系：本地当前快照较新")
+  ).toBeVisible();
+  await expect(
+    selectedHistory.getByText(
+      "本地当前快照比所选云端快照更新；如果要回退到这个历史点，建议先拉取预览，再决定合并或覆盖。"
+    )
+  ).toBeVisible();
   await expect(
     selectedHistory.getByText(
       "建议先拉取当前选中的快照预览；如这是关键恢复点，可先保护当前选中的快照，再决定合并、覆盖或仍然覆盖云端。"

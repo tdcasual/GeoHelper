@@ -33,6 +33,7 @@ import {
   formatRemoteBackupProtectionLimitMessage,
   formatRemoteBackupSelectedPullMessage,
   formatRemoteBackupRestoreWarning,
+  resolveRemoteBackupHistoryComparisonPresentation,
   resolveRemoteBackupHistorySelectionPresentation,
   resolveRemoteBackupSyncPresentation,
   resolveRemoteBackupActions,
@@ -415,6 +416,14 @@ export const SettingsDrawer = ({
           )
         : null,
     [latestRemoteHistorySnapshotId, selectedRemoteHistoryBackup]
+  );
+  const selectedRemoteHistoryComparisonPresentation = useMemo(
+    () =>
+      resolveRemoteBackupHistoryComparisonPresentation(
+        remoteBackupSync.lastComparison?.local_snapshot.summary ?? null,
+        selectedRemoteHistoryBackup
+      ),
+    [remoteBackupSync.lastComparison, selectedRemoteHistoryBackup]
   );
   const remoteBackupHistorySummary = useMemo(
     () => formatRemoteBackupHistorySummary(remoteBackupSync.history),
@@ -1750,6 +1759,12 @@ export const SettingsDrawer = ({
                     <p>{selectedRemoteHistoryPresentation.protectionLabel}</p>
                     {selectedRemoteHistoryPresentation.protectedAtLabel ? (
                       <p>{selectedRemoteHistoryPresentation.protectedAtLabel}</p>
+                    ) : null}
+                    {selectedRemoteHistoryComparisonPresentation ? (
+                      <>
+                        <p>{selectedRemoteHistoryComparisonPresentation.relationLabel}</p>
+                        <p>{selectedRemoteHistoryComparisonPresentation.recommendation}</p>
+                      </>
                     ) : null}
                     {shouldRecommendRemoteHistoryResolution(
                       remoteBackupSync.status

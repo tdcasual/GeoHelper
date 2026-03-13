@@ -98,7 +98,7 @@ In `设置` -> `数据与安全` -> `网关远端备份`, the workflow is explic
 1. Save the gateway admin token.
 2. Choose `关闭` / `仅提醒（启动检查）` / `延迟上传` based on how proactive you want remote snapshot handling to be.
 3. Click `检查云端状态` to compare local and remote freshness without downloading a full backup. This also surfaces retained remote snapshot history in the settings UI.
-4. Review the retained history list, distinguish 普通保留历史 from 受保护快照, select the target snapshot, and note its `snapshot_id`, `device_id`, `updated_at`, and conversation count before recovery.
+4. Review the retained history list, distinguish 普通保留历史 from 受保护快照, select the target snapshot, and note its `snapshot_id`, `device_id`, `updated_at`, conversation count, and the preflight relation versus the current local snapshot before recovery.
 5. If this is a recovery anchor you do not want pruned by later routine uploads, click `保护此快照`; if it is no longer special, click `取消保护`.
 6. Click `拉取最新快照` when you want the latest remote snapshot, or click `拉取所选历史快照` when you want one explicitly selected historical snapshot.
 7. Choose `拉取后导入（合并）` or `拉取后覆盖导入` based on recovery intent.
@@ -108,10 +108,10 @@ In `设置` -> `数据与安全` -> `网关远端备份`, the workflow is explic
 - `上传最新快照` 默认上传不会自动覆盖较新的云端快照。
 - 当 compare 已显示 `云端较新` / `存在分叉`，或 guarded 写入返回冲突时，界面会要求你先检查保留历史并确认风险。
 - 只有显式危险操作才会覆盖云端：你需要看到并点击 `仍然覆盖云端快照`。
-- 阻塞/冲突状态的建议路径是：先看保留历史、必要时先保护当前选中的快照、再拉取所选快照预览、最后决定是否导入或覆盖云端。
+- 阻塞/冲突状态的建议路径是：先看保留历史、先看“所选快照与本地关系”的预检提示、必要时先保护当前选中的快照、再拉取所选快照预览、最后决定是否导入或覆盖云端。
 - 网关的 `/admin/backups/latest` 仍然保留给 operator/manual recovery 使用，但浏览器侧同步默认先走 guarded 写入。
 
-The UI does not background-sync full history, poll continuously, or auto-restore. 启动检查只拉取元数据；延迟上传也不会自动拉取或自动导入。 正常流程不会自动合并或自动覆盖云端；every remote mutation remains operator-triggered until you explicitly choose an import action. `保护此快照` / `取消保护` only updates retention metadata, so it is a 手动元数据操作 and 不代表立即导入或恢复. This route still does not require SQL or a generic cloud history backend.
+The UI does not background-sync full history, poll continuously, or auto-restore. 启动检查只拉取元数据；延迟上传也不会自动拉取或自动导入。 所选历史快照的“与本地关系”预检也只是只读提示，不会自动拉取、自动导入或自动改写同步状态。 正常流程不会自动合并或自动覆盖云端；every remote mutation remains operator-triggered until you explicitly choose an import action. `保护此快照` / `取消保护` only updates retention metadata, so it is a 手动元数据操作 and 不代表立即导入或恢复. This route still does not require SQL or a generic cloud history backend.
 
 ## Troubleshooting
 

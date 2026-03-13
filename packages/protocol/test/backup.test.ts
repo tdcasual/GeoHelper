@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   BackupEnvelopeSchema,
+  compareBackupComparableSummaries,
   compareBackupEnvelopes,
   createBackupEnvelope,
   inspectBackupEnvelope,
@@ -140,5 +141,117 @@ describe("backup protocol", () => {
       localUpdatedAt: "2026-03-12T00:40:00.000Z",
       remoteUpdatedAt: "2026-03-12T00:33:00.000Z"
     });
+  });
+
+  it("compares local and remote comparable summaries without full envelopes", () => {
+    expect(
+      compareBackupComparableSummaries(
+        {
+          schema_version: 2,
+          created_at: "2026-03-12T00:32:00.000Z",
+          updated_at: "2026-03-12T00:40:00.000Z",
+          app_version: "0.0.1",
+          checksum: "same-checksum",
+          conversation_count: 2,
+          snapshot_id: "snap-local-same",
+          device_id: "device-a"
+        },
+        {
+          schema_version: 2,
+          created_at: "2026-03-12T00:32:00.000Z",
+          updated_at: "2026-03-12T00:35:00.000Z",
+          app_version: "0.0.1",
+          checksum: "same-checksum",
+          conversation_count: 2,
+          snapshot_id: "snap-remote-same",
+          device_id: "device-b"
+        }
+      )
+    ).toEqual({
+      relation: "identical",
+      sameChecksum: true,
+      newer: "same",
+      localSnapshotId: "snap-local-same",
+      remoteSnapshotId: "snap-remote-same",
+      localUpdatedAt: "2026-03-12T00:40:00.000Z",
+      remoteUpdatedAt: "2026-03-12T00:35:00.000Z"
+    });
+
+    expect(
+      compareBackupComparableSummaries(
+        {
+          schema_version: 2,
+          created_at: "2026-03-12T00:32:00.000Z",
+          updated_at: "2026-03-12T00:40:00.000Z",
+          app_version: "0.0.1",
+          checksum: "checksum-local",
+          conversation_count: 3,
+          snapshot_id: "snap-local-newer",
+          device_id: "device-a",
+          base_snapshot_id: "snap-remote-base"
+        },
+        {
+          schema_version: 2,
+          created_at: "2026-03-12T00:32:00.000Z",
+          updated_at: "2026-03-12T00:35:00.000Z",
+          app_version: "0.0.1",
+          checksum: "checksum-remote",
+          conversation_count: 2,
+          snapshot_id: "snap-remote-base",
+          device_id: "device-b"
+        }
+      ).relation
+    ).toBe("local_newer");
+
+    expect(
+      compareBackupComparableSummaries(
+        {
+          schema_version: 2,
+          created_at: "2026-03-12T00:32:00.000Z",
+          updated_at: "2026-03-12T00:35:00.000Z",
+          app_version: "0.0.1",
+          checksum: "checksum-local-old",
+          conversation_count: 2,
+          snapshot_id: "snap-local-base",
+          device_id: "device-a"
+        },
+        {
+          schema_version: 2,
+          created_at: "2026-03-12T00:32:00.000Z",
+          updated_at: "2026-03-12T00:40:00.000Z",
+          app_version: "0.0.1",
+          checksum: "checksum-remote-new",
+          conversation_count: 3,
+          snapshot_id: "snap-remote-newer",
+          device_id: "device-b",
+          base_snapshot_id: "snap-local-base"
+        }
+      ).relation
+    ).toBe("remote_newer");
+
+    expect(
+      compareBackupComparableSummaries(
+        {
+          schema_version: 2,
+          created_at: "2026-03-12T00:32:00.000Z",
+          updated_at: "2026-03-12T00:36:00.000Z",
+          app_version: "0.0.1",
+          checksum: "checksum-local-ts",
+          conversation_count: 2,
+          snapshot_id: "snap-local-ts",
+          device_id: "device-a"
+        },
+        {
+          schema_version: 2,
+          created_at: "2026-03-12T00:32:00.000Z",
+          updated_at: "2026-03-12T00:36:00.000Z",
+          app_version: "0.0.1",
+          checksum: "checksum-remote-diverged",
+          conversation_count: 2,
+          snapshot_id: "snap-remote-diverged",
+          device_id: "device-b"
+        }
+      ).relation
+    ).toBe("diverged");
   });
 });

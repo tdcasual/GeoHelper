@@ -7,6 +7,7 @@ import {
   formatRemoteBackupProtectionLimitMessage,
   formatRemoteBackupSelectedPullMessage,
   formatRemoteBackupRestoreWarning,
+  resolveRemoteBackupHistoryComparisonPresentation,
   shouldRecommendRemoteHistoryResolution,
   shouldShowRemoteBackupForceUpload,
   resolveRemoteBackupHistorySelectionPresentation,
@@ -41,6 +42,17 @@ const metadata = {
   snapshot_id: "snap-remote",
   device_id: "device-remote",
   is_protected: false
+};
+
+const localSummary = {
+  schema_version: 2,
+  created_at: "2026-03-12T09:58:00.000Z",
+  updated_at: "2026-03-12T10:05:00.000Z",
+  app_version: "0.0.1",
+  checksum: "checksum-local",
+  conversation_count: 3,
+  snapshot_id: "snap-local",
+  device_id: "device-local"
 };
 
 describe("settings remote backup helpers", () => {
@@ -279,5 +291,58 @@ describe("settings remote backup helpers", () => {
         max_protected: 1
       })
     ).toBe("受保护快照已达上限（1/1），请先取消保护旧快照。");
+  });
+
+  it("formats selected history preflight comparison against the current local snapshot", () => {
+    expect(
+      resolveRemoteBackupHistoryComparisonPresentation(
+        localSummary,
+        {
+          ...metadata,
+          checksum: "checksum-local",
+          snapshot_id: "snap-remote-same"
+        }
+      )
+    ).toEqual({
+      relationLabel: "与本地关系：内容一致",
+      recommendation: "当前所选快照与本地当前快照内容一致，如只做校验可不必重复拉取。"
+    });
+
+    expect(
+      resolveRemoteBackupHistoryComparisonPresentation(localSummary, {
+        ...metadata,
+        checksum: "checksum-remote-newer",
+        snapshot_id: "snap-remote-newer",
+        updated_at: "2026-03-12T10:06:00.000Z",
+        base_snapshot_id: "snap-local"
+      })
+    ).toEqual({
+      relationLabel: "与本地关系：所选云端快照较新",
+      recommendation: "当前所选云端快照比本地更新，建议先拉取该快照预览，再决定合并或覆盖。"
+    });
+
+    expect(
+      resolveRemoteBackupHistoryComparisonPresentation(localSummary, {
+        ...metadata,
+        checksum: "checksum-remote-older",
+        snapshot_id: "snap-remote-older",
+        updated_at: "2026-03-12T10:01:00.000Z"
+      })
+    ).toEqual({
+      relationLabel: "与本地关系：本地当前快照较新",
+      recommendation: "本地当前快照比所选云端快照更新；如果要回退到这个历史点，建议先拉取预览，再决定合并或覆盖。"
+    });
+
+    expect(
+      resolveRemoteBackupHistoryComparisonPresentation(localSummary, {
+        ...metadata,
+        checksum: "checksum-remote-diverged",
+        snapshot_id: "snap-remote-diverged",
+        updated_at: "2026-03-12T10:05:00.000Z"
+      })
+    ).toEqual({
+      relationLabel: "与本地关系：存在分叉",
+      recommendation: "当前所选云端快照与本地存在分叉，建议先拉取该快照预览，再决定合并或覆盖。"
+    });
   });
 });

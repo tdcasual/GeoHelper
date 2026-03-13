@@ -1,3 +1,5 @@
+import { compareBackupComparableSummaries } from "@geohelper/protocol";
+
 import type {
   RemoteBackupSyncStatus,
   RuntimeBackupComparableSummary,
@@ -34,6 +36,11 @@ export interface RemoteBackupHistorySelectionPresentation {
   conversationCountLabel: string;
   protectionLabel: string;
   protectedAtLabel: string | null;
+}
+
+export interface RemoteBackupHistoryComparisonPresentation {
+  relationLabel: string;
+  recommendation: string;
 }
 
 interface ResolveRemoteBackupSyncPresentationParams {
@@ -200,6 +207,44 @@ export const resolveRemoteBackupHistorySelectionPresentation = (
       ? `保护时间：${new Date(backup.protected_at).toLocaleString("zh-CN")}`
       : null
 });
+
+export const resolveRemoteBackupHistoryComparisonPresentation = (
+  localSummary: RuntimeBackupComparableSummary | null | undefined,
+  selectedBackup: RuntimeBackupComparableSummary | null | undefined
+): RemoteBackupHistoryComparisonPresentation | null => {
+  if (!localSummary || !selectedBackup) {
+    return null;
+  }
+
+  const comparison = compareBackupComparableSummaries(localSummary, selectedBackup);
+
+  switch (comparison.relation) {
+    case "identical":
+      return {
+        relationLabel: "与本地关系：内容一致",
+        recommendation: "当前所选快照与本地当前快照内容一致，如只做校验可不必重复拉取。"
+      };
+    case "local_newer":
+      return {
+        relationLabel: "与本地关系：本地当前快照较新",
+        recommendation:
+          "本地当前快照比所选云端快照更新；如果要回退到这个历史点，建议先拉取预览，再决定合并或覆盖。"
+      };
+    case "remote_newer":
+      return {
+        relationLabel: "与本地关系：所选云端快照较新",
+        recommendation:
+          "当前所选云端快照比本地更新，建议先拉取该快照预览，再决定合并或覆盖。"
+      };
+    case "diverged":
+    default:
+      return {
+        relationLabel: "与本地关系：存在分叉",
+        recommendation:
+          "当前所选云端快照与本地存在分叉，建议先拉取该快照预览，再决定合并或覆盖。"
+      };
+  }
+};
 
 export const shouldShowRemoteBackupForceUpload = (
   status: RemoteBackupSyncStatus
