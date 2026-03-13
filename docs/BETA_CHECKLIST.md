@@ -28,6 +28,8 @@ Updated: 2026-03-12
 - `COMPILE_MAX_IN_FLIGHT` (optional, default `4`): Max concurrent compile requests allowed per gateway instance before returning `GATEWAY_BUSY`.
 - `COMPILE_TIMEOUT_MS` (optional, default `30000`): Timeout budget per compile request before returning `COMPILE_TIMEOUT`.
 - `ADMIN_METRICS_TOKEN` (optional): Required `x-admin-token` for `/admin/version`, `/admin/metrics`, `/admin/compile-events`, and `/admin/backups/latest`.
+- `BACKUP_MAX_HISTORY` (optional, default `10`): Max ordinary retained remote snapshot history entries.
+- `BACKUP_MAX_PROTECTED` (optional, default `20`): Max retained protected snapshots.
 - `COST_PER_REQUEST_USD` (optional, default `0`): Estimated USD cost per upstream model request, used for ops metrics.
 - `GATEWAY_ENABLE_ATTACHMENTS` (optional, default `0`): Explicitly enables gateway image attachments; attachment support is never implied by model name alone.
 - `OPS_BENCH_MIN_SUCCESS_RATE` (optional): Release threshold for composed ops benchmark success rate.
@@ -43,6 +45,9 @@ Updated: 2026-03-12
 - `x-trace-id` and compile `trace_id` are the main debugging join keys across alerts, smoke runs, `/admin/compile-events`, and `/admin/traces/:traceId`.
 - `REDIS_URL` remains the only supported shared fast-state dependency in Gateway V4; no SQL or extra backend datastore is required in this roadmap.
 - Web lightweight cloud sync remains snapshot-based; no SQL or full cloud history backend is required, startup freshness checks are metadata-only, and delayed upload is opt-in and never auto-restores.
+- ordinary retained history and protected retained snapshots are bounded separately via `BACKUP_MAX_HISTORY` and `BACKUP_MAX_PROTECTED`.
+- protected snapshots do not auto-expire, and new protect requests fail explicitly when protected capacity is full.
+- `保护此快照` / `取消保护` is a manual metadata operation and does not imply import or restore.
 - browser sync defaults to guarded writes, force overwrite requires an explicit danger action, and the unconditional admin latest write remains operator-only.
 - Retained remote snapshot history can be inspected explicitly, selected historical snapshots can be fetched by `snapshot_id`, and blocked/conflict sync states should be resolved through explicit selected-snapshot pull/import or explicit overwrite.
 - Gateway latest-backup recovery remains explicit and single-tenant; there is no background sync service or backup catalog in this phase.
@@ -103,3 +108,4 @@ Updated: 2026-03-12
 - [ ] Template backup recovery checked (export + import preserves `geohelper.templates.snapshot`)
 - [ ] Gateway backup admin routes checked (`PUT/GET /admin/backups/latest` returns metadata and latest envelope with valid admin token)
 - [ ] Remote backup settings flow checked (gateway admin token saved, retained history is visible after `检查云端状态`, selected historical snapshots can be fetched by `snapshot_id`, blocked/conflict states point users to explicit pull/import or explicit overwrite, and `检查云端状态` / `上传最新快照` / `拉取最新快照` stay explicit and manual)
+- [ ] Protected snapshot policy checked (`BACKUP_MAX_HISTORY` / `BACKUP_MAX_PROTECTED` are configured intentionally, protected snapshots do not auto-expire, limit-full protect returns an explicit failure, and settings protection remains metadata-only)

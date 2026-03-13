@@ -30,7 +30,7 @@ Use this section when you know the problem domain first and only then want the r
 ### Backup
 
 - Backup and restore runtime behavior: [`2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md`](./2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md)
-- Remote backup/ops closure on backend: [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md), [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md), [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md), [`2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md`](./2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md)
+- Remote backup/ops closure on backend: [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md), [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md), [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md), [`2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md`](./2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md), [`2026-03-13-backend-v7d-protected-history-retention-roadmap.md`](./2026-03-13-backend-v7d-protected-history-retention-roadmap.md)
 - Runtime docs: [`../user/settings-backup-recovery.md`](../user/settings-backup-recovery.md), [`../BETA_CHECKLIST.md`](../BETA_CHECKLIST.md)
 
 ### Backend
@@ -40,7 +40,7 @@ Use this section when you know the problem domain first and only then want the r
 
 ## Backend Roadmap Timeline
 
-The backend roadmap sequence currently spans `V2` through `V7-C`. Read them in order when you want the architecture story behind the current self-hosted gateway.
+The backend roadmap sequence currently spans `V2` through `V7-D`. Read them in order when you want the architecture story behind the current self-hosted gateway.
 
 | Version | Date | Theme | Plan | Status |
 | --- | --- | --- | --- | --- |
@@ -51,7 +51,8 @@ The backend roadmap sequence currently spans `V2` through `V7-C`. Read them in o
 | `V6` | 2026-03-12 | Gateway vision capability and image attachment support | [`2026-03-12-backend-v6-vision-attachments-roadmap.md`](./2026-03-12-backend-v6-vision-attachments-roadmap.md) | Completed / historical context |
 | `V7-A` | 2026-03-12 | Local-first lightweight cloud sync via remote snapshots | [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md) | Completed / historical context |
 | `V7-B` | 2026-03-12 | Guarded lightweight sync writes and conflict resolution | [`2026-03-12-backend-v7b-guarded-lightweight-sync-roadmap.md`](./2026-03-12-backend-v7b-guarded-lightweight-sync-roadmap.md) | Completed / historical context |
-| `V7-C` | 2026-03-12 | Explicit snapshot history browsing and selected-snapshot recovery | [`2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md`](./2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md) | Completed / current latest roadmap |
+| `V7-C` | 2026-03-12 | Explicit snapshot history browsing and selected-snapshot recovery | [`2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md`](./2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md) | Completed / historical context |
+| `V7-D` | 2026-03-13 | Protected remote snapshots and explicit retention policy | [`2026-03-13-backend-v7d-protected-history-retention-roadmap.md`](./2026-03-13-backend-v7d-protected-history-retention-roadmap.md) | Proposed / current latest roadmap |
 
 ## Frontend & Product Timeline
 
@@ -96,7 +97,8 @@ The frontend documents split naturally into two layers:
 4. Continue with [`2026-03-12-backend-v6-vision-attachments-roadmap.md`](./2026-03-12-backend-v6-vision-attachments-roadmap.md) for the current gateway vision/attachment layer.
 5. Read [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md) for the baseline lightweight cloud sync layer.
 6. Read [`2026-03-12-backend-v7b-guarded-lightweight-sync-roadmap.md`](./2026-03-12-backend-v7b-guarded-lightweight-sync-roadmap.md) for conflict-safe uploads without adding SQL.
-7. Read [`2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md`](./2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md) for the current Route 1 snapshot-history layer: explicit history browsing and selected-snapshot recovery without adding SQL.
+7. Read [`2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md`](./2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md) for the Route 1 snapshot-history layer: explicit history browsing and selected-snapshot recovery without adding SQL.
+8. Read [`2026-03-13-backend-v7d-protected-history-retention-roadmap.md`](./2026-03-13-backend-v7d-protected-history-retention-roadmap.md) for the latest retention layer: protected recovery anchors plus separate ordinary/protected snapshot limits.
 
 ### Frontend
 

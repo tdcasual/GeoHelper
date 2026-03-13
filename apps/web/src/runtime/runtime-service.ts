@@ -13,8 +13,11 @@ import {
   RuntimeBackupGuardedUploadResponse,
   RuntimeBackupHistoryRequest,
   RuntimeBackupHistoryResponse,
+  RuntimeBackupProtectResponse,
+  RuntimeBackupProtectionRequest,
   RuntimeBackupLatestMetadataRequest,
   RuntimeBackupLatestMetadataResponse,
+  RuntimeBackupUnprotectResponse,
   RuntimeBackupUploadRequest,
   RuntimeBackupUploadResponse,
   RuntimeCapabilities,
@@ -41,8 +44,11 @@ export type {
   RuntimeBackupGuardedUploadResponse,
   RuntimeBackupHistoryRequest,
   RuntimeBackupHistoryResponse,
+  RuntimeBackupProtectResponse,
+  RuntimeBackupProtectionRequest,
   RuntimeBackupLatestMetadataRequest,
   RuntimeBackupLatestMetadataResponse,
+  RuntimeBackupUnprotectResponse,
   RuntimeBackupUploadRequest,
   RuntimeBackupUploadResponse,
   RuntimeTarget,
@@ -101,6 +107,16 @@ export const fetchGatewayLatestBackupMetadata = async (
   request: RuntimeBackupLatestMetadataRequest
 ): Promise<RuntimeBackupLatestMetadataResponse> =>
   gatewayRuntimeClient.fetchLatestBackupMetadata(request);
+
+export const protectGatewayBackupSnapshot = async (
+  request: RuntimeBackupProtectionRequest
+): Promise<RuntimeBackupProtectResponse> =>
+  gatewayRuntimeClient.protectBackupSnapshot(request);
+
+export const unprotectGatewayBackupSnapshot = async (
+  request: RuntimeBackupProtectionRequest
+): Promise<RuntimeBackupUnprotectResponse> =>
+  gatewayRuntimeClient.unprotectBackupSnapshot(request);
 
 export const compareGatewayBackup = async (
   request: RuntimeBackupCompareRequest

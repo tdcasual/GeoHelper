@@ -10,8 +10,11 @@ import {
   RuntimeBackupGuardedUploadResponse,
   RuntimeBackupHistoryRequest,
   RuntimeBackupHistoryResponse,
+  RuntimeBackupProtectionRequest,
+  RuntimeBackupProtectResponse,
   RuntimeBackupLatestMetadataRequest,
   RuntimeBackupLatestMetadataResponse,
+  RuntimeBackupUnprotectResponse,
   RuntimeBackupUploadRequest,
   RuntimeBackupUploadResponse,
   RuntimeBuildIdentity,
@@ -46,6 +49,12 @@ export interface GatewayRuntimeClient extends RuntimeClient {
   fetchBackupHistory: (
     request: RuntimeBackupHistoryRequest
   ) => Promise<RuntimeBackupHistoryResponse>;
+  protectBackupSnapshot: (
+    request: RuntimeBackupProtectionRequest
+  ) => Promise<RuntimeBackupProtectResponse>;
+  unprotectBackupSnapshot: (
+    request: RuntimeBackupProtectionRequest
+  ) => Promise<RuntimeBackupUnprotectResponse>;
   fetchLatestBackupMetadata: (
     request: RuntimeBackupLatestMetadataRequest
   ) => Promise<RuntimeBackupLatestMetadataResponse>;
@@ -144,6 +153,9 @@ const buildBackupDownloadUrl = (
   return `${baseUrl}/admin/backups/history/${encodeURIComponent(normalizedSnapshotId)}`;
 };
 
+const buildBackupProtectUrl = (baseUrl: string, snapshotId: string): string =>
+  `${buildBackupDownloadUrl(baseUrl, snapshotId)}/protect`;
+
 export const createGatewayClient = (): GatewayRuntimeClient => {
   const capabilityCache = new Map<string, RuntimeCapabilities>();
 
@@ -216,6 +228,50 @@ export const createGatewayClient = (): GatewayRuntimeClient => {
       backup: response.history[0] ?? null,
       build: response.build
     };
+  };
+
+  const protectBackupSnapshot = async (
+    request: RuntimeBackupProtectionRequest
+  ): Promise<RuntimeBackupProtectResponse> => {
+    const baseUrl = resolveGatewayBaseUrl(request.baseUrl);
+    const response = await fetch(buildBackupProtectUrl(baseUrl, request.snapshotId), {
+      method: "POST",
+      headers: buildAdminHeaders(request.adminToken)
+    });
+
+    if (response.status === 409) {
+      return response.json() as Promise<RuntimeBackupProtectResponse>;
+    }
+
+    if (!response.ok) {
+      return parseApiError(
+        response,
+        "REMOTE_BACKUP_PROTECT_FAILED",
+        "Remote backup protect failed"
+      );
+    }
+
+    return response.json() as Promise<RuntimeBackupProtectResponse>;
+  };
+
+  const unprotectBackupSnapshot = async (
+    request: RuntimeBackupProtectionRequest
+  ): Promise<RuntimeBackupUnprotectResponse> => {
+    const baseUrl = resolveGatewayBaseUrl(request.baseUrl);
+    const response = await fetch(buildBackupProtectUrl(baseUrl, request.snapshotId), {
+      method: "DELETE",
+      headers: buildAdminHeaders(request.adminToken)
+    });
+
+    if (!response.ok) {
+      return parseApiError(
+        response,
+        "REMOTE_BACKUP_UNPROTECT_FAILED",
+        "Remote backup unprotect failed"
+      );
+    }
+
+    return response.json() as Promise<RuntimeBackupUnprotectResponse>;
   };
 
   const compareBackup = async (
@@ -380,6 +436,8 @@ export const createGatewayClient = (): GatewayRuntimeClient => {
     },
 
     fetchBackupHistory,
+    protectBackupSnapshot,
+    unprotectBackupSnapshot,
     fetchLatestBackupMetadata,
     compareBackup,
 

@@ -19,10 +19,15 @@ export interface GatewayBackupSummary {
   conversationCount: number;
   snapshotId: string;
   deviceId: string;
+  isProtected: boolean;
+  protectedAt?: string;
   baseSnapshotId?: string;
 }
 
-export type GatewayBackupComparableSummary = Omit<GatewayBackupSummary, "storedAt">;
+export type GatewayBackupComparableSummary = Omit<
+  GatewayBackupSummary,
+  "storedAt" | "isProtected" | "protectedAt"
+>;
 
 export interface GatewayBackupRecord extends GatewayBackupSummary {
   envelope: GatewayBackupEnvelope;
@@ -47,6 +52,36 @@ export type GuardedGatewayBackupWriteResult =
       comparison: BackupSyncComparison;
     };
 
+export type GatewayBackupProtectResult =
+  | {
+      status: "protected";
+      backup: GatewayBackupSummary;
+      protectedCount: number;
+      maxProtected: number;
+    }
+  | {
+      status: "limit_reached";
+      snapshotId: string;
+      protectedCount: number;
+      maxProtected: number;
+    }
+  | {
+      status: "not_found";
+      snapshotId: string;
+    };
+
+export type GatewayBackupUnprotectResult =
+  | {
+      status: "unprotected";
+      backup: GatewayBackupSummary;
+      protectedCount: number;
+      maxProtected: number;
+    }
+  | {
+      status: "not_found";
+      snapshotId: string;
+    };
+
 export interface GatewayBackupStore {
   writeLatest: (envelope: GatewayBackupEnvelope) => Promise<GatewayBackupSummary>;
   writeLatestGuarded: (
@@ -54,18 +89,26 @@ export interface GatewayBackupStore {
   ) => Promise<GuardedGatewayBackupWriteResult>;
   readLatest: () => Promise<GatewayBackupRecord | null>;
   readHistory: (limit?: number) => Promise<GatewayBackupSummary[]>;
+  readProtectedHistory: (limit?: number) => Promise<GatewayBackupSummary[]>;
   readSnapshot: (snapshotId: string) => Promise<GatewayBackupRecord | null>;
+  protectSnapshot: (snapshotId: string) => Promise<GatewayBackupProtectResult>;
+  unprotectSnapshot: (snapshotId: string) => Promise<GatewayBackupUnprotectResult>;
 }
 
 export interface BackupStoreOptions {
   maxHistory?: number;
+  maxProtected?: number;
   now?: () => string;
 }
 
 const DEFAULT_BACKUP_HISTORY = 10;
+const DEFAULT_BACKUP_PROTECTED = 20;
 
 const normalizeMaxHistory = (value?: number): number =>
   Math.max(1, Math.floor(value ?? DEFAULT_BACKUP_HISTORY));
+
+const normalizeMaxProtected = (value?: number): number =>
+  Math.max(1, Math.floor(value ?? DEFAULT_BACKUP_PROTECTED));
 
 const toTimestamp = (value: string): number | null => {
   const timestamp = Date.parse(value);
@@ -160,6 +203,7 @@ const createSummary = (
   storedAt: string
 ): GatewayBackupSummary => ({
   storedAt,
+  isProtected: false,
   ...createGatewayBackupComparableSummary(envelope)
 });
 
@@ -175,6 +219,56 @@ const toSummary = ({
   envelope: _envelope,
   ...summary
 }: GatewayBackupRecord): GatewayBackupSummary => summary;
+
+const setBackupProtected = <T extends GatewayBackupSummary>(
+  backup: T,
+  protectedAt: string
+): T =>
+  ({
+    ...backup,
+    isProtected: true,
+    protectedAt
+  }) as T;
+
+const setBackupUnprotected = <T extends GatewayBackupSummary>(backup: T): T => {
+  const next = {
+    ...backup,
+    isProtected: false
+  } as T & { protectedAt?: string };
+  delete next.protectedAt;
+  return next;
+};
+
+const countProtectedBackups = (history: GatewayBackupSummary[]): number =>
+  history.filter((entry) => entry.isProtected).length;
+
+const normalizeSnapshotId = (snapshotId: string): string => snapshotId.trim();
+
+export const pruneRetainedBackupHistory = <T extends GatewayBackupSummary>(
+  history: T[],
+  maxHistory: number
+): T[] => {
+  let ordinaryCount = 0;
+
+  return history.filter((entry) => {
+    if (entry.isProtected) {
+      return true;
+    }
+
+    ordinaryCount += 1;
+    return ordinaryCount <= maxHistory;
+  });
+};
+
+export const mergeRetainedBackupHistory = <T extends GatewayBackupSummary>(
+  history: T[],
+  record: T,
+  maxHistory: number
+): T[] =>
+  pruneRetainedBackupHistory(
+    [record, ...history.filter((entry) => entry.snapshotId !== record.snapshotId)],
+    maxHistory
+  );
 
 const createMissingRemoteComparison = (
   local: GatewayBackupEnvelope
@@ -245,16 +339,33 @@ export const createMemoryBackupStore = (
   options: BackupStoreOptions = {}
 ): GatewayBackupStore => {
   const maxHistory = normalizeMaxHistory(options.maxHistory);
+  const maxProtected = normalizeMaxProtected(options.maxProtected);
   const now = options.now ?? (() => new Date().toISOString());
   let latest: GatewayBackupRecord | null = null;
   let history: GatewayBackupRecord[] = [];
+
+  const readRecordBySnapshotId = (snapshotId: string): GatewayBackupRecord | null => {
+    if (latest?.snapshotId === snapshotId) {
+      return latest;
+    }
+
+    return history.find((record) => record.snapshotId === snapshotId) ?? null;
+  };
+
+  const replaceRecord = (snapshotId: string, record: GatewayBackupRecord): void => {
+    if (latest?.snapshotId === snapshotId) {
+      latest = record;
+    }
+
+    history = history.map((entry) => (entry.snapshotId === snapshotId ? record : entry));
+  };
 
   return {
     writeLatest: async (envelopeInput) => {
       const envelope = parseGatewayBackupEnvelope(envelopeInput);
       const record = createRecord(envelope, now());
       latest = record;
-      history = [record, ...history].slice(0, maxHistory);
+      history = mergeRetainedBackupHistory(history, record, maxHistory);
       return toSummary(record);
     },
     writeLatestGuarded: async (input) => {
@@ -265,7 +376,7 @@ export const createMemoryBackupStore = (
       const envelope = parseGatewayBackupEnvelope(input.envelope);
       const record = createRecord(envelope, now());
       latest = record;
-      history = [record, ...history].slice(0, maxHistory);
+      history = mergeRetainedBackupHistory(history, record, maxHistory);
 
       return {
         status: "written",
@@ -278,19 +389,88 @@ export const createMemoryBackupStore = (
         typeof limit === "number" ? Math.max(0, Math.floor(limit)) : maxHistory;
       return history.slice(0, normalizedLimit).map((record) => toSummary(record));
     },
+    readProtectedHistory: async (limit) => {
+      const protectedHistory = history.filter((record) => record.isProtected);
+      const normalizedLimit =
+        typeof limit === "number"
+          ? Math.max(0, Math.floor(limit))
+          : protectedHistory.length;
+      return protectedHistory
+        .slice(0, normalizedLimit)
+        .map((record) => toSummary(record));
+    },
     readSnapshot: async (snapshotId) => {
-      const normalizedSnapshotId = snapshotId.trim();
+      const normalizedSnapshotId = normalizeSnapshotId(snapshotId);
       if (normalizedSnapshotId.length === 0) {
         return null;
       }
 
-      if (latest?.snapshotId === normalizedSnapshotId) {
-        return latest;
+      return readRecordBySnapshotId(normalizedSnapshotId);
+    },
+    protectSnapshot: async (snapshotId) => {
+      const normalizedSnapshotId = normalizeSnapshotId(snapshotId);
+      const existing = normalizedSnapshotId
+        ? readRecordBySnapshotId(normalizedSnapshotId)
+        : null;
+      if (!existing) {
+        return {
+          status: "not_found",
+          snapshotId: normalizedSnapshotId
+        };
       }
 
-      return (
-        history.find((record) => record.snapshotId === normalizedSnapshotId) ?? null
-      );
+      const currentProtectedCount = countProtectedBackups(history);
+      if (existing.isProtected) {
+        return {
+          status: "protected",
+          backup: toSummary(existing),
+          protectedCount: currentProtectedCount,
+          maxProtected
+        };
+      }
+
+      if (currentProtectedCount >= maxProtected) {
+        return {
+          status: "limit_reached",
+          snapshotId: normalizedSnapshotId,
+          protectedCount: currentProtectedCount,
+          maxProtected
+        };
+      }
+
+      const updated = setBackupProtected(existing, now());
+      replaceRecord(normalizedSnapshotId, updated);
+      history = pruneRetainedBackupHistory(history, maxHistory);
+
+      return {
+        status: "protected",
+        backup: toSummary(updated),
+        protectedCount: countProtectedBackups(history),
+        maxProtected
+      };
+    },
+    unprotectSnapshot: async (snapshotId) => {
+      const normalizedSnapshotId = normalizeSnapshotId(snapshotId);
+      const existing = normalizedSnapshotId
+        ? readRecordBySnapshotId(normalizedSnapshotId)
+        : null;
+      if (!existing) {
+        return {
+          status: "not_found",
+          snapshotId: normalizedSnapshotId
+        };
+      }
+
+      const updated = setBackupUnprotected(existing);
+      replaceRecord(normalizedSnapshotId, updated);
+      history = pruneRetainedBackupHistory(history, maxHistory);
+
+      return {
+        status: "unprotected",
+        backup: toSummary(updated),
+        protectedCount: countProtectedBackups(history),
+        maxProtected
+      };
     }
   };
 };

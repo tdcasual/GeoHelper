@@ -151,6 +151,8 @@ export interface RuntimeBackupComparableSummary {
 
 export interface RuntimeBackupMetadata extends RuntimeBackupComparableSummary {
   stored_at: string;
+  is_protected: boolean;
+  protected_at?: string;
 }
 
 export type RuntimeBackupLocalStatus = "summary" | "envelope";
@@ -233,6 +235,36 @@ export interface RuntimeBackupHistoryRequest {
 
 export interface RuntimeBackupHistoryResponse {
   history: RuntimeBackupMetadata[];
+  build: RuntimeBuildIdentity;
+}
+
+export interface RuntimeBackupProtectionRequest {
+  baseUrl?: string;
+  adminToken?: string;
+  snapshotId: string;
+}
+
+export interface RuntimeBackupProtectSuccessResponse {
+  protection_status: "protected";
+  backup: RuntimeBackupMetadata;
+  build: RuntimeBuildIdentity;
+}
+
+export interface RuntimeBackupProtectLimitReachedResponse {
+  protection_status: "limit_reached";
+  snapshot_id: string;
+  protected_count: number;
+  max_protected: number;
+  build: RuntimeBuildIdentity;
+}
+
+export type RuntimeBackupProtectResponse =
+  | RuntimeBackupProtectSuccessResponse
+  | RuntimeBackupProtectLimitReachedResponse;
+
+export interface RuntimeBackupUnprotectResponse {
+  protection_status: "unprotected";
+  backup: RuntimeBackupMetadata;
   build: RuntimeBuildIdentity;
 }
 

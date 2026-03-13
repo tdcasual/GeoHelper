@@ -20,5 +20,11 @@ describe("deploy docs", () => {
     expect(txt).toContain("unconditional admin latest write remains available for operator/manual recovery");
     expect(txt).toContain("selected historical snapshots can be fetched by `snapshot_id`");
     expect(txt).toContain("/admin/backups/history/<snapshot-id>");
+    expect(txt).toContain("BACKUP_MAX_HISTORY");
+    expect(txt).toContain("BACKUP_MAX_PROTECTED");
+    expect(txt).toContain("protected snapshots do not auto-expire");
+    expect(txt).toContain("ordinary retained history and protected retained snapshots are bounded separately");
+    expect(txt).toContain("new protect requests fail explicitly when protected capacity is full");
+    expect(txt).toContain("/admin/backups/history/<snapshot-id>/protect");
   });
 });

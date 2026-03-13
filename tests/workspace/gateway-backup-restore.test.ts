@@ -138,5 +138,13 @@ describe("gateway backup restore smoke", () => {
     expect(txt).toContain("operator/manual tooling compatibility");
     expect(txt).toContain("Retained remote snapshot history can be inspected explicitly");
     expect(txt).toContain("selected historical snapshot by `snapshot_id`");
+    expect(txt).toContain("BACKUP_MAX_HISTORY");
+    expect(txt).toContain("BACKUP_MAX_PROTECTED");
+    expect(txt).toContain("protected snapshots do not auto-expire");
+    expect(txt).toContain("ordinary retained history and protected retained snapshots are bounded separately");
+    expect(txt).toContain("new protect requests fail explicitly when protected capacity is full");
+    expect(txt).toContain("manual metadata operation");
+    expect(txt).toContain("does not imply import or restore");
+    expect(txt).toContain("does not require SQL");
   });
 });

@@ -20,12 +20,17 @@ import {
   downloadGatewayBackup,
   compareGatewayBackup,
   fetchGatewayBackupHistory,
+  protectGatewayBackupSnapshot,
+  unprotectGatewayBackupSnapshot,
   uploadGatewayBackup,
   uploadGatewayBackupGuarded
 } from "../runtime/runtime-service";
 import {
   createComparableSummaryFromBackupEnvelope,
   formatRemoteBackupActionMessage,
+  formatRemoteBackupHistorySummary,
+  formatRemoteBackupProtectionActionMessage,
+  formatRemoteBackupProtectionLimitMessage,
   formatRemoteBackupSelectedPullMessage,
   formatRemoteBackupRestoreWarning,
   resolveRemoteBackupHistorySelectionPresentation,
@@ -304,6 +309,9 @@ export const SettingsDrawer = ({
   const setRemoteBackupSyncError = useSettingsStore(
     (state) => state.setRemoteBackupSyncError
   );
+  const applyRemoteBackupSnapshotUpdate = useSettingsStore(
+    (state) => state.applyRemoteBackupSnapshotUpdate
+  );
 
   const [selectedByokId, setSelectedByokId] = useState(defaultByokPresetId);
   const [selectedOfficialId, setSelectedOfficialId] = useState(
@@ -407,6 +415,10 @@ export const SettingsDrawer = ({
           )
         : null,
     [latestRemoteHistorySnapshotId, selectedRemoteHistoryBackup]
+  );
+  const remoteBackupHistorySummary = useMemo(
+    () => formatRemoteBackupHistorySummary(remoteBackupSync.history),
+    [remoteBackupSync.history]
   );
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -817,6 +829,92 @@ export const SettingsDrawer = ({
     } catch (error) {
       setBackupMessage(
         error instanceof Error ? error.message : "从网关拉取失败"
+      );
+    } finally {
+      setRemoteBackupBusyAction(null);
+    }
+  };
+
+  const handleUpdateRemoteBackupProtection = async (
+    action: "protect" | "unprotect"
+  ) => {
+    if (!selectedRemoteHistoryBackup) {
+      setBackupMessage("请先选择一个云端保留快照");
+      return;
+    }
+
+    if (!remoteBackupActions.check.enabled || !remoteBackupActions.gatewayProfile) {
+      setBackupMessage(
+        remoteBackupActions.check.reason ?? "当前无法更新快照保护状态"
+      );
+      return;
+    }
+
+    setRemoteBackupBusyAction(action);
+    try {
+      const adminToken = await readRemoteBackupAdminToken();
+      if (!adminToken) {
+        throw new Error("请先保存网关管理员令牌");
+      }
+
+      if (action === "protect") {
+        const response = await protectGatewayBackupSnapshot({
+          baseUrl: remoteBackupActions.gatewayProfile.baseUrl,
+          adminToken,
+          snapshotId: selectedRemoteHistoryBackup.snapshot_id
+        });
+
+        if (response.protection_status === "limit_reached") {
+          setBackupMessage(formatRemoteBackupProtectionLimitMessage(response));
+          return;
+        }
+
+        applyRemoteBackupSnapshotUpdate(response.backup);
+        setRemoteBackupPullResult((current) =>
+          current?.backup.snapshot_id === response.backup.snapshot_id
+            ? {
+                ...current,
+                backup: {
+                  ...current.backup,
+                  ...response.backup
+                }
+              }
+            : current
+        );
+        setBackupMessage(
+          formatRemoteBackupProtectionActionMessage("protect", response.backup)
+        );
+        return;
+      }
+
+      const response = await unprotectGatewayBackupSnapshot({
+        baseUrl: remoteBackupActions.gatewayProfile.baseUrl,
+        adminToken,
+        snapshotId: selectedRemoteHistoryBackup.snapshot_id
+      });
+
+      applyRemoteBackupSnapshotUpdate(response.backup);
+      setRemoteBackupPullResult((current) =>
+        current?.backup.snapshot_id === response.backup.snapshot_id
+          ? {
+              ...current,
+              backup: {
+                ...current.backup,
+                ...response.backup
+              }
+            }
+          : current
+      );
+      setBackupMessage(
+        formatRemoteBackupProtectionActionMessage("unprotect", response.backup)
+      );
+    } catch (error) {
+      setBackupMessage(
+        error instanceof Error
+          ? error.message
+          : action === "protect"
+            ? "保护快照失败"
+            : "取消保护失败"
       );
     } finally {
       setRemoteBackupBusyAction(null);
@@ -1613,7 +1711,7 @@ export const SettingsDrawer = ({
                 className="settings-import-preview"
                 data-testid="remote-backup-history"
               >
-                <p>{`云端保留历史：${remoteBackupSync.history.length} 条`}</p>
+                <p>{remoteBackupHistorySummary}</p>
                 <div className="settings-remote-backup-history-list">
                   {remoteBackupSync.history.map((backup, index) => {
                     const isSelected =
@@ -1635,6 +1733,7 @@ export const SettingsDrawer = ({
                         }
                       >
                         <span>{isLatest ? "最新" : "历史"}</span>
+                        {backup.is_protected ? <span>已保护</span> : null}
                         <span>{`${backup.conversation_count} 个会话`}</span>
                         <span>{backup.snapshot_id}</span>
                       </button>
@@ -1648,18 +1747,39 @@ export const SettingsDrawer = ({
                     <p>{selectedRemoteHistoryPresentation.deviceIdLabel}</p>
                     <p>{selectedRemoteHistoryPresentation.updatedAtLabel}</p>
                     <p>{selectedRemoteHistoryPresentation.conversationCountLabel}</p>
+                    <p>{selectedRemoteHistoryPresentation.protectionLabel}</p>
+                    {selectedRemoteHistoryPresentation.protectedAtLabel ? (
+                      <p>{selectedRemoteHistoryPresentation.protectedAtLabel}</p>
+                    ) : null}
                     {shouldRecommendRemoteHistoryResolution(
                       remoteBackupSync.status
                     ) ? (
                       <p className="settings-hint">
-                        建议先拉取当前选中的快照预览，再决定合并、覆盖或仍然覆盖云端。
+                        建议先拉取当前选中的快照预览；如这是关键恢复点，可先保护当前选中的快照，再决定合并、覆盖或仍然覆盖云端。
                       </p>
                     ) : null}
                   </div>
                 ) : null}
-                {selectedRemoteHistoryBackup &&
-                selectedRemoteHistoryBackup.snapshot_id !== latestRemoteHistorySnapshotId ? (
+                {selectedRemoteHistoryBackup ? (
                   <div className="settings-inline-actions">
+                    <button
+                      type="button"
+                      disabled={
+                        Boolean(remoteBackupBusyAction) ||
+                        !remoteBackupActions.check.enabled
+                      }
+                      onClick={() => {
+                        void handleUpdateRemoteBackupProtection(
+                          selectedRemoteHistoryBackup.is_protected
+                            ? "unprotect"
+                            : "protect"
+                        );
+                      }}
+                    >
+                      {selectedRemoteHistoryBackup.is_protected ? "取消保护" : "保护此快照"}
+                    </button>
+                    {selectedRemoteHistoryBackup.snapshot_id !==
+                    latestRemoteHistorySnapshotId ? (
                     <button
                       type="button"
                       disabled={
@@ -1673,6 +1793,7 @@ export const SettingsDrawer = ({
                     >
                       拉取所选历史快照
                     </button>
+                    ) : null}
                   </div>
                 ) : null}
               </article>

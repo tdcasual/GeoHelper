@@ -25,6 +25,14 @@ describe("remote sync docs", () => {
     expect(txt).toContain("默认上传不会自动覆盖");
     expect(txt).toContain("仍然覆盖云端快照");
     expect(txt).toContain("显式危险操作");
+    expect(txt).toContain("保护此快照");
+    expect(txt).toContain("取消保护");
+    expect(txt).toContain("受保护快照");
+    expect(txt).toContain("普通保留历史");
+    expect(txt).toContain("protected snapshots do not auto-expire");
+    expect(txt).toContain("new protect requests fail explicitly when protected capacity is full");
+    expect(txt).toContain("手动元数据操作");
+    expect(txt).toContain("不代表立即导入或恢复");
     expect(txt).not.toContain("上传到网关");
     expect(txt).not.toContain("从网关拉取");
     expect(txt).not.toContain("会自动合并云端");

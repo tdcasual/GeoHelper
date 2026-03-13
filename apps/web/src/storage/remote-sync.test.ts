@@ -28,6 +28,8 @@ const toRemoteMetadata = (
     snapshot_id: string;
     device_id: string;
     conversation_count: number;
+    is_protected: boolean;
+    protected_at: string;
   }> = {}
 ) => ({
   stored_at: overrides.stored_at ?? "2026-03-12T10:05:00.000Z",
@@ -39,7 +41,11 @@ const toRemoteMetadata = (
   conversation_count:
     overrides.conversation_count ?? envelope.conversations.length,
   snapshot_id: overrides.snapshot_id ?? envelope.snapshot_id,
-  device_id: overrides.device_id ?? envelope.device_id
+  device_id: overrides.device_id ?? envelope.device_id,
+  is_protected: overrides.is_protected ?? false,
+  ...(overrides.protected_at
+    ? { protected_at: overrides.protected_at }
+    : {})
 });
 
 describe("remote sync controller", () => {
@@ -80,7 +86,9 @@ describe("remote sync controller", () => {
     const remoteSummary = toRemoteMetadata(envelope, {
       checksum: "checksum-remote",
       snapshot_id: "snap-remote",
-      device_id: "device-remote"
+      device_id: "device-remote",
+      is_protected: true,
+      protected_at: "2026-03-12T10:06:00.000Z"
     });
     const beginRemoteBackupSyncCheck = vi.fn();
     const setRemoteBackupSyncResult = vi.fn();
@@ -145,6 +153,21 @@ describe("remote sync controller", () => {
     expect(fetchBackupHistory).toHaveBeenCalledTimes(1);
     expect(compareBackup).toHaveBeenCalledTimes(1);
     expect(setRemoteBackupSyncResult).toHaveBeenCalledTimes(1);
+    expect(setRemoteBackupSyncResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        latestRemoteBackup: expect.objectContaining({
+          snapshot_id: "snap-remote",
+          is_protected: true,
+          protected_at: "2026-03-12T10:06:00.000Z"
+        }),
+        history: [
+          expect.objectContaining({
+            snapshot_id: "snap-remote",
+            is_protected: true
+          })
+        ]
+      })
+    );
   });
 
   it("debounces delayed uploads and suppresses them while import is in progress", async () => {

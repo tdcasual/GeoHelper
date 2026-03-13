@@ -4,6 +4,8 @@ import {
   createGuardedWriteConflict,
   createMemoryBackupStore,
   GuardedGatewayBackupWriteInput,
+  mergeRetainedBackupHistory,
+  pruneRetainedBackupHistory,
   GatewayBackupRecord,
   GatewayBackupStore,
   GatewayBackupSummary,
@@ -16,7 +18,7 @@ interface RedisBackupStoreOptions extends BackupStoreOptions {
 }
 
 const DEFAULT_BACKUP_PREFIX = "geohelper:backup";
-const DEFAULT_BACKUP_TTL_SECONDS = 60 * 60 * 24 * 30;
+const DEFAULT_BACKUP_MAX_PROTECTED = 20;
 
 const createSnapshotKey = (prefix: string, snapshotId: string): string =>
   `${prefix}:snapshot:${snapshotId}`;
@@ -68,6 +70,10 @@ const toSummary = (value: unknown): GatewayBackupSummary | null => {
     conversationCount: summary.conversationCount,
     snapshotId: summary.snapshotId,
     deviceId: summary.deviceId,
+    isProtected: typeof summary.isProtected === "boolean" ? summary.isProtected : false,
+    ...(typeof summary.protectedAt === "string"
+      ? { protectedAt: summary.protectedAt }
+      : {}),
     ...(typeof summary.baseSnapshotId === "string"
       ? { baseSnapshotId: summary.baseSnapshotId }
       : {})
@@ -112,23 +118,53 @@ const readHistory = async (
   return history ?? [];
 };
 
+const toRecordSummary = ({
+  envelope: _envelope,
+  ...summary
+}: GatewayBackupRecord): GatewayBackupSummary => summary;
+
+const setSummaryProtected = <T extends GatewayBackupSummary>(
+  summary: T,
+  protectedAt: string
+): T =>
+  ({
+    ...summary,
+    isProtected: true,
+    protectedAt
+  }) as T;
+
+const setSummaryUnprotected = <T extends GatewayBackupSummary>(summary: T): T => {
+  const next = {
+    ...summary,
+    isProtected: false
+  } as T & { protectedAt?: string };
+  delete next.protectedAt;
+  return next;
+};
+
+const countProtectedSnapshots = (history: GatewayBackupSummary[]): number =>
+  history.filter((entry) => entry.isProtected).length;
+
+const normalizeSnapshotId = (snapshotId: string): string => snapshotId.trim();
+
 const syncRetainedSnapshotRecord = async (
   kvClient: KvClient,
   prefix: string,
   record: GatewayBackupRecord,
   history: GatewayBackupSummary[],
-  ttlSeconds: number,
   maxHistory: number
 ): Promise<GatewayBackupSummary[]> => {
-  const nextHistory = [record, ...history].slice(0, maxHistory);
+  const nextHistory = mergeRetainedBackupHistory(
+    history,
+    toRecordSummary(record),
+    maxHistory
+  );
   const retainedSnapshotIds = new Set(nextHistory.map((entry) => entry.snapshotId));
   const prunedSnapshotIds = history
     .map((entry) => entry.snapshotId)
     .filter((snapshotId) => !retainedSnapshotIds.has(snapshotId));
 
-  await kvClient.set(createSnapshotKey(prefix, record.snapshotId), JSON.stringify(record), {
-    ttlSeconds
-  });
+  await kvClient.set(createSnapshotKey(prefix, record.snapshotId), JSON.stringify(record));
 
   await Promise.all(
     prunedSnapshotIds.map((snapshotId) =>
@@ -175,11 +211,12 @@ export const createRedisBackupStore = (
   options: RedisBackupStoreOptions = {}
 ): GatewayBackupStore => {
   const prefix = options.prefix?.trim() || DEFAULT_BACKUP_PREFIX;
-  const ttlSeconds = Math.max(
-    1,
-    Math.floor(options.ttlSeconds ?? DEFAULT_BACKUP_TTL_SECONDS)
-  );
   const maxHistory = Math.max(1, Math.floor(options.maxHistory ?? 10));
+  const maxProtected = Math.max(
+    1,
+    Math.floor(options.maxProtected ?? DEFAULT_BACKUP_MAX_PROTECTED)
+  );
+  const now = options.now ?? (() => new Date().toISOString());
   const memoryFallback = createMemoryBackupStore(options);
   const latestKey = `${prefix}:latest`;
   const historyKey = `${prefix}:history`;
@@ -195,17 +232,12 @@ export const createRedisBackupStore = (
             prefix,
             record,
             history,
-            ttlSeconds,
             maxHistory
           )
         : [latest, ...history].slice(0, maxHistory);
 
-      await kvClient.set(latestKey, JSON.stringify(record), {
-        ttlSeconds
-      });
-      await kvClient.set(historyKey, JSON.stringify(nextHistory), {
-        ttlSeconds
-      });
+      await kvClient.set(latestKey, JSON.stringify(record));
+      await kvClient.set(historyKey, JSON.stringify(nextHistory));
 
       return latest;
     },
@@ -224,17 +256,12 @@ export const createRedisBackupStore = (
             prefix,
             record,
             history,
-            ttlSeconds,
             maxHistory
           )
         : [backup, ...history].slice(0, maxHistory);
 
-      await kvClient.set(latestKey, JSON.stringify(record), {
-        ttlSeconds
-      });
-      await kvClient.set(historyKey, JSON.stringify(nextHistory), {
-        ttlSeconds
-      });
+      await kvClient.set(latestKey, JSON.stringify(record));
+      await kvClient.set(historyKey, JSON.stringify(nextHistory));
 
       return {
         status: "written",
@@ -248,8 +275,17 @@ export const createRedisBackupStore = (
         typeof limit === "number" ? Math.max(0, Math.floor(limit)) : maxHistory;
       return history.slice(0, normalizedLimit);
     },
+    readProtectedHistory: async (limit) => {
+      const history = await readHistory(kvClient, historyKey);
+      const protectedHistory = history.filter((entry) => entry.isProtected);
+      const normalizedLimit =
+        typeof limit === "number"
+          ? Math.max(0, Math.floor(limit))
+          : protectedHistory.length;
+      return protectedHistory.slice(0, normalizedLimit);
+    },
     readSnapshot: async (snapshotId) => {
-      const normalizedSnapshotId = snapshotId.trim();
+      const normalizedSnapshotId = normalizeSnapshotId(snapshotId);
       if (normalizedSnapshotId.length === 0) {
         return null;
       }
@@ -264,6 +300,146 @@ export const createRedisBackupStore = (
         createSnapshotKey(prefix, normalizedSnapshotId),
         toRecord
       );
+    },
+    protectSnapshot: async (snapshotId) => {
+      const normalizedSnapshotId = normalizeSnapshotId(snapshotId);
+      if (normalizedSnapshotId.length === 0) {
+        return {
+          status: "not_found",
+          snapshotId: normalizedSnapshotId
+        };
+      }
+
+      const history = await readHistory(kvClient, historyKey);
+      const latest = await readJson(kvClient, latestKey, toRecord);
+      const existing = latest?.snapshotId === normalizedSnapshotId
+        ? latest
+        : await readJson(
+            kvClient,
+            createSnapshotKey(prefix, normalizedSnapshotId),
+            toRecord
+          );
+      const retained = history.some(
+        (entry) => entry.snapshotId === normalizedSnapshotId
+      );
+
+      if (!existing || !retained) {
+        return {
+          status: "not_found",
+          snapshotId: normalizedSnapshotId
+        };
+      }
+
+      const protectedCount = countProtectedSnapshots(history);
+      if (existing.isProtected) {
+        return {
+          status: "protected",
+          backup: toRecordSummary(existing),
+          protectedCount,
+          maxProtected
+        };
+      }
+
+      if (protectedCount >= maxProtected) {
+        return {
+          status: "limit_reached",
+          snapshotId: normalizedSnapshotId,
+          protectedCount,
+          maxProtected
+        };
+      }
+
+      const protectedAt = now();
+      const updatedRecord = setSummaryProtected(existing, protectedAt);
+      const nextHistory = pruneRetainedBackupHistory(
+        history.map((entry) =>
+        entry.snapshotId === normalizedSnapshotId
+          ? setSummaryProtected(entry, protectedAt)
+          : entry
+        ),
+        maxHistory
+      );
+
+      await kvClient.set(createSnapshotKey(prefix, normalizedSnapshotId), JSON.stringify(updatedRecord));
+      if (latest?.snapshotId === normalizedSnapshotId) {
+        await kvClient.set(latestKey, JSON.stringify(updatedRecord));
+      }
+      await kvClient.set(historyKey, JSON.stringify(nextHistory));
+
+      return {
+        status: "protected",
+        backup: toRecordSummary(updatedRecord),
+        protectedCount: countProtectedSnapshots(nextHistory),
+        maxProtected
+      };
+    },
+    unprotectSnapshot: async (snapshotId) => {
+      const normalizedSnapshotId = normalizeSnapshotId(snapshotId);
+      if (normalizedSnapshotId.length === 0) {
+        return {
+          status: "not_found",
+          snapshotId: normalizedSnapshotId
+        };
+      }
+
+      const history = await readHistory(kvClient, historyKey);
+      const latest = await readJson(kvClient, latestKey, toRecord);
+      const existing = latest?.snapshotId === normalizedSnapshotId
+        ? latest
+        : await readJson(
+            kvClient,
+            createSnapshotKey(prefix, normalizedSnapshotId),
+            toRecord
+          );
+      const retained = history.some(
+        (entry) => entry.snapshotId === normalizedSnapshotId
+      );
+
+      if (!existing || !retained) {
+        return {
+          status: "not_found",
+          snapshotId: normalizedSnapshotId
+        };
+      }
+
+      const updatedRecord = setSummaryUnprotected(existing);
+      const nextHistory = pruneRetainedBackupHistory(
+        history.map((entry) =>
+        entry.snapshotId === normalizedSnapshotId
+          ? setSummaryUnprotected(entry)
+          : entry
+        ),
+        maxHistory
+      );
+      const retainedSnapshotIds = new Set(nextHistory.map((entry) => entry.snapshotId));
+      const prunedSnapshotIds = history
+        .map((entry) => entry.snapshotId)
+        .filter((snapshotId) => !retainedSnapshotIds.has(snapshotId));
+
+      if (retainedSnapshotIds.has(normalizedSnapshotId)) {
+        await kvClient.set(
+          createSnapshotKey(prefix, normalizedSnapshotId),
+          JSON.stringify(updatedRecord)
+        );
+      } else {
+        await kvClient.delete(createSnapshotKey(prefix, normalizedSnapshotId));
+      }
+      if (latest?.snapshotId === normalizedSnapshotId && retainedSnapshotIds.has(normalizedSnapshotId)) {
+        await kvClient.set(latestKey, JSON.stringify(updatedRecord));
+      }
+      await Promise.all(
+        prunedSnapshotIds.map((snapshotId) =>
+          kvClient.delete(createSnapshotKey(prefix, snapshotId))
+        )
+      );
+      await kvClient.set(historyKey, JSON.stringify(nextHistory));
+
+      return {
+        status: "unprotected",
+        backup: toRecordSummary(updatedRecord),
+        protectedCount: countProtectedSnapshots(nextHistory),
+        maxProtected
+      };
     }
   };
 };

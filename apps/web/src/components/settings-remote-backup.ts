@@ -32,6 +32,8 @@ export interface RemoteBackupHistorySelectionPresentation {
   deviceIdLabel: string;
   updatedAtLabel: string;
   conversationCountLabel: string;
+  protectionLabel: string;
+  protectedAtLabel: string | null;
 }
 
 interface ResolveRemoteBackupSyncPresentationParams {
@@ -141,6 +143,29 @@ export const formatRemoteBackupSelectedPullMessage = (
   backup: Pick<RuntimeBackupMetadata, "conversation_count">
 ): string => `已从网关拉取所选快照（${backup.conversation_count} 个会话）`;
 
+export const formatRemoteBackupHistorySummary = (
+  history: Array<Pick<RuntimeBackupMetadata, "is_protected">>
+): string => {
+  const protectedCount = history.filter((backup) => backup.is_protected).length;
+  return protectedCount > 0
+    ? `云端保留历史：${history.length} 条（已保护 ${protectedCount} 条）`
+    : `云端保留历史：${history.length} 条`;
+};
+
+export const formatRemoteBackupProtectionActionMessage = (
+  action: "protect" | "unprotect",
+  backup: Pick<RuntimeBackupMetadata, "snapshot_id">
+): string =>
+  action === "protect"
+    ? `已保护所选快照（${backup.snapshot_id}）`
+    : `已取消保护所选快照（${backup.snapshot_id}）`;
+
+export const formatRemoteBackupProtectionLimitMessage = (input: {
+  protected_count: number;
+  max_protected: number;
+}): string =>
+  `受保护快照已达上限（${input.protected_count}/${input.max_protected}），请先取消保护旧快照。`;
+
 export const shouldRecommendRemoteHistoryResolution = (
   status: RemoteBackupSyncStatus
 ): boolean =>
@@ -154,7 +179,12 @@ export const shouldRecommendRemoteHistoryResolution = (
 export const resolveRemoteBackupHistorySelectionPresentation = (
   backup: Pick<
     RuntimeBackupMetadata,
-    "snapshot_id" | "device_id" | "updated_at" | "conversation_count"
+    | "snapshot_id"
+    | "device_id"
+    | "updated_at"
+    | "conversation_count"
+    | "is_protected"
+    | "protected_at"
   >,
   latestSnapshotId?: string | null
 ): RemoteBackupHistorySelectionPresentation => ({
@@ -163,7 +193,12 @@ export const resolveRemoteBackupHistorySelectionPresentation = (
   snapshotIdLabel: `快照 ID：${backup.snapshot_id}`,
   deviceIdLabel: `设备 ID：${backup.device_id}`,
   updatedAtLabel: `更新时间：${new Date(backup.updated_at).toLocaleString("zh-CN")}`,
-  conversationCountLabel: `会话数：${backup.conversation_count}`
+  conversationCountLabel: `会话数：${backup.conversation_count}`,
+  protectionLabel: backup.is_protected ? "保护状态：已保护" : "保护状态：未保护",
+  protectedAtLabel:
+    backup.is_protected && backup.protected_at
+      ? `保护时间：${new Date(backup.protected_at).toLocaleString("zh-CN")}`
+      : null
 });
 
 export const shouldShowRemoteBackupForceUpload = (
@@ -212,17 +247,17 @@ const formatRemoteBackupStatusDescription = (
     case "local_newer":
       return "本地快照较新，可按需上传最新快照到云端。";
     case "remote_newer":
-      return "云端快照较新，建议先检查云端保留历史并按需拉取所选快照，再决定导入策略。";
+      return "云端快照较新，建议先检查云端保留历史并按需拉取所选快照；如这是关键恢复点，可先保护当前选中的快照，再决定导入策略。";
     case "diverged":
-      return "本地与云端快照存在分叉，建议先检查云端保留历史并拉取要恢复的快照，再确认导入策略。";
+      return "本地与云端快照存在分叉，建议先检查云端保留历史并拉取要恢复的快照；如这是关键恢复点，可先保护当前选中的快照，再确认导入策略。";
     case "upload_blocked_remote_newer":
-      return "检测到云端较新，默认上传不会自动覆盖；建议先检查云端保留历史并拉取要恢复的快照，或显式确认覆盖。";
+      return "检测到云端较新，默认上传不会自动覆盖；建议先检查云端保留历史并拉取要恢复的快照，先保护当前选中的快照，或显式确认覆盖。";
     case "upload_blocked_diverged":
-      return "检测到本地与云端存在分叉，默认上传不会自动覆盖；建议先检查云端保留历史并拉取要恢复的快照，再确认导入策略。";
+      return "检测到本地与云端存在分叉，默认上传不会自动覆盖；建议先检查云端保留历史并拉取要恢复的快照，先保护当前选中的快照，再确认导入策略。";
     case "upload_conflict":
-      return "上传期间云端快照发生变化，默认上传未覆盖云端；建议先检查云端保留历史并拉取要恢复的快照，如确认本地为准再点击“仍然覆盖云端快照”。";
+      return "上传期间云端快照发生变化，默认上传未覆盖云端；建议先检查云端保留历史并拉取要恢复的快照，先保护当前选中的快照，如确认本地为准再点击“仍然覆盖云端快照”。";
     case "force_upload_required":
-      return "默认上传不会自动覆盖当前云端快照；建议先检查云端保留历史并拉取要恢复的快照，如确认本地为准再点击“仍然覆盖云端快照”。";
+      return "默认上传不会自动覆盖当前云端快照；建议先检查云端保留历史并拉取要恢复的快照，先保护当前选中的快照，如确认本地为准再点击“仍然覆盖云端快照”。";
     case "idle":
     default:
       return "尚未检查云端快照状态。";
