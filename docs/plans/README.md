@@ -30,7 +30,7 @@ Use this section when you know the problem domain first and only then want the r
 ### Backup
 
 - Backup and restore runtime behavior: [`2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md`](./2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md)
-- Remote backup/ops closure on backend: [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md), [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md), [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md), [`2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md`](./2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md), [`2026-03-13-backend-v7d-protected-history-retention-roadmap.md`](./2026-03-13-backend-v7d-protected-history-retention-roadmap.md), [`2026-03-13-backend-v7e-selected-history-preflight-roadmap.md`](./2026-03-13-backend-v7e-selected-history-preflight-roadmap.md), [`2026-03-14-backend-v7f-history-relation-badges-roadmap.md`](./2026-03-14-backend-v7f-history-relation-badges-roadmap.md)
+- Remote backup/ops closure on backend: [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md), [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md), [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md), [`2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md`](./2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md), [`2026-03-13-backend-v7d-protected-history-retention-roadmap.md`](./2026-03-13-backend-v7d-protected-history-retention-roadmap.md), [`2026-03-13-backend-v7e-selected-history-preflight-roadmap.md`](./2026-03-13-backend-v7e-selected-history-preflight-roadmap.md), [`2026-03-14-backend-v7f-history-relation-badges-roadmap.md`](./2026-03-14-backend-v7f-history-relation-badges-roadmap.md), [`2026-03-14-backend-v7g-pulled-preview-import-guidance-roadmap.md`](./2026-03-14-backend-v7g-pulled-preview-import-guidance-roadmap.md)
 - Runtime docs: [`../user/settings-backup-recovery.md`](../user/settings-backup-recovery.md), [`../BETA_CHECKLIST.md`](../BETA_CHECKLIST.md)
 
 ### Backend
@@ -40,7 +40,7 @@ Use this section when you know the problem domain first and only then want the r
 
 ## Backend Roadmap Timeline
 
-The backend roadmap sequence currently spans `V2` through `V7-F`. Read them in order when you want the architecture story behind the current self-hosted gateway.
+The backend roadmap sequence currently spans `V2` through `V7-G`. Read them in order when you want the architecture story behind the current self-hosted gateway.
 
 | Version | Date | Theme | Plan | Status |
 | --- | --- | --- | --- | --- |
@@ -54,7 +54,8 @@ The backend roadmap sequence currently spans `V2` through `V7-F`. Read them in o
 | `V7-C` | 2026-03-12 | Explicit snapshot history browsing and selected-snapshot recovery | [`2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md`](./2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md) | Completed / historical context |
 | `V7-D` | 2026-03-13 | Protected remote snapshots and explicit retention policy | [`2026-03-13-backend-v7d-protected-history-retention-roadmap.md`](./2026-03-13-backend-v7d-protected-history-retention-roadmap.md) | Completed / historical context |
 | `V7-E` | 2026-03-13 | Selected retained snapshot preflight comparison before pull/import | [`2026-03-13-backend-v7e-selected-history-preflight-roadmap.md`](./2026-03-13-backend-v7e-selected-history-preflight-roadmap.md) | Completed / historical context |
-| `V7-F` | 2026-03-14 | Compact local-relation badges across retained snapshot history list | [`2026-03-14-backend-v7f-history-relation-badges-roadmap.md`](./2026-03-14-backend-v7f-history-relation-badges-roadmap.md) | Proposed / current latest roadmap |
+| `V7-F` | 2026-03-14 | Compact local-relation badges across retained snapshot history list | [`2026-03-14-backend-v7f-history-relation-badges-roadmap.md`](./2026-03-14-backend-v7f-history-relation-badges-roadmap.md) | Completed / historical context |
+| `V7-G` | 2026-03-14 | Pulled snapshot preview source and import guidance before merge/replace | [`2026-03-14-backend-v7g-pulled-preview-import-guidance-roadmap.md`](./2026-03-14-backend-v7g-pulled-preview-import-guidance-roadmap.md) | Proposed / current latest roadmap |
 
 ## Frontend & Product Timeline
 
@@ -102,7 +103,8 @@ The frontend documents split naturally into two layers:
 7. Read [`2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md`](./2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md) for the Route 1 snapshot-history layer: explicit history browsing and selected-snapshot recovery without adding SQL.
 8. Read [`2026-03-13-backend-v7d-protected-history-retention-roadmap.md`](./2026-03-13-backend-v7d-protected-history-retention-roadmap.md) for the retention layer: protected recovery anchors plus separate ordinary/protected snapshot limits.
 9. Read [`2026-03-13-backend-v7e-selected-history-preflight-roadmap.md`](./2026-03-13-backend-v7e-selected-history-preflight-roadmap.md) for the selected-snapshot recovery guidance layer: selected retained snapshot relation versus the current local snapshot before pull/import.
-10. Read [`2026-03-14-backend-v7f-history-relation-badges-roadmap.md`](./2026-03-14-backend-v7f-history-relation-badges-roadmap.md) for the latest list-scanning guidance layer: compact local-relation badges across retained snapshot history.
+10. Read [`2026-03-14-backend-v7f-history-relation-badges-roadmap.md`](./2026-03-14-backend-v7f-history-relation-badges-roadmap.md) for the list-scanning guidance layer: compact local-relation badges across retained snapshot history.
+11. Read [`2026-03-14-backend-v7g-pulled-preview-import-guidance-roadmap.md`](./2026-03-14-backend-v7g-pulled-preview-import-guidance-roadmap.md) for the latest import-decision guidance layer after one remote snapshot has been pulled.
 
 ### Frontend
 

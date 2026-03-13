@@ -10,6 +10,7 @@ import {
   formatRemoteBackupHistorySummary,
   formatRemoteBackupProtectionActionMessage,
   formatRemoteBackupProtectionLimitMessage,
+  resolveRemoteBackupPulledPreviewPresentation,
   formatRemoteBackupSelectedPullMessage,
   formatRemoteBackupRestoreWarning,
   resolveRemoteBackupHistoryComparisonPresentation,
@@ -348,6 +349,62 @@ describe("settings remote backup helpers", () => {
     ).toEqual({
       relationLabel: "与本地关系：存在分叉",
       recommendation: "当前所选云端快照与本地存在分叉，建议先拉取该快照预览，再决定合并或覆盖。"
+    });
+  });
+
+  it("formats pulled preview guidance for latest and historical snapshot imports", () => {
+    expect(
+      resolveRemoteBackupPulledPreviewPresentation({
+        source: "latest",
+        localSummary,
+        pulledBackup: {
+          ...metadata,
+          checksum: "checksum-remote-newer",
+          snapshot_id: "snap-remote-newer",
+          updated_at: "2026-03-12T10:06:00.000Z",
+          base_snapshot_id: "snap-local"
+        }
+      })
+    ).toEqual({
+      sourceLabel: "拉取来源：云端最新快照",
+      relationLabel: "与本地关系：拉取结果较新",
+      recommendation:
+        "导入建议：若想尽量保留本地新增内容，先使用合并导入；若确认完全以该快照为准，再使用覆盖导入。"
+    });
+
+    expect(
+      resolveRemoteBackupPulledPreviewPresentation({
+        source: "selected_history",
+        localSummary,
+        pulledBackup: {
+          ...metadata,
+          checksum: "checksum-remote-older",
+          snapshot_id: "snap-remote-older",
+          updated_at: "2026-03-12T10:01:00.000Z"
+        }
+      })
+    ).toEqual({
+      sourceLabel: "拉取来源：所选历史快照",
+      relationLabel: "与本地关系：本地当前快照较新",
+      recommendation:
+        "导入建议：优先使用合并导入保留较新的本地记录；只有确认要回退到该快照时，再使用覆盖导入。"
+    });
+
+    expect(
+      resolveRemoteBackupPulledPreviewPresentation({
+        source: "latest",
+        localSummary,
+        pulledBackup: {
+          ...metadata,
+          checksum: "checksum-local",
+          snapshot_id: "snap-remote-same"
+        }
+      })
+    ).toEqual({
+      sourceLabel: "拉取来源：云端最新快照",
+      relationLabel: "与本地关系：内容一致",
+      recommendation:
+        "导入建议：当前拉取结果与本地内容一致，如只做校验可直接清除本次拉取，无需重复导入。"
     });
   });
 

@@ -32,9 +32,11 @@ import {
   formatRemoteBackupHistorySummary,
   formatRemoteBackupProtectionActionMessage,
   formatRemoteBackupProtectionLimitMessage,
+  type RemoteBackupPullSource,
   formatRemoteBackupSelectedPullMessage,
   formatRemoteBackupRestoreWarning,
   resolveRemoteBackupHistoryComparisonPresentation,
+  resolveRemoteBackupPulledPreviewPresentation,
   resolveRemoteBackupHistorySelectionPresentation,
   resolveRemoteBackupSyncPresentation,
   resolveRemoteBackupActions,
@@ -59,6 +61,11 @@ interface SettingsDrawerProps {
   currentMode: ChatMode;
   onClose: () => void;
   onApplyMode: (mode: ChatMode) => void;
+}
+
+interface RemoteBackupPulledResult extends RuntimeBackupDownloadResponse {
+  pullSource: RemoteBackupPullSource;
+  localSummaryAtPull: RuntimeBackupComparableSummary;
 }
 
 interface ByokDraft {
@@ -365,9 +372,8 @@ export const SettingsDrawer = ({
   const [remoteBackupBusyAction, setRemoteBackupBusyAction] = useState<
     string | null
   >(null);
-  const [remoteBackupPullResult, setRemoteBackupPullResult] = useState<
-    RuntimeBackupDownloadResponse | null
-  >(null);
+  const [remoteBackupPullResult, setRemoteBackupPullResult] =
+    useState<RemoteBackupPulledResult | null>(null);
   const [selectedRemoteHistorySnapshotId, setSelectedRemoteHistorySnapshotId] =
     useState<string | null>(null);
   const [activeSection, setActiveSection] =
@@ -431,6 +437,17 @@ export const SettingsDrawer = ({
   const remoteBackupHistorySummary = useMemo(
     () => formatRemoteBackupHistorySummary(remoteBackupSync.history),
     [remoteBackupSync.history]
+  );
+  const remoteBackupPulledPreviewPresentation = useMemo(
+    () =>
+      remoteBackupPullResult
+        ? resolveRemoteBackupPulledPreviewPresentation({
+            source: remoteBackupPullResult.pullSource,
+            localSummary: remoteBackupPullResult.localSummaryAtPull,
+            pulledBackup: remoteBackupPullResult.backup
+          })
+        : null,
+    [remoteBackupPullResult]
   );
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -682,7 +699,9 @@ export const SettingsDrawer = ({
       }
 
       const envelope = await exportCurrentAppBackupEnvelope();
-      const localSummary = createComparableSummaryFromBackupEnvelope(envelope);
+      const localSummary =
+        remoteBackupSync.lastComparison?.local_snapshot.summary ??
+        createComparableSummaryFromBackupEnvelope(envelope);
       if (mode === "guarded") {
         const guardedResponse = await uploadGatewayBackupGuarded({
           baseUrl: remoteBackupActions.gatewayProfile.baseUrl,
@@ -827,12 +846,20 @@ export const SettingsDrawer = ({
         throw new Error("请先保存网关管理员令牌");
       }
 
+      const envelope = await exportCurrentAppBackupEnvelope();
+      const localSummary =
+        remoteBackupSync.lastComparison?.local_snapshot.summary ??
+        createComparableSummaryFromBackupEnvelope(envelope);
       const response = await downloadGatewayBackup({
         baseUrl: remoteBackupActions.gatewayProfile.baseUrl,
         adminToken,
         snapshotId
       });
-      setRemoteBackupPullResult(response);
+      setRemoteBackupPullResult({
+        ...response,
+        pullSource: snapshotId ? "selected_history" : "latest",
+        localSummaryAtPull: localSummary
+      });
       setBackupMessage(
         snapshotId
           ? formatRemoteBackupSelectedPullMessage(response.backup)
@@ -1898,7 +1925,10 @@ export const SettingsDrawer = ({
               </div>
             ) : null}
             {remoteBackupPullResult ? (
-              <article className="settings-import-preview">
+              <article
+                className="settings-import-preview"
+                data-testid="remote-backup-pulled-preview"
+              >
                 <p>{`拉取时间：${new Date(remoteBackupPullResult.backup.stored_at).toLocaleString("zh-CN")}`}</p>
                 <p>{`schema：v${remoteBackupPullResult.backup.schema_version}`}</p>
                 <p>{`创建时间：${new Date(remoteBackupPullResult.backup.created_at).toLocaleString("zh-CN")}`}</p>
@@ -1906,6 +1936,15 @@ export const SettingsDrawer = ({
                 <p>{`设备 ID：${remoteBackupPullResult.backup.device_id}`}</p>
                 <p>{`会话数：${remoteBackupPullResult.backup.conversation_count}`}</p>
                 <p>{`来源版本：${remoteBackupPullResult.backup.app_version}`}</p>
+                {remoteBackupPulledPreviewPresentation ? (
+                  <>
+                    <p>{remoteBackupPulledPreviewPresentation.sourceLabel}</p>
+                    <p>{remoteBackupPulledPreviewPresentation.relationLabel}</p>
+                    <p className="settings-hint">
+                      {remoteBackupPulledPreviewPresentation.recommendation}
+                    </p>
+                  </>
+                ) : null}
                 <p className="settings-warning-text">
                   {formatRemoteBackupRestoreWarning(remoteBackupPullResult.backup)}
                 </p>

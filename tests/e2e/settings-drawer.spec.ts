@@ -1041,6 +1041,14 @@ test("remote backup sync status stays metadata-only until user explicitly import
   ]);
 
   await page.getByRole("button", { name: "拉取最新快照" }).click();
+  const pulledPreview = page.getByTestId("remote-backup-pulled-preview");
+  await expect(pulledPreview.getByText("拉取来源：云端最新快照")).toBeVisible();
+  await expect(pulledPreview.getByText("与本地关系：拉取结果较新")).toBeVisible();
+  await expect(
+    pulledPreview.getByText(
+      "导入建议：若想尽量保留本地新增内容，先使用合并导入；若确认完全以该快照为准，再使用覆盖导入。"
+    )
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "拉取后导入（合并）" })).toBeVisible();
   await expect(page.getByRole("button", { name: "拉取后覆盖导入" })).toBeVisible();
 
@@ -1249,6 +1257,16 @@ test("remote backup history allows selecting and previewing one retained histori
 
   await expect(page.getByText("已从网关拉取所选快照（1 个会话）")).toBeVisible();
   await expect(page.getByText("同步状态：云端较新")).toBeVisible();
+  const pulledHistoryPreview = page.getByTestId("remote-backup-pulled-preview");
+  await expect(pulledHistoryPreview.getByText("拉取来源：所选历史快照")).toBeVisible();
+  await expect(
+    pulledHistoryPreview.getByText("与本地关系：本地当前快照较新")
+  ).toBeVisible();
+  await expect(
+    pulledHistoryPreview.getByText(
+      "导入建议：优先使用合并导入保留较新的本地记录；只有确认要回退到该快照时，再使用覆盖导入。"
+    )
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "拉取后导入（合并）" })).toBeVisible();
   await expect(page.getByRole("button", { name: "拉取后覆盖导入" })).toBeVisible();
 

@@ -48,6 +48,14 @@ export interface RemoteBackupHistoryBadgePresentation {
   relation: "identical" | "local_newer" | "remote_newer" | "diverged";
 }
 
+export type RemoteBackupPullSource = "latest" | "selected_history";
+
+export interface RemoteBackupPulledPreviewPresentation {
+  sourceLabel: string;
+  relationLabel: string;
+  recommendation: string;
+}
+
 interface ResolveRemoteBackupSyncPresentationParams {
   status: RemoteBackupSyncStatus;
   lastError: string | null;
@@ -247,6 +255,40 @@ const REMOTE_BACKUP_HISTORY_RELATION_COPY: Record<
   }
 };
 
+const REMOTE_BACKUP_PULL_SOURCE_LABELS: Record<RemoteBackupPullSource, string> = {
+  latest: "拉取来源：云端最新快照",
+  selected_history: "拉取来源：所选历史快照"
+};
+
+const REMOTE_BACKUP_PULLED_RELATION_COPY: Record<
+  "identical" | "local_newer" | "remote_newer" | "diverged",
+  {
+    relationLabel: string;
+    recommendation: string;
+  }
+> = {
+  identical: {
+    relationLabel: "与本地关系：内容一致",
+    recommendation:
+      "导入建议：当前拉取结果与本地内容一致，如只做校验可直接清除本次拉取，无需重复导入。"
+  },
+  local_newer: {
+    relationLabel: "与本地关系：本地当前快照较新",
+    recommendation:
+      "导入建议：优先使用合并导入保留较新的本地记录；只有确认要回退到该快照时，再使用覆盖导入。"
+  },
+  remote_newer: {
+    relationLabel: "与本地关系：拉取结果较新",
+    recommendation:
+      "导入建议：若想尽量保留本地新增内容，先使用合并导入；若确认完全以该快照为准，再使用覆盖导入。"
+  },
+  diverged: {
+    relationLabel: "与本地关系：存在分叉",
+    recommendation:
+      "导入建议：当前拉取结果与本地存在分叉，建议先合并导入做保守恢复；仅在确认完整回退时使用覆盖导入。"
+  }
+};
+
 export const resolveRemoteBackupHistoryBadgePresentation = (
   localSummary: RuntimeBackupComparableSummary | null | undefined,
   selectedBackup: RuntimeBackupComparableSummary | null | undefined
@@ -261,6 +303,28 @@ export const resolveRemoteBackupHistoryBadgePresentation = (
   return {
     label: copy.badgeLabel,
     relation: comparison.relation
+  };
+};
+
+export const resolveRemoteBackupPulledPreviewPresentation = (params: {
+  source: RemoteBackupPullSource;
+  localSummary: RuntimeBackupComparableSummary | null | undefined;
+  pulledBackup: RuntimeBackupComparableSummary | null | undefined;
+}): RemoteBackupPulledPreviewPresentation | null => {
+  if (!params.localSummary || !params.pulledBackup) {
+    return null;
+  }
+
+  const comparison = compareBackupComparableSummaries(
+    params.localSummary,
+    params.pulledBackup
+  );
+  const copy = REMOTE_BACKUP_PULLED_RELATION_COPY[comparison.relation];
+
+  return {
+    sourceLabel: REMOTE_BACKUP_PULL_SOURCE_LABELS[params.source],
+    relationLabel: copy.relationLabel,
+    recommendation: copy.recommendation
   };
 };
 
