@@ -34,6 +34,7 @@ Export includes:
 4. Choose one strategy:
    - `合并导入（推荐）`
    - `覆盖导入`
+5. If you choose `覆盖导入`, the first click only arms the destructive action; click the warning-state button `确认覆盖本地数据` to actually replace local data.
 
 ### Strategy Differences
 
@@ -45,6 +46,7 @@ Export includes:
   - UI preferences: incoming fields override same-key local fields.
 - `覆盖导入`
   - Replace local snapshots with imported snapshots.
+  - Requires explicit second-click confirmation in the preview panel before the overwrite runs.
 
 ## Migration Hints
 
@@ -102,7 +104,8 @@ In `设置` -> `数据与安全` -> `网关远端备份`, the workflow is explic
 5. If this is a recovery anchor you do not want pruned by later routine uploads, click `保护此快照`; if it is no longer special, click `取消保护`.
 6. Click `拉取最新快照` when you want the latest remote snapshot, or click `拉取所选历史快照` when you want one explicitly selected historical snapshot.
 7. After pull completes, read the preview panel’s `拉取来源`、`与本地关系`、`导入建议`、`当前导入对象`, and the conversation-level `导入影响预估（按会话）`, then choose `拉取后导入（合并）` or `拉取后覆盖导入` based on recovery intent.
-8. If you switch the selected historical snapshot after pulling one history item, the previous pulled preview becomes stale: the UI will block import and ask you to re-pull the newly selected snapshot first.
+8. If you choose `拉取后覆盖导入`, the first click only arms the dangerous action; click `确认拉取后覆盖导入` to actually replace local data with the pulled snapshot.
+9. If you switch the selected historical snapshot after pulling one history item, the previous pulled preview becomes stale: the UI will block import and ask you to re-pull the newly selected snapshot first.
 
 默认浏览器路径现在使用 guarded 写入：
 
@@ -112,7 +115,7 @@ In `设置` -> `数据与安全` -> `网关远端备份`, the workflow is explic
 - 阻塞/冲突状态的建议路径是：先看保留历史列表上的紧凑关系徽标、再看“所选快照与本地关系”的详细预检提示、必要时先保护当前选中的快照、再拉取所选快照预览、最后决定是否导入或覆盖云端。
 - 网关的 `/admin/backups/latest` 仍然保留给 operator/manual recovery 使用，但浏览器侧同步默认先走 guarded 写入。
 
-The UI does not background-sync full history, poll continuously, or auto-restore. 启动检查只拉取元数据；延迟上传也不会自动拉取或自动导入。 保留历史列表上的紧凑关系徽标、所选历史快照的“与本地关系”预检、拉取完成后的来源/导入建议、stale pulled-preview guard、以及按会话的导入影响预估都只是只读或防错提示，不会自动拉取、自动导入或自动改写同步状态。 正常流程不会自动合并或自动覆盖云端；every remote mutation remains operator-triggered until you explicitly choose an import action. `保护此快照` / `取消保护` only updates retention metadata, so it is a 手动元数据操作 and 不代表立即导入或恢复. This route still does not require SQL or a generic cloud history backend.
+The UI does not background-sync full history, poll continuously, or auto-restore. 启动检查只拉取元数据；延迟上传也不会自动拉取或自动导入。 保留历史列表上的紧凑关系徽标、所选历史快照的“与本地关系”预检、拉取完成后的来源/导入建议、stale pulled-preview guard、按会话的导入影响预估、以及危险覆盖前的二次确认都只是只读或防错提示，不会自动拉取、自动导入或自动改写同步状态。 正常流程不会自动合并或自动覆盖云端；every remote mutation remains operator-triggered until you explicitly choose an import action. `保护此快照` / `取消保护` only updates retention metadata, so it is a 手动元数据操作 and 不代表立即导入或恢复. This route still does not require SQL or a generic cloud history backend.
 
 ## Troubleshooting
 

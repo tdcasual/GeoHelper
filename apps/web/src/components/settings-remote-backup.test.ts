@@ -10,6 +10,7 @@ import {
   formatRemoteBackupHistorySummary,
   formatRemoteBackupProtectionActionMessage,
   formatRemoteBackupProtectionLimitMessage,
+  resolveReplaceImportConfirmationPresentation,
   resolveRemoteBackupPulledConversationImpactPresentation,
   resolveRemoteBackupPulledPreviewGuardPresentation,
   resolveRemoteBackupPulledPreviewPresentation,
@@ -534,6 +535,38 @@ describe("settings remote backup helpers", () => {
         "合并导入：预计新增 0 个会话、按远端更新 0 个同 id 会话、保留 1 个本地较新会话和 1 个仅本地会话。",
       replaceSummary:
         "覆盖导入：预计用远端 1 个会话替换本地当前 2 个会话。"
+    });
+  });
+
+  it("formats explicit confirmation copy for dangerous replace imports", () => {
+    expect(
+      resolveReplaceImportConfirmationPresentation("local", false)
+    ).toEqual({
+      buttonLabel: "覆盖导入",
+      warning: null
+    });
+
+    expect(
+      resolveReplaceImportConfirmationPresentation("local", true)
+    ).toEqual({
+      buttonLabel: "确认覆盖本地数据",
+      warning:
+        "高风险操作：覆盖导入会直接替换当前本地数据，请再次点击“确认覆盖本地数据”继续。"
+    });
+
+    expect(
+      resolveReplaceImportConfirmationPresentation("remote_pulled", false)
+    ).toEqual({
+      buttonLabel: "拉取后覆盖导入",
+      warning: null
+    });
+
+    expect(
+      resolveReplaceImportConfirmationPresentation("remote_pulled", true)
+    ).toEqual({
+      buttonLabel: "确认拉取后覆盖导入",
+      warning:
+        "高风险操作：拉取后覆盖导入会直接替换当前本地数据，请再次点击“确认拉取后覆盖导入”继续。"
     });
   });
 

@@ -68,6 +68,13 @@ export interface RemoteBackupPulledConversationImpactPresentation {
   replaceSummary: string;
 }
 
+export interface ReplaceImportConfirmationPresentation {
+  buttonLabel: string;
+  warning: string | null;
+}
+
+export type ReplaceImportConfirmationScope = "local" | "remote_pulled";
+
 interface ResolveRemoteBackupSyncPresentationParams {
   status: RemoteBackupSyncStatus;
   lastError: string | null;
@@ -450,6 +457,35 @@ export const resolveRemoteBackupPulledConversationImpactPresentation = (params: 
     mergeSummary: `合并导入：预计新增 ${addedCount} 个会话、按远端更新 ${remoteWinsCount} 个同 id 会话、${keptLocalSummary}。`,
     replaceSummary: `覆盖导入：预计用远端 ${pulledConversations.length} 个会话替换本地当前 ${localConversations.length} 个会话。`
   };
+};
+
+export const resolveReplaceImportConfirmationPresentation = (
+  scope: ReplaceImportConfirmationScope,
+  armed: boolean
+): ReplaceImportConfirmationPresentation => {
+  if (scope === "local") {
+    return armed
+      ? {
+          buttonLabel: "确认覆盖本地数据",
+          warning:
+            "高风险操作：覆盖导入会直接替换当前本地数据，请再次点击“确认覆盖本地数据”继续。"
+        }
+      : {
+          buttonLabel: "覆盖导入",
+          warning: null
+        };
+  }
+
+  return armed
+    ? {
+        buttonLabel: "确认拉取后覆盖导入",
+        warning:
+          "高风险操作：拉取后覆盖导入会直接替换当前本地数据，请再次点击“确认拉取后覆盖导入”继续。"
+      }
+    : {
+        buttonLabel: "拉取后覆盖导入",
+        warning: null
+      };
 };
 
 export const resolveRemoteBackupHistoryComparisonPresentation = (

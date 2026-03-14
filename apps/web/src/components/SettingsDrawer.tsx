@@ -32,6 +32,7 @@ import {
   formatRemoteBackupHistorySummary,
   formatRemoteBackupProtectionActionMessage,
   formatRemoteBackupProtectionLimitMessage,
+  resolveReplaceImportConfirmationPresentation,
   resolveRemoteBackupPulledConversationImpactPresentation,
   resolveRemoteBackupPulledPreviewGuardPresentation,
   type RemoteBackupPullSource,
@@ -385,6 +386,8 @@ export const SettingsDrawer = ({
   const [pendingBackupFile, setPendingBackupFile] = useState<File | null>(null);
   const [backupInspection, setBackupInspection] =
     useState<BackupInspection | null>(null);
+  const [localReplaceImportArmed, setLocalReplaceImportArmed] = useState(false);
+  const [remoteReplaceImportArmed, setRemoteReplaceImportArmed] = useState(false);
   const [importingBackup, setImportingBackup] = useState(false);
   const backupInputRef = useRef<HTMLInputElement | null>(null);
   const modalRef = useRef<HTMLElement | null>(null);
@@ -474,6 +477,22 @@ export const SettingsDrawer = ({
         : null,
     [remoteBackupPullResult]
   );
+  const localReplaceImportConfirmationPresentation = useMemo(
+    () =>
+      resolveReplaceImportConfirmationPresentation(
+        "local",
+        localReplaceImportArmed
+      ),
+    [localReplaceImportArmed]
+  );
+  const remoteReplaceImportConfirmationPresentation = useMemo(
+    () =>
+      resolveReplaceImportConfirmationPresentation(
+        "remote_pulled",
+        remoteReplaceImportArmed
+      ),
+    [remoteReplaceImportArmed]
+  );
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -527,6 +546,14 @@ export const SettingsDrawer = ({
 
     setSelectedRemoteHistorySnapshotId(remoteBackupSync.history[0]?.snapshot_id ?? null);
   }, [remoteBackupSync.history, selectedRemoteHistorySnapshotId]);
+
+  useEffect(() => {
+    setLocalReplaceImportArmed(false);
+  }, [pendingBackupFile, backupInspection]);
+
+  useEffect(() => {
+    setRemoteReplaceImportArmed(false);
+  }, [remoteBackupPullResult, remoteBackupPulledPreviewGuardPresentation?.importEnabled]);
 
   useEffect(() => {
     if (open) {
@@ -1680,25 +1707,45 @@ export const SettingsDrawer = ({
                   备份版本高于当前应用，导入后可能存在字段降级
                 </p>
               ) : null}
+              {localReplaceImportConfirmationPresentation.warning ? (
+                <p className="settings-warning-text">
+                  {localReplaceImportConfirmationPresentation.warning}
+                </p>
+              ) : null}
               <div className="settings-inline-actions">
                 <button
                   type="button"
                   disabled={importingBackup}
-                  onClick={() => handleImportBackup("merge")}
+                  onClick={() => {
+                    setLocalReplaceImportArmed(false);
+                    void handleImportBackup("merge");
+                  }}
                 >
                   合并导入（推荐）
                 </button>
                 <button
                   type="button"
+                  className={
+                    localReplaceImportArmed ? "top-bar-button-danger" : undefined
+                  }
                   disabled={importingBackup}
-                  onClick={() => handleImportBackup("replace")}
+                  onClick={() => {
+                    if (!localReplaceImportArmed) {
+                      setLocalReplaceImportArmed(true);
+                      return;
+                    }
+
+                    setLocalReplaceImportArmed(false);
+                    void handleImportBackup("replace");
+                  }}
                 >
-                  覆盖导入
+                  {localReplaceImportConfirmationPresentation.buttonLabel}
                 </button>
                 <button
                   type="button"
                   disabled={importingBackup}
                   onClick={() => {
+                    setLocalReplaceImportArmed(false);
                     setPendingBackupFile(null);
                     setBackupInspection(null);
                     setBackupMessage("已取消本次导入");
@@ -1995,6 +2042,11 @@ export const SettingsDrawer = ({
                 <p className="settings-warning-text">
                   {formatRemoteBackupRestoreWarning(remoteBackupPullResult.backup)}
                 </p>
+                {remoteReplaceImportConfirmationPresentation.warning ? (
+                  <p className="settings-warning-text">
+                    {remoteReplaceImportConfirmationPresentation.warning}
+                  </p>
+                ) : null}
                 <div className="settings-inline-actions">
                   <button
                     type="button"
@@ -2003,25 +2055,40 @@ export const SettingsDrawer = ({
                       !remoteBackupActions.restore.enabled ||
                       !remoteBackupPulledPreviewGuardPresentation?.importEnabled
                     }
-                    onClick={() => handleImportPulledRemoteBackup("merge")}
+                    onClick={() => {
+                      setRemoteReplaceImportArmed(false);
+                      void handleImportPulledRemoteBackup("merge");
+                    }}
                   >
                     拉取后导入（合并）
                   </button>
                   <button
                     type="button"
+                    className={
+                      remoteReplaceImportArmed ? "top-bar-button-danger" : undefined
+                    }
                     disabled={
                       Boolean(remoteBackupBusyAction) ||
                       !remoteBackupActions.restore.enabled ||
                       !remoteBackupPulledPreviewGuardPresentation?.importEnabled
                     }
-                    onClick={() => handleImportPulledRemoteBackup("replace")}
+                    onClick={() => {
+                      if (!remoteReplaceImportArmed) {
+                        setRemoteReplaceImportArmed(true);
+                        return;
+                      }
+
+                      setRemoteReplaceImportArmed(false);
+                      void handleImportPulledRemoteBackup("replace");
+                    }}
                   >
-                    拉取后覆盖导入
+                    {remoteReplaceImportConfirmationPresentation.buttonLabel}
                   </button>
                   <button
                     type="button"
                     disabled={Boolean(remoteBackupBusyAction)}
                     onClick={() => {
+                      setRemoteReplaceImportArmed(false);
                       setRemoteBackupPullResult(null);
                       setBackupMessage("已清除本次网关拉取结果");
                     }}

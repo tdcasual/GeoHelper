@@ -579,6 +579,19 @@ test("replaces local snapshot when import mode is replace", async ({ page }) => 
 
   await expect(page.getByText("已读取备份文件，请选择导入策略")).toBeVisible();
   await page.getByRole("button", { name: "覆盖导入" }).click();
+  await expect(
+    page.getByText(
+      "高风险操作：覆盖导入会直接替换当前本地数据，请再次点击“确认覆盖本地数据”继续。"
+    )
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "确认覆盖本地数据" })).toBeVisible();
+  const snapshotBeforeConfirm = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}")
+  );
+  expect(snapshotBeforeConfirm.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_local"
+  ]);
+  await page.getByRole("button", { name: "确认覆盖本地数据" }).click();
   await expect(page.getByText("备份覆盖导入成功，正在刷新")).toBeVisible();
 
   const snapshot = await page.evaluate(() =>
@@ -1077,6 +1090,15 @@ test("remote backup sync status stays metadata-only until user explicitly import
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "拉取后导入（合并）" })).toBeVisible();
   await expect(page.getByRole("button", { name: "拉取后覆盖导入" })).toBeVisible();
+  await page.getByRole("button", { name: "拉取后覆盖导入" }).click();
+  await expect(
+    pulledPreview.getByText(
+      "高风险操作：拉取后覆盖导入会直接替换当前本地数据，请再次点击“确认拉取后覆盖导入”继续。"
+    )
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "确认拉取后覆盖导入" })
+  ).toBeVisible();
 
   const chatSnapshotAfterPull = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "null")
