@@ -1003,7 +1003,22 @@ test("remote backup sync status stays metadata-only until user explicitly import
               checksum: "checksum-remote",
               snapshot_id: "snap-remote",
               device_id: "device-remote",
-              conversations: [],
+              conversations: [
+                {
+                  id: "conv_remote_a",
+                  title: "remote a",
+                  createdAt: 11,
+                  updatedAt: 21,
+                  messages: []
+                },
+                {
+                  id: "conv_remote_b",
+                  title: "remote b",
+                  createdAt: 12,
+                  updatedAt: 22,
+                  messages: []
+                }
+              ],
               settings: {}
             }
           },
@@ -1047,6 +1062,17 @@ test("remote backup sync status stays metadata-only until user explicitly import
   await expect(
     pulledPreview.getByText(
       "导入建议：若想尽量保留本地新增内容，先使用合并导入；若确认完全以该快照为准，再使用覆盖导入。"
+    )
+  ).toBeVisible();
+  await expect(pulledPreview.getByText("导入影响预估（按会话）")).toBeVisible();
+  await expect(
+    pulledPreview.getByText(
+      "合并导入：预计新增 2 个会话、按远端更新 0 个同 id 会话、保留 1 个仅本地会话。"
+    )
+  ).toBeVisible();
+  await expect(
+    pulledPreview.getByText(
+      "覆盖导入：预计用远端 2 个会话替换本地当前 1 个会话。"
     )
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "拉取后导入（合并）" })).toBeVisible();
@@ -1183,7 +1209,9 @@ test("remote backup history allows selecting and previewing one retained histori
               conversations: [
                 {
                   id: "conv_remote_old",
-                  title: "old remote"
+                  title: "old remote",
+                  createdAt: 13,
+                  updatedAt: 14
                 }
               ],
               settings: {}
@@ -1265,6 +1293,17 @@ test("remote backup history allows selecting and previewing one retained histori
   await expect(
     pulledHistoryPreview.getByText(
       "导入建议：优先使用合并导入保留较新的本地记录；只有确认要回退到该快照时，再使用覆盖导入。"
+    )
+  ).toBeVisible();
+  await expect(pulledHistoryPreview.getByText("导入影响预估（按会话）")).toBeVisible();
+  await expect(
+    pulledHistoryPreview.getByText(
+      "合并导入：预计新增 1 个会话、按远端更新 0 个同 id 会话、保留 1 个仅本地会话。"
+    )
+  ).toBeVisible();
+  await expect(
+    pulledHistoryPreview.getByText(
+      "覆盖导入：预计用远端 1 个会话替换本地当前 1 个会话。"
     )
   ).toBeVisible();
   await expect(

@@ -62,6 +62,12 @@ export interface RemoteBackupPulledPreviewGuardPresentation {
   importEnabled: boolean;
 }
 
+export interface RemoteBackupPulledConversationImpactPresentation {
+  title: string;
+  mergeSummary: string;
+  replaceSummary: string;
+}
+
 interface ResolveRemoteBackupSyncPresentationParams {
   status: RemoteBackupSyncStatus;
   lastError: string | null;
@@ -357,6 +363,92 @@ export const resolveRemoteBackupPulledPreviewGuardPresentation = (params: {
       ? `你当前选中的是 ${params.selectedSnapshotId}；如要导入这个恢复点，请先重新拉取所选历史快照。`
       : null,
     importEnabled: !isStale
+  };
+};
+
+const toBackupConversationList = (
+  input:
+    | BackupEnvelope
+    | Pick<BackupEnvelope, "conversations">
+    | null
+    | undefined
+): Array<{ id: string; updatedAt: number; raw: unknown }> => {
+  if (!input || !Array.isArray(input.conversations)) {
+    return [];
+  }
+
+  return input.conversations
+    .map((item) => (item && typeof item === "object" ? item : null))
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .map((item) => ({
+      id: String(item.id ?? ""),
+      updatedAt:
+        typeof item.updatedAt === "number"
+          ? item.updatedAt
+          : typeof item.createdAt === "number"
+            ? item.createdAt
+            : 0,
+      raw: item
+    }))
+    .filter((item) => item.id.length > 0);
+};
+
+export const resolveRemoteBackupPulledConversationImpactPresentation = (params: {
+  localEnvelopeAtPull:
+    | BackupEnvelope
+    | Pick<BackupEnvelope, "conversations">
+    | null
+    | undefined;
+  pulledEnvelope:
+    | BackupEnvelope
+    | Pick<BackupEnvelope, "conversations">
+    | null
+    | undefined;
+}): RemoteBackupPulledConversationImpactPresentation | null => {
+  if (!params.localEnvelopeAtPull || !params.pulledEnvelope) {
+    return null;
+  }
+
+  const localConversations = toBackupConversationList(params.localEnvelopeAtPull);
+  const pulledConversations = toBackupConversationList(params.pulledEnvelope);
+  const localById = new Map(localConversations.map((item) => [item.id, item]));
+  const pulledIds = new Set(pulledConversations.map((item) => item.id));
+
+  let addedCount = 0;
+  let remoteWinsCount = 0;
+  let localWinsCount = 0;
+
+  for (const pulled of pulledConversations) {
+    const local = localById.get(pulled.id);
+    if (!local) {
+      addedCount += 1;
+      continue;
+    }
+
+    if (JSON.stringify(local.raw) === JSON.stringify(pulled.raw)) {
+      continue;
+    }
+
+    if (pulled.updatedAt >= local.updatedAt) {
+      remoteWinsCount += 1;
+    } else {
+      localWinsCount += 1;
+    }
+  }
+
+  const localOnlyCount = localConversations.filter(
+    (item) => !pulledIds.has(item.id)
+  ).length;
+
+  const keptLocalSummary =
+    localWinsCount > 0
+      ? `保留 ${localWinsCount} 个本地较新会话和 ${localOnlyCount} 个仅本地会话`
+      : `保留 ${localOnlyCount} 个仅本地会话`;
+
+  return {
+    title: "导入影响预估（按会话）",
+    mergeSummary: `合并导入：预计新增 ${addedCount} 个会话、按远端更新 ${remoteWinsCount} 个同 id 会话、${keptLocalSummary}。`,
+    replaceSummary: `覆盖导入：预计用远端 ${pulledConversations.length} 个会话替换本地当前 ${localConversations.length} 个会话。`
   };
 };
 

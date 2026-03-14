@@ -32,6 +32,7 @@ import {
   formatRemoteBackupHistorySummary,
   formatRemoteBackupProtectionActionMessage,
   formatRemoteBackupProtectionLimitMessage,
+  resolveRemoteBackupPulledConversationImpactPresentation,
   resolveRemoteBackupPulledPreviewGuardPresentation,
   type RemoteBackupPullSource,
   formatRemoteBackupSelectedPullMessage,
@@ -46,6 +47,7 @@ import {
 } from "./settings-remote-backup";
 import {
   BACKUP_FILENAME,
+  type BackupEnvelope,
   BackupImportMode,
   BackupInspection,
   exportCurrentAppBackup,
@@ -67,6 +69,7 @@ interface SettingsDrawerProps {
 interface RemoteBackupPulledResult extends RuntimeBackupDownloadResponse {
   pullSource: RemoteBackupPullSource;
   localSummaryAtPull: RuntimeBackupComparableSummary;
+  localEnvelopeAtPull: BackupEnvelope;
 }
 
 interface ByokDraft {
@@ -460,6 +463,16 @@ export const SettingsDrawer = ({
           })
         : null,
     [remoteBackupPullResult, selectedRemoteHistoryBackup]
+  );
+  const remoteBackupPulledConversationImpactPresentation = useMemo(
+    () =>
+      remoteBackupPullResult
+        ? resolveRemoteBackupPulledConversationImpactPresentation({
+            localEnvelopeAtPull: remoteBackupPullResult.localEnvelopeAtPull,
+            pulledEnvelope: remoteBackupPullResult.backup.envelope
+          })
+        : null,
+    [remoteBackupPullResult]
   );
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -870,7 +883,8 @@ export const SettingsDrawer = ({
       setRemoteBackupPullResult({
         ...response,
         pullSource: snapshotId ? "selected_history" : "latest",
-        localSummaryAtPull: localSummary
+        localSummaryAtPull: localSummary,
+        localEnvelopeAtPull: envelope
       });
       setBackupMessage(
         snapshotId
@@ -1965,6 +1979,17 @@ export const SettingsDrawer = ({
                         {remoteBackupPulledPreviewGuardPresentation.warning}
                       </p>
                     ) : null}
+                  </>
+                ) : null}
+                {remoteBackupPulledConversationImpactPresentation ? (
+                  <>
+                    <p>{remoteBackupPulledConversationImpactPresentation.title}</p>
+                    <p className="settings-hint">
+                      {remoteBackupPulledConversationImpactPresentation.mergeSummary}
+                    </p>
+                    <p className="settings-hint">
+                      {remoteBackupPulledConversationImpactPresentation.replaceSummary}
+                    </p>
                   </>
                 ) : null}
                 <p className="settings-warning-text">

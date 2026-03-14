@@ -10,6 +10,7 @@ import {
   formatRemoteBackupHistorySummary,
   formatRemoteBackupProtectionActionMessage,
   formatRemoteBackupProtectionLimitMessage,
+  resolveRemoteBackupPulledConversationImpactPresentation,
   resolveRemoteBackupPulledPreviewGuardPresentation,
   resolveRemoteBackupPulledPreviewPresentation,
   formatRemoteBackupSelectedPullMessage,
@@ -60,6 +61,33 @@ const localSummary: RuntimeBackupComparableSummary = {
   conversation_count: 3,
   snapshot_id: "snap-local",
   device_id: "device-local"
+};
+
+const localEnvelope = {
+  schema_version: 2,
+  created_at: "2026-03-12T09:58:00.000Z",
+  updated_at: "2026-03-12T10:05:00.000Z",
+  app_version: "0.0.1",
+  checksum: "checksum-local-envelope",
+  snapshot_id: "snap-local",
+  device_id: "device-local",
+  conversations: [
+    {
+      id: "conv-local-only",
+      title: "local only",
+      createdAt: 1,
+      updatedAt: 10,
+      messages: []
+    },
+    {
+      id: "conv-shared-local",
+      title: "shared local",
+      createdAt: 2,
+      updatedAt: 20,
+      messages: []
+    }
+  ],
+  settings: {}
 };
 
 describe("settings remote backup helpers", () => {
@@ -445,6 +473,67 @@ describe("settings remote backup helpers", () => {
       warning:
         "你当前选中的是 snap-remote-2；如要导入这个恢复点，请先重新拉取所选历史快照。",
       importEnabled: false
+    });
+  });
+
+  it("formats pulled preview conversation impact counts for merge and replace", () => {
+    expect(
+      resolveRemoteBackupPulledConversationImpactPresentation({
+        localEnvelopeAtPull: localEnvelope,
+        pulledEnvelope: {
+          ...localEnvelope,
+          checksum: "checksum-remote-preview",
+          snapshot_id: "snap-remote-preview",
+          conversations: [
+            {
+              id: "conv-remote-new",
+              title: "remote new",
+              createdAt: 3,
+              updatedAt: 30,
+              messages: []
+            },
+            {
+              id: "conv-shared-local",
+              title: "shared remote newer",
+              createdAt: 2,
+              updatedAt: 25,
+              messages: []
+            }
+          ]
+        }
+      })
+    ).toEqual({
+      title: "导入影响预估（按会话）",
+      mergeSummary:
+        "合并导入：预计新增 1 个会话、按远端更新 1 个同 id 会话、保留 1 个仅本地会话。",
+      replaceSummary:
+        "覆盖导入：预计用远端 2 个会话替换本地当前 2 个会话。"
+    });
+
+    expect(
+      resolveRemoteBackupPulledConversationImpactPresentation({
+        localEnvelopeAtPull: localEnvelope,
+        pulledEnvelope: {
+          ...localEnvelope,
+          checksum: "checksum-remote-preview-older",
+          snapshot_id: "snap-remote-preview-older",
+          conversations: [
+            {
+              id: "conv-shared-local",
+              title: "shared remote older",
+              createdAt: 2,
+              updatedAt: 15,
+              messages: []
+            }
+          ]
+        }
+      })
+    ).toEqual({
+      title: "导入影响预估（按会话）",
+      mergeSummary:
+        "合并导入：预计新增 0 个会话、按远端更新 0 个同 id 会话、保留 1 个本地较新会话和 1 个仅本地会话。",
+      replaceSummary:
+        "覆盖导入：预计用远端 1 个会话替换本地当前 2 个会话。"
     });
   });
 
