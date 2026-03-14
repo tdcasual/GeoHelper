@@ -21,8 +21,27 @@ import { UI_PREFS_KEY, syncUIStoreFromStorage } from "../state/ui-store";
 
 export type BackupImportMode = "replace" | "merge";
 
+export type ImportRollbackAnchorSource =
+  | "local_file"
+  | "remote_latest"
+  | "remote_selected_history";
+
 export interface BackupImportOptions {
   mode?: BackupImportMode;
+}
+
+export interface ImportRollbackAnchor {
+  capturedAt: string;
+  source: ImportRollbackAnchorSource;
+  importMode: BackupImportMode;
+  sourceDetail: string | null;
+  envelope: BackupEnvelope;
+}
+
+export interface CaptureImportRollbackAnchorOptions {
+  source: ImportRollbackAnchorSource;
+  importMode: BackupImportMode;
+  sourceDetail?: string | null;
 }
 
 export const BACKUP_FILENAME = "geochat-backup.json";
@@ -30,6 +49,7 @@ export const BACKUP_FILENAME = "geochat-backup.json";
 export type { BackupEnvelope, BackupInspection, BackupPayload };
 
 const BACKUP_DEVICE_ID_KEY = "geohelper.backup.device_id";
+const IMPORT_ROLLBACK_ANCHOR_KEY = "geohelper.backup.import_rollback_anchor";
 
 const makeBackupDeviceId = (): string =>
   `device_${Date.now().toString(36)}_${Math.random().toString(16).slice(2, 10)}`;
@@ -53,6 +73,47 @@ const parseJsonMaybe = (raw: string | null): unknown => {
 
 const asObject = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+
+const parseImportRollbackAnchor = (value: unknown): ImportRollbackAnchor | null => {
+  const anchor = asObject(value);
+  if (!anchor) {
+    return null;
+  }
+
+  const capturedAt =
+    typeof anchor.capturedAt === "string" && anchor.capturedAt.trim()
+      ? anchor.capturedAt
+      : null;
+  const source =
+    anchor.source === "local_file" ||
+    anchor.source === "remote_latest" ||
+    anchor.source === "remote_selected_history"
+      ? anchor.source
+      : null;
+  const importMode =
+    anchor.importMode === "replace" || anchor.importMode === "merge"
+      ? anchor.importMode
+      : null;
+
+  if (!capturedAt || !source || !importMode) {
+    return null;
+  }
+
+  try {
+    return {
+      capturedAt,
+      source,
+      importMode,
+      sourceDetail:
+        typeof anchor.sourceDetail === "string" && anchor.sourceDetail.trim()
+          ? anchor.sourceDetail
+          : null,
+      envelope: parseBackupEnvelope(anchor.envelope)
+    };
+  } catch {
+    return null;
+  }
+};
 
 const toConversationList = (
   value: unknown
@@ -486,6 +547,52 @@ export const importBackup = async (blob: Blob): Promise<BackupEnvelope> => {
 export const inspectBackup = async (blob: Blob): Promise<BackupInspection> =>
   inspectBackupEnvelope(await importBackup(blob), STORAGE_SCHEMA_VERSION);
 
+export const readImportRollbackAnchor = (): ImportRollbackAnchor | null => {
+  if (!canUseStorage()) {
+    return null;
+  }
+
+  const parsed = parseImportRollbackAnchor(
+    parseJsonMaybe(localStorage.getItem(IMPORT_ROLLBACK_ANCHOR_KEY))
+  );
+
+  if (!parsed && localStorage.getItem(IMPORT_ROLLBACK_ANCHOR_KEY)) {
+    localStorage.removeItem(IMPORT_ROLLBACK_ANCHOR_KEY);
+  }
+
+  return parsed;
+};
+
+export const clearImportRollbackAnchor = (): void => {
+  if (!canUseStorage()) {
+    return;
+  }
+
+  localStorage.removeItem(IMPORT_ROLLBACK_ANCHOR_KEY);
+};
+
+export const captureCurrentAppImportRollbackAnchor = async (
+  options: CaptureImportRollbackAnchorOptions
+): Promise<ImportRollbackAnchor> => {
+  if (!canUseStorage()) {
+    throw new Error("当前环境不支持导入前恢复锚点");
+  }
+
+  const anchor: ImportRollbackAnchor = {
+    capturedAt: new Date().toISOString(),
+    source: options.source,
+    importMode: options.importMode,
+    sourceDetail:
+      typeof options.sourceDetail === "string" && options.sourceDetail.trim()
+        ? options.sourceDetail
+        : null,
+    envelope: await exportCurrentAppBackupEnvelope()
+  };
+
+  localStorage.setItem(IMPORT_ROLLBACK_ANCHOR_KEY, JSON.stringify(anchor));
+  return anchor;
+};
+
 export const exportCurrentAppBackupEnvelope = async (): Promise<BackupEnvelope> =>
   importBackup(await exportCurrentAppBackup());
 
@@ -541,6 +648,19 @@ export const importRemoteBackupToLocalStorage = async (
   options: BackupImportOptions = {}
 ): Promise<BackupEnvelope> =>
   importBackupEnvelopeToLocalStorage(remoteBackup.envelope, options);
+
+export const restoreImportRollbackAnchorToLocalStorage = async (): Promise<ImportRollbackAnchor> => {
+  const anchor = readImportRollbackAnchor();
+  if (!anchor) {
+    throw new Error("当前没有可恢复的导入前本地快照");
+  }
+
+  await importBackupEnvelopeToLocalStorage(anchor.envelope, {
+    mode: "replace"
+  });
+  clearImportRollbackAnchor();
+  return anchor;
+};
 
 export const importAppBackupToLocalStorage = async (
   blob: Blob,

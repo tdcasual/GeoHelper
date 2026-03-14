@@ -604,6 +604,204 @@ test("replaces local snapshot when import mode is replace", async ({ page }) => 
   expect(snapshot.messages[0].content).toBe("backup");
 });
 
+test("creates a rollback anchor after local import and restores the pre-import local snapshot", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    try {
+      (window as { __reloadCalled?: boolean }).__reloadCalled = false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window.location as any).reload = () => {
+        (window as { __reloadCalled?: boolean }).__reloadCalled = true;
+      };
+    } catch {
+      // Ignore reload patch failure in browser sandbox.
+    }
+  });
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("__seeded_local_rollback__") === "1") {
+      return;
+    }
+    sessionStorage.setItem("__seeded_local_rollback__", "1");
+    localStorage.setItem(
+      "geohelper.chat.snapshot",
+      JSON.stringify({
+        mode: "byok",
+        sessionToken: null,
+        activeConversationId: "conv_local",
+        reauthRequired: false,
+        messages: [{ id: "m_local", role: "user", content: "local before import" }],
+        conversations: [
+          {
+            id: "conv_local",
+            title: "local before import",
+            createdAt: 1,
+            updatedAt: 100,
+            messages: [{ id: "m_local", role: "user", content: "local before import" }]
+          }
+        ]
+      })
+    );
+    localStorage.setItem(
+      "geohelper.ui.preferences",
+      JSON.stringify({
+        chatVisible: true,
+        historyDrawerVisible: false,
+        historyDrawerWidth: 280
+      })
+    );
+  });
+
+  await page.goto("http://localhost:5173");
+  await openSettingsSection(page, "数据与安全");
+
+  await page
+    .getByTestId("settings-modal")
+    .locator('input[type="file"][accept="application/json"]')
+    .setInputFiles(
+      createBackupFile({
+        conversations: [
+          {
+            id: "conv_imported",
+            title: "imported",
+            createdAt: 2,
+            updatedAt: 200,
+            messages: [{ id: "m_imported", role: "assistant", content: "imported" }]
+          }
+        ],
+        settings: {
+          ui_preferences: {
+            chatVisible: false
+          }
+        }
+      })
+    );
+
+  await expect(page.getByText("已读取备份文件，请选择导入策略")).toBeVisible();
+  await page.getByRole("button", { name: "覆盖导入" }).click();
+  await page.getByRole("button", { name: "确认覆盖本地数据" }).click();
+  await expect(page.getByText("备份覆盖导入成功，正在刷新")).toBeVisible();
+
+  let chatSnapshot = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}")
+  );
+  expect(chatSnapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_imported"
+  ]);
+
+  await page.reload();
+  await openSettingsSection(page, "数据与安全");
+
+  const rollbackAnchor = page.getByTestId("import-rollback-anchor");
+  await expect(rollbackAnchor).toBeVisible();
+  await expect(
+    rollbackAnchor.getByText("来源：本地备份文件（geochat-backup.json）")
+  ).toBeVisible();
+  await expect(rollbackAnchor.getByText("导入方式：覆盖导入")).toBeVisible();
+  await expect(rollbackAnchor.getByText(/导入前本地快照：.*1 个会话/)).toBeVisible();
+
+  await rollbackAnchor.getByRole("button", { name: "恢复到导入前状态" }).click();
+  await expect(page.getByText("已恢复到导入前本地状态，正在刷新")).toBeVisible();
+
+  await page.reload();
+  await openSettingsSection(page, "数据与安全");
+  await expect(page.getByTestId("import-rollback-anchor")).toHaveCount(0);
+
+  chatSnapshot = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}")
+  );
+  const uiPreferences = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.ui.preferences") ?? "{}")
+  );
+  expect(chatSnapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_local"
+  ]);
+  expect(chatSnapshot.messages[0]?.content).toBe("local before import");
+  expect(uiPreferences.chatVisible).toBe(true);
+});
+
+test("clears rollback anchor without mutating the imported local snapshot", async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window.location as any).reload = () => undefined;
+    } catch {
+      // Ignore reload patch failure in browser sandbox.
+    }
+  });
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("__seeded_clear_rollback__") === "1") {
+      return;
+    }
+    sessionStorage.setItem("__seeded_clear_rollback__", "1");
+    localStorage.setItem(
+      "geohelper.chat.snapshot",
+      JSON.stringify({
+        mode: "byok",
+        sessionToken: null,
+        activeConversationId: "conv_local",
+        reauthRequired: false,
+        messages: [{ id: "m_local", role: "user", content: "local before clear" }],
+        conversations: [
+          {
+            id: "conv_local",
+            title: "local before clear",
+            createdAt: 1,
+            updatedAt: 100,
+            messages: [{ id: "m_local", role: "user", content: "local before clear" }]
+          }
+        ]
+      })
+    );
+  });
+
+  await page.goto("http://localhost:5173");
+  await openSettingsSection(page, "数据与安全");
+
+  await page
+    .getByTestId("settings-modal")
+    .locator('input[type="file"][accept="application/json"]')
+    .setInputFiles(
+      createBackupFile({
+        conversations: [
+          {
+            id: "conv_imported_clear",
+            title: "imported clear",
+            createdAt: 2,
+            updatedAt: 200,
+            messages: []
+          }
+        ],
+        settings: {}
+      })
+    );
+
+  await page.getByRole("button", { name: "覆盖导入" }).click();
+  await page.getByRole("button", { name: "确认覆盖本地数据" }).click();
+  await expect(page.getByText("备份覆盖导入成功，正在刷新")).toBeVisible();
+
+  const rollbackAnchor = page.getByTestId("import-rollback-anchor");
+  await expect(rollbackAnchor).toBeVisible();
+
+  let chatSnapshot = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}")
+  );
+  expect(chatSnapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_imported_clear"
+  ]);
+
+  await rollbackAnchor.getByRole("button", { name: "清除此恢复锚点" }).click();
+  await expect(page.getByText("已清除此恢复锚点")).toBeVisible();
+  await expect(page.getByTestId("import-rollback-anchor")).toHaveCount(0);
+
+  chatSnapshot = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}")
+  );
+  expect(chatSnapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_imported_clear"
+  ]);
+});
+
 
 test("debug log wraps long tokens inside mobile settings panel", async ({ page }) => {
   const longDebugToken = `debug_${"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".repeat(160)}`;
@@ -1106,6 +1304,176 @@ test("remote backup sync status stays metadata-only until user explicitly import
   expect(chatSnapshotAfterPull.conversations.map((item: { id: string }) => item.id)).toEqual([
     "conv_local"
   ]);
+});
+
+test("creates a rollback anchor after remote import with the latest snapshot source label", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window.location as any).reload = () => undefined;
+    } catch {
+      // Ignore reload patch failure in browser sandbox.
+    }
+  });
+  await seedGatewayRemoteBackupSettings(page);
+  const remoteLatestEnvelope = createBackupEnvelope(
+    {
+      conversations: [
+        {
+          id: "conv_remote_a",
+          title: "remote a",
+          createdAt: 11,
+          updatedAt: 21,
+          messages: []
+        }
+      ],
+      settings: {}
+    },
+    {
+      schemaVersion: 2,
+      createdAt: "2026-03-12T10:00:00.000Z",
+      updatedAt: "2026-03-12T10:04:00.000Z",
+      appVersion: "0.0.1",
+      snapshotId: "snap-remote",
+      deviceId: "device-remote"
+    }
+  );
+
+  await page.route(
+    "https://gateway.example.com/admin/backups/history?limit=5",
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          history: [
+            {
+              stored_at: "2026-03-12T10:05:00.000Z",
+              schema_version: 2,
+              created_at: "2026-03-12T10:00:00.000Z",
+              updated_at: "2026-03-12T10:04:00.000Z",
+              app_version: "0.0.1",
+              checksum: "checksum-remote",
+              conversation_count: 2,
+              snapshot_id: "snap-remote",
+              device_id: "device-remote"
+            }
+          ],
+          build: {
+            git_sha: "backupsha",
+            build_time: "2026-03-12T10:05:30.000Z",
+            node_env: "test",
+            redis_enabled: true,
+            attachments_enabled: false
+          }
+        })
+      });
+    }
+  );
+  await page.route(
+    "https://gateway.example.com/admin/backups/compare",
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          local_status: "summary",
+          remote_status: "available",
+          comparison_result: "remote_newer",
+          local_snapshot: {
+            summary: {
+              schema_version: 3,
+              created_at: "2026-03-12T09:59:00.000Z",
+              updated_at: "2026-03-12T10:01:00.000Z",
+              app_version: "0.0.1",
+              checksum: "checksum-local",
+              conversation_count: 1,
+              snapshot_id: "snap-local",
+              device_id: "device-local"
+            }
+          },
+          remote_snapshot: {
+            summary: {
+              stored_at: "2026-03-12T10:05:00.000Z",
+              schema_version: 2,
+              created_at: "2026-03-12T10:00:00.000Z",
+              updated_at: "2026-03-12T10:04:00.000Z",
+              app_version: "0.0.1",
+              checksum: "checksum-remote",
+              conversation_count: 2,
+              snapshot_id: "snap-remote",
+              device_id: "device-remote"
+            }
+          },
+          build: {
+            git_sha: "backupsha",
+            build_time: "2026-03-12T10:05:30.000Z",
+            node_env: "test",
+            redis_enabled: true,
+            attachments_enabled: false
+          }
+        })
+      });
+    }
+  );
+  await page.route(
+    "https://gateway.example.com/admin/backups/latest",
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          backup: {
+            stored_at: "2026-03-12T10:05:00.000Z",
+            schema_version: 2,
+            created_at: "2026-03-12T10:00:00.000Z",
+            updated_at: "2026-03-12T10:04:00.000Z",
+            app_version: "0.0.1",
+            checksum: remoteLatestEnvelope.checksum,
+            conversation_count: 1,
+            snapshot_id: "snap-remote",
+            device_id: "device-remote",
+            envelope: remoteLatestEnvelope
+          },
+          build: {
+            git_sha: "backupsha",
+            build_time: "2026-03-12T10:05:30.000Z",
+            node_env: "test",
+            redis_enabled: true,
+            attachments_enabled: false
+          }
+        })
+      });
+    }
+  );
+
+  await page.goto("http://localhost:5173");
+  await saveGatewayAdminToken(page);
+  await page.getByRole("button", { name: "检查云端状态" }).click();
+  await page.getByRole("button", { name: "拉取最新快照" }).click();
+  await page.getByRole("button", { name: "拉取后覆盖导入" }).click();
+  await page.getByRole("button", { name: "确认拉取后覆盖导入" }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await page.evaluate(() =>
+        JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}")
+      );
+      return snapshot.conversations?.[0]?.id ?? null;
+    })
+    .toBe("conv_remote_a");
+
+  await page.reload();
+  await openSettingsSection(page, "数据与安全");
+
+  const rollbackAnchor = page.getByTestId("import-rollback-anchor");
+  await expect(rollbackAnchor).toBeVisible();
+  await expect(
+    rollbackAnchor.getByText("来源：云端最新快照（snap-remote）")
+  ).toBeVisible();
+  await expect(rollbackAnchor.getByText("导入方式：覆盖导入")).toBeVisible();
+  await expect(rollbackAnchor.getByText(/导入前本地快照：.*1 个会话/)).toBeVisible();
 });
 
 test("remote backup history allows selecting and previewing one retained historical snapshot", async ({

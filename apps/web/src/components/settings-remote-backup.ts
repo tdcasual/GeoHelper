@@ -5,7 +5,7 @@ import type {
   RuntimeBackupComparableSummary,
   RuntimeBackupMetadata
 } from "../runtime/types";
-import type { BackupEnvelope } from "../storage/backup";
+import type { BackupEnvelope, ImportRollbackAnchor } from "../storage/backup";
 import type { RuntimeProfile } from "../state/settings-store";
 
 export interface RemoteBackupActionStatus {
@@ -71,6 +71,14 @@ export interface RemoteBackupPulledConversationImpactPresentation {
 export interface ReplaceImportConfirmationPresentation {
   buttonLabel: string;
   warning: string | null;
+}
+
+export interface ImportRollbackAnchorPresentation {
+  title: string;
+  sourceLabel: string;
+  importModeLabel: string;
+  summary: string;
+  hint: string;
 }
 
 export type ReplaceImportConfirmationScope = "local" | "remote_pulled";
@@ -484,8 +492,31 @@ export const resolveReplaceImportConfirmationPresentation = (
       }
     : {
         buttonLabel: "拉取后覆盖导入",
-        warning: null
+      warning: null
       };
+};
+
+export const resolveImportRollbackAnchorPresentation = (
+  anchor: Pick<
+    ImportRollbackAnchor,
+    "capturedAt" | "source" | "importMode" | "sourceDetail" | "envelope"
+  >
+): ImportRollbackAnchorPresentation => {
+  const sourceLabel =
+    anchor.source === "local_file"
+      ? `来源：本地备份文件（${anchor.sourceDetail ?? "未命名文件"}）`
+      : anchor.source === "remote_latest"
+        ? `来源：云端最新快照（${anchor.sourceDetail ?? "未命名快照"}）`
+        : `来源：所选历史快照（${anchor.sourceDetail ?? "未命名快照"}）`;
+
+  return {
+    title: "导入前恢复锚点",
+    sourceLabel,
+    importModeLabel:
+      anchor.importMode === "replace" ? "导入方式：覆盖导入" : "导入方式：合并导入",
+    summary: `导入前本地快照：${anchor.envelope.snapshot_id} · ${anchor.envelope.conversations.length} 个会话`,
+    hint: "如本次导入结果不符合预期，可恢复到这次导入前的本地状态。"
+  };
 };
 
 export const resolveRemoteBackupHistoryComparisonPresentation = (

@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createBackupEnvelope } from "@geohelper/protocol";
 
 import {
+  captureCurrentAppImportRollbackAnchor,
+  clearImportRollbackAnchor,
   exportBackup,
   exportCurrentAppBackup,
   exportCurrentAppBackupEnvelope,
@@ -10,7 +12,9 @@ import {
   importBackup,
   importBackupEnvelopeToLocalStorage,
   importRemoteBackupToLocalStorage,
-  inspectBackup
+  inspectBackup,
+  readImportRollbackAnchor,
+  restoreImportRollbackAnchorToLocalStorage
 } from "./backup";
 import { registerGeoGebraAdapter } from "../geogebra/adapter";
 import { chatStore, CHAT_STORE_KEY } from "../state/chat-store";
@@ -792,6 +796,131 @@ describe("backup", () => {
     expect(settingsStore.getState().remoteBackupAdminTokenCipher?.ciphertext).toBe(
       "enc:remote"
     );
+  });
+
+  it("captures, reads, replaces, and clears the latest import rollback anchor", async () => {
+    localStorage.setItem(
+      CHAT_STORE_KEY,
+      JSON.stringify({
+        mode: "byok",
+        sessionToken: null,
+        activeConversationId: "conv_before",
+        reauthRequired: false,
+        messages: [{ id: "m_before", role: "user", content: "before" }],
+        conversations: [
+          {
+            id: "conv_before",
+            title: "before",
+            createdAt: 1,
+            updatedAt: 10,
+            messages: [{ id: "m_before", role: "user", content: "before" }]
+          }
+        ]
+      })
+    );
+
+    const firstAnchor = await captureCurrentAppImportRollbackAnchor({
+      source: "local_file",
+      importMode: "merge",
+      sourceDetail: "lesson-a.json"
+    });
+
+    expect(firstAnchor.source).toBe("local_file");
+    expect(firstAnchor.importMode).toBe("merge");
+    expect(firstAnchor.sourceDetail).toBe("lesson-a.json");
+    expect(firstAnchor.envelope.conversations[0]?.id).toBe("conv_before");
+    expect(firstAnchor.envelope.snapshot_id.length).toBeGreaterThan(0);
+
+    const secondAnchor = await captureCurrentAppImportRollbackAnchor({
+      source: "remote_latest",
+      importMode: "replace",
+      sourceDetail: "snap-remote-latest"
+    });
+
+    expect(readImportRollbackAnchor()).toEqual(secondAnchor);
+
+    clearImportRollbackAnchor();
+    expect(readImportRollbackAnchor()).toBeNull();
+  });
+
+  it("restores local state from the stored import rollback anchor and clears it", async () => {
+    localStorage.setItem(
+      CHAT_STORE_KEY,
+      JSON.stringify({
+        mode: "byok",
+        sessionToken: null,
+        activeConversationId: "conv_before",
+        reauthRequired: false,
+        messages: [{ id: "m_before", role: "user", content: "before" }],
+        conversations: [
+          {
+            id: "conv_before",
+            title: "before",
+            createdAt: 1,
+            updatedAt: 10,
+            messages: [{ id: "m_before", role: "user", content: "before" }]
+          }
+        ]
+      })
+    );
+    localStorage.setItem(UI_PREFS_KEY, JSON.stringify({ chatVisible: true }));
+
+    await captureCurrentAppImportRollbackAnchor({
+      source: "local_file",
+      importMode: "replace",
+      sourceDetail: "lesson-before.json"
+    });
+
+    const replacementBlob = await exportBackup({
+      conversations: [
+        {
+          id: "conv_after",
+          title: "after",
+          createdAt: 2,
+          updatedAt: 20,
+          messages: [{ id: "m_after", role: "assistant", content: "after" }]
+        }
+      ],
+      settings: {
+        chat_snapshot: {
+          mode: "byok",
+          sessionToken: null,
+          activeConversationId: "conv_after",
+          reauthRequired: false,
+          messages: [{ id: "m_after", role: "assistant", content: "after" }],
+          conversations: [
+            {
+              id: "conv_after",
+              title: "after",
+              createdAt: 2,
+              updatedAt: 20,
+              messages: [{ id: "m_after", role: "assistant", content: "after" }]
+            }
+          ]
+        },
+        ui_preferences: {
+          chatVisible: false
+        }
+      }
+    });
+
+    await importAppBackupToLocalStorage(replacementBlob, { mode: "replace" });
+
+    let chatSnapshot = JSON.parse(localStorage.getItem(CHAT_STORE_KEY) ?? "{}");
+    let uiPreferences = JSON.parse(localStorage.getItem(UI_PREFS_KEY) ?? "{}");
+    expect(chatSnapshot.conversations[0]?.id).toBe("conv_after");
+    expect(uiPreferences.chatVisible).toBe(false);
+
+    const restoredAnchor = await restoreImportRollbackAnchorToLocalStorage();
+    expect(restoredAnchor.sourceDetail).toBe("lesson-before.json");
+
+    chatSnapshot = JSON.parse(localStorage.getItem(CHAT_STORE_KEY) ?? "{}");
+    uiPreferences = JSON.parse(localStorage.getItem(UI_PREFS_KEY) ?? "{}");
+
+    expect(chatSnapshot.conversations[0]?.id).toBe("conv_before");
+    expect(chatSnapshot.messages[0]?.content).toBe("before");
+    expect(uiPreferences.chatVisible).toBe(true);
+    expect(readImportRollbackAnchor()).toBeNull();
   });
 
 });

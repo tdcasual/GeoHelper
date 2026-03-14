@@ -10,6 +10,7 @@ import {
   formatRemoteBackupHistorySummary,
   formatRemoteBackupProtectionActionMessage,
   formatRemoteBackupProtectionLimitMessage,
+  resolveImportRollbackAnchorPresentation,
   resolveReplaceImportConfirmationPresentation,
   resolveRemoteBackupPulledConversationImpactPresentation,
   resolveRemoteBackupPulledPreviewGuardPresentation,
@@ -567,6 +568,67 @@ describe("settings remote backup helpers", () => {
       buttonLabel: "确认拉取后覆盖导入",
       warning:
         "高风险操作：拉取后覆盖导入会直接替换当前本地数据，请再次点击“确认拉取后覆盖导入”继续。"
+    });
+  });
+
+  it("formats rollback anchor presentation for local and remote import recovery", () => {
+    expect(
+      resolveImportRollbackAnchorPresentation({
+        capturedAt: "2026-03-14T01:00:00.000Z",
+        source: "local_file",
+        importMode: "merge",
+        sourceDetail: "lesson-a.json",
+        envelope: {
+          ...localEnvelope,
+          snapshot_id: "snap-local-before",
+          conversations: localEnvelope.conversations
+        }
+      })
+    ).toEqual({
+      title: "导入前恢复锚点",
+      sourceLabel: "来源：本地备份文件（lesson-a.json）",
+      importModeLabel: "导入方式：合并导入",
+      summary: "导入前本地快照：snap-local-before · 2 个会话",
+      hint: "如本次导入结果不符合预期，可恢复到这次导入前的本地状态。"
+    });
+
+    expect(
+      resolveImportRollbackAnchorPresentation({
+        capturedAt: "2026-03-14T01:00:00.000Z",
+        source: "remote_latest",
+        importMode: "replace",
+        sourceDetail: "snap-remote-latest",
+        envelope: {
+          ...localEnvelope,
+          snapshot_id: "snap-local-before-remote",
+          conversations: [localEnvelope.conversations[0]!]
+        }
+      })
+    ).toEqual({
+      title: "导入前恢复锚点",
+      sourceLabel: "来源：云端最新快照（snap-remote-latest）",
+      importModeLabel: "导入方式：覆盖导入",
+      summary: "导入前本地快照：snap-local-before-remote · 1 个会话",
+      hint: "如本次导入结果不符合预期，可恢复到这次导入前的本地状态。"
+    });
+
+    expect(
+      resolveImportRollbackAnchorPresentation({
+        capturedAt: "2026-03-14T01:00:00.000Z",
+        source: "remote_selected_history",
+        importMode: "merge",
+        sourceDetail: "snap-remote-history-1",
+        envelope: {
+          ...localEnvelope,
+          snapshot_id: "snap-local-before-history"
+        }
+      })
+    ).toEqual({
+      title: "导入前恢复锚点",
+      sourceLabel: "来源：所选历史快照（snap-remote-history-1）",
+      importModeLabel: "导入方式：合并导入",
+      summary: "导入前本地快照：snap-local-before-history · 2 个会话",
+      hint: "如本次导入结果不符合预期，可恢复到这次导入前的本地状态。"
     });
   });
 

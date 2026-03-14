@@ -32,6 +32,7 @@ import {
   formatRemoteBackupHistorySummary,
   formatRemoteBackupProtectionActionMessage,
   formatRemoteBackupProtectionLimitMessage,
+  resolveImportRollbackAnchorPresentation,
   resolveReplaceImportConfirmationPresentation,
   resolveRemoteBackupPulledConversationImpactPresentation,
   resolveRemoteBackupPulledPreviewGuardPresentation,
@@ -51,11 +52,15 @@ import {
   type BackupEnvelope,
   BackupImportMode,
   BackupInspection,
+  captureCurrentAppImportRollbackAnchor,
+  clearImportRollbackAnchor,
   exportCurrentAppBackup,
   exportCurrentAppBackupEnvelope,
   inspectBackup,
   importAppBackupToLocalStorage,
-  importRemoteBackupToLocalStorage
+  importRemoteBackupToLocalStorage,
+  readImportRollbackAnchor,
+  restoreImportRollbackAnchorToLocalStorage
 } from "../storage/backup";
 import { setRemoteSyncImportInProgress } from "../storage/remote-sync";
 
@@ -386,9 +391,13 @@ export const SettingsDrawer = ({
   const [pendingBackupFile, setPendingBackupFile] = useState<File | null>(null);
   const [backupInspection, setBackupInspection] =
     useState<BackupInspection | null>(null);
+  const [importRollbackAnchor, setImportRollbackAnchor] = useState(() =>
+    readImportRollbackAnchor()
+  );
   const [localReplaceImportArmed, setLocalReplaceImportArmed] = useState(false);
   const [remoteReplaceImportArmed, setRemoteReplaceImportArmed] = useState(false);
   const [importingBackup, setImportingBackup] = useState(false);
+  const [rollbackAnchorBusy, setRollbackAnchorBusy] = useState(false);
   const backupInputRef = useRef<HTMLInputElement | null>(null);
   const modalRef = useRef<HTMLElement | null>(null);
   const remoteBackupActions = useMemo(
@@ -493,6 +502,13 @@ export const SettingsDrawer = ({
       ),
     [remoteReplaceImportArmed]
   );
+  const importRollbackAnchorPresentation = useMemo(
+    () =>
+      importRollbackAnchor
+        ? resolveImportRollbackAnchorPresentation(importRollbackAnchor)
+        : null,
+    [importRollbackAnchor]
+  );
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -558,6 +574,7 @@ export const SettingsDrawer = ({
   useEffect(() => {
     if (open) {
       setActiveSection("general");
+      setImportRollbackAnchor(readImportRollbackAnchor());
     }
   }, [open]);
 
@@ -676,6 +693,22 @@ export const SettingsDrawer = ({
       return;
     }
 
+    try {
+      const anchor = await captureCurrentAppImportRollbackAnchor({
+        source: "local_file",
+        importMode: mode,
+        sourceDetail: pendingBackupFile.name
+      });
+      setImportRollbackAnchor(anchor);
+    } catch (error) {
+      setBackupMessage(
+        error instanceof Error
+          ? error.message
+          : "导入前恢复锚点创建失败，本次导入已取消"
+      );
+      return;
+    }
+
     setImportingBackup(true);
     setRemoteSyncImportInProgress(true);
     try {
@@ -694,6 +727,33 @@ export const SettingsDrawer = ({
       setRemoteSyncImportInProgress(false);
       setImportingBackup(false);
     }
+  };
+
+  const handleRestoreImportRollbackAnchor = async () => {
+    setRollbackAnchorBusy(true);
+    setRemoteSyncImportInProgress(true);
+    try {
+      await restoreImportRollbackAnchorToLocalStorage();
+      setImportRollbackAnchor(null);
+      setBackupMessage("已恢复到导入前本地状态，正在刷新");
+      setTimeout(() => {
+        window.location.reload();
+      }, 300);
+    } catch (error) {
+      setImportRollbackAnchor(readImportRollbackAnchor());
+      setBackupMessage(
+        error instanceof Error ? error.message : "恢复导入前本地状态失败"
+      );
+    } finally {
+      setRemoteSyncImportInProgress(false);
+      setRollbackAnchorBusy(false);
+    }
+  };
+
+  const handleClearImportRollbackAnchor = () => {
+    clearImportRollbackAnchor();
+    setImportRollbackAnchor(null);
+    setBackupMessage("已清除此恢复锚点");
   };
 
   const handleSaveRemoteBackupAdminToken = async () => {
@@ -1016,6 +1076,25 @@ export const SettingsDrawer = ({
   const handleImportPulledRemoteBackup = async (mode: BackupImportMode) => {
     if (!remoteBackupPullResult) {
       setBackupMessage(remoteBackupActions.restore.reason ?? "请先从网关拉取最新备份");
+      return;
+    }
+
+    try {
+      const anchor = await captureCurrentAppImportRollbackAnchor({
+        source:
+          remoteBackupPullResult.pullSource === "latest"
+            ? "remote_latest"
+            : "remote_selected_history",
+        importMode: mode,
+        sourceDetail: remoteBackupPullResult.backup.snapshot_id
+      });
+      setImportRollbackAnchor(anchor);
+    } catch (error) {
+      setBackupMessage(
+        error instanceof Error
+          ? error.message
+          : "导入前恢复锚点创建失败，本次导入已取消"
+      );
       return;
     }
 
@@ -1752,6 +1831,37 @@ export const SettingsDrawer = ({
                   }}
                 >
                   取消
+                </button>
+              </div>
+            </article>
+          ) : null}
+          {importRollbackAnchorPresentation ? (
+            <article
+              className="settings-import-preview"
+              data-testid="import-rollback-anchor"
+            >
+              <p>{importRollbackAnchorPresentation.title}</p>
+              <p>{`捕获时间：${new Date(importRollbackAnchor!.capturedAt).toLocaleString("zh-CN")}`}</p>
+              <p>{importRollbackAnchorPresentation.sourceLabel}</p>
+              <p>{importRollbackAnchorPresentation.importModeLabel}</p>
+              <p>{importRollbackAnchorPresentation.summary}</p>
+              <p className="settings-hint">{importRollbackAnchorPresentation.hint}</p>
+              <div className="settings-inline-actions">
+                <button
+                  type="button"
+                  disabled={rollbackAnchorBusy || importingBackup || Boolean(remoteBackupBusyAction)}
+                  onClick={() => {
+                    void handleRestoreImportRollbackAnchor();
+                  }}
+                >
+                  恢复到导入前状态
+                </button>
+                <button
+                  type="button"
+                  disabled={rollbackAnchorBusy || importingBackup || Boolean(remoteBackupBusyAction)}
+                  onClick={handleClearImportRollbackAnchor}
+                >
+                  清除此恢复锚点
                 </button>
               </div>
             </article>

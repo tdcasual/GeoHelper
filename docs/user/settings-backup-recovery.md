@@ -35,6 +35,7 @@ Export includes:
    - `合并导入（推荐）`
    - `覆盖导入`
 5. If you choose `覆盖导入`, the first click only arms the destructive action; click the warning-state button `确认覆盖本地数据` to actually replace local data.
+6. Before any manual import runs, GeoHelper captures one browser-local `导入前恢复锚点`, so you can restore the pre-import local snapshot later if needed.
 
 ### Strategy Differences
 
@@ -47,6 +48,10 @@ Export includes:
 - `覆盖导入`
   - Replace local snapshots with imported snapshots.
   - Requires explicit second-click confirmation in the preview panel before the overwrite runs.
+- `导入前恢复锚点`
+  - Captured automatically before every manual import into local browser state.
+  - Stored only in the current browser profile.
+  - Holds one latest pre-import snapshot, not a multi-version history.
 
 ## Migration Hints
 
@@ -106,6 +111,7 @@ In `设置` -> `数据与安全` -> `网关远端备份`, the workflow is explic
 7. After pull completes, read the preview panel’s `拉取来源`、`与本地关系`、`导入建议`、`当前导入对象`, and the conversation-level `导入影响预估（按会话）`, then choose `拉取后导入（合并）` or `拉取后覆盖导入` based on recovery intent.
 8. If you choose `拉取后覆盖导入`, the first click only arms the dangerous action; click `确认拉取后覆盖导入` to actually replace local data with the pulled snapshot.
 9. If you switch the selected historical snapshot after pulling one history item, the previous pulled preview becomes stale: the UI will block import and ask you to re-pull the newly selected snapshot first.
+10. After any successful manual import, you can use the `导入前恢复锚点` card in the same section to `恢复到导入前状态` or `清除此恢复锚点`.
 
 默认浏览器路径现在使用 guarded 写入：
 
@@ -115,7 +121,7 @@ In `设置` -> `数据与安全` -> `网关远端备份`, the workflow is explic
 - 阻塞/冲突状态的建议路径是：先看保留历史列表上的紧凑关系徽标、再看“所选快照与本地关系”的详细预检提示、必要时先保护当前选中的快照、再拉取所选快照预览、最后决定是否导入或覆盖云端。
 - 网关的 `/admin/backups/latest` 仍然保留给 operator/manual recovery 使用，但浏览器侧同步默认先走 guarded 写入。
 
-The UI does not background-sync full history, poll continuously, or auto-restore. 启动检查只拉取元数据；延迟上传也不会自动拉取或自动导入。 保留历史列表上的紧凑关系徽标、所选历史快照的“与本地关系”预检、拉取完成后的来源/导入建议、stale pulled-preview guard、按会话的导入影响预估、以及危险覆盖前的二次确认都只是只读或防错提示，不会自动拉取、自动导入或自动改写同步状态。 正常流程不会自动合并或自动覆盖云端；every remote mutation remains operator-triggered until you explicitly choose an import action. `保护此快照` / `取消保护` only updates retention metadata, so it is a 手动元数据操作 and 不代表立即导入或恢复. This route still does not require SQL or a generic cloud history backend.
+The UI does not background-sync full history, poll continuously, or auto-restore. 启动检查只拉取元数据；延迟上传也不会自动拉取或自动导入。 保留历史列表上的紧凑关系徽标、所选历史快照的“与本地关系”预检、拉取完成后的来源/导入建议、stale pulled-preview guard、按会话的导入影响预估、危险覆盖前的二次确认、以及导入前恢复锚点都只是只读或防错/回退辅助，不会自动拉取、自动导入或自动改写同步状态。 正常流程不会自动合并或自动覆盖云端；every remote mutation remains operator-triggered until you explicitly choose an import action. `保护此快照` / `取消保护` only updates retention metadata, so it is a 手动元数据操作 and 不代表立即导入或恢复. This route still does not require SQL or a generic cloud history backend.
 
 ## Troubleshooting
 
@@ -144,6 +150,21 @@ Action:
 
 1. Retry with `覆盖导入` if full replacement is intended.
 2. For `合并导入`, verify `updatedAt` in source backup is newer.
+
+### How do I undo a bad import quickly?
+
+Action:
+
+1. Open `设置` -> `数据与安全` -> `备份与恢复`.
+2. Find the `导入前恢复锚点` card.
+3. Review the source and import mode labels.
+4. Click `恢复到导入前状态`.
+
+Notes:
+
+- this rollback anchor is local to the current browser profile
+- it stores only the latest pre-import state
+- clearing browser storage or switching profiles can remove access to it
 
 ### Remote backup admin token is unavailable
 
