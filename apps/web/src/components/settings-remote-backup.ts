@@ -78,6 +78,9 @@ export interface ImportRollbackAnchorPresentation {
   sourceLabel: string;
   importModeLabel: string;
   summary: string;
+  resultSummary: string | null;
+  outcomeSummary: string | null;
+  currentStateSummary: string | null;
   hint: string;
 }
 
@@ -95,6 +98,16 @@ interface ResolveRemoteBackupActionsParams {
   defaultRuntimeProfileId: string;
   hasAdminToken: boolean;
   hasPulledBackup: boolean;
+}
+
+interface BackupConversationChangeStats {
+  beforeCount: number;
+  afterCount: number;
+  addedCount: number;
+  updatedCount: number;
+  removedCount: number;
+  localWinsCount: number;
+  localOnlyCount: number;
 }
 
 const GATEWAY_RUNTIME_REQUIRED = "请先配置可用的 Gateway 运行时地址";
@@ -408,6 +421,60 @@ const toBackupConversationList = (
     .filter((item) => item.id.length > 0);
 };
 
+const calculateBackupConversationChangeStats = (params: {
+  before:
+    | BackupEnvelope
+    | Pick<BackupEnvelope, "conversations">
+    | null
+    | undefined;
+  after:
+    | BackupEnvelope
+    | Pick<BackupEnvelope, "conversations">
+    | null
+    | undefined;
+}): BackupConversationChangeStats => {
+  const beforeConversations = toBackupConversationList(params.before);
+  const afterConversations = toBackupConversationList(params.after);
+  const beforeById = new Map(beforeConversations.map((item) => [item.id, item]));
+  const afterIds = new Set(afterConversations.map((item) => item.id));
+
+  let addedCount = 0;
+  let updatedCount = 0;
+  let localWinsCount = 0;
+
+  for (const after of afterConversations) {
+    const before = beforeById.get(after.id);
+    if (!before) {
+      addedCount += 1;
+      continue;
+    }
+
+    if (JSON.stringify(before.raw) === JSON.stringify(after.raw)) {
+      continue;
+    }
+
+    if (after.updatedAt >= before.updatedAt) {
+      updatedCount += 1;
+    } else {
+      localWinsCount += 1;
+    }
+  }
+
+  const localOnlyCount = beforeConversations.filter(
+    (item) => !afterIds.has(item.id)
+  ).length;
+
+  return {
+    beforeCount: beforeConversations.length,
+    afterCount: afterConversations.length,
+    addedCount,
+    updatedCount,
+    removedCount: localOnlyCount,
+    localWinsCount,
+    localOnlyCount
+  };
+};
+
 export const resolveRemoteBackupPulledConversationImpactPresentation = (params: {
   localEnvelopeAtPull:
     | BackupEnvelope
@@ -424,46 +491,20 @@ export const resolveRemoteBackupPulledConversationImpactPresentation = (params: 
     return null;
   }
 
-  const localConversations = toBackupConversationList(params.localEnvelopeAtPull);
-  const pulledConversations = toBackupConversationList(params.pulledEnvelope);
-  const localById = new Map(localConversations.map((item) => [item.id, item]));
-  const pulledIds = new Set(pulledConversations.map((item) => item.id));
-
-  let addedCount = 0;
-  let remoteWinsCount = 0;
-  let localWinsCount = 0;
-
-  for (const pulled of pulledConversations) {
-    const local = localById.get(pulled.id);
-    if (!local) {
-      addedCount += 1;
-      continue;
-    }
-
-    if (JSON.stringify(local.raw) === JSON.stringify(pulled.raw)) {
-      continue;
-    }
-
-    if (pulled.updatedAt >= local.updatedAt) {
-      remoteWinsCount += 1;
-    } else {
-      localWinsCount += 1;
-    }
-  }
-
-  const localOnlyCount = localConversations.filter(
-    (item) => !pulledIds.has(item.id)
-  ).length;
+  const stats = calculateBackupConversationChangeStats({
+    before: params.localEnvelopeAtPull,
+    after: params.pulledEnvelope
+  });
 
   const keptLocalSummary =
-    localWinsCount > 0
-      ? `保留 ${localWinsCount} 个本地较新会话和 ${localOnlyCount} 个仅本地会话`
-      : `保留 ${localOnlyCount} 个仅本地会话`;
+    stats.localWinsCount > 0
+      ? `保留 ${stats.localWinsCount} 个本地较新会话和 ${stats.localOnlyCount} 个仅本地会话`
+      : `保留 ${stats.localOnlyCount} 个仅本地会话`;
 
   return {
     title: "导入影响预估（按会话）",
-    mergeSummary: `合并导入：预计新增 ${addedCount} 个会话、按远端更新 ${remoteWinsCount} 个同 id 会话、${keptLocalSummary}。`,
-    replaceSummary: `覆盖导入：预计用远端 ${pulledConversations.length} 个会话替换本地当前 ${localConversations.length} 个会话。`
+    mergeSummary: `合并导入：预计新增 ${stats.addedCount} 个会话、按远端更新 ${stats.updatedCount} 个同 id 会话、${keptLocalSummary}。`,
+    replaceSummary: `覆盖导入：预计用远端 ${stats.afterCount} 个会话替换本地当前 ${stats.beforeCount} 个会话。`
   };
 };
 
@@ -499,8 +540,15 @@ export const resolveReplaceImportConfirmationPresentation = (
 export const resolveImportRollbackAnchorPresentation = (
   anchor: Pick<
     ImportRollbackAnchor,
-    "capturedAt" | "source" | "importMode" | "sourceDetail" | "envelope"
-  >
+    | "capturedAt"
+    | "source"
+    | "importMode"
+    | "sourceDetail"
+    | "envelope"
+    | "importedAt"
+    | "resultEnvelope"
+  >,
+  currentLocalEnvelope?: Pick<BackupEnvelope, "conversations" | "settings"> | null
 ): ImportRollbackAnchorPresentation => {
   const sourceLabel =
     anchor.source === "local_file"
@@ -509,13 +557,48 @@ export const resolveImportRollbackAnchorPresentation = (
         ? `来源：云端最新快照（${anchor.sourceDetail ?? "未命名快照"}）`
         : `来源：所选历史快照（${anchor.sourceDetail ?? "未命名快照"}）`;
 
+  const resultSummary = anchor.resultEnvelope
+    ? `导入后本地快照：${anchor.resultEnvelope.snapshot_id} · ${anchor.resultEnvelope.conversations.length} 个会话`
+    : null;
+  const outcomeStats = anchor.resultEnvelope
+    ? calculateBackupConversationChangeStats({
+        before: anchor.envelope,
+        after: anchor.resultEnvelope
+      })
+    : null;
+  const outcomeSummary = outcomeStats
+    ? anchor.importMode === "replace"
+      ? `本次导入结果：覆盖后从 ${outcomeStats.beforeCount} 个会话变为 ${outcomeStats.afterCount} 个会话，移除了 ${outcomeStats.removedCount} 个原会话并引入 ${outcomeStats.addedCount} 个导入会话。`
+      : `本次导入结果：新增 ${outcomeStats.addedCount} 个会话、更新 ${outcomeStats.updatedCount} 个同 id 会话；导入后当前共 ${outcomeStats.afterCount} 个会话。`
+    : null;
+
+  let currentStateSummary: string | null = null;
+  let hint = "如本次导入结果不符合预期，可恢复到这次导入前的本地状态。";
+
+  if (anchor.resultEnvelope && currentLocalEnvelope) {
+    const currentMatchesImportedResult =
+      JSON.stringify(currentLocalEnvelope.conversations ?? []) ===
+      JSON.stringify(anchor.resultEnvelope.conversations ?? []);
+
+    if (currentMatchesImportedResult) {
+      currentStateSummary = "当前状态：仍与最近一次导入结果一致。";
+    } else {
+      currentStateSummary = "当前状态：本地已在这次导入后继续变化。";
+      hint =
+        "当前本地状态已经偏离最近一次导入结果；如果现在恢复，会同时丢弃导入后新增或修改的内容。";
+    }
+  }
+
   return {
     title: "导入前恢复锚点",
     sourceLabel,
     importModeLabel:
       anchor.importMode === "replace" ? "导入方式：覆盖导入" : "导入方式：合并导入",
     summary: `导入前本地快照：${anchor.envelope.snapshot_id} · ${anchor.envelope.conversations.length} 个会话`,
-    hint: "如本次导入结果不符合预期，可恢复到这次导入前的本地状态。"
+    resultSummary,
+    outcomeSummary,
+    currentStateSummary,
+    hint
   };
 };
 

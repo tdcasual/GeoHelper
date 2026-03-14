@@ -604,7 +604,7 @@ test("replaces local snapshot when import mode is replace", async ({ page }) => 
   expect(snapshot.messages[0].content).toBe("backup");
 });
 
-test("creates a rollback anchor after local import and restores the pre-import local snapshot", async ({
+test("shows import outcome summary after local import and restores the pre-import local snapshot", async ({
   page
 }) => {
   await page.addInitScript(() => {
@@ -699,6 +699,12 @@ test("creates a rollback anchor after local import and restores the pre-import l
   ).toBeVisible();
   await expect(rollbackAnchor.getByText("导入方式：覆盖导入")).toBeVisible();
   await expect(rollbackAnchor.getByText(/导入前本地快照：.*1 个会话/)).toBeVisible();
+  await expect(rollbackAnchor.getByText(/导入后本地快照：.*1 个会话/)).toBeVisible();
+  await expect(
+    rollbackAnchor.getByText(
+      "本次导入结果：覆盖后从 1 个会话变为 1 个会话，移除了 1 个原会话并引入 1 个导入会话。"
+    )
+  ).toBeVisible();
 
   await rollbackAnchor.getByRole("button", { name: "恢复到导入前状态" }).click();
   await expect(page.getByText("已恢复到导入前本地状态，正在刷新")).toBeVisible();
@@ -800,6 +806,106 @@ test("clears rollback anchor without mutating the imported local snapshot", asyn
   expect(chatSnapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
     "conv_imported_clear"
   ]);
+});
+
+test("warns when rollback would discard newer post-import changes", async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window.location as any).reload = () => undefined;
+    } catch {
+      // Ignore reload patch failure in browser sandbox.
+    }
+  });
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("__seeded_rollback_warning__") === "1") {
+      return;
+    }
+    sessionStorage.setItem("__seeded_rollback_warning__", "1");
+    localStorage.setItem(
+      "geohelper.chat.snapshot",
+      JSON.stringify({
+        mode: "byok",
+        sessionToken: null,
+        activeConversationId: "conv_local_warning",
+        reauthRequired: false,
+        messages: [{ id: "m_local_warning", role: "user", content: "local before warning" }],
+        conversations: [
+          {
+            id: "conv_local_warning",
+            title: "local before warning",
+            createdAt: 1,
+            updatedAt: 100,
+            messages: [{ id: "m_local_warning", role: "user", content: "local before warning" }]
+          }
+        ]
+      })
+    );
+  });
+
+  await page.goto("http://localhost:5173");
+  await openSettingsSection(page, "数据与安全");
+
+  await page
+    .getByTestId("settings-modal")
+    .locator('input[type="file"][accept="application/json"]')
+    .setInputFiles(
+      createBackupFile({
+        conversations: [
+          {
+            id: "conv_imported_warning",
+            title: "imported warning",
+            createdAt: 2,
+            updatedAt: 200,
+            messages: [{ id: "m_imported_warning", role: "assistant", content: "imported warning" }]
+          }
+        ],
+        settings: {}
+      })
+    );
+
+  await page.getByRole("button", { name: "覆盖导入" }).click();
+  await page.getByRole("button", { name: "确认覆盖本地数据" }).click();
+  await expect(page.getByText("备份覆盖导入成功，正在刷新")).toBeVisible();
+
+  await page.evaluate(() => {
+    const snapshot = JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}");
+    snapshot.activeConversationId = "conv_imported_warning";
+    snapshot.messages = [
+      { id: "m_post_import", role: "user", content: "post import local edit" }
+    ];
+    snapshot.conversations = [
+      {
+        id: "conv_imported_warning",
+        title: "imported warning edited later",
+        createdAt: 2,
+        updatedAt: 260,
+        messages: [{ id: "m_post_import", role: "user", content: "post import local edit" }]
+      },
+      {
+        id: "conv_post_import_new",
+        title: "post import new",
+        createdAt: 3,
+        updatedAt: 300,
+        messages: []
+      }
+    ];
+    localStorage.setItem("geohelper.chat.snapshot", JSON.stringify(snapshot));
+  });
+
+  await page.reload();
+  await openSettingsSection(page, "数据与安全");
+
+  const rollbackAnchor = page.getByTestId("import-rollback-anchor");
+  await expect(rollbackAnchor).toBeVisible();
+  await expect(
+    rollbackAnchor.getByText("当前状态：本地已在这次导入后继续变化。")
+  ).toBeVisible();
+  await expect(
+    rollbackAnchor.getByText(
+      "当前本地状态已经偏离最近一次导入结果；如果现在恢复，会同时丢弃导入后新增或修改的内容。"
+    )
+  ).toBeVisible();
 });
 
 
@@ -1306,7 +1412,7 @@ test("remote backup sync status stays metadata-only until user explicitly import
   ]);
 });
 
-test("creates a rollback anchor after remote import with the latest snapshot source label", async ({
+test("shows import outcome summary after remote import with the latest snapshot source label", async ({
   page
 }) => {
   await page.addInitScript(() => {
@@ -1474,6 +1580,12 @@ test("creates a rollback anchor after remote import with the latest snapshot sou
   ).toBeVisible();
   await expect(rollbackAnchor.getByText("导入方式：覆盖导入")).toBeVisible();
   await expect(rollbackAnchor.getByText(/导入前本地快照：.*1 个会话/)).toBeVisible();
+  await expect(rollbackAnchor.getByText(/导入后本地快照：.*1 个会话/)).toBeVisible();
+  await expect(
+    rollbackAnchor.getByText(
+      "本次导入结果：覆盖后从 1 个会话变为 1 个会话，移除了 1 个原会话并引入 1 个导入会话。"
+    )
+  ).toBeVisible();
 });
 
 test("remote backup history allows selecting and previewing one retained historical snapshot", async ({

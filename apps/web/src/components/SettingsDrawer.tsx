@@ -59,6 +59,7 @@ import {
   inspectBackup,
   importAppBackupToLocalStorage,
   importRemoteBackupToLocalStorage,
+  recordCurrentAppImportRollbackResult,
   readImportRollbackAnchor,
   restoreImportRollbackAnchorToLocalStorage
 } from "../storage/backup";
@@ -394,6 +395,8 @@ export const SettingsDrawer = ({
   const [importRollbackAnchor, setImportRollbackAnchor] = useState(() =>
     readImportRollbackAnchor()
   );
+  const [rollbackAnchorCurrentLocalEnvelope, setRollbackAnchorCurrentLocalEnvelope] =
+    useState<BackupEnvelope | null>(null);
   const [localReplaceImportArmed, setLocalReplaceImportArmed] = useState(false);
   const [remoteReplaceImportArmed, setRemoteReplaceImportArmed] = useState(false);
   const [importingBackup, setImportingBackup] = useState(false);
@@ -505,9 +508,12 @@ export const SettingsDrawer = ({
   const importRollbackAnchorPresentation = useMemo(
     () =>
       importRollbackAnchor
-        ? resolveImportRollbackAnchorPresentation(importRollbackAnchor)
+        ? resolveImportRollbackAnchorPresentation(
+            importRollbackAnchor,
+            rollbackAnchorCurrentLocalEnvelope
+          )
         : null,
-    [importRollbackAnchor]
+    [importRollbackAnchor, rollbackAnchorCurrentLocalEnvelope]
   );
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -577,6 +583,38 @@ export const SettingsDrawer = ({
       setImportRollbackAnchor(readImportRollbackAnchor());
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !importRollbackAnchor) {
+      setRollbackAnchorCurrentLocalEnvelope(null);
+      return;
+    }
+
+    if (importRollbackAnchor.resultEnvelope) {
+      setRollbackAnchorCurrentLocalEnvelope(importRollbackAnchor.resultEnvelope);
+    } else {
+      setRollbackAnchorCurrentLocalEnvelope(null);
+    }
+
+    let cancelled = false;
+
+    void exportCurrentAppBackupEnvelope()
+      .then((envelope) => {
+        if (cancelled) {
+          return;
+        }
+        setRollbackAnchorCurrentLocalEnvelope(envelope);
+      })
+      .catch(() => {
+        if (!cancelled && !importRollbackAnchor.resultEnvelope) {
+          setRollbackAnchorCurrentLocalEnvelope(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, importRollbackAnchor]);
 
   useEffect(() => {
     if (!open || typeof document === "undefined") {
@@ -713,6 +751,11 @@ export const SettingsDrawer = ({
     setRemoteSyncImportInProgress(true);
     try {
       await importAppBackupToLocalStorage(pendingBackupFile, { mode });
+      const updatedAnchor = await recordCurrentAppImportRollbackResult();
+      setImportRollbackAnchor(updatedAnchor);
+      if (updatedAnchor.resultEnvelope) {
+        setRollbackAnchorCurrentLocalEnvelope(updatedAnchor.resultEnvelope);
+      }
       setBackupMessage(
         mode === "merge"
           ? "备份合并导入成功，正在刷新"
@@ -735,6 +778,7 @@ export const SettingsDrawer = ({
     try {
       await restoreImportRollbackAnchorToLocalStorage();
       setImportRollbackAnchor(null);
+      setRollbackAnchorCurrentLocalEnvelope(null);
       setBackupMessage("已恢复到导入前本地状态，正在刷新");
       setTimeout(() => {
         window.location.reload();
@@ -753,6 +797,7 @@ export const SettingsDrawer = ({
   const handleClearImportRollbackAnchor = () => {
     clearImportRollbackAnchor();
     setImportRollbackAnchor(null);
+    setRollbackAnchorCurrentLocalEnvelope(null);
     setBackupMessage("已清除此恢复锚点");
   };
 
@@ -1104,6 +1149,11 @@ export const SettingsDrawer = ({
       await importRemoteBackupToLocalStorage(remoteBackupPullResult.backup, {
         mode
       });
+      const updatedAnchor = await recordCurrentAppImportRollbackResult();
+      setImportRollbackAnchor(updatedAnchor);
+      if (updatedAnchor.resultEnvelope) {
+        setRollbackAnchorCurrentLocalEnvelope(updatedAnchor.resultEnvelope);
+      }
       setBackupMessage(
         mode === "merge"
           ? "已将网关备份合并导入，正在刷新"
@@ -1845,7 +1895,36 @@ export const SettingsDrawer = ({
               <p>{importRollbackAnchorPresentation.sourceLabel}</p>
               <p>{importRollbackAnchorPresentation.importModeLabel}</p>
               <p>{importRollbackAnchorPresentation.summary}</p>
-              <p className="settings-hint">{importRollbackAnchorPresentation.hint}</p>
+              {importRollbackAnchorPresentation.resultSummary ? (
+                <p>{importRollbackAnchorPresentation.resultSummary}</p>
+              ) : null}
+              {importRollbackAnchorPresentation.outcomeSummary ? (
+                <p className="settings-hint">
+                  {importRollbackAnchorPresentation.outcomeSummary}
+                </p>
+              ) : null}
+              {importRollbackAnchorPresentation.currentStateSummary ? (
+                <p
+                  className={
+                    importRollbackAnchorPresentation.currentStateSummary ===
+                    "当前状态：本地已在这次导入后继续变化。"
+                      ? "settings-warning-text"
+                      : "settings-hint"
+                  }
+                >
+                  {importRollbackAnchorPresentation.currentStateSummary}
+                </p>
+              ) : null}
+              <p
+                className={
+                  importRollbackAnchorPresentation.currentStateSummary ===
+                  "当前状态：本地已在这次导入后继续变化。"
+                    ? "settings-warning-text"
+                    : "settings-hint"
+                }
+              >
+                {importRollbackAnchorPresentation.hint}
+              </p>
               <div className="settings-inline-actions">
                 <button
                   type="button"

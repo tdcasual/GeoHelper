@@ -571,47 +571,145 @@ describe("settings remote backup helpers", () => {
     });
   });
 
-  it("formats rollback anchor presentation for local and remote import recovery", () => {
+  it("formats rollback anchor presentation with import outcome summaries", () => {
     expect(
-      resolveImportRollbackAnchorPresentation({
-        capturedAt: "2026-03-14T01:00:00.000Z",
-        source: "local_file",
-        importMode: "merge",
-        sourceDetail: "lesson-a.json",
-        envelope: {
-          ...localEnvelope,
-          snapshot_id: "snap-local-before",
-          conversations: localEnvelope.conversations
+      resolveImportRollbackAnchorPresentation(
+        {
+          capturedAt: "2026-03-14T01:00:00.000Z",
+          source: "local_file",
+          importMode: "merge",
+          sourceDetail: "lesson-a.json",
+          envelope: {
+            ...localEnvelope,
+            snapshot_id: "snap-local-before",
+            conversations: localEnvelope.conversations
+          },
+          importedAt: "2026-03-14T01:01:00.000Z",
+          resultEnvelope: {
+            ...localEnvelope,
+            snapshot_id: "snap-local-after",
+            checksum: "checksum-local-after",
+            updated_at: "2026-03-14T01:01:00.000Z",
+            conversations: [
+              localEnvelope.conversations[0]!,
+              {
+                ...localEnvelope.conversations[1]!,
+                title: "shared remote newer",
+                updatedAt: 30
+              },
+              {
+                id: "conv-remote-new",
+                title: "remote new",
+                createdAt: 3,
+                updatedAt: 40,
+                messages: []
+              }
+            ]
+          }
+        },
+        {
+          conversations: [
+            localEnvelope.conversations[0]!,
+            {
+              ...localEnvelope.conversations[1]!,
+              title: "shared remote newer",
+              updatedAt: 30
+            },
+            {
+              id: "conv-remote-new",
+              title: "remote new",
+              createdAt: 3,
+              updatedAt: 40,
+              messages: []
+            }
+          ],
+          settings: localEnvelope.settings
         }
-      })
+      )
     ).toEqual({
       title: "导入前恢复锚点",
       sourceLabel: "来源：本地备份文件（lesson-a.json）",
       importModeLabel: "导入方式：合并导入",
       summary: "导入前本地快照：snap-local-before · 2 个会话",
+      resultSummary: "导入后本地快照：snap-local-after · 3 个会话",
+      outcomeSummary: "本次导入结果：新增 1 个会话、更新 1 个同 id 会话；导入后当前共 3 个会话。",
+      currentStateSummary: "当前状态：仍与最近一次导入结果一致。",
       hint: "如本次导入结果不符合预期，可恢复到这次导入前的本地状态。"
     });
 
     expect(
-      resolveImportRollbackAnchorPresentation({
-        capturedAt: "2026-03-14T01:00:00.000Z",
-        source: "remote_latest",
-        importMode: "replace",
-        sourceDetail: "snap-remote-latest",
-        envelope: {
-          ...localEnvelope,
-          snapshot_id: "snap-local-before-remote",
-          conversations: [localEnvelope.conversations[0]!]
+      resolveImportRollbackAnchorPresentation(
+        {
+          capturedAt: "2026-03-14T01:00:00.000Z",
+          source: "remote_latest",
+          importMode: "replace",
+          sourceDetail: "snap-remote-latest",
+          envelope: {
+            ...localEnvelope,
+            snapshot_id: "snap-local-before-remote",
+            conversations: [localEnvelope.conversations[0]!]
+          },
+          importedAt: "2026-03-14T01:01:00.000Z",
+          resultEnvelope: {
+            ...localEnvelope,
+            snapshot_id: "snap-local-after-remote",
+            checksum: "checksum-local-after-remote",
+            updated_at: "2026-03-14T01:01:00.000Z",
+            conversations: [
+              {
+                id: "conv-remote-a",
+                title: "remote a",
+                createdAt: 10,
+                updatedAt: 30,
+                messages: []
+              },
+              {
+                id: "conv-remote-b",
+                title: "remote b",
+                createdAt: 11,
+                updatedAt: 31,
+                messages: []
+              }
+            ]
+          }
+        },
+        {
+          conversations: [
+            {
+              id: "conv-remote-a",
+              title: "remote a edited later",
+              createdAt: 10,
+              updatedAt: 35,
+              messages: []
+            },
+            {
+              id: "conv-remote-b",
+              title: "remote b",
+              createdAt: 11,
+              updatedAt: 31,
+              messages: []
+            }
+          ],
+          settings: {
+            ui_preferences: {
+              chatVisible: false
+            }
+          }
         }
-      })
+      )
     ).toEqual({
       title: "导入前恢复锚点",
       sourceLabel: "来源：云端最新快照（snap-remote-latest）",
       importModeLabel: "导入方式：覆盖导入",
       summary: "导入前本地快照：snap-local-before-remote · 1 个会话",
-      hint: "如本次导入结果不符合预期，可恢复到这次导入前的本地状态。"
+      resultSummary: "导入后本地快照：snap-local-after-remote · 2 个会话",
+      outcomeSummary: "本次导入结果：覆盖后从 1 个会话变为 2 个会话，移除了 1 个原会话并引入 2 个导入会话。",
+      currentStateSummary: "当前状态：本地已在这次导入后继续变化。",
+      hint: "当前本地状态已经偏离最近一次导入结果；如果现在恢复，会同时丢弃导入后新增或修改的内容。"
     });
+  });
 
+  it("keeps legacy rollback anchor presentation compact when no post-import result exists", () => {
     expect(
       resolveImportRollbackAnchorPresentation({
         capturedAt: "2026-03-14T01:00:00.000Z",
@@ -628,6 +726,9 @@ describe("settings remote backup helpers", () => {
       sourceLabel: "来源：所选历史快照（snap-remote-history-1）",
       importModeLabel: "导入方式：合并导入",
       summary: "导入前本地快照：snap-local-before-history · 2 个会话",
+      resultSummary: null,
+      outcomeSummary: null,
+      currentStateSummary: null,
       hint: "如本次导入结果不符合预期，可恢复到这次导入前的本地状态。"
     });
   });

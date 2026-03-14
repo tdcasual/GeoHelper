@@ -36,6 +36,8 @@ export interface ImportRollbackAnchor {
   importMode: BackupImportMode;
   sourceDetail: string | null;
   envelope: BackupEnvelope;
+  importedAt?: string | null;
+  resultEnvelope?: BackupEnvelope | null;
 }
 
 export interface CaptureImportRollbackAnchorOptions {
@@ -100,6 +102,10 @@ const parseImportRollbackAnchor = (value: unknown): ImportRollbackAnchor | null 
   }
 
   try {
+    const importedAt =
+      typeof anchor.importedAt === "string" && anchor.importedAt.trim()
+        ? anchor.importedAt
+        : null;
     return {
       capturedAt,
       source,
@@ -108,7 +114,11 @@ const parseImportRollbackAnchor = (value: unknown): ImportRollbackAnchor | null 
         typeof anchor.sourceDetail === "string" && anchor.sourceDetail.trim()
           ? anchor.sourceDetail
           : null,
-      envelope: parseBackupEnvelope(anchor.envelope)
+      envelope: parseBackupEnvelope(anchor.envelope),
+      importedAt,
+      resultEnvelope: anchor.resultEnvelope
+        ? parseBackupEnvelope(anchor.resultEnvelope)
+        : null
     };
   } catch {
     return null;
@@ -586,11 +596,33 @@ export const captureCurrentAppImportRollbackAnchor = async (
       typeof options.sourceDetail === "string" && options.sourceDetail.trim()
         ? options.sourceDetail
         : null,
-    envelope: await exportCurrentAppBackupEnvelope()
+    envelope: await exportCurrentAppBackupEnvelope(),
+    importedAt: null,
+    resultEnvelope: null
   };
 
   localStorage.setItem(IMPORT_ROLLBACK_ANCHOR_KEY, JSON.stringify(anchor));
   return anchor;
+};
+
+export const recordCurrentAppImportRollbackResult = async (): Promise<ImportRollbackAnchor> => {
+  if (!canUseStorage()) {
+    throw new Error("当前环境不支持导入结果记录");
+  }
+
+  const anchor = readImportRollbackAnchor();
+  if (!anchor) {
+    throw new Error("当前没有可更新的导入前恢复锚点");
+  }
+
+  const updatedAnchor: ImportRollbackAnchor = {
+    ...anchor,
+    importedAt: new Date().toISOString(),
+    resultEnvelope: await exportCurrentAppBackupEnvelope()
+  };
+
+  localStorage.setItem(IMPORT_ROLLBACK_ANCHOR_KEY, JSON.stringify(updatedAnchor));
+  return updatedAnchor;
 };
 
 export const exportCurrentAppBackupEnvelope = async (): Promise<BackupEnvelope> =>
