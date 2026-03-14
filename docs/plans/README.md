@@ -30,7 +30,7 @@ Use this section when you know the problem domain first and only then want the r
 ### Backup
 
 - Backup and restore runtime behavior: [`2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md`](./2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md)
-- Remote backup/ops closure on backend: [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md), [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md), [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md), [`2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md`](./2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md), [`2026-03-13-backend-v7d-protected-history-retention-roadmap.md`](./2026-03-13-backend-v7d-protected-history-retention-roadmap.md), [`2026-03-13-backend-v7e-selected-history-preflight-roadmap.md`](./2026-03-13-backend-v7e-selected-history-preflight-roadmap.md), [`2026-03-14-backend-v7f-history-relation-badges-roadmap.md`](./2026-03-14-backend-v7f-history-relation-badges-roadmap.md), [`2026-03-14-backend-v7g-pulled-preview-import-guidance-roadmap.md`](./2026-03-14-backend-v7g-pulled-preview-import-guidance-roadmap.md), [`2026-03-14-backend-v7h-selected-history-pull-stale-guard-roadmap.md`](./2026-03-14-backend-v7h-selected-history-pull-stale-guard-roadmap.md), [`2026-03-14-backend-v7i-pulled-preview-impact-counts-roadmap.md`](./2026-03-14-backend-v7i-pulled-preview-impact-counts-roadmap.md), [`2026-03-14-backend-v7j-replace-import-confirmation-roadmap.md`](./2026-03-14-backend-v7j-replace-import-confirmation-roadmap.md), [`2026-03-14-backend-v7k-import-rollback-anchor-roadmap.md`](./2026-03-14-backend-v7k-import-rollback-anchor-roadmap.md), [`2026-03-14-backend-v7l-import-outcome-summary-roadmap.md`](./2026-03-14-backend-v7l-import-outcome-summary-roadmap.md)
+- Remote backup/ops closure on backend: [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md), [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md), [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md), [`2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md`](./2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md), [`2026-03-13-backend-v7d-protected-history-retention-roadmap.md`](./2026-03-13-backend-v7d-protected-history-retention-roadmap.md), [`2026-03-13-backend-v7e-selected-history-preflight-roadmap.md`](./2026-03-13-backend-v7e-selected-history-preflight-roadmap.md), [`2026-03-14-backend-v7f-history-relation-badges-roadmap.md`](./2026-03-14-backend-v7f-history-relation-badges-roadmap.md), [`2026-03-14-backend-v7g-pulled-preview-import-guidance-roadmap.md`](./2026-03-14-backend-v7g-pulled-preview-import-guidance-roadmap.md), [`2026-03-14-backend-v7h-selected-history-pull-stale-guard-roadmap.md`](./2026-03-14-backend-v7h-selected-history-pull-stale-guard-roadmap.md), [`2026-03-14-backend-v7i-pulled-preview-impact-counts-roadmap.md`](./2026-03-14-backend-v7i-pulled-preview-impact-counts-roadmap.md), [`2026-03-14-backend-v7j-replace-import-confirmation-roadmap.md`](./2026-03-14-backend-v7j-replace-import-confirmation-roadmap.md), [`2026-03-14-backend-v7k-import-rollback-anchor-roadmap.md`](./2026-03-14-backend-v7k-import-rollback-anchor-roadmap.md), [`2026-03-14-backend-v7l-import-outcome-summary-roadmap.md`](./2026-03-14-backend-v7l-import-outcome-summary-roadmap.md), [`2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md`](./2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md)
 - Runtime docs: [`../user/settings-backup-recovery.md`](../user/settings-backup-recovery.md), [`../BETA_CHECKLIST.md`](../BETA_CHECKLIST.md)
 
 ### Backend
@@ -40,7 +40,7 @@ Use this section when you know the problem domain first and only then want the r
 
 ## Backend Roadmap Timeline
 
-The backend roadmap sequence currently spans `V2` through `V7-L`. Read them in order when you want the architecture story behind the current self-hosted gateway.
+The backend roadmap sequence currently spans `V2` through `V7-M`. Read them in order when you want the architecture story behind the current self-hosted gateway.
 
 | Version | Date | Theme | Plan | Status |
 | --- | --- | --- | --- | --- |
@@ -60,7 +60,8 @@ The backend roadmap sequence currently spans `V2` through `V7-L`. Read them in o
 | `V7-I` | 2026-03-14 | Conversation-level merge/replace impact counts in pulled previews | [`2026-03-14-backend-v7i-pulled-preview-impact-counts-roadmap.md`](./2026-03-14-backend-v7i-pulled-preview-impact-counts-roadmap.md) | Completed / historical context |
 | `V7-J` | 2026-03-14 | Explicit second-click confirmation before dangerous replace imports | [`2026-03-14-backend-v7j-replace-import-confirmation-roadmap.md`](./2026-03-14-backend-v7j-replace-import-confirmation-roadmap.md) | Completed / historical context |
 | `V7-K` | 2026-03-14 | Browser-local import rollback anchor and one-click restore | [`2026-03-14-backend-v7k-import-rollback-anchor-roadmap.md`](./2026-03-14-backend-v7k-import-rollback-anchor-roadmap.md) | Completed / historical context |
-| `V7-L` | 2026-03-14 | Import outcome summary plus safer rollback context after manual imports | [`2026-03-14-backend-v7l-import-outcome-summary-roadmap.md`](./2026-03-14-backend-v7l-import-outcome-summary-roadmap.md) | Proposed / current latest roadmap |
+| `V7-L` | 2026-03-14 | Import outcome summary plus safer rollback context after manual imports | [`2026-03-14-backend-v7l-import-outcome-summary-roadmap.md`](./2026-03-14-backend-v7l-import-outcome-summary-roadmap.md) | Completed / historical context |
+| `V7-M` | 2026-03-14 | Explicit confirmation before a new import replaces the current rollback anchor | [`2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md`](./2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md) | Proposed / current latest roadmap |
 
 ## Frontend & Product Timeline
 
@@ -114,7 +115,8 @@ The frontend documents split naturally into two layers:
 13. Read [`2026-03-14-backend-v7i-pulled-preview-impact-counts-roadmap.md`](./2026-03-14-backend-v7i-pulled-preview-impact-counts-roadmap.md) for the conversation-level import impact preview layer.
 14. Read [`2026-03-14-backend-v7j-replace-import-confirmation-roadmap.md`](./2026-03-14-backend-v7j-replace-import-confirmation-roadmap.md) for the explicit second-click confirmation safety layer before dangerous replace imports.
 15. Read [`2026-03-14-backend-v7k-import-rollback-anchor-roadmap.md`](./2026-03-14-backend-v7k-import-rollback-anchor-roadmap.md) for the browser-local rollback anchor layer after manual imports.
-16. Read [`2026-03-14-backend-v7l-import-outcome-summary-roadmap.md`](./2026-03-14-backend-v7l-import-outcome-summary-roadmap.md) for the latest post-import outcome summary and safer rollback-context layer.
+16. Read [`2026-03-14-backend-v7l-import-outcome-summary-roadmap.md`](./2026-03-14-backend-v7l-import-outcome-summary-roadmap.md) for the post-import outcome summary and safer rollback-context layer.
+17. Read [`2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md`](./2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md) for the next safety layer: explicit confirmation before replacing the current rollback anchor with a newer import undo point.
 
 ### Frontend
 
