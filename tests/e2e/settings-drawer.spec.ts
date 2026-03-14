@@ -1267,8 +1267,20 @@ test("remote backup history allows selecting and previewing one retained histori
       "导入建议：优先使用合并导入保留较新的本地记录；只有确认要回退到该快照时，再使用覆盖导入。"
     )
   ).toBeVisible();
+  await expect(
+    pulledHistoryPreview.getByText("当前导入对象：已拉取历史快照（snap-remote-1）")
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "拉取后导入（合并）" })).toBeVisible();
   await expect(page.getByRole("button", { name: "拉取后覆盖导入" })).toBeVisible();
+
+  await page.getByRole("button", { name: /snap-remote-2/ }).click();
+  await expect(
+    pulledHistoryPreview.getByText(
+      "你当前选中的是 snap-remote-2；如要导入这个恢复点，请先重新拉取所选历史快照。"
+    )
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "拉取后导入（合并）" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "拉取后覆盖导入" })).toBeDisabled();
 
   const chatSnapshotAfterPreview = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "null")

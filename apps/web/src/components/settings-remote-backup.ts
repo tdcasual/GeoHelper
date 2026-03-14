@@ -56,6 +56,12 @@ export interface RemoteBackupPulledPreviewPresentation {
   recommendation: string;
 }
 
+export interface RemoteBackupPulledPreviewGuardPresentation {
+  targetLabel: string;
+  warning: string | null;
+  importEnabled: boolean;
+}
+
 interface ResolveRemoteBackupSyncPresentationParams {
   status: RemoteBackupSyncStatus;
   lastError: string | null;
@@ -325,6 +331,32 @@ export const resolveRemoteBackupPulledPreviewPresentation = (params: {
     sourceLabel: REMOTE_BACKUP_PULL_SOURCE_LABELS[params.source],
     relationLabel: copy.relationLabel,
     recommendation: copy.recommendation
+  };
+};
+
+export const resolveRemoteBackupPulledPreviewGuardPresentation = (params: {
+  source: RemoteBackupPullSource;
+  pulledSnapshotId: string;
+  selectedSnapshotId: string | null | undefined;
+}): RemoteBackupPulledPreviewGuardPresentation => {
+  if (params.source === "latest") {
+    return {
+      targetLabel: `当前导入对象：云端最新快照（${params.pulledSnapshotId}）`,
+      warning: null,
+      importEnabled: true
+    };
+  }
+
+  const isStale =
+    Boolean(params.selectedSnapshotId) &&
+    params.selectedSnapshotId !== params.pulledSnapshotId;
+
+  return {
+    targetLabel: `当前导入对象：已拉取历史快照（${params.pulledSnapshotId}）`,
+    warning: isStale
+      ? `你当前选中的是 ${params.selectedSnapshotId}；如要导入这个恢复点，请先重新拉取所选历史快照。`
+      : null,
+    importEnabled: !isStale
   };
 };
 

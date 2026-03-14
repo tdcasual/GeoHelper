@@ -32,6 +32,7 @@ import {
   formatRemoteBackupHistorySummary,
   formatRemoteBackupProtectionActionMessage,
   formatRemoteBackupProtectionLimitMessage,
+  resolveRemoteBackupPulledPreviewGuardPresentation,
   type RemoteBackupPullSource,
   formatRemoteBackupSelectedPullMessage,
   formatRemoteBackupRestoreWarning,
@@ -448,6 +449,17 @@ export const SettingsDrawer = ({
           })
         : null,
     [remoteBackupPullResult]
+  );
+  const remoteBackupPulledPreviewGuardPresentation = useMemo(
+    () =>
+      remoteBackupPullResult
+        ? resolveRemoteBackupPulledPreviewGuardPresentation({
+            source: remoteBackupPullResult.pullSource,
+            pulledSnapshotId: remoteBackupPullResult.backup.snapshot_id,
+            selectedSnapshotId: selectedRemoteHistoryBackup?.snapshot_id ?? null
+          })
+        : null,
+    [remoteBackupPullResult, selectedRemoteHistoryBackup]
   );
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -1945,20 +1957,38 @@ export const SettingsDrawer = ({
                     </p>
                   </>
                 ) : null}
+                {remoteBackupPulledPreviewGuardPresentation ? (
+                  <>
+                    <p>{remoteBackupPulledPreviewGuardPresentation.targetLabel}</p>
+                    {remoteBackupPulledPreviewGuardPresentation.warning ? (
+                      <p className="settings-warning-text">
+                        {remoteBackupPulledPreviewGuardPresentation.warning}
+                      </p>
+                    ) : null}
+                  </>
+                ) : null}
                 <p className="settings-warning-text">
                   {formatRemoteBackupRestoreWarning(remoteBackupPullResult.backup)}
                 </p>
                 <div className="settings-inline-actions">
                   <button
                     type="button"
-                    disabled={Boolean(remoteBackupBusyAction) || !remoteBackupActions.restore.enabled}
+                    disabled={
+                      Boolean(remoteBackupBusyAction) ||
+                      !remoteBackupActions.restore.enabled ||
+                      !remoteBackupPulledPreviewGuardPresentation?.importEnabled
+                    }
                     onClick={() => handleImportPulledRemoteBackup("merge")}
                   >
                     拉取后导入（合并）
                   </button>
                   <button
                     type="button"
-                    disabled={Boolean(remoteBackupBusyAction) || !remoteBackupActions.restore.enabled}
+                    disabled={
+                      Boolean(remoteBackupBusyAction) ||
+                      !remoteBackupActions.restore.enabled ||
+                      !remoteBackupPulledPreviewGuardPresentation?.importEnabled
+                    }
                     onClick={() => handleImportPulledRemoteBackup("replace")}
                   >
                     拉取后覆盖导入

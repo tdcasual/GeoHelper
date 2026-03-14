@@ -10,6 +10,7 @@ import {
   formatRemoteBackupHistorySummary,
   formatRemoteBackupProtectionActionMessage,
   formatRemoteBackupProtectionLimitMessage,
+  resolveRemoteBackupPulledPreviewGuardPresentation,
   resolveRemoteBackupPulledPreviewPresentation,
   formatRemoteBackupSelectedPullMessage,
   formatRemoteBackupRestoreWarning,
@@ -405,6 +406,45 @@ describe("settings remote backup helpers", () => {
       relationLabel: "与本地关系：内容一致",
       recommendation:
         "导入建议：当前拉取结果与本地内容一致，如只做校验可直接清除本次拉取，无需重复导入。"
+    });
+  });
+
+  it("guards stale selected-history pull previews after the selection changes", () => {
+    expect(
+      resolveRemoteBackupPulledPreviewGuardPresentation({
+        source: "latest",
+        pulledSnapshotId: "snap-remote-latest",
+        selectedSnapshotId: "snap-remote-older"
+      })
+    ).toEqual({
+      targetLabel: "当前导入对象：云端最新快照（snap-remote-latest）",
+      warning: null,
+      importEnabled: true
+    });
+
+    expect(
+      resolveRemoteBackupPulledPreviewGuardPresentation({
+        source: "selected_history",
+        pulledSnapshotId: "snap-remote-1",
+        selectedSnapshotId: "snap-remote-1"
+      })
+    ).toEqual({
+      targetLabel: "当前导入对象：已拉取历史快照（snap-remote-1）",
+      warning: null,
+      importEnabled: true
+    });
+
+    expect(
+      resolveRemoteBackupPulledPreviewGuardPresentation({
+        source: "selected_history",
+        pulledSnapshotId: "snap-remote-1",
+        selectedSnapshotId: "snap-remote-2"
+      })
+    ).toEqual({
+      targetLabel: "当前导入对象：已拉取历史快照（snap-remote-1）",
+      warning:
+        "你当前选中的是 snap-remote-2；如要导入这个恢复点，请先重新拉取所选历史快照。",
+      importEnabled: false
     });
   });
 
