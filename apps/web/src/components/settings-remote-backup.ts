@@ -73,6 +73,13 @@ export interface ReplaceImportConfirmationPresentation {
   warning: string | null;
 }
 
+export interface ImportActionGuardPresentation {
+  buttonLabel: string;
+  warning: string | null;
+  shouldArmFirst: boolean;
+  danger: boolean;
+}
+
 export interface ImportRollbackAnchorPresentation {
   title: string;
   sourceLabel: string;
@@ -85,6 +92,7 @@ export interface ImportRollbackAnchorPresentation {
 }
 
 export type ReplaceImportConfirmationScope = "local" | "remote_pulled";
+export type ImportActionGuardMode = "merge" | "replace";
 
 interface ResolveRemoteBackupSyncPresentationParams {
   status: RemoteBackupSyncStatus;
@@ -512,29 +520,90 @@ export const resolveReplaceImportConfirmationPresentation = (
   scope: ReplaceImportConfirmationScope,
   armed: boolean
 ): ReplaceImportConfirmationPresentation => {
-  if (scope === "local") {
-    return armed
+  const presentation = resolveImportActionGuardPresentation({
+    scope,
+    mode: "replace",
+    armed,
+    hasRollbackAnchor: false,
+    anchorSourceLabel: null
+  });
+
+  return {
+    buttonLabel: presentation.buttonLabel,
+    warning: presentation.warning
+  };
+};
+
+export const resolveImportActionGuardPresentation = (params: {
+  scope: ReplaceImportConfirmationScope;
+  mode: ImportActionGuardMode;
+  armed: boolean;
+  hasRollbackAnchor: boolean;
+  anchorSourceLabel: string | null;
+}): ImportActionGuardPresentation => {
+  const isReplace = params.mode === "replace";
+  const isRemote = params.scope === "remote_pulled";
+  const anchorLabel = params.anchorSourceLabel
+    ? `当前恢复锚点（${params.anchorSourceLabel}）`
+    : "当前恢复锚点";
+
+  const buttonLabel = isReplace
+    ? isRemote
+      ? params.armed
+        ? "确认拉取后覆盖导入"
+        : "拉取后覆盖导入"
+      : params.armed
+        ? "确认覆盖本地数据"
+        : "覆盖导入"
+    : isRemote
+      ? params.armed
+        ? "确认拉取后导入（合并）"
+        : "拉取后导入（合并）"
+      : params.armed
+        ? "确认合并导入"
+        : "合并导入（推荐）";
+
+  if (!isReplace) {
+    if (!params.hasRollbackAnchor) {
+      return {
+        buttonLabel,
+        warning: null,
+        shouldArmFirst: false,
+        danger: false
+      };
+    }
+
+    return params.armed
       ? {
-          buttonLabel: "确认覆盖本地数据",
-          warning:
-            "高风险操作：覆盖导入会直接替换当前本地数据，请再次点击“确认覆盖本地数据”继续。"
+          buttonLabel,
+          warning: `${anchorLabel}将在继续导入后被替换。请再次点击“${buttonLabel}”继续。`,
+          shouldArmFirst: false,
+          danger: false
         }
       : {
-          buttonLabel: "覆盖导入",
-          warning: null
+          buttonLabel,
+          warning: `${anchorLabel}将在继续导入后被替换。请先再次确认再继续导入。`,
+          shouldArmFirst: true,
+          danger: false
         };
   }
 
-  return armed
-    ? {
-        buttonLabel: "确认拉取后覆盖导入",
-        warning:
-          "高风险操作：拉取后覆盖导入会直接替换当前本地数据，请再次点击“确认拉取后覆盖导入”继续。"
-      }
-    : {
-        buttonLabel: "拉取后覆盖导入",
-      warning: null
-      };
+  const replaceWarning = isRemote
+    ? "高风险操作：拉取后覆盖导入会直接替换当前本地数据"
+    : "高风险操作：覆盖导入会直接替换当前本地数据";
+
+  const warning = params.armed
+    ? params.hasRollbackAnchor
+      ? `${replaceWarning}，并替换${anchorLabel}。请再次点击“${buttonLabel}”继续。`
+      : `${replaceWarning}，请再次点击“${buttonLabel}”继续。`
+    : null;
+
+  return {
+    buttonLabel,
+    warning,
+    shouldArmFirst: !params.armed,
+    danger: true
+  };
 };
 
 export const resolveImportRollbackAnchorPresentation = (

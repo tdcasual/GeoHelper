@@ -6,6 +6,7 @@ import type {
 } from "../runtime/types";
 
 import {
+  resolveImportActionGuardPresentation,
   formatRemoteBackupActionMessage,
   formatRemoteBackupHistorySummary,
   formatRemoteBackupProtectionActionMessage,
@@ -568,6 +569,103 @@ describe("settings remote backup helpers", () => {
       buttonLabel: "确认拉取后覆盖导入",
       warning:
         "高风险操作：拉取后覆盖导入会直接替换当前本地数据，请再次点击“确认拉取后覆盖导入”继续。"
+    });
+  });
+
+  it("formats import guard presentation for rollback-anchor overwrite risk", () => {
+    expect(
+      resolveImportActionGuardPresentation({
+        scope: "local",
+        mode: "merge",
+        armed: false,
+        hasRollbackAnchor: false,
+        anchorSourceLabel: null
+      })
+    ).toEqual({
+      buttonLabel: "合并导入（推荐）",
+      warning: null,
+      shouldArmFirst: false,
+      danger: false
+    });
+
+    expect(
+      resolveImportActionGuardPresentation({
+        scope: "local",
+        mode: "merge",
+        armed: false,
+        hasRollbackAnchor: true,
+        anchorSourceLabel: "来源：本地备份文件（lesson-a.json）"
+      })
+    ).toEqual({
+      buttonLabel: "合并导入（推荐）",
+      warning:
+        "当前恢复锚点（来源：本地备份文件（lesson-a.json））将在继续导入后被替换。请先再次确认再继续导入。",
+      shouldArmFirst: true,
+      danger: false
+    });
+
+    expect(
+      resolveImportActionGuardPresentation({
+        scope: "local",
+        mode: "merge",
+        armed: true,
+        hasRollbackAnchor: true,
+        anchorSourceLabel: "来源：本地备份文件（lesson-a.json）"
+      })
+    ).toEqual({
+      buttonLabel: "确认合并导入",
+      warning:
+        "当前恢复锚点（来源：本地备份文件（lesson-a.json））将在继续导入后被替换。请再次点击“确认合并导入”继续。",
+      shouldArmFirst: false,
+      danger: false
+    });
+
+    expect(
+      resolveImportActionGuardPresentation({
+        scope: "local",
+        mode: "replace",
+        armed: true,
+        hasRollbackAnchor: true,
+        anchorSourceLabel: "来源：本地备份文件（lesson-a.json）"
+      })
+    ).toEqual({
+      buttonLabel: "确认覆盖本地数据",
+      warning:
+        "高风险操作：覆盖导入会直接替换当前本地数据，并替换当前恢复锚点（来源：本地备份文件（lesson-a.json））。请再次点击“确认覆盖本地数据”继续。",
+      shouldArmFirst: false,
+      danger: true
+    });
+
+    expect(
+      resolveImportActionGuardPresentation({
+        scope: "remote_pulled",
+        mode: "merge",
+        armed: true,
+        hasRollbackAnchor: true,
+        anchorSourceLabel: "来源：云端最新快照（snap-1）"
+      })
+    ).toEqual({
+      buttonLabel: "确认拉取后导入（合并）",
+      warning:
+        "当前恢复锚点（来源：云端最新快照（snap-1））将在继续导入后被替换。请再次点击“确认拉取后导入（合并）”继续。",
+      shouldArmFirst: false,
+      danger: false
+    });
+
+    expect(
+      resolveImportActionGuardPresentation({
+        scope: "remote_pulled",
+        mode: "replace",
+        armed: true,
+        hasRollbackAnchor: true,
+        anchorSourceLabel: "来源：云端最新快照（snap-1）"
+      })
+    ).toEqual({
+      buttonLabel: "确认拉取后覆盖导入",
+      warning:
+        "高风险操作：拉取后覆盖导入会直接替换当前本地数据，并替换当前恢复锚点（来源：云端最新快照（snap-1））。请再次点击“确认拉取后覆盖导入”继续。",
+      shouldArmFirst: false,
+      danger: true
     });
   });
 
