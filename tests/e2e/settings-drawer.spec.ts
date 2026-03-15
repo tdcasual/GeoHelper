@@ -125,11 +125,114 @@ const seedGatewayRemoteBackupSettings = async (
   });
 };
 
+const seedGatewayRemoteBackupSettingsOnce = async (
+  page: import("@playwright/test").Page
+) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("__seeded_gateway_remote_backup_once__") === "1") {
+      return;
+    }
+    sessionStorage.setItem("__seeded_gateway_remote_backup_once__", "1");
+    localStorage.setItem(
+      "geohelper.settings.snapshot",
+      JSON.stringify({
+        schemaVersion: 3,
+        defaultMode: "byok",
+        runtimeProfiles: [
+          {
+            id: "runtime_gateway",
+            name: "Gateway",
+            target: "gateway",
+            baseUrl: "https://gateway.example.com",
+            updatedAt: 1
+          },
+          {
+            id: "runtime_direct",
+            name: "Direct BYOK",
+            target: "direct",
+            baseUrl: "https://openrouter.ai/api/v1",
+            updatedAt: 1
+          }
+        ],
+        defaultRuntimeProfileId: "runtime_gateway",
+        byokPresets: [
+          {
+            id: "byok_default",
+            name: "Default BYOK",
+            model: "gpt-4o-mini",
+            endpoint: "https://openrouter.ai/api/v1",
+            temperature: 0.2,
+            maxTokens: 1200,
+            timeoutMs: 20000,
+            updatedAt: 1
+          }
+        ],
+        officialPresets: [
+          {
+            id: "official_default",
+            name: "Official",
+            model: "gpt-4o-mini",
+            temperature: 0.2,
+            maxTokens: 1200,
+            timeoutMs: 20000,
+            updatedAt: 1
+          }
+        ],
+        defaultByokPresetId: "byok_default",
+        defaultOfficialPresetId: "official_default",
+        sessionOverrides: {},
+        experimentFlags: {
+          showAgentSteps: false,
+          autoRetryEnabled: false,
+          requestTimeoutEnabled: true,
+          strictValidationEnabled: false,
+          fallbackSingleAgentEnabled: false,
+          debugLogPanelEnabled: false,
+          performanceSamplingEnabled: false
+        },
+        requestDefaults: { retryAttempts: 1 },
+        debugEvents: []
+      })
+    );
+    localStorage.setItem(
+      "geohelper.chat.snapshot",
+      JSON.stringify({
+        mode: "byok",
+        sessionToken: null,
+        reauthRequired: false,
+        activeConversationId: "conv_local",
+        messages: [
+          {
+            id: "msg_local",
+            role: "user",
+            content: "local only"
+          }
+        ],
+        conversations: [
+          {
+            id: "conv_local",
+            title: "local only",
+            createdAt: 1,
+            updatedAt: 2,
+            messages: [
+              {
+                id: "msg_local",
+                role: "user",
+                content: "local only"
+              }
+            ]
+          }
+        ]
+      })
+    );
+  });
+};
+
 const saveGatewayAdminToken = async (
   page: import("@playwright/test").Page
 ) => {
   await openSettingsSection(page, "数据与安全");
-  await page.getByPlaceholder("x-admin-token").fill("admin-secret");
+  await page.getByRole("textbox", { name: "管理员令牌" }).fill("admin-secret");
   await page.getByRole("button", { name: "保存管理员令牌" }).click();
   await expect(page.getByText("网关管理员令牌已保存")).toBeVisible();
 };
@@ -619,6 +722,161 @@ test("replaces local snapshot when import mode is replace", async ({ page }) => 
   ]);
   expect(snapshot.activeConversationId).toBe("conv_only_backup");
   expect(snapshot.messages[0].content).toBe("backup");
+});
+
+test("warns before replacing an existing rollback anchor on local import", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    try {
+      const originalSetTimeout = window.setTimeout.bind(window);
+      window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+        if (
+          typeof handler === "function" &&
+          String(handler).includes("window.location.reload")
+        ) {
+          return 0;
+        }
+        return originalSetTimeout(handler, timeout, ...(args as []));
+      }) as typeof window.setTimeout;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window.location as any).reload = () => undefined;
+    } catch {
+      // Ignore reload patch failure in browser sandbox.
+    }
+  });
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("__seeded_local_overwrite_guard__") === "1") {
+      return;
+    }
+    sessionStorage.setItem("__seeded_local_overwrite_guard__", "1");
+    localStorage.setItem(
+      "geohelper.chat.snapshot",
+      JSON.stringify({
+        mode: "byok",
+        sessionToken: null,
+        activeConversationId: "conv_local",
+        reauthRequired: false,
+        messages: [{ id: "m_local", role: "user", content: "local before guard" }],
+        conversations: [
+          {
+            id: "conv_local",
+            title: "local before guard",
+            createdAt: 1,
+            updatedAt: 100,
+            messages: [{ id: "m_local", role: "user", content: "local before guard" }]
+          }
+        ]
+      })
+    );
+  });
+
+  await openWorkspace(page);
+  await openSettingsSection(page, "数据与安全");
+
+  const backupFileInput = page
+    .getByTestId("settings-modal")
+    .locator('input[type="file"][accept="application/json"]');
+
+  await backupFileInput.setInputFiles(
+    createBackupFile({
+      conversations: [
+        {
+          id: "conv_first_import",
+          title: "first import",
+          createdAt: 2,
+          updatedAt: 200,
+          messages: [{ id: "m_first_import", role: "assistant", content: "first import" }]
+        }
+      ],
+      settings: {}
+    })
+  );
+
+  await page.getByRole("button", { name: "覆盖导入" }).click();
+  await page.getByRole("button", { name: "确认覆盖本地数据" }).click();
+  await expect(page.getByText("备份覆盖导入成功，正在刷新")).toBeVisible();
+
+  let snapshot = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}")
+  );
+  expect(snapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_first_import"
+  ]);
+
+  await expect(page.getByTestId("import-rollback-anchor")).toBeVisible();
+
+  const secondBackupFile = createBackupFile({
+    conversations: [
+      {
+        id: "conv_second_import",
+        title: "second import",
+        createdAt: 3,
+        updatedAt: 300,
+        messages: [{ id: "m_second_import", role: "assistant", content: "second import" }]
+      }
+    ],
+    settings: {}
+  });
+
+  await backupFileInput.setInputFiles(secondBackupFile);
+  await expect(page.getByText("已读取备份文件，请选择导入策略")).toBeVisible();
+
+  await page.getByRole("button", { name: "合并导入（推荐）" }).click();
+  await expect(
+    page.getByText(
+      "当前恢复锚点（来源：本地备份文件（geochat-backup.json））将在继续导入后被替换。请再次点击“确认合并导入”继续。"
+    )
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "确认合并导入" })).toBeVisible();
+
+  snapshot = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}")
+  );
+  expect(snapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_first_import"
+  ]);
+
+  await page.getByRole("button", { name: "确认合并导入" }).click();
+  await expect(page.getByText("备份合并导入成功，正在刷新")).toBeVisible();
+
+  snapshot = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}")
+  );
+  expect(snapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_second_import",
+    "conv_first_import"
+  ]);
+
+  await backupFileInput.setInputFiles(
+    createBackupFile({
+      conversations: [
+        {
+          id: "conv_third_import",
+          title: "third import",
+          createdAt: 4,
+          updatedAt: 400,
+          messages: [{ id: "m_third_import", role: "assistant", content: "third import" }]
+        }
+      ],
+      settings: {}
+    })
+  );
+  await page.getByRole("button", { name: "覆盖导入" }).click();
+  await expect(
+    page.getByText(
+      "高风险操作：覆盖导入会直接替换当前本地数据，并替换当前恢复锚点（来源：本地备份文件（geochat-backup.json））。请再次点击“确认覆盖本地数据”继续。"
+    )
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "确认覆盖本地数据" })).toBeVisible();
+
+  snapshot = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}")
+  );
+  expect(snapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_second_import",
+    "conv_first_import"
+  ]);
 });
 
 test("shows import outcome summary after local import and restores the pre-import local snapshot", async ({
@@ -1224,7 +1482,7 @@ test("mobile model preset selector stays within section with long preset names",
 test("remote backup sync status stays metadata-only until user explicitly imports", async ({
   page
 }) => {
-  await seedGatewayRemoteBackupSettings(page);
+  await seedGatewayRemoteBackupSettingsOnce(page);
 
   await page.route(
     "https://gateway.example.com/admin/backups/history?limit=5",
@@ -1440,7 +1698,72 @@ test("shows import outcome summary after remote import with the latest snapshot 
       // Ignore reload patch failure in browser sandbox.
     }
   });
-  await seedGatewayRemoteBackupSettings(page);
+  await seedGatewayRemoteBackupSettingsOnce(page);
+
+  const remoteSettingsSnapshot = {
+    schemaVersion: 3,
+    defaultMode: "byok",
+    runtimeProfiles: [
+      {
+        id: "runtime_gateway",
+        name: "Gateway",
+        target: "gateway",
+        baseUrl: "https://gateway.example.com",
+        updatedAt: 1
+      },
+      {
+        id: "runtime_direct",
+        name: "Direct BYOK",
+        target: "direct",
+        baseUrl: "https://openrouter.ai/api/v1",
+        updatedAt: 1
+      }
+    ],
+    defaultRuntimeProfileId: "runtime_gateway",
+    byokPresets: [
+      {
+        id: "byok_default",
+        name: "Default BYOK",
+        model: "gpt-4o-mini",
+        endpoint: "https://openrouter.ai/api/v1",
+        temperature: 0.2,
+        maxTokens: 1200,
+        timeoutMs: 20000,
+        updatedAt: 1
+      }
+    ],
+    officialPresets: [
+      {
+        id: "official_default",
+        name: "Official",
+        model: "gpt-4o-mini",
+        temperature: 0.2,
+        maxTokens: 1200,
+        timeoutMs: 20000,
+        updatedAt: 1
+      }
+    ],
+    defaultByokPresetId: "byok_default",
+    defaultOfficialPresetId: "official_default",
+    remoteBackupAdminTokenCipher: {
+      version: 1,
+      algorithm: "AES-GCM",
+      iv: "iv-remote",
+      ciphertext: "enc:remote"
+    },
+    sessionOverrides: {},
+    experimentFlags: {
+      showAgentSteps: false,
+      autoRetryEnabled: false,
+      requestTimeoutEnabled: true,
+      strictValidationEnabled: false,
+      fallbackSingleAgentEnabled: false,
+      debugLogPanelEnabled: false,
+      performanceSamplingEnabled: false
+    },
+    requestDefaults: { retryAttempts: 1 },
+    debugEvents: []
+  };
   const remoteLatestEnvelope = createBackupEnvelope(
     {
       conversations: [
@@ -1452,7 +1775,9 @@ test("shows import outcome summary after remote import with the latest snapshot 
           messages: []
         }
       ],
-      settings: {}
+      settings: {
+        settings_snapshot: remoteSettingsSnapshot
+      }
     },
     {
       schemaVersion: 2,
@@ -1603,6 +1928,241 @@ test("shows import outcome summary after remote import with the latest snapshot 
       "本次导入结果：覆盖后从 1 个会话变为 1 个会话，移除了 1 个原会话并引入 1 个导入会话。"
     )
   ).toBeVisible();
+});
+
+test("warns before replacing an existing rollback anchor on pulled remote import", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    try {
+      const originalSetTimeout = window.setTimeout.bind(window);
+      window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+        if (
+          typeof handler === "function" &&
+          String(handler).includes("window.location.reload")
+        ) {
+          return 0;
+        }
+        return originalSetTimeout(handler, timeout, ...(args as []));
+      }) as typeof window.setTimeout;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window.location as any).reload = () => undefined;
+    } catch {
+      // Ignore reload patch failure in browser sandbox.
+    }
+  });
+  await seedGatewayRemoteBackupSettingsOnce(page);
+
+  const remoteSettingsSnapshot = {
+    schemaVersion: 3,
+    defaultMode: "byok",
+    runtimeProfiles: [
+      {
+        id: "runtime_gateway",
+        name: "Gateway",
+        target: "gateway",
+        baseUrl: "https://gateway.example.com",
+        updatedAt: 1
+      },
+      {
+        id: "runtime_direct",
+        name: "Direct BYOK",
+        target: "direct",
+        baseUrl: "https://openrouter.ai/api/v1",
+        updatedAt: 1
+      }
+    ],
+    defaultRuntimeProfileId: "runtime_gateway",
+    byokPresets: [
+      {
+        id: "byok_default",
+        name: "Default BYOK",
+        model: "gpt-4o-mini",
+        endpoint: "https://openrouter.ai/api/v1",
+        temperature: 0.2,
+        maxTokens: 1200,
+        timeoutMs: 20000,
+        updatedAt: 1
+      }
+    ],
+    officialPresets: [
+      {
+        id: "official_default",
+        name: "Official",
+        model: "gpt-4o-mini",
+        temperature: 0.2,
+        maxTokens: 1200,
+        timeoutMs: 20000,
+        updatedAt: 1
+      }
+    ],
+    defaultByokPresetId: "byok_default",
+    defaultOfficialPresetId: "official_default",
+    remoteBackupAdminTokenCipher: {
+      version: 1,
+      algorithm: "AES-GCM",
+      iv: "iv-remote",
+      ciphertext: "enc:remote"
+    },
+    sessionOverrides: {},
+    experimentFlags: {
+      showAgentSteps: false,
+      autoRetryEnabled: false,
+      requestTimeoutEnabled: true,
+      strictValidationEnabled: false,
+      fallbackSingleAgentEnabled: false,
+      debugLogPanelEnabled: false,
+      performanceSamplingEnabled: false
+    },
+    requestDefaults: { retryAttempts: 1 },
+    debugEvents: []
+  };
+
+  const remoteBackupPulled = createBackupEnvelope(
+    {
+      conversations: [
+        {
+          id: "conv_remote_pulled",
+          title: "remote pulled",
+          createdAt: 12,
+          updatedAt: 22,
+          messages: [{ id: "msg_remote_pulled", role: "assistant", content: "remote pulled" }]
+        }
+      ],
+      settings: {
+        settings_snapshot: remoteSettingsSnapshot
+      }
+    },
+    {
+      schemaVersion: 2,
+      createdAt: "2026-03-12T10:10:00.000Z",
+      updatedAt: "2026-03-12T10:14:00.000Z",
+      appVersion: "0.0.1",
+      snapshotId: "snap-remote-merge",
+      deviceId: "device-remote-merge"
+    }
+  );
+
+  await page.route("https://gateway.example.com/admin/backups/latest", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        backup: {
+          stored_at: "2026-03-12T10:15:00.000Z",
+          schema_version: 2,
+          created_at: "2026-03-12T10:10:00.000Z",
+          updated_at: "2026-03-12T10:14:00.000Z",
+          app_version: "0.0.1",
+          checksum: remoteBackupPulled.checksum,
+          conversation_count: 1,
+          snapshot_id: "snap-remote-merge",
+          device_id: "device-remote-merge",
+          envelope: remoteBackupPulled
+        },
+        build: {
+          git_sha: "backupsha",
+          build_time: "2026-03-12T10:25:30.000Z",
+          node_env: "test",
+          redis_enabled: true,
+          attachments_enabled: false
+        }
+      })
+    });
+  });
+
+  await saveGatewayAdminToken(page);
+
+  const backupFileInput = page
+    .getByTestId("settings-modal")
+    .locator('input[type="file"][accept="application/json"]');
+
+  await backupFileInput.setInputFiles(
+    createBackupFile({
+      conversations: [
+        {
+          id: "conv_local_anchor",
+          title: "local anchor",
+          createdAt: 2,
+          updatedAt: 200,
+          messages: [{ id: "msg_local_anchor", role: "assistant", content: "local anchor" }]
+        }
+      ],
+      settings: {
+        settings_snapshot: remoteSettingsSnapshot
+      }
+    })
+  );
+  await page.getByRole("button", { name: "覆盖导入" }).click();
+  await page.getByRole("button", { name: "确认覆盖本地数据" }).click();
+  await expect(page.getByText("备份覆盖导入成功，正在刷新")).toBeVisible();
+
+  let snapshot = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}")
+  );
+  expect(snapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_local_anchor"
+  ]);
+
+  await page.getByRole("textbox", { name: "管理员令牌" }).fill("admin-secret");
+  await page.getByRole("button", { name: "保存管理员令牌" }).click();
+  await expect(page.getByText("网关管理员令牌已保存")).toBeVisible();
+  await page.getByRole("button", { name: "拉取最新快照" }).click();
+  await expect(page.getByText("已从网关拉取最新备份（1 个会话）")).toBeVisible();
+  await expect(
+    page
+      .getByTestId("remote-backup-pulled-preview")
+      .getByText("快照 ID：snap-remote-merge")
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "拉取后导入（合并）" }).click();
+  await expect(
+    page.getByText(
+      "当前恢复锚点（来源：本地备份文件（geochat-backup.json））将在继续导入后被替换。请再次点击“确认拉取后导入（合并）”继续。"
+    )
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "确认拉取后导入（合并）" })
+  ).toBeVisible();
+
+  snapshot = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}")
+  );
+  expect(snapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_local_anchor"
+  ]);
+
+  await page.getByRole("button", { name: "拉取后覆盖导入" }).click();
+  await expect(
+    page.getByText(
+      "高风险操作：拉取后覆盖导入会直接替换当前本地数据，并替换当前恢复锚点（来源：本地备份文件（geochat-backup.json））。请再次点击“确认拉取后覆盖导入”继续。"
+    )
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "确认拉取后覆盖导入" })
+  ).toBeVisible();
+
+  snapshot = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}")
+  );
+  expect(snapshot.conversations.map((item: { id: string }) => item.id)).toEqual([
+    "conv_local_anchor"
+  ]);
+
+  await page.getByRole("button", { name: "拉取后导入（合并）" }).click();
+  await page.getByRole("button", { name: "确认拉取后导入（合并）" }).click();
+  await expect(page.getByText("已将网关备份合并导入，正在刷新")).toBeVisible();
+
+  snapshot = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("geohelper.chat.snapshot") ?? "{}")
+  );
+  const mergedConversationIds = snapshot.conversations.map(
+    (item: { id: string }) => item.id
+  );
+  expect(mergedConversationIds).toHaveLength(2);
+  expect(mergedConversationIds).toEqual(
+    expect.arrayContaining(["conv_remote_pulled", "conv_local_anchor"])
+  );
 });
 
 test("remote backup history allows selecting and previewing one retained historical snapshot", async ({

@@ -8,6 +8,8 @@
 
 **Tech Stack:** React settings drawer, browser localStorage rollback anchor, shared backup presentation helpers, Vitest, Playwright.
 
+**Implementation status (2026-03-15):** Completed and verified. Despite the roadmap label, `V7-M` ships entirely in the browser-local Route 1 import flow: shared import guard presentation helpers, local-file overwrite guard, pulled-remote overwrite guard, and focused unit/E2E coverage.
+
 ---
 
 ### Task 1: Add shared import-action guard presentation helpers

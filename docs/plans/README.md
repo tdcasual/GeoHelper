@@ -63,7 +63,7 @@ The backend roadmap sequence currently spans `V2` through `V7-M`. Read them in o
 | `V7-J` | 2026-03-14 | Explicit second-click confirmation before dangerous replace imports | [`2026-03-14-backend-v7j-replace-import-confirmation-roadmap.md`](./2026-03-14-backend-v7j-replace-import-confirmation-roadmap.md) | Completed / historical context |
 | `V7-K` | 2026-03-14 | Browser-local import rollback anchor and one-click restore | [`2026-03-14-backend-v7k-import-rollback-anchor-roadmap.md`](./2026-03-14-backend-v7k-import-rollback-anchor-roadmap.md) | Completed / historical context |
 | `V7-L` | 2026-03-14 | Import outcome summary plus safer rollback context after manual imports | [`2026-03-14-backend-v7l-import-outcome-summary-roadmap.md`](./2026-03-14-backend-v7l-import-outcome-summary-roadmap.md) | Completed / historical context |
-| `V7-M` | 2026-03-14 | Explicit confirmation before a new import replaces the current rollback anchor | [`2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md`](./2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md) | Proposed / current latest roadmap |
+| `V7-M` | 2026-03-14 | Explicit confirmation before a new import replaces the current rollback anchor | [`2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md`](./2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md) | Completed / current latest roadmap |
 
 ## Frontend & Product Timeline
 
@@ -119,7 +119,7 @@ The frontend documents split naturally into two layers:
 14. Read [`2026-03-14-backend-v7j-replace-import-confirmation-roadmap.md`](./2026-03-14-backend-v7j-replace-import-confirmation-roadmap.md) for the explicit second-click confirmation safety layer before dangerous replace imports.
 15. Read [`2026-03-14-backend-v7k-import-rollback-anchor-roadmap.md`](./2026-03-14-backend-v7k-import-rollback-anchor-roadmap.md) for the browser-local rollback anchor layer after manual imports.
 16. Read [`2026-03-14-backend-v7l-import-outcome-summary-roadmap.md`](./2026-03-14-backend-v7l-import-outcome-summary-roadmap.md) for the post-import outcome summary and safer rollback-context layer.
-17. Read [`2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md`](./2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md) for the next safety layer: explicit confirmation before replacing the current rollback anchor with a newer import undo point.
+17. Read [`2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md`](./2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md) for the current rollback-anchor safety layer: explicit confirmation before replacing the current rollback anchor with a newer import undo point.
 
 ### Frontend
 

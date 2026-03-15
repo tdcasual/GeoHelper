@@ -32,8 +32,8 @@ import {
   formatRemoteBackupHistorySummary,
   formatRemoteBackupProtectionActionMessage,
   formatRemoteBackupProtectionLimitMessage,
+  resolveImportActionGuardPresentation,
   resolveImportRollbackAnchorPresentation,
-  resolveReplaceImportConfirmationPresentation,
   resolveRemoteBackupPulledConversationImpactPresentation,
   resolveRemoteBackupPulledPreviewGuardPresentation,
   type RemoteBackupPullSource,
@@ -397,7 +397,9 @@ export const SettingsDrawer = ({
   );
   const [rollbackAnchorCurrentLocalEnvelope, setRollbackAnchorCurrentLocalEnvelope] =
     useState<BackupEnvelope | null>(null);
+  const [localMergeImportArmed, setLocalMergeImportArmed] = useState(false);
   const [localReplaceImportArmed, setLocalReplaceImportArmed] = useState(false);
+  const [remoteMergeImportArmed, setRemoteMergeImportArmed] = useState(false);
   const [remoteReplaceImportArmed, setRemoteReplaceImportArmed] = useState(false);
   const [importingBackup, setImportingBackup] = useState(false);
   const [rollbackAnchorBusy, setRollbackAnchorBusy] = useState(false);
@@ -489,22 +491,6 @@ export const SettingsDrawer = ({
         : null,
     [remoteBackupPullResult]
   );
-  const localReplaceImportConfirmationPresentation = useMemo(
-    () =>
-      resolveReplaceImportConfirmationPresentation(
-        "local",
-        localReplaceImportArmed
-      ),
-    [localReplaceImportArmed]
-  );
-  const remoteReplaceImportConfirmationPresentation = useMemo(
-    () =>
-      resolveReplaceImportConfirmationPresentation(
-        "remote_pulled",
-        remoteReplaceImportArmed
-      ),
-    [remoteReplaceImportArmed]
-  );
   const importRollbackAnchorPresentation = useMemo(
     () =>
       importRollbackAnchor
@@ -515,6 +501,76 @@ export const SettingsDrawer = ({
         : null,
     [importRollbackAnchor, rollbackAnchorCurrentLocalEnvelope]
   );
+  const localMergeImportGuardPresentation = useMemo(
+    () =>
+      resolveImportActionGuardPresentation({
+        scope: "local",
+        mode: "merge",
+        armed: localMergeImportArmed,
+        hasRollbackAnchor: Boolean(importRollbackAnchor),
+        anchorSourceLabel: importRollbackAnchorPresentation?.sourceLabel ?? null
+      }),
+    [
+      importRollbackAnchor,
+      importRollbackAnchorPresentation,
+      localMergeImportArmed
+    ]
+  );
+  const localReplaceImportGuardPresentation = useMemo(
+    () =>
+      resolveImportActionGuardPresentation({
+        scope: "local",
+        mode: "replace",
+        armed: localReplaceImportArmed,
+        hasRollbackAnchor: Boolean(importRollbackAnchor),
+        anchorSourceLabel: importRollbackAnchorPresentation?.sourceLabel ?? null
+      }),
+    [
+      importRollbackAnchor,
+      importRollbackAnchorPresentation,
+      localReplaceImportArmed
+    ]
+  );
+  const remoteMergeImportGuardPresentation = useMemo(
+    () =>
+      resolveImportActionGuardPresentation({
+        scope: "remote_pulled",
+        mode: "merge",
+        armed: remoteMergeImportArmed,
+        hasRollbackAnchor: Boolean(importRollbackAnchor),
+        anchorSourceLabel: importRollbackAnchorPresentation?.sourceLabel ?? null
+      }),
+    [
+      importRollbackAnchor,
+      importRollbackAnchorPresentation,
+      remoteMergeImportArmed
+    ]
+  );
+  const remoteReplaceImportGuardPresentation = useMemo(
+    () =>
+      resolveImportActionGuardPresentation({
+        scope: "remote_pulled",
+        mode: "replace",
+        armed: remoteReplaceImportArmed,
+        hasRollbackAnchor: Boolean(importRollbackAnchor),
+        anchorSourceLabel: importRollbackAnchorPresentation?.sourceLabel ?? null
+      }),
+    [
+      importRollbackAnchor,
+      importRollbackAnchorPresentation,
+      remoteReplaceImportArmed
+    ]
+  );
+  const localImportGuardWarning = localMergeImportArmed
+    ? localMergeImportGuardPresentation.warning
+    : localReplaceImportArmed
+      ? localReplaceImportGuardPresentation.warning
+      : null;
+  const remoteImportGuardWarning = remoteMergeImportArmed
+    ? remoteMergeImportGuardPresentation.warning
+    : remoteReplaceImportArmed
+      ? remoteReplaceImportGuardPresentation.warning
+      : null;
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -570,12 +626,21 @@ export const SettingsDrawer = ({
   }, [remoteBackupSync.history, selectedRemoteHistorySnapshotId]);
 
   useEffect(() => {
+    setLocalMergeImportArmed(false);
     setLocalReplaceImportArmed(false);
   }, [pendingBackupFile, backupInspection]);
 
   useEffect(() => {
+    setRemoteMergeImportArmed(false);
     setRemoteReplaceImportArmed(false);
   }, [remoteBackupPullResult, remoteBackupPulledPreviewGuardPresentation?.importEnabled]);
+
+  useEffect(() => {
+    setLocalMergeImportArmed(false);
+    setLocalReplaceImportArmed(false);
+    setRemoteMergeImportArmed(false);
+    setRemoteReplaceImportArmed(false);
+  }, [importRollbackAnchor]);
 
   useEffect(() => {
     if (open) {
@@ -731,6 +796,9 @@ export const SettingsDrawer = ({
       return;
     }
 
+    setLocalMergeImportArmed(false);
+    setLocalReplaceImportArmed(false);
+
     try {
       const anchor = await captureCurrentAppImportRollbackAnchor({
         source: "local_file",
@@ -773,6 +841,10 @@ export const SettingsDrawer = ({
   };
 
   const handleRestoreImportRollbackAnchor = async () => {
+    setLocalMergeImportArmed(false);
+    setLocalReplaceImportArmed(false);
+    setRemoteMergeImportArmed(false);
+    setRemoteReplaceImportArmed(false);
     setRollbackAnchorBusy(true);
     setRemoteSyncImportInProgress(true);
     try {
@@ -795,6 +867,10 @@ export const SettingsDrawer = ({
   };
 
   const handleClearImportRollbackAnchor = () => {
+    setLocalMergeImportArmed(false);
+    setLocalReplaceImportArmed(false);
+    setRemoteMergeImportArmed(false);
+    setRemoteReplaceImportArmed(false);
     clearImportRollbackAnchor();
     setImportRollbackAnchor(null);
     setRollbackAnchorCurrentLocalEnvelope(null);
@@ -1123,6 +1199,9 @@ export const SettingsDrawer = ({
       setBackupMessage(remoteBackupActions.restore.reason ?? "请先从网关拉取最新备份");
       return;
     }
+
+    setRemoteMergeImportArmed(false);
+    setRemoteReplaceImportArmed(false);
 
     try {
       const anchor = await captureCurrentAppImportRollbackAnchor({
@@ -1836,9 +1915,9 @@ export const SettingsDrawer = ({
                   备份版本高于当前应用，导入后可能存在字段降级
                 </p>
               ) : null}
-              {localReplaceImportConfirmationPresentation.warning ? (
+              {localImportGuardWarning ? (
                 <p className="settings-warning-text">
-                  {localReplaceImportConfirmationPresentation.warning}
+                  {localImportGuardWarning}
                 </p>
               ) : null}
               <div className="settings-inline-actions">
@@ -1846,34 +1925,47 @@ export const SettingsDrawer = ({
                   type="button"
                   disabled={importingBackup}
                   onClick={() => {
+                    if (localMergeImportGuardPresentation.shouldArmFirst) {
+                      setLocalReplaceImportArmed(false);
+                      setLocalMergeImportArmed(true);
+                      return;
+                    }
+
+                    setLocalMergeImportArmed(false);
                     setLocalReplaceImportArmed(false);
                     void handleImportBackup("merge");
                   }}
                 >
-                  合并导入（推荐）
+                  {localMergeImportGuardPresentation.buttonLabel}
                 </button>
                 <button
                   type="button"
                   className={
-                    localReplaceImportArmed ? "top-bar-button-danger" : undefined
+                    localReplaceImportGuardPresentation.danger &&
+                    localReplaceImportArmed
+                      ? "top-bar-button-danger"
+                      : undefined
                   }
                   disabled={importingBackup}
                   onClick={() => {
-                    if (!localReplaceImportArmed) {
+                    if (localReplaceImportGuardPresentation.shouldArmFirst) {
+                      setLocalMergeImportArmed(false);
                       setLocalReplaceImportArmed(true);
                       return;
                     }
 
+                    setLocalMergeImportArmed(false);
                     setLocalReplaceImportArmed(false);
                     void handleImportBackup("replace");
                   }}
                 >
-                  {localReplaceImportConfirmationPresentation.buttonLabel}
+                  {localReplaceImportGuardPresentation.buttonLabel}
                 </button>
                 <button
                   type="button"
                   disabled={importingBackup}
                   onClick={() => {
+                    setLocalMergeImportArmed(false);
                     setLocalReplaceImportArmed(false);
                     setPendingBackupFile(null);
                     setBackupInspection(null);
@@ -2231,9 +2323,9 @@ export const SettingsDrawer = ({
                 <p className="settings-warning-text">
                   {formatRemoteBackupRestoreWarning(remoteBackupPullResult.backup)}
                 </p>
-                {remoteReplaceImportConfirmationPresentation.warning ? (
+                {remoteImportGuardWarning ? (
                   <p className="settings-warning-text">
-                    {remoteReplaceImportConfirmationPresentation.warning}
+                    {remoteImportGuardWarning}
                   </p>
                 ) : null}
                 <div className="settings-inline-actions">
@@ -2245,16 +2337,26 @@ export const SettingsDrawer = ({
                       !remoteBackupPulledPreviewGuardPresentation?.importEnabled
                     }
                     onClick={() => {
+                      if (remoteMergeImportGuardPresentation.shouldArmFirst) {
+                        setRemoteReplaceImportArmed(false);
+                        setRemoteMergeImportArmed(true);
+                        return;
+                      }
+
+                      setRemoteMergeImportArmed(false);
                       setRemoteReplaceImportArmed(false);
                       void handleImportPulledRemoteBackup("merge");
                     }}
                   >
-                    拉取后导入（合并）
+                    {remoteMergeImportGuardPresentation.buttonLabel}
                   </button>
                   <button
                     type="button"
                     className={
-                      remoteReplaceImportArmed ? "top-bar-button-danger" : undefined
+                      remoteReplaceImportGuardPresentation.danger &&
+                      remoteReplaceImportArmed
+                        ? "top-bar-button-danger"
+                        : undefined
                     }
                     disabled={
                       Boolean(remoteBackupBusyAction) ||
@@ -2262,21 +2364,24 @@ export const SettingsDrawer = ({
                       !remoteBackupPulledPreviewGuardPresentation?.importEnabled
                     }
                     onClick={() => {
-                      if (!remoteReplaceImportArmed) {
+                      if (remoteReplaceImportGuardPresentation.shouldArmFirst) {
+                        setRemoteMergeImportArmed(false);
                         setRemoteReplaceImportArmed(true);
                         return;
                       }
 
+                      setRemoteMergeImportArmed(false);
                       setRemoteReplaceImportArmed(false);
                       void handleImportPulledRemoteBackup("replace");
                     }}
                   >
-                    {remoteReplaceImportConfirmationPresentation.buttonLabel}
+                    {remoteReplaceImportGuardPresentation.buttonLabel}
                   </button>
                   <button
                     type="button"
                     disabled={Boolean(remoteBackupBusyAction)}
                     onClick={() => {
+                      setRemoteMergeImportArmed(false);
                       setRemoteReplaceImportArmed(false);
                       setRemoteBackupPullResult(null);
                       setBackupMessage("已清除本次网关拉取结果");
