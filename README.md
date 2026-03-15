@@ -51,7 +51,7 @@ pnpm geogebra:sync
 EDGEONE_PROJECT_NAME=<project> EDGEONE_API_TOKEN=<token> VITE_GATEWAY_URL=https://<staging-gateway> bash scripts/deploy/edgeone-deploy.sh
 ```
 
-4. Gateway/Web deploy is manual by design (no auto deploy workflow).
+4. Web deploy and gateway runtime deployment remain manual by design. GitHub Actions auto-publishes the gateway image to GHCR after successful `main` CI.
 
 Notes:
 
@@ -64,6 +64,8 @@ Notes:
 - Optional upstream fallback envs `LITELLM_FALLBACK_ENDPOINT`, `LITELLM_FALLBACK_API_KEY`, and `LITELLM_FALLBACK_MODEL` let Gateway retry transient model failures against a secondary provider.
 - `GATEWAY_ENABLE_ATTACHMENTS=1` explicitly enables gateway image attachments; direct runtime and gateway runtime can legitimately differ in vision support.
 - `PRESET_TOKEN` is required only when you intend to expose `Official` mode login.
+- GitHub Actions auto-publishes the gateway image to GHCR as `ghcr.io/<owner>/geohelper-gateway:staging` and `ghcr.io/<owner>/geohelper-gateway:sha-<shortsha>`.
+- The gateway runtime deployment remains manual even though image publishing is automated.
 
 ## Gateway Container Build
 
@@ -74,6 +76,7 @@ pnpm docker:gateway:build
 ```
 
 The image starts the Fastify gateway on `PORT=8787`, only includes the gateway workspace plus shared protocol sources, and embeds `GEOHELPER_BUILD_SHA` / `GEOHELPER_BUILD_TIME` for `/admin/version`.
+Successful `main` CI also publishes the same image contract to GHCR automatically.
 
 ## Gateway Runtime Smoke
 

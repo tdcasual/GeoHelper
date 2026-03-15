@@ -81,7 +81,7 @@ EDGEONE_API_TOKEN=<token> \
 bash scripts/deploy/edgeone-deploy.sh
 ```
 
-GitHub Actions auto deploy workflow is intentionally disabled.
+GitHub Actions auto-publishes the gateway image to GHCR after successful `main` CI, but web deploy is still intentionally manual.
 Deploy web manually from local or your own CI pipeline.
 
 Secrets expected in repo settings:
@@ -100,6 +100,7 @@ bash scripts/deploy/configure-release-secrets.sh --repo <owner/repo>
 Gateway is packaged as container image:
 
 - image: `ghcr.io/<owner>/geohelper-gateway:staging`
+- immutable tag: `ghcr.io/<owner>/geohelper-gateway:sha-<shortsha>`
 
 Build a local staging image from the repo root with:
 
@@ -107,7 +108,8 @@ Build a local staging image from the repo root with:
 pnpm docker:gateway:build
 ```
 
-Gateway staging image/deploy is also manual by design.
+GitHub Actions auto-publishes the gateway image to GHCR after successful `main` CI using the built-in repository token with `packages: write`.
+Gateway runtime deployment remains manual.
 
 Optional deploy hook secret:
 

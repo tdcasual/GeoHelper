@@ -11,4 +11,28 @@ describe("geogebra deploy automation", () => {
     expect(stagingUp).toContain("pnpm build:web");
     expect(ciWorkflow).toContain("pnpm build:web");
   });
+
+  it("publishes the gateway image to ghcr after successful main-branch ci", () => {
+    const gatewayImageWorkflow = fs.readFileSync(
+      ".github/workflows/gateway-image.yml",
+      "utf8"
+    );
+
+    expect(gatewayImageWorkflow).toContain("workflow_run:");
+    expect(gatewayImageWorkflow).toContain("CI Quality Gate");
+    expect(gatewayImageWorkflow).toContain("branches:");
+    expect(gatewayImageWorkflow).toContain("main");
+    expect(gatewayImageWorkflow).toContain("conclusion == 'success'");
+    expect(gatewayImageWorkflow).toContain("event == 'push'");
+    expect(gatewayImageWorkflow).toContain("docker/login-action");
+    expect(gatewayImageWorkflow).toContain("docker/build-push-action");
+    expect(gatewayImageWorkflow).toContain("ghcr.io");
+    expect(gatewayImageWorkflow).toContain("geohelper-gateway");
+    expect(gatewayImageWorkflow).toContain(":staging");
+    expect(gatewayImageWorkflow).toContain(":sha-");
+    expect(gatewayImageWorkflow).toContain("build-contexts: |");
+    expect(gatewayImageWorkflow).toContain("repo=.");
+    expect(gatewayImageWorkflow).toContain("GEOHELPER_BUILD_SHA");
+    expect(gatewayImageWorkflow).toContain("GEOHELPER_BUILD_TIME");
+  });
 });

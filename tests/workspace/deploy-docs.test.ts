@@ -4,10 +4,16 @@ import { describe, expect, it } from "vitest";
 describe("deploy docs", () => {
   it("documents geogebra self-hosted vendor sync before web build", () => {
     const txt = fs.readFileSync("docs/deploy/edgeone.md", "utf8");
+    const readme = fs.readFileSync("README.md", "utf8");
     expect(txt).toContain("pnpm geogebra:sync");
     expect(txt).toContain("latest");
     expect(txt).toContain("fallback");
     expect(txt).toContain("vendor/geogebra/manifest.json");
+    expect(txt).toContain("auto-publishes the gateway image to GHCR");
+    expect(txt).toContain("successful `main` CI");
+    expect(txt).toContain("runtime deployment remains manual");
+    expect(txt).toContain("ghcr.io/<owner>/geohelper-gateway:staging");
+    expect(txt).toContain("ghcr.io/<owner>/geohelper-gateway:sha-<shortsha>");
     expect(txt).toContain("GATEWAY_ENABLE_ATTACHMENTS");
     expect(txt).toContain("attachments_enabled");
     expect(txt).toContain("lightweight cloud sync");
@@ -26,5 +32,7 @@ describe("deploy docs", () => {
     expect(txt).toContain("ordinary retained history and protected retained snapshots are bounded separately");
     expect(txt).toContain("new protect requests fail explicitly when protected capacity is full");
     expect(txt).toContain("/admin/backups/history/<snapshot-id>/protect");
+    expect(readme).toContain("GitHub Actions auto-publishes the gateway image to GHCR");
+    expect(readme).toContain("gateway runtime deployment remains manual");
   });
 });
