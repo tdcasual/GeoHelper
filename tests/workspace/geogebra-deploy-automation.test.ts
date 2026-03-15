@@ -35,4 +35,18 @@ describe("geogebra deploy automation", () => {
     expect(gatewayImageWorkflow).toContain("GEOHELPER_BUILD_SHA");
     expect(gatewayImageWorkflow).toContain("GEOHELPER_BUILD_TIME");
   });
+
+  it("keeps the ci workflow pnpm version aligned with packageManager", () => {
+    const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8")) as {
+      packageManager?: string;
+    };
+    const ciWorkflow = fs.readFileSync(".github/workflows/ci-quality.yml", "utf8");
+    const setupPnpmBlock = ciWorkflow.match(
+      /- name: Setup pnpm[\s\S]*?uses: pnpm\/action-setup@v4[\s\S]*?with:\n([\s\S]*?)\n\s*- name:/
+    );
+
+    expect(packageJson.packageManager).toBeDefined();
+    expect(setupPnpmBlock?.[1]).toBeDefined();
+    expect(setupPnpmBlock?.[1]).not.toMatch(/^\s+version:/m);
+  });
 });
