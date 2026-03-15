@@ -70,6 +70,7 @@ export interface ChatStoreState {
   selectConversation: (conversationId: string) => void;
   acknowledgeReauth: () => void;
   send: (input: string | ChatSendInput) => Promise<void>;
+  sendFollowUpPrompt: (prompt: string) => Promise<void>;
 }
 
 export interface ChatStoreDeps {
@@ -465,6 +466,14 @@ export const createChatStore = (
           reauthRequired: false
         };
       }),
+    sendFollowUpPrompt: async (prompt) => {
+      const normalizedPrompt = prompt.trim();
+      if (!normalizedPrompt) {
+        return;
+      }
+
+      await get().send(normalizedPrompt);
+    },
     send: async (input) => {
       const normalizedInput = normalizeSendInput(input);
       const userMessage: ChatMessage = {

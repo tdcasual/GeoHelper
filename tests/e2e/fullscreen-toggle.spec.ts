@@ -5,12 +5,13 @@ test("desktop toggles chat without pushing the panel offscreen", async ({
 }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   const canvas = page.locator("[data-panel='canvas']");
   const chat = page.locator("[data-panel='chat']");
 
   await expect(chat).toBeVisible();
-  const geogebraApplet = page.locator("#ggbApplet");
+  const geogebraApplet = page.getByTestId("geogebra-host");
   const geogebraWidthWithChat = (await geogebraApplet.boundingBox())?.width ?? 0;
   expect(geogebraWidthWithChat).toBeGreaterThan(500);
 
@@ -63,6 +64,7 @@ test("desktop exposes a fullscreen control and toggles fullscreen mode", async (
 }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   const fullscreenButton = page.getByTestId("canvas-fullscreen-button");
   await expect(fullscreenButton).toBeVisible();
@@ -87,6 +89,7 @@ test("mobile canvas exposes a fullscreen control and toggles fullscreen mode", a
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   const fullscreenButton = page.getByTestId("canvas-fullscreen-button");
   await expect(fullscreenButton).toBeVisible();
@@ -108,6 +111,7 @@ test("mobile canvas exposes a fullscreen control and toggles fullscreen mode", a
 test("tablet history drawer opens with bounded width", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 1366 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   await page.getByTestId("history-toggle-button").click();
   const drawer = page.getByTestId("conversation-sidebar");
@@ -127,13 +131,14 @@ test("desktop GeoGebra frame fills most of the canvas host on wide layouts", asy
 }) => {
   await page.setViewportSize({ width: 1200, height: 700 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   await expect
     .poll(
       () =>
         page.evaluate(() => {
           const host = document.querySelector("[data-testid='geogebra-host']");
-          const frame = document.querySelector(".GeoGebraFrame");
+          const frame = document.querySelector("#geogebra-container");
           const hostWidth = host?.getBoundingClientRect().width ?? 0;
           const frameWidth = frame?.getBoundingClientRect().width ?? 0;
           return hostWidth > 0 ? frameWidth / hostWidth : 0;
@@ -147,7 +152,7 @@ test("desktop GeoGebra frame fills most of the canvas host on wide layouts", asy
       () =>
         page.evaluate(() => {
           const host = document.querySelector("[data-testid='geogebra-host']");
-          const frame = document.querySelector(".GeoGebraFrame");
+          const frame = document.querySelector("#geogebra-container");
           const hostHeight = host?.getBoundingClientRect().height ?? 0;
           const frameHeight = frame?.getBoundingClientRect().height ?? 0;
           return hostHeight > 0 ? frameHeight / hostHeight : 0;
@@ -162,18 +167,19 @@ test("mobile canvas dedicates most of the host height to the graphics view", asy
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   await expect
     .poll(() =>
       page.evaluate(() => {
         const host = document.querySelector("[data-testid='geogebra-host']");
-        const graphics = document.querySelector(".EuclidianPanel");
+        const graphics = document.querySelector("#geogebra-container");
         const hostHeight = host?.getBoundingClientRect().height ?? 0;
         const graphicsHeight = graphics?.getBoundingClientRect().height ?? 0;
         return hostHeight > 0 ? graphicsHeight / hostHeight : 0;
       })
     )
-    .toBeGreaterThan(0.7);
+    .toBeGreaterThan(0.92);
 });
 
 
@@ -182,6 +188,7 @@ test("mobile rotating to landscape keeps GeoGebra filling most of the canvas hos
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   await expect(page.getByTestId("mobile-surface-canvas")).toHaveAttribute(
     "aria-pressed",
@@ -222,24 +229,41 @@ test("mobile rotating to landscape keeps GeoGebra filling most of the canvas hos
 test("mobile fullscreen survives rotation between portrait and landscape", async ({
   page
 }) => {
-  const client = await page.context().newCDPSession(page);
+  await page.addInitScript(() => {
+    let fullscreenElement: Element | null = null;
+
+    Object.defineProperty(Document.prototype, "fullscreenElement", {
+      configurable: true,
+      get() {
+        return fullscreenElement;
+      }
+    });
+
+    Object.defineProperty(Document.prototype, "fullscreenEnabled", {
+      configurable: true,
+      get() {
+        return true;
+      }
+    });
+
+    Element.prototype.requestFullscreen = async function requestFullscreen() {
+      fullscreenElement = this;
+      document.dispatchEvent(new Event("fullscreenchange"));
+    };
+
+    Document.prototype.exitFullscreen = async function exitFullscreen() {
+      fullscreenElement = null;
+      document.dispatchEvent(new Event("fullscreenchange"));
+    };
+  });
+
   const rotateViewport = async (width: number, height: number) => {
-    await client.send("Emulation.setDeviceMetricsOverride", {
-      width,
-      height,
-      deviceScaleFactor: 1,
-      mobile: true,
-      screenWidth: width,
-      screenHeight: height
-    });
-    await page.evaluate(() => {
-      window.dispatchEvent(new Event("resize"));
-      window.dispatchEvent(new Event("orientationchange"));
-    });
+    await page.setViewportSize({ width, height });
   };
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   await page.getByTestId("canvas-fullscreen-button").click();
 
@@ -267,8 +291,6 @@ test("mobile fullscreen survives rotation between portrait and landscape", async
       { message: "rotating back to portrait should still keep fullscreen active" }
     )
     .toBe(true);
-
-  await client.send("Emulation.clearDeviceMetricsOverride");
 });
 
 test("mobile uses surface tabs, compact header, and overlay history", async ({
@@ -276,6 +298,7 @@ test("mobile uses surface tabs, compact header, and overlay history", async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   await expect(page.getByTestId("mobile-surface-switcher")).toBeVisible();
   await expect(page.getByTestId("mobile-surface-canvas")).toHaveAttribute(
@@ -330,6 +353,7 @@ test("mobile overflow menu opens as an anchored overlay without pushing content"
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("mobile-surface-chat").click();
 
   const before = await page.evaluate(() => ({
@@ -373,6 +397,7 @@ test("mobile overflow menu closes history sheet before opening", async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("mobile-surface-chat").click();
 
   await page.getByTestId("history-toggle-button").click();
@@ -388,6 +413,7 @@ test("compact landscape uses single-surface layout instead of narrow split panes
 }) => {
   await page.setViewportSize({ width: 844, height: 390 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   await expect(page.getByTestId("mobile-surface-switcher")).toBeVisible();
   await expect(page.locator("[data-panel='chat']")).toBeHidden();
@@ -409,6 +435,7 @@ test("near-breakpoint desktop keeps chat usable when history opens", async ({
 }) => {
   await page.setViewportSize({ width: 901, height: 600 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   const chatBody = page.locator(".chat-body");
   const widthBefore = (await chatBody.boundingBox())?.width ?? 0;
@@ -431,6 +458,7 @@ test("desktop history preference survives a compact viewport detour", async ({
 }) => {
   await page.setViewportSize({ width: 1200, height: 900 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   await page.getByTestId("history-toggle-button").click();
   await expect(page.getByTestId("conversation-sidebar")).toBeVisible();
@@ -475,6 +503,7 @@ test("compact landscape top bar stays compact on short viewports", async ({
 }) => {
   await page.setViewportSize({ width: 844, height: 390 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   await expect(page.getByTestId("mobile-surface-switcher")).toBeVisible();
 
@@ -496,6 +525,7 @@ test("short landscape chat preserves message room above the composer", async ({
 }) => {
   await page.setViewportSize({ width: 844, height: 390 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("mobile-surface-chat").click();
 
   const { messagesHeight, composerHeight } = await page.evaluate(() => ({
@@ -512,20 +542,21 @@ test("short landscape chat preserves message room above the composer", async ({
 test("desktop 1600 keeps chat readable when history opens", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
-  const chatBody = page.locator(".chat-body");
-  const widthBefore = (await chatBody.boundingBox())?.width ?? 0;
-  expect(widthBefore).toBeGreaterThan(480);
+  const inputBody = page.locator(".studio-input-body");
+  const widthBefore = (await inputBody.boundingBox())?.width ?? 0;
+  expect(widthBefore).toBeGreaterThan(300);
 
   await page.getByTestId("history-toggle-button").click();
   await expect(page.getByTestId("conversation-sidebar")).toBeVisible();
 
   await expect
     .poll(
-      async () => (await chatBody.boundingBox())?.width ?? 0,
-      { message: "1600 desktop chat body should stay wide enough after opening history" }
+      async () => (await inputBody.boundingBox())?.width ?? 0,
+      { message: "1600 desktop input rail should stay wide enough after opening history" }
     )
-    .toBeGreaterThan(widthBefore - 60);
+    .toBeGreaterThan(280);
 
   await expect
     .poll(
@@ -533,25 +564,28 @@ test("desktop 1600 keeps chat readable when history opens", async ({ page }) => 
         (await page.locator(".chat-composer").boundingBox())?.width ?? 0,
       { message: "1600 desktop composer should not collapse when history opens" }
     )
-    .toBeGreaterThanOrEqual(450);
+    .toBeGreaterThanOrEqual(260);
 });
 
 
-test("desktop 1600 history expands into a full overlay rail", async ({ page }) => {
+test("desktop 1600 history stays inside the input rail", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("history-toggle-button").click();
   await expect(page.getByTestId("conversation-sidebar")).toBeVisible();
 
-  const { chatWidth, sidebarWidth } = await page.evaluate(() => ({
-    chatWidth:
-      document.querySelector("[data-panel='chat']")?.getBoundingClientRect().width ?? 0,
+  const { inputWidth, sidebarWidth } = await page.evaluate(() => ({
+    inputWidth:
+      document.querySelector("[data-testid='studio-input-rail']")?.getBoundingClientRect()
+        .width ?? 0,
     sidebarWidth:
       document.querySelector("[data-testid='conversation-sidebar']")?.getBoundingClientRect()
         .width ?? 0
   }));
 
-  expect(sidebarWidth).toBeGreaterThanOrEqual(chatWidth - 60);
+  expect(sidebarWidth).toBeGreaterThanOrEqual(220);
+  expect(sidebarWidth).toBeLessThan(inputWidth - 120);
 });
 
 test("desktop empty state centers guidance and seeds the composer from templates", async ({
@@ -559,12 +593,15 @@ test("desktop empty state centers guidance and seeds the composer from templates
 }) => {
   await page.setViewportSize({ width: 2560, height: 1440 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   const emptyCard = page.getByTestId("chat-empty-card");
   await expect(emptyCard).toBeVisible();
 
   const { containerCenter, cardCenter } = await page.evaluate(() => {
-    const container = document.querySelector(".chat-messages")?.getBoundingClientRect();
+    const container = document
+      .querySelector(".studio-result-rail .chat-messages")
+      ?.getBoundingClientRect();
     const card = document.querySelector("[data-testid='chat-empty-card']")?.getBoundingClientRect();
     return {
       containerCenter: container ? container.y + container.height / 2 : 0,
@@ -572,7 +609,7 @@ test("desktop empty state centers guidance and seeds the composer from templates
     };
   });
 
-  expect(Math.abs(containerCenter - cardCenter)).toBeLessThanOrEqual(180);
+  expect(Math.abs(containerCenter - cardCenter)).toBeLessThanOrEqual(220);
   await expect(page.getByTestId("chat-empty-template-button")).toHaveCount(3);
 
   await emptyCard.getByRole("button", { name: "画圆" }).click();
@@ -584,10 +621,14 @@ test("desktop empty state centers guidance and seeds the composer from templates
 test("ultrawide chat rail uses a readable width", async ({ page }) => {
   await page.setViewportSize({ width: 2560, height: 1440 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await expect(page.locator("[data-panel='chat']")).toBeVisible();
   await expect(page.getByTestId("chat-empty-card")).toBeVisible();
 
-  const { chatWidth, composerWidth, emptyCardWidth } = await page.evaluate(() => ({
+  const { inputWidth, chatWidth, composerWidth, emptyCardWidth } = await page.evaluate(() => ({
+    inputWidth:
+      document.querySelector("[data-testid='studio-input-rail']")?.getBoundingClientRect()
+        .width ?? 0,
     chatWidth:
       document.querySelector("[data-panel='chat']")?.getBoundingClientRect().width ?? 0,
     composerWidth:
@@ -598,9 +639,10 @@ test("ultrawide chat rail uses a readable width", async ({ page }) => {
         ?.getBoundingClientRect().width ?? 0
   }));
 
-  expect(chatWidth).toBeGreaterThanOrEqual(640);
-  expect(composerWidth).toBeGreaterThanOrEqual(600);
-  expect(emptyCardWidth).toBeGreaterThanOrEqual(500);
+  expect(inputWidth).toBeGreaterThanOrEqual(640);
+  expect(chatWidth).toBeGreaterThanOrEqual(300);
+  expect(composerWidth).toBeGreaterThanOrEqual(560);
+  expect(emptyCardWidth).toBeGreaterThanOrEqual(320);
 });
 
 test("ultrawide settings drawer uses a readable content width", async ({
@@ -608,6 +650,7 @@ test("ultrawide settings drawer uses a readable content width", async ({
 }) => {
   await page.setViewportSize({ width: 2560, height: 1440 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByRole("button", { name: "设置" }).first().click();
 
   const { drawerWidth, contentWidth } = await page.evaluate(() => ({
@@ -626,6 +669,7 @@ test("short landscape history sheet expands into a full modal layer", async ({
 }) => {
   await page.setViewportSize({ width: 844, height: 390 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("mobile-surface-chat").click();
   await page.getByTestId("history-toggle-button").click();
 
@@ -651,6 +695,7 @@ test("short landscape history sheet expands into a full modal layer", async ({
 test("mobile overflow menu closes on outside click", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("mobile-surface-chat").click();
 
   await page.getByTestId("mobile-more-button").click();
@@ -663,6 +708,7 @@ test("mobile overflow menu closes on outside click", async ({ page }) => {
 test("mobile plus menu closes when leaving the chat surface", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("mobile-surface-chat").click();
 
   await page.getByTestId("plus-menu-button").click();
@@ -676,6 +722,7 @@ test("mobile plus menu closes when leaving the chat surface", async ({ page }) =
 test("compact empty state keeps template shortcuts available", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("mobile-surface-chat").click();
 
   await expect(page.getByTestId("chat-empty-template-button")).toHaveCount(2);
@@ -689,6 +736,7 @@ test("compact portrait empty state stays vertically centered in chat surface", a
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("mobile-surface-chat").click();
   await expect(page.getByTestId("chat-empty-compact")).toBeVisible();
 
@@ -711,6 +759,7 @@ test("short landscape compact empty state stays visually centered", async ({
 }) => {
   await page.setViewportSize({ width: 844, height: 390 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("mobile-surface-chat").click();
   await expect(page.getByTestId("chat-empty-compact")).toBeVisible();
 
@@ -731,6 +780,7 @@ test("short landscape compact empty state stays visually centered", async ({
 test("short landscape plus menu keeps message area usable", async ({ page }) => {
   await page.setViewportSize({ width: 844, height: 390 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("mobile-surface-chat").click();
 
   await page.getByTestId("plus-menu-button").click();
@@ -753,6 +803,7 @@ test("short landscape slash menu stays within viewport and preserves messages", 
 }) => {
   await page.setViewportSize({ width: 844, height: 390 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("mobile-surface-chat").click();
   await page.getByTestId("chat-composer-input").fill("/");
   await expect(page.getByTestId("slash-command-menu")).toBeVisible();
@@ -812,6 +863,7 @@ test("long assistant token wraps inside compact mobile chat bubble", async ({
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("mobile-surface-chat").click();
   await expect(page.locator(".chat-message-assistant")).toBeVisible();
 
@@ -904,6 +956,7 @@ test("short landscape long chat keeps composer compact and message viewport read
 
   await page.setViewportSize({ width: 740, height: 360 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("mobile-surface-chat").click();
   await expect(page.locator(".chat-message-assistant")).toBeVisible();
 

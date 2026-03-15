@@ -19,6 +19,8 @@ Use this section when you know the problem domain first and only then want the r
 - Settings center: [`2026-03-05-settings-center-design.md`](./2026-03-05-settings-center-design.md)
 - Desktop empty state: [`2026-03-07-desktop-empty-state-design.md`](./2026-03-07-desktop-empty-state-design.md), [`2026-03-07-desktop-empty-state-implementation-plan.md`](./2026-03-07-desktop-empty-state-implementation-plan.md)
 - Ultrawide settings drawer: [`2026-03-07-ultrawide-settings-drawer-design.md`](./2026-03-07-ultrawide-settings-drawer-design.md), [`2026-03-07-ultrawide-settings-drawer-implementation-plan.md`](./2026-03-07-ultrawide-settings-drawer-implementation-plan.md)
+- VNext teacher diagram studio: [`2026-03-14-vnext-teacher-diagram-studio-design.md`](./2026-03-14-vnext-teacher-diagram-studio-design.md)
+- VNext teacher diagram studio implementation: [`2026-03-14-vnext-teacher-diagram-studio-implementation-plan.md`](./2026-03-14-vnext-teacher-diagram-studio-implementation-plan.md)
 
 ### Responsive
 
@@ -80,6 +82,7 @@ The frontend documents split naturally into two layers:
 | Composer vision + settings refresh | 2026-03-06 | [`2026-03-06-composer-vision-settings-center-design.md`](./2026-03-06-composer-vision-settings-center-design.md) | [`2026-03-06-composer-vision-settings-implementation-plan.md`](./2026-03-06-composer-vision-settings-implementation-plan.md) | Completed |
 | GeoGebra self-hosted latest vendor flow | 2026-03-06 | [`2026-03-06-geogebra-self-hosted-latest-design.md`](./2026-03-06-geogebra-self-hosted-latest-design.md) | [`2026-03-06-geogebra-self-hosted-latest-implementation-plan.md`](./2026-03-06-geogebra-self-hosted-latest-implementation-plan.md) | Completed |
 | Scene rehydrate + backup sync | 2026-03-07 | — | [`2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md`](./2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md) | Completed |
+| VNext teacher diagram studio | 2026-03-14 | [`2026-03-14-vnext-teacher-diagram-studio-design.md`](./2026-03-14-vnext-teacher-diagram-studio-design.md) | [`2026-03-14-vnext-teacher-diagram-studio-implementation-plan.md`](./2026-03-14-vnext-teacher-diagram-studio-implementation-plan.md) | Implemented in branch / validated on 2026-03-15 |
 
 ### UI & Responsive Stabilization
 
@@ -125,7 +128,8 @@ The frontend documents split naturally into two layers:
 3. Read the settings/composer path: [`2026-03-05-settings-center-design.md`](./2026-03-05-settings-center-design.md), [`2026-03-06-composer-vision-settings-center-design.md`](./2026-03-06-composer-vision-settings-center-design.md), and [`2026-03-06-composer-vision-settings-implementation-plan.md`](./2026-03-06-composer-vision-settings-implementation-plan.md).
 4. Read [`2026-03-06-geogebra-self-hosted-latest-design.md`](./2026-03-06-geogebra-self-hosted-latest-design.md) and [`2026-03-06-geogebra-self-hosted-latest-implementation-plan.md`](./2026-03-06-geogebra-self-hosted-latest-implementation-plan.md) for vendor-sync/self-hosting history.
 5. Read the chat and responsive series in order: [`2026-03-05-chat-ui-redesign-design.md`](./2026-03-05-chat-ui-redesign-design.md), [`2026-03-05-chat-ui-redesign-implementation-plan.md`](./2026-03-05-chat-ui-redesign-implementation-plan.md), then the 2026-03-06 to 2026-03-08 stabilization plans.
-6. Finish with [`2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md`](./2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md) when debugging restore, hydration, or in-place backup import behavior.
+6. Read [`2026-03-14-vnext-teacher-diagram-studio-design.md`](./2026-03-14-vnext-teacher-diagram-studio-design.md) and [`2026-03-14-vnext-teacher-diagram-studio-implementation-plan.md`](./2026-03-14-vnext-teacher-diagram-studio-implementation-plan.md) for the next product-facing direction: homepage + workspace reframe around teacher-first diagram generation.
+7. Finish with [`2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md`](./2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md) when debugging restore, hydration, or in-place backup import behavior.
 
 ## Related Runtime Docs
 

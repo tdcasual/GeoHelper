@@ -15,6 +15,9 @@ import { CanvasPanel } from "./CanvasPanel";
 import { ChatPanel } from "./ChatPanel";
 import { ModelModeSwitcher } from "./ModelModeSwitcher";
 import { SettingsDrawer } from "./SettingsDrawer";
+import { StudioInputPanel } from "./StudioInputPanel";
+import { StudioResultPanel } from "./StudioResultPanel";
+import { TeacherTemplateLibrary } from "./TeacherTemplateLibrary";
 import { TokenGateDialog } from "./TokenGateDialog";
 import {
   loginWithRuntime,
@@ -28,6 +31,7 @@ import {
   resolveRuntimeCapabilitiesForModel,
   useSettingsStore
 } from "../state/settings-store";
+import { type StudioStartMode } from "../state/studio-start";
 import { useTemplateStore } from "../state/template-store";
 import { useUIStore } from "../state/ui-store";
 
@@ -57,7 +61,17 @@ const readFileAsDataUrl = async (file: File): Promise<string> =>
     reader.readAsDataURL(file);
   });
 
-export const WorkspaceShell = () => {
+interface WorkspaceShellProps {
+  initialDesktopInputMode?: StudioStartMode;
+  initialTemplateLibraryOpen?: boolean;
+  onTemplateLibraryOpenChange?: (open: boolean) => void;
+}
+
+export const WorkspaceShell = ({
+  initialDesktopInputMode = "image",
+  initialTemplateLibraryOpen = false,
+  onTemplateLibraryOpenChange
+}: WorkspaceShellProps = {}) => {
   const chatVisible = useUIStore((state) => state.chatVisible);
   const historyDrawerVisible = useUIStore(
     (state) => state.historyDrawerVisible
@@ -86,6 +100,7 @@ export const WorkspaceShell = () => {
   const selectConversation = useChatStore((state) => state.selectConversation);
   const acknowledgeReauth = useChatStore((state) => state.acknowledgeReauth);
   const send = useChatStore((state) => state.send);
+  const sendFollowUpPrompt = useChatStore((state) => state.sendFollowUpPrompt);
   const sceneTransactionCount = useSceneStore(
     (state) => state.transactions.length
   );
@@ -137,6 +152,11 @@ export const WorkspaceShell = () => {
     useState(false);
   const [canvasFullscreenActive, setCanvasFullscreenActive] = useState(false);
   const [chatShellWidth, setChatShellWidth] = useState(0);
+  const [desktopInputMode, setDesktopInputMode] =
+    useState<StudioStartMode>(initialDesktopInputMode);
+  const [templateLibraryOpen, setTemplateLibraryOpen] = useState(
+    initialTemplateLibraryOpen
+  );
   const activeRuntimeProfile = useMemo(
     () =>
       runtimeProfiles.find((item) => item.id === defaultRuntimeProfileId) ??
@@ -305,6 +325,8 @@ export const WorkspaceShell = () => {
     draftByConversationId[activeConversationKey] ?? EMPTY_COMPOSER_DRAFT;
   const draft = activeDraft.text;
   const draftAttachments = activeDraft.attachments;
+  const latestAssistantMessage =
+    [...messages].reverse().find((message) => message.role === "assistant") ?? null;
   const slashQuery = draft.startsWith("/") ? draft.slice(1).trim() : "";
   const activePresetModel =
     mode === "byok"
@@ -375,7 +397,7 @@ export const WorkspaceShell = () => {
     () => templates.slice(0, phoneViewport ? 2 : 3),
     [phoneViewport, templates]
   );
-  const minimumDesktopChatWidthForInlineHistory = 360;
+  const minimumDesktopChatWidthForInlineHistory = 240;
   const minimumDesktopHistoryDrawerWidth = 220;
   const desktopHistoryOverlay =
     !compactViewport &&
@@ -851,6 +873,273 @@ export const WorkspaceShell = () => {
     </>
   );
 
+  useEffect(() => {
+    setDesktopInputMode(initialDesktopInputMode);
+  }, [initialDesktopInputMode]);
+
+  useEffect(() => {
+    setTemplateLibraryOpen(initialTemplateLibraryOpen);
+  }, [initialTemplateLibraryOpen]);
+
+  useEffect(() => {
+    onTemplateLibraryOpenChange?.(templateLibraryOpen);
+  }, [onTemplateLibraryOpenChange, templateLibraryOpen]);
+
+  const chatThreadHeader = (
+    <div className="chat-thread-header">
+      <h3>{activeConversation?.title ?? "新会话"}</h3>
+      <div className="chat-thread-actions">
+        <span className="scene-transaction-count">事务数: {sceneTransactionCount}</span>
+        <button
+          type="button"
+          className="history-toggle-button"
+          data-testid="history-toggle-button"
+          onClick={handleHistoryToggle}
+        >
+          {effectiveHistoryDrawerVisible ? "收起历史" : "历史"}
+        </button>
+      </div>
+    </div>
+  );
+
+  const chatMessagesContent = (
+    <div className="chat-messages">
+      {messages.length === 0 ? (
+        !compactViewport ? (
+          <div className="chat-empty-state">
+            <section className="chat-empty-card" data-testid="chat-empty-card">
+              <div className="chat-empty-copy">
+                <h4>开始输入你的几何需求</h4>
+                <p>也可以先试试这些模板，快速生成一个可编辑的起点。</p>
+              </div>
+              <div className="chat-empty-actions">
+                {templates.slice(0, 3).map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    className="chat-empty-template-button"
+                    data-testid="chat-empty-template-button"
+                    onClick={() => applySlashTemplate(template.prompt)}
+                  >
+                    {template.title}
+                  </button>
+                ))}
+              </div>
+            </section>
+          </div>
+        ) : (
+          <div className="chat-empty chat-empty-compact" data-testid="chat-empty-compact">
+            <p>开始输入你的几何需求</p>
+            <div className="chat-empty-actions chat-empty-actions-compact">
+              {compactEmptyStateTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  className="chat-empty-template-button"
+                  data-testid="chat-empty-template-button"
+                  onClick={() => applySlashTemplate(template.prompt)}
+                >
+                  {template.title}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      ) : (
+        messages.map((message) => (
+          <article key={message.id} className={`chat-message chat-message-${message.role}`}>
+            {message.attachments && message.attachments.length > 0 ? (
+              <div className="chat-message-attachments">
+                {message.attachments.map((attachment) => (
+                  <figure key={attachment.id} className="chat-message-attachment">
+                    <img
+                      src={attachment.previewUrl ?? attachment.transportPayload}
+                      alt={attachment.name}
+                    />
+                    <figcaption>{attachment.name}</figcaption>
+                  </figure>
+                ))}
+              </div>
+            ) : null}
+            {message.content ? <div>{message.content}</div> : null}
+            {showAgentSteps &&
+            message.role === "assistant" &&
+            message.agentSteps &&
+            message.agentSteps.length > 0 ? (
+              <section className="agent-steps" data-testid="agent-steps">
+                <h4>执行步骤</h4>
+                <ul>
+                  {message.agentSteps.map((step, index) => (
+                    <li
+                      key={`${message.id}_${step.name}_${index}`}
+                      className={`agent-step agent-step-${step.status}`}
+                    >
+                      <span className="agent-step-name">{step.name}</span>
+                      <span className="agent-step-status">{step.status}</span>
+                      <span className="agent-step-time">{step.duration_ms}ms</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+          </article>
+        ))
+      )}
+      {mode === "official" && !sessionToken ? (
+        <div className="session-warning" data-testid="session-warning">
+          官方模式未登录或会话已过期，请输入 Token
+        </div>
+      ) : null}
+    </div>
+  );
+
+  const composerContent = (
+    <form ref={composerFormRef} className="chat-composer" onSubmit={handleSend}>
+      <span className="chat-composer-hint">输入 / 调用模板命令</span>
+
+      {plusMenuOpen ? (
+        <div ref={plusMenuRef} className="plus-menu" data-testid="plus-menu">
+          <button
+            type="button"
+            className="plus-menu-item"
+            disabled={!supportsVisionUpload}
+            onClick={() => imageInputRef.current?.click()}
+          >
+            上传图片
+          </button>
+          {templates.slice(0, 8).map((template) => (
+            <button
+              key={template.id}
+              type="button"
+              className="plus-menu-item"
+              onClick={() => applyPlusTemplate(template.prompt)}
+            >
+              {template.title}
+            </button>
+          ))}
+          {!supportsVisionUpload ? (
+            <div className="plus-menu-note">{unsupportedVisionNotice}</div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {draftAttachments.length > 0 ? (
+        <div className="composer-attachment-tray">
+          {draftAttachments.map((attachment) => (
+            <div
+              key={attachment.id}
+              className="composer-attachment-item"
+              data-testid="composer-attachment-item"
+            >
+              <img
+                src={attachment.previewUrl ?? attachment.transportPayload}
+                alt={attachment.name}
+              />
+              <span>{attachment.name}</span>
+              <button type="button" onClick={() => removeAttachment(attachment.id)}>
+                移除
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {composerNotice ? <div className="chat-composer-notice">{composerNotice}</div> : null}
+
+      {slashMenuVisible ? (
+        <div className="slash-command-menu" data-testid="slash-command-menu">
+          {slashTemplates.map((template, index) => (
+            <button
+              key={template.id}
+              type="button"
+              data-testid="slash-command-item"
+              className={`slash-command-item${
+                index === slashSelectedIndex ? " slash-command-item-active" : ""
+              }`}
+              onMouseEnter={() => setSlashSelectedIndex(index)}
+              onClick={() => applySlashTemplate(template.prompt)}
+            >
+              <span className="slash-command-label">{`/${template.title}`}</span>
+              <span className="slash-command-preview">{template.prompt}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div
+        className={`chat-composer-input-shell${
+          composerDragActive ? " chat-composer-input-shell-drag-active" : ""
+        }`}
+        data-testid="chat-composer-shell"
+        onDragOver={handleComposerDragOver}
+        onDragLeave={handleComposerDragLeave}
+        onDrop={(event) => {
+          void handleComposerDrop(event);
+        }}
+      >
+        <button
+          ref={plusMenuButtonRef}
+          type="button"
+          className="plus-menu-button"
+          data-testid="plus-menu-button"
+          onClick={() => {
+            setPlusMenuOpen((value) => !value);
+            setSlashSelectedIndex(0);
+          }}
+        >
+          +
+        </button>
+        <textarea
+          ref={composerRef}
+          data-testid="chat-composer-input"
+          value={draft}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setDraftForActiveConversation(nextValue);
+            setSlashMenuDismissed(false);
+            if (!nextValue.startsWith("/")) {
+              setSlashSelectedIndex(0);
+            } else {
+              setPlusMenuOpen(false);
+            }
+          }}
+          onFocus={() => {
+            if (draft.startsWith("/")) {
+              setSlashMenuDismissed(false);
+            }
+          }}
+          onKeyDown={handleComposerKeyDown}
+          onPaste={(event) => {
+            void handleComposerPaste(event);
+          }}
+          placeholder="例如：过点A和B作垂直平分线"
+          rows={2}
+        />
+        <button
+          type="submit"
+          disabled={
+            isSending ||
+            (draftAttachments.length === 0 && !draft.trim()) ||
+            slashMenuVisible
+          }
+        >
+          {isSending ? "生成中..." : "发送"}
+        </button>
+      </div>
+      <input
+        ref={imageInputRef}
+        data-testid="composer-image-input"
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={(event) => {
+          void handleComposerImageChange(event);
+        }}
+      />
+    </form>
+  );
+
   return (
     <main
       className={`workspace-shell${
@@ -995,332 +1284,121 @@ export const WorkspaceShell = () => {
         ) : null}
       </header>
       <div className="workspace-content">
-        <CanvasPanel
-          key={canvasMountKey}
-          profile={canvasProfile}
-          visible={canvasVisible}
-        />
-        <ChatPanel visible={effectiveChatVisible}>
-          <div
-            ref={chatShellRef}
-            className={`chat-shell${desktopHistoryOverlay ? " history-overlay-mode" : ""}`}
-          >
-            {!compactViewport ? (
+        {!compactViewport ? (
+          <>
+            <aside
+              className="studio-input-rail"
+              data-testid="studio-input-rail"
+              hidden={!chatVisible}
+            >
               <div
-                className={`history-drawer${
-                  historyDrawerVisible ? " history-drawer-open" : ""
-                }`}
-                style={historyDrawerStyle}
+                ref={chatShellRef}
+                className={`chat-shell${desktopHistoryOverlay ? " history-overlay-mode" : ""}`}
               >
-                {historyDrawerVisible ? (
-                  <aside
-                    className="conversation-sidebar"
-                    data-testid="conversation-sidebar"
-                  >
-                    {conversationSidebarContent}
-                  </aside>
-                ) : null}
                 <div
-                  className="history-resizer"
-                  data-testid="history-resizer"
-                  hidden={!historyDrawerVisible}
-                  onPointerDown={handleHistoryResizeStart}
-                />
-              </div>
-            ) : null}
-            <div className="chat-body">
-              <div className="chat-thread-header">
-                <h3>{activeConversation?.title ?? "新会话"}</h3>
-                <div className="chat-thread-actions">
-                  <span className="scene-transaction-count">
-                    事务数: {sceneTransactionCount}
-                  </span>
-                  <button
-                    type="button"
-                    className="history-toggle-button"
-                    data-testid="history-toggle-button"
-                    onClick={handleHistoryToggle}
-                  >
-                    {effectiveHistoryDrawerVisible ? "收起历史" : "历史"}
-                  </button>
-                </div>
-              </div>
-              <div className="chat-messages">
-                {messages.length === 0 ? (
-                  !compactViewport ? (
-                    <div className="chat-empty-state">
-                      <section className="chat-empty-card" data-testid="chat-empty-card">
-                        <div className="chat-empty-copy">
-                          <h4>开始输入你的几何需求</h4>
-                          <p>也可以先试试这些模板，快速生成一个可编辑的起点。</p>
-                        </div>
-                        <div className="chat-empty-actions">
-                          {templates.slice(0, 3).map((template) => (
-                            <button
-                              key={template.id}
-                              type="button"
-                              className="chat-empty-template-button"
-                              data-testid="chat-empty-template-button"
-                              onClick={() => applySlashTemplate(template.prompt)}
-                            >
-                              {template.title}
-                            </button>
-                          ))}
-                        </div>
-                      </section>
-                    </div>
-                  ) : (
-                    <div className="chat-empty chat-empty-compact" data-testid="chat-empty-compact">
-                      <p>开始输入你的几何需求</p>
-                      <div className="chat-empty-actions chat-empty-actions-compact">
-                        {compactEmptyStateTemplates.map((template) => (
-                          <button
-                            key={template.id}
-                            type="button"
-                            className="chat-empty-template-button"
-                            data-testid="chat-empty-template-button"
-                            onClick={() => applySlashTemplate(template.prompt)}
-                          >
-                            {template.title}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                ) : (
-                  messages.map((message) => (
-                    <article
-                      key={message.id}
-                      className={`chat-message chat-message-${message.role}`}
-                    >
-                      {message.attachments && message.attachments.length > 0 ? (
-                        <div className="chat-message-attachments">
-                          {message.attachments.map((attachment) => (
-                            <figure key={attachment.id} className="chat-message-attachment">
-                              <img
-                                src={attachment.previewUrl ?? attachment.transportPayload}
-                                alt={attachment.name}
-                              />
-                              <figcaption>{attachment.name}</figcaption>
-                            </figure>
-                          ))}
-                        </div>
-                      ) : null}
-                      {message.content ? <div>{message.content}</div> : null}
-                      {showAgentSteps &&
-                      message.role === "assistant" &&
-                      message.agentSteps &&
-                      message.agentSteps.length > 0 ? (
-                        <section className="agent-steps" data-testid="agent-steps">
-                          <h4>执行步骤</h4>
-                          <ul>
-                            {message.agentSteps.map((step, index) => (
-                              <li
-                                key={`${message.id}_${step.name}_${index}`}
-                                className={`agent-step agent-step-${step.status}`}
-                              >
-                                <span className="agent-step-name">{step.name}</span>
-                                <span className="agent-step-status">
-                                  {step.status}
-                                </span>
-                                <span className="agent-step-time">
-                                  {step.duration_ms}ms
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </section>
-                      ) : null}
-                    </article>
-                  ))
-                )}
-                {mode === "official" && !sessionToken ? (
-                  <div className="session-warning" data-testid="session-warning">
-                    官方模式未登录或会话已过期，请输入 Token
-                  </div>
-                ) : null}
-              </div>
-              <form ref={composerFormRef} className="chat-composer" onSubmit={handleSend}>
-                <span className="chat-composer-hint">输入 / 调用模板命令</span>
-
-                {plusMenuOpen ? (
-                  <div
-                    ref={plusMenuRef}
-                    className="plus-menu"
-                    data-testid="plus-menu"
-                  >
-                    <button
-                      type="button"
-                      className="plus-menu-item"
-                      disabled={!supportsVisionUpload}
-                      onClick={() => imageInputRef.current?.click()}
-                    >
-                      上传图片
-                    </button>
-                    {templates.slice(0, 8).map((template) => (
-                      <button
-                        key={template.id}
-                        type="button"
-                        className="plus-menu-item"
-                        onClick={() => applyPlusTemplate(template.prompt)}
-                      >
-                        {template.title}
-                      </button>
-                    ))}
-                    {!supportsVisionUpload ? (
-                      <div className="plus-menu-note">{unsupportedVisionNotice}</div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {draftAttachments.length > 0 ? (
-                  <div className="composer-attachment-tray">
-                    {draftAttachments.map((attachment) => (
-                      <div
-                        key={attachment.id}
-                        className="composer-attachment-item"
-                        data-testid="composer-attachment-item"
-                      >
-                        <img
-                          src={attachment.previewUrl ?? attachment.transportPayload}
-                          alt={attachment.name}
-                        />
-                        <span>{attachment.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeAttachment(attachment.id)}
-                        >
-                          移除
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {composerNotice ? (
-                  <div className="chat-composer-notice">{composerNotice}</div>
-                ) : null}
-
-                {slashMenuVisible ? (
-                  <div className="slash-command-menu" data-testid="slash-command-menu">
-                    {slashTemplates.map((template, index) => (
-                      <button
-                        key={template.id}
-                        type="button"
-                        data-testid="slash-command-item"
-                        className={`slash-command-item${
-                          index === slashSelectedIndex
-                            ? " slash-command-item-active"
-                            : ""
-                        }`}
-                        onMouseEnter={() => setSlashSelectedIndex(index)}
-                        onClick={() => applySlashTemplate(template.prompt)}
-                      >
-                        <span className="slash-command-label">{`/${template.title}`}</span>
-                        <span className="slash-command-preview">
-                          {template.prompt}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-
-                <div
-                  className={`chat-composer-input-shell${
-                    composerDragActive ? " chat-composer-input-shell-drag-active" : ""
+                  className={`history-drawer${
+                    historyDrawerVisible ? " history-drawer-open" : ""
                   }`}
-                  data-testid="chat-composer-shell"
-                  onDragOver={handleComposerDragOver}
-                  onDragLeave={handleComposerDragLeave}
-                  onDrop={(event) => {
-                    void handleComposerDrop(event);
-                  }}
+                  style={historyDrawerStyle}
                 >
-                  <button
-                    ref={plusMenuButtonRef}
-                    type="button"
-                    className="plus-menu-button"
-                    data-testid="plus-menu-button"
-                    onClick={() => {
-                      setPlusMenuOpen((value) => !value);
-                      setSlashSelectedIndex(0);
-                    }}
-                  >
-                    +
-                  </button>
-                  <textarea
-                    ref={composerRef}
-                    data-testid="chat-composer-input"
-                    value={draft}
-                    onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setDraftForActiveConversation(nextValue);
-                      setSlashMenuDismissed(false);
-                      if (!nextValue.startsWith("/")) {
-                        setSlashSelectedIndex(0);
-                      } else {
-                        setPlusMenuOpen(false);
-                      }
-                    }}
-                    onFocus={() => {
-                      if (draft.startsWith("/")) {
-                        setSlashMenuDismissed(false);
-                      }
-                    }}
-                    onKeyDown={handleComposerKeyDown}
-                    onPaste={(event) => {
-                      void handleComposerPaste(event);
-                    }}
-                    placeholder="例如：过点A和B作垂直平分线"
-                    rows={2}
+                  {historyDrawerVisible ? (
+                    <aside
+                      className="conversation-sidebar"
+                      data-testid="conversation-sidebar"
+                    >
+                      {conversationSidebarContent}
+                    </aside>
+                  ) : null}
+                  <div
+                    className="history-resizer"
+                    data-testid="history-resizer"
+                    hidden={!historyDrawerVisible}
+                    onPointerDown={handleHistoryResizeStart}
                   />
-                  <button
-                    type="submit"
-                    disabled={
-                      isSending ||
-                      (draftAttachments.length === 0 && !draft.trim()) ||
-                      slashMenuVisible
-                    }
-                  >
-                    {isSending ? "生成中..." : "发送"}
-                  </button>
                 </div>
-                <input
-                  ref={imageInputRef}
-                  data-testid="composer-image-input"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  hidden
-                  onChange={(event) => {
-                    void handleComposerImageChange(event);
-                  }}
-                />
-              </form>
-            </div>
-            {compactViewport && compactHistorySheetVisible ? (
-              <div
-                className="history-sheet-backdrop"
-                data-testid="history-sheet-backdrop"
-                onClick={() => setCompactHistorySheetVisible(false)}
-              >
-                <div
-                  className="history-sheet"
-                  data-testid="history-sheet"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <div className="history-sheet-handle" />
-                  <aside
-                    className="conversation-sidebar"
-                    data-testid="conversation-sidebar"
-                  >
-                    {conversationSidebarContent}
-                  </aside>
+                <div className="chat-body studio-input-body">
+                  <TeacherTemplateLibrary
+                    open={templateLibraryOpen}
+                    templates={templates}
+                    onApply={(prompt) => {
+                      setDraftForActiveConversation(prompt);
+                      composerRef.current?.focus();
+                    }}
+                    onClose={() => setTemplateLibraryOpen(false)}
+                  />
+                  <StudioInputPanel
+                    mode={desktopInputMode}
+                    onModeChange={setDesktopInputMode}
+                    conversationCount={conversations.length}
+                    templateCount={templates.length}
+                    onOpenTemplateLibrary={() => setTemplateLibraryOpen(true)}
+                    headerSlot={chatThreadHeader}
+                    composerSlot={composerContent}
+                  />
                 </div>
               </div>
-            ) : null}
-          </div>
-        </ChatPanel>
+            </aside>
+            <CanvasPanel
+              key={canvasMountKey}
+              profile={canvasProfile}
+              visible={canvasVisible}
+            />
+            <ChatPanel visible={chatVisible}>
+              <div className="studio-result-rail" data-testid="studio-result-rail">
+                <div className="studio-result-rail-header">
+                  <h3>生成结果</h3>
+                  <span>最新会话输出与执行回执</span>
+                </div>
+                <StudioResultPanel
+                  message={latestAssistantMessage}
+                  onAction={sendFollowUpPrompt}
+                />
+                {chatMessagesContent}
+              </div>
+            </ChatPanel>
+          </>
+        ) : (
+          <>
+            <CanvasPanel
+              key={canvasMountKey}
+              profile={canvasProfile}
+              visible={canvasVisible}
+            />
+            <ChatPanel visible={effectiveChatVisible}>
+              <div
+                ref={chatShellRef}
+                className={`chat-shell${desktopHistoryOverlay ? " history-overlay-mode" : ""}`}
+              >
+                <div className="chat-body">
+                  {chatThreadHeader}
+                  {chatMessagesContent}
+                  {composerContent}
+                </div>
+                {compactViewport && compactHistorySheetVisible ? (
+                  <div
+                    className="history-sheet-backdrop"
+                    data-testid="history-sheet-backdrop"
+                    onClick={() => setCompactHistorySheetVisible(false)}
+                  >
+                    <div
+                      className="history-sheet"
+                      data-testid="history-sheet"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <div className="history-sheet-handle" />
+                      <aside
+                        className="conversation-sidebar"
+                        data-testid="conversation-sidebar"
+                      >
+                        {conversationSidebarContent}
+                      </aside>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </ChatPanel>
+          </>
+        )}
       </div>
       <TokenGateDialog
         open={tokenDialogOpen && runtimeSupportsOfficial}

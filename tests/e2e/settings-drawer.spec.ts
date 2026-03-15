@@ -1,11 +1,28 @@
 import { createBackupEnvelope } from "../../packages/protocol/src";
 import { expect, test } from "@playwright/test";
 
+const openWorkspace = async (page: import("@playwright/test").Page) => {
+  await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
+  await page
+    .getByRole("button", { name: "设置" })
+    .waitFor({ state: "visible", timeout: 20_000 });
+};
+
 const openSettingsSection = async (
   page: import("@playwright/test").Page,
   section: "模型与预设" | "数据与安全"
 ) => {
-  await page.getByRole("button", { name: "设置" }).click();
+  await page.waitForLoadState("domcontentloaded");
+
+  const settingsButton = page.getByRole("button", { name: "设置" });
+  const settingsVisible = await settingsButton.isVisible().catch(() => false);
+
+  if (!settingsVisible) {
+    await openWorkspace(page);
+  }
+  await settingsButton.waitFor({ state: "visible", timeout: 20_000 });
+  await settingsButton.click();
   await page.getByRole("button", { name: section, exact: true }).click();
 };
 
@@ -160,7 +177,7 @@ const createBackupFile = (input: {
 };
 
 test("opens settings as centered modal with section navigation", async ({ page }) => {
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await page.getByRole("button", { name: "设置" }).click();
 
   const modal = page.getByTestId("settings-modal");
@@ -187,7 +204,7 @@ test("opens settings as centered modal with section navigation", async ({ page }
 
 test("opening settings preserves desktop history preference", async ({ page }) => {
   await page.setViewportSize({ width: 1200, height: 900 });
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
 
   await page.getByTestId("history-toggle-button").click();
   await expect(page.getByTestId("conversation-sidebar")).toBeVisible();
@@ -224,7 +241,7 @@ test("opening settings preserves desktop history preference", async ({ page }) =
 
 test("mobile settings navigation does not overflow horizontally", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await page.getByRole("button", { name: "设置" }).click();
 
   const metrics = await page.evaluate(() => {
@@ -257,7 +274,7 @@ test("mobile settings navigation does not overflow horizontally", async ({ page 
 
 test("short landscape settings keeps content viewport usable", async ({ page }) => {
   await page.setViewportSize({ width: 844, height: 390 });
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await page.getByRole("button", { name: "设置" }).click();
 
   const metrics = await page.evaluate(() => {
@@ -280,7 +297,7 @@ test("compact landscape settings keeps bottom apply action fully visible", async
   page
 }) => {
   await page.setViewportSize({ width: 740, height: 360 });
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await page.getByRole("button", { name: "设置" }).click();
 
   const metrics = await page.evaluate(() => {
@@ -301,7 +318,7 @@ test("compact landscape settings keeps bottom apply action fully visible", async
 
 test("small phone settings keeps bottom apply action fully visible", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 });
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await page.getByRole("button", { name: "设置" }).click();
 
   const metrics = await page.evaluate(() => {
@@ -324,7 +341,7 @@ test("smallest phone settings keeps bottom apply action fully visible", async ({
   page
 }) => {
   await page.setViewportSize({ width: 320, height: 568 });
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await page.getByRole("button", { name: "设置" }).click();
 
   const metrics = await page.evaluate(() => {
@@ -389,7 +406,7 @@ test("applies byok preset config to compile request", async ({ page }) => {
     });
   });
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await openSettingsSection(page, "模型与预设");
 
   await page.getByTestId("byok-model-input").fill("openai/gpt-4o-mini");
@@ -402,7 +419,7 @@ test("applies byok preset config to compile request", async ({ page }) => {
 
   await page.getByPlaceholder("例如：过点A和B作垂直平分线").fill("画一个圆");
   await page.getByRole("button", { name: "发送" }).click();
-  await expect(page.getByText("已生成 0 条指令")).toBeVisible();
+  await expect(page.getByTestId("studio-result-panel").getByText("已生成 0 条指令")).toBeVisible();
 
   await expect.poll(() => capturedModel).toBe("openai/gpt-4o-mini");
   await expect.poll(() => capturedEndpoint).toBe("https://openrouter.ai/api/v1");
@@ -410,7 +427,7 @@ test("applies byok preset config to compile request", async ({ page }) => {
 });
 
 test("shows newer-schema hint before import", async ({ page }) => {
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await openSettingsSection(page, "数据与安全");
 
   await page
@@ -424,7 +441,7 @@ test("shows newer-schema hint before import", async ({ page }) => {
 });
 
 test("shows checksum error when backup file is corrupted", async ({ page }) => {
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await openSettingsSection(page, "数据与安全");
 
   await page
@@ -480,7 +497,7 @@ test("merges backup by conversation id and updatedAt", async ({ page }) => {
     );
   });
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await openSettingsSection(page, "数据与安全");
 
   await page.getByTestId("settings-modal").locator('input[type="file"][accept="application/json"]').setInputFiles(
@@ -559,7 +576,7 @@ test("replaces local snapshot when import mode is replace", async ({ page }) => 
     );
   });
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await openSettingsSection(page, "数据与安全");
 
   await page.getByTestId("settings-modal").locator('input[type="file"][accept="application/json"]').setInputFiles(
@@ -652,7 +669,7 @@ test("shows import outcome summary after local import and restores the pre-impor
     );
   });
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await openSettingsSection(page, "数据与安全");
 
   await page
@@ -761,7 +778,7 @@ test("clears rollback anchor without mutating the imported local snapshot", asyn
     );
   });
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await openSettingsSection(page, "数据与安全");
 
   await page
@@ -843,7 +860,7 @@ test("warns when rollback would discard newer post-import changes", async ({ pag
     );
   });
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await openSettingsSection(page, "数据与安全");
 
   await page
@@ -974,7 +991,7 @@ test("debug log wraps long tokens inside mobile settings panel", async ({ page }
   });
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await openSettingsSection(page, "数据与安全");
   await expect(page.locator(".debug-log-panel article")).toBeVisible();
 
@@ -1003,7 +1020,7 @@ test("short landscape data section keeps import actions visible without general-
   page
 }) => {
   await page.setViewportSize({ width: 740, height: 360 });
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await openSettingsSection(page, "数据与安全");
 
   await page
@@ -1061,7 +1078,7 @@ test("short landscape data section keeps import actions visible without general-
 
 test("mobile settings navigation stays compact instead of stretching rows", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await page.getByRole("button", { name: "设置" }).click();
 
   const metrics = await page.evaluate(() => {
@@ -1084,7 +1101,7 @@ test("mobile settings navigation stays compact instead of stretching rows", asyn
 
 test("mobile settings short sections stay packed below navigation", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await page.getByRole("button", { name: "设置" }).click();
   await page.getByRole("button", { name: "实验功能", exact: true }).click();
 
@@ -1181,7 +1198,7 @@ test("mobile model preset selector stays within section with long preset names",
   });
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await openSettingsSection(page, "模型与预设");
 
   const metrics = await page.evaluate(() => {
@@ -1351,7 +1368,7 @@ test("remote backup sync status stays metadata-only until user explicitly import
     }
   );
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await saveGatewayAdminToken(page);
   await page.getByRole("button", { name: "检查云端状态" }).click();
 
@@ -1555,7 +1572,7 @@ test("shows import outcome summary after remote import with the latest snapshot 
     }
   );
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await saveGatewayAdminToken(page);
   await page.getByRole("button", { name: "检查云端状态" }).click();
   await page.getByRole("button", { name: "拉取最新快照" }).click();
@@ -1731,7 +1748,7 @@ test("remote backup history allows selecting and previewing one retained histori
     }
   );
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await saveGatewayAdminToken(page);
   await page.getByRole("button", { name: "检查云端状态" }).click();
 
@@ -1911,7 +1928,7 @@ test("remote backup upload defaults to guarded writes and only force-overwrites 
     }
   );
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await saveGatewayAdminToken(page);
 
   await expect(
@@ -2097,7 +2114,7 @@ test("remote backup compare warnings require explicit escalation before overwrit
     }
   );
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await saveGatewayAdminToken(page);
   await page.getByRole("button", { name: "检查云端状态" }).click();
   await expect(page.getByText("同步状态：云端较新")).toBeVisible();
@@ -2136,7 +2153,7 @@ test("remote backup sync keeps gateway failures visible and non-destructive", as
     }
   );
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await saveGatewayAdminToken(page);
   await page.getByRole("button", { name: "检查云端状态" }).click();
 
@@ -2314,7 +2331,7 @@ test("remote backup history allows protecting and unprotecting one selected reta
     }
   );
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await saveGatewayAdminToken(page);
   await page.getByRole("button", { name: "检查云端状态" }).click();
   await page.getByRole("button", { name: /snap-remote-1/ }).click();
@@ -2455,7 +2472,7 @@ test("remote backup history shows a friendly protected-capacity error", async ({
     }
   );
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await saveGatewayAdminToken(page);
   await page.getByRole("button", { name: "检查云端状态" }).click();
   await page.getByRole("button", { name: /snap-remote-1/ }).click();

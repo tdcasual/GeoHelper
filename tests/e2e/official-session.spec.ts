@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
 
+const openWorkspace = async (page: import("@playwright/test").Page) => {
+  await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
+};
+
 const setOfficialSnapshot = () => {
   localStorage.setItem(
     "geohelper.chat.snapshot",
@@ -33,7 +38,7 @@ test("opens token dialog automatically when official session expires", async ({
     });
   });
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await page.getByPlaceholder("例如：过点A和B作垂直平分线").fill("画一个圆");
   await page.getByRole("button", { name: "发送" }).click();
 
@@ -61,7 +66,7 @@ test("logout button revokes official session and clears local login state", asyn
     });
   });
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await expect(page.getByRole("button", { name: "退出官方会话" })).toBeVisible();
   await page.getByRole("button", { name: "退出官方会话" }).click();
 

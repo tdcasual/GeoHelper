@@ -34,6 +34,7 @@ test("history drawer is hidden by default and can be toggled", async ({
   page
 }) => {
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   await expect(page.getByTestId("conversation-sidebar")).toBeHidden();
 
@@ -51,6 +52,7 @@ test("supports creating and switching conversations in inline history drawer", a
 
   await page.setViewportSize({ width: 2560, height: 900 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("history-toggle-button").click();
 
   await expect(page.locator("[data-testid='conversation-item']")).toHaveCount(1);
@@ -77,6 +79,7 @@ test("inline history drawer width can be resized and remains bounded", async ({
 }) => {
   await page.setViewportSize({ width: 2560, height: 900 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("history-toggle-button").click();
 
   const drawer = page.getByTestId("conversation-sidebar");
@@ -142,6 +145,7 @@ test("compact history sheet closes and preserves desktop history preference afte
 }) => {
   await page.setViewportSize({ width: 1200, height: 900 });
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("history-toggle-button").click();
   await expect(page.getByTestId("conversation-sidebar")).toBeVisible();
 
@@ -188,6 +192,7 @@ test("compact history sheet closes and preserves desktop history preference afte
 
 test("restores unsent draft per conversation", async ({ page }) => {
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("history-toggle-button").click();
 
   const composer = page.getByTestId("chat-composer-input");

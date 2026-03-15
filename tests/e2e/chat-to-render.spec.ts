@@ -191,6 +191,7 @@ const mockCompile = async (page: import("@playwright/test").Page) => {
 test("composer supports shift-enter newline and enter send", async ({ page }) => {
   await mockCompile(page);
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   const composer = page.getByTestId("chat-composer-input");
   await composer.fill("第一行");
@@ -211,6 +212,7 @@ test("composer supports shift-enter newline and enter send", async ({ page }) =>
 
 test("slash command menu can apply template", async ({ page }) => {
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   const composer = page.getByTestId("chat-composer-input");
   await composer.fill("/垂直");
@@ -226,6 +228,7 @@ test("slash command menu can apply template", async ({ page }) => {
 
 test("plus menu can apply template action", async ({ page }) => {
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   await page.getByTestId("plus-menu-button").click();
   const plusMenu = page.getByTestId("plus-menu");
@@ -241,6 +244,7 @@ test("plus menu previews uploaded images when vision is supported", async ({ pag
   await seedVisionDirectSettings(page);
 
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("plus-menu-button").click();
   await page.getByRole("button", { name: "上传图片", exact: true }).click();
   await page.getByTestId("composer-image-input").setInputFiles(createImageFile());
@@ -253,6 +257,7 @@ test("dragging an image into composer adds an attachment", async ({ page }) => {
   await seedVisionDirectSettings(page);
 
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("chat-composer-shell").evaluate(
     (node, payload) => {
       const binary = atob(payload.base64);
@@ -290,6 +295,7 @@ test("pasting an image into composer adds an attachment", async ({ page }) => {
   await seedVisionDirectSettings(page);
 
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("chat-composer-input").evaluate(
     (node, payload) => {
       const binary = atob(payload.base64);
@@ -359,6 +365,7 @@ test("gateway mode can upload and send images when capability is enabled", async
   });
 
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("plus-menu-button").click();
   await expect(
     page.getByRole("button", { name: "上传图片", exact: true })
@@ -370,11 +377,14 @@ test("gateway mode can upload and send images when capability is enabled", async
 
   await page.getByRole("button", { name: "发送" }).click();
   await expect.poll(() => ((compilePayload?.attachments as unknown[]) ?? []).length).toBe(1);
-  await expect(page.getByText("已生成 0 条指令")).toBeVisible();
+  await expect(
+    page.locator(".chat-message-assistant").filter({ hasText: "已生成 0 条指令" })
+  ).toBeVisible();
 });
 
 test("plus menu disables image upload when vision is unavailable", async ({ page }) => {
   await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page.getByTestId("plus-menu-button").click();
 
   await expect(

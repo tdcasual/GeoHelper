@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
 
+const openWorkspace = async (page: import("@playwright/test").Page) => {
+  await page.goto("http://localhost:5173");
+  await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
+};
+
 const mockGeoGebraRuntime = async (page: import("@playwright/test").Page) => {
   await page.route("**/vendor/geogebra/manifest.json", (route) =>
     route.fulfill({
@@ -184,7 +189,7 @@ const mockGeoGebraRuntime = async (page: import("@playwright/test").Page) => {
 test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
   await mockGeoGebraRuntime(page);
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await expect(page.locator("[data-testid='geogebra-host']")).toBeVisible();
 
   await expect
@@ -316,7 +321,7 @@ test("re-mounts GeoGebra with a compact mobile profile after viewport mode chang
   await mockGeoGebraRuntime(page);
 
   await page.setViewportSize({ width: 1600, height: 900 });
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
 
   await expect
     .poll(
@@ -367,7 +372,7 @@ test("re-mounts GeoGebra when desktop enters compact short viewport mode", async
   await mockGeoGebraRuntime(page);
 
   await page.setViewportSize({ width: 1200, height: 900 });
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
 
   await expect
     .poll(
@@ -453,7 +458,7 @@ test("replays persisted scene transactions after mount and viewport remount", as
   await mockGeoGebraRuntime(page);
 
   await page.setViewportSize({ width: 1600, height: 900 });
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
 
   await expect
     .poll(() =>
@@ -488,7 +493,7 @@ test("captures manual GeoGebra mutations into the persisted scene snapshot", asy
 }) => {
   await mockGeoGebraRuntime(page);
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await expect(page.getByText("事务数: 0")).toBeVisible();
   await expect
     .poll(() =>
@@ -525,7 +530,7 @@ test("closes slash menu on outside click while keeping the draft", async ({
 }) => {
   await mockGeoGebraRuntime(page);
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   const composer = page.getByTestId("chat-composer-input");
   await composer.click();
   await composer.fill("/");
@@ -546,7 +551,7 @@ test("pressing escape closes slash menu without clearing the draft", async ({
 }) => {
   await mockGeoGebraRuntime(page);
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   const composer = page.getByTestId("chat-composer-input");
   await composer.click();
   await composer.fill("/垂直");
@@ -561,7 +566,7 @@ test("pressing escape closes slash menu without clearing the draft", async ({
 test("settings modal traps focus and closes on escape", async ({ page }) => {
   await mockGeoGebraRuntime(page);
 
-  await page.goto("http://localhost:5173");
+  await openWorkspace(page);
   await page.getByRole("button", { name: "设置" }).click();
 
   const modal = page.getByTestId("settings-modal");

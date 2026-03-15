@@ -33,6 +33,43 @@ describe("chat-store", () => {
     expect(message?.agentSteps?.[0]?.name).toBe("intent");
   });
 
+  it("dispatches proof-assist follow-up prompts as explicit user requests", async () => {
+    const compile = vi.fn().mockResolvedValue({
+      batch: {
+        version: "1.0",
+        scene_id: "s1",
+        transaction_id: "t1",
+        commands: [],
+        post_checks: [],
+        explanations: []
+      },
+      agent_steps: []
+    });
+    const store = createChatStore({ compile });
+
+    await store
+      .getState()
+      .sendFollowUpPrompt("请基于当前图形补辅助线，并说明每条辅助线的作用。");
+
+    expect(store.getState().messages[0]?.role).toBe("user");
+    expect(store.getState().messages[0]?.content).toContain("补辅助线");
+    expect(compile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "请基于当前图形补辅助线，并说明每条辅助线的作用。"
+      })
+    );
+  });
+
+  it("ignores empty proof-assist follow-up prompts", async () => {
+    const compile = vi.fn();
+    const store = createChatStore({ compile });
+
+    await store.getState().sendFollowUpPrompt("   ");
+
+    expect(compile).not.toHaveBeenCalled();
+    expect(store.getState().messages).toEqual([]);
+  });
+
   it("marks reauth required when official session expires", async () => {
     settingsStore.getState().setDefaultRuntimeProfile("runtime_gateway");
     const compile = vi
