@@ -1,22 +1,22 @@
-import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
+import { createStore } from "zustand/vanilla";
 
+import { resolveRuntimeCapabilities } from "../runtime/runtime-service";
 import {
   ChatMode,
   RemoteBackupSyncStatus,
   resolveRuntimeCapabilitiesForModel,
   RuntimeBackupCompareResponse,
-  RuntimeCapabilities,
   RuntimeBackupMetadata,
+  RuntimeCapabilities,
   RuntimeTarget,
 } from "../runtime/types";
-import { resolveRuntimeCapabilities } from "../runtime/runtime-service";
-import { persistSettingsSnapshotToIndexedDb } from "../storage/indexed-sync";
 import {
   browserSecretService,
   EncryptedSecret,
   SecretService
 } from "../services/secure-secret";
+import { persistSettingsSnapshotToIndexedDb } from "../storage/indexed-sync";
 
 export interface ModelPresetBase {
   id: string;

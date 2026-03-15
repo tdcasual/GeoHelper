@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { CommandBatchSchema } from "../src/schema";
 
 describe("CommandBatchSchema", () => {

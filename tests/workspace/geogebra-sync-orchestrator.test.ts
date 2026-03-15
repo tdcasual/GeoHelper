@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { syncWithFallbacks } from "../../scripts/geogebra/lib/sync-orchestrator.mjs";
 
 describe("syncWithFallbacks", () => {

@@ -1,4 +1,3 @@
-import { KvClient } from "./kv-client";
 import {
   CompileEventQueryInput,
   CompileEventRecord,
@@ -6,6 +5,7 @@ import {
   filterCompileEvents,
   normalizeCompileEventRecord
 } from "./compile-events";
+import { KvClient } from "./kv-client";
 
 interface RedisCompileEventSinkOptions {
   key?: string;

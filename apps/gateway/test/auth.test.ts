@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { buildServer } from "../src/server";
 
 describe("POST /api/v1/auth/token/login", () => {

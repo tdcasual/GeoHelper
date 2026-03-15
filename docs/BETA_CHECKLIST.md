@@ -87,6 +87,9 @@ Updated: 2026-03-12
 
 ## Pre-Release Gate
 
+- [ ] Lint passes (`pnpm lint`)
+- [ ] Dependency boundary check passes (`pnpm deps:check`)
+- [ ] Architecture verification passes (`pnpm verify:architecture`)
 - [ ] Workspace tests pass (`pnpm test`)
 - [ ] Gateway tests pass (`pnpm --filter @geohelper/gateway test`)
 - [ ] Web unit tests pass (`pnpm --filter @geohelper/web test`)

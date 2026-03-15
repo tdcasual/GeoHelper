@@ -24,11 +24,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run workspace tests
-        run: pnpm test
+      - name: Report maintainability hotspots
+        run: pnpm quality:hotspots
 
-      - name: Build web static bundle
-        run: pnpm build:web
+      - name: Run architecture verification
+        run: |
+          # includes pnpm lint
+          # includes pnpm deps:check
+          # includes pnpm build:web
+          pnpm verify:architecture
 
       - name: Validate benchmark dataset
         run: pnpm bench:quality -- --dry-run

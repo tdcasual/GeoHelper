@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { parseBundleSource } from "../../scripts/geogebra/lib/resolve-bundle-source.mjs";
 
 describe("parseBundleSource", () => {

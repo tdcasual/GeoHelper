@@ -1,8 +1,9 @@
+import { type RuntimeAttachment,RuntimeAttachmentSchema } from "@geohelper/protocol";
 import { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
-import { RuntimeAttachmentSchema, type RuntimeAttachment } from "@geohelper/protocol";
 
 import { GatewayConfig } from "../config";
+import { GatewayAlertEvent, GatewayAlertUpstreamContext, sendAlert } from "../services/alerting";
 import { GatewayBuildInfo } from "../services/build-info";
 import {
   buildTraceId,
@@ -21,23 +22,22 @@ import {
   RequestCommandBatch
 } from "../services/litellm-client";
 import {
-  compileWithMultiAgent,
-  compileWithSingleAgent
-} from "../services/multi-agent";
-import { verifySessionToken } from "../services/session";
-import { GatewayMetricsStore } from "../services/metrics-store";
-import { RateLimitStore } from "../services/rate-limit-store";
-import { SessionRevocationStore } from "../services/session-store";
-import { InvalidCommandBatchError } from "../services/verify-command-batch";
-import { consumeRateLimit } from "../services/rate-limit";
-import { resolveUpstreamTargets } from "../services/model-router";
-import {
-  recordCompilePerfSample,
   recordCompileFailure,
+  recordCompilePerfSample,
   recordCompileRateLimited,
   recordCompileSuccess
 } from "../services/metrics";
-import { GatewayAlertEvent, GatewayAlertUpstreamContext, sendAlert } from "../services/alerting";
+import { GatewayMetricsStore } from "../services/metrics-store";
+import { resolveUpstreamTargets } from "../services/model-router";
+import {
+  compileWithMultiAgent,
+  compileWithSingleAgent
+} from "../services/multi-agent";
+import { consumeRateLimit } from "../services/rate-limit";
+import { RateLimitStore } from "../services/rate-limit-store";
+import { verifySessionToken } from "../services/session";
+import { SessionRevocationStore } from "../services/session-store";
+import { InvalidCommandBatchError } from "../services/verify-command-batch";
 
 const CompileBodySchema = z.object({
   message: z.string().min(1),

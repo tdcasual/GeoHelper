@@ -1,5 +1,5 @@
-import { RuntimeApiError, RuntimeClient } from "./orchestrator";
 import { parseJsonFromLlmContent, verifyCommandBatch } from "./compile-pipeline";
+import { RuntimeApiError, RuntimeClient } from "./orchestrator";
 
 const directCapabilities = {
   supportsOfficialAuth: false,

@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -6,9 +7,8 @@ import {
   inferModelSupportsVision,
   resolveCompileRuntimeOptions,
   resolveRuntimeCapabilitiesForModel,
-  settingsStore,
-  SETTINGS_KEY
-} from "./settings-store";
+  SETTINGS_KEY,
+  settingsStore} from "./settings-store";
 
 const createMemoryStorage = (): Storage => {
   const map = new Map<string, string>();

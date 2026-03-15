@@ -1,6 +1,6 @@
 import { CommandBatch } from "@geohelper/protocol";
 
-import { getGeoGebraAdapter, GeoGebraAdapter } from "./adapter";
+import { GeoGebraAdapter,getGeoGebraAdapter } from "./adapter";
 import { opHandlers } from "./op-handlers";
 
 const opHandlerEntries = opHandlers as Record<

@@ -1,8 +1,8 @@
 import {
   BackupEnvelope,
   BackupEnvelopeSchema,
-  compareBackupComparableSummaries,
   BackupSyncComparison,
+  compareBackupComparableSummaries,
   parseBackupEnvelope
 } from "@geohelper/protocol";
 

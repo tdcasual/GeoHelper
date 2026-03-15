@@ -1,5 +1,6 @@
-import { createBackupEnvelope } from "../../packages/protocol/src";
 import { expect, test } from "@playwright/test";
+
+import { createBackupEnvelope } from "../../packages/protocol/src";
 
 const openWorkspace = async (page: import("@playwright/test").Page) => {
   await page.goto("http://localhost:5173");
@@ -559,7 +560,7 @@ test("merges backup by conversation id and updatedAt", async ({ page }) => {
   await page.addInitScript(() => {
     try {
       (window as { __reloadCalled?: boolean }).__reloadCalled = false;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (window.location as any).reload = () => {
         (window as { __reloadCalled?: boolean }).__reloadCalled = true;
       };
@@ -645,7 +646,7 @@ test("replaces local snapshot when import mode is replace", async ({ page }) => 
   await page.addInitScript(() => {
     try {
       (window as { __reloadCalled?: boolean }).__reloadCalled = false;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (window.location as any).reload = () => {
         (window as { __reloadCalled?: boolean }).__reloadCalled = true;
       };
@@ -739,7 +740,7 @@ test("warns before replacing an existing rollback anchor on local import", async
         }
         return originalSetTimeout(handler, timeout, ...(args as []));
       }) as typeof window.setTimeout;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (window.location as any).reload = () => undefined;
     } catch {
       // Ignore reload patch failure in browser sandbox.
@@ -885,7 +886,7 @@ test("shows import outcome summary after local import and restores the pre-impor
   await page.addInitScript(() => {
     try {
       (window as { __reloadCalled?: boolean }).__reloadCalled = false;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (window.location as any).reload = () => {
         (window as { __reloadCalled?: boolean }).__reloadCalled = true;
       };
@@ -1004,7 +1005,7 @@ test("shows import outcome summary after local import and restores the pre-impor
 test("clears rollback anchor without mutating the imported local snapshot", async ({ page }) => {
   await page.addInitScript(() => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (window.location as any).reload = () => undefined;
     } catch {
       // Ignore reload patch failure in browser sandbox.
@@ -1086,7 +1087,7 @@ test("clears rollback anchor without mutating the imported local snapshot", asyn
 test("warns when rollback would discard newer post-import changes", async ({ page }) => {
   await page.addInitScript(() => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (window.location as any).reload = () => undefined;
     } catch {
       // Ignore reload patch failure in browser sandbox.
@@ -1692,7 +1693,7 @@ test("shows import outcome summary after remote import with the latest snapshot 
 }) => {
   await page.addInitScript(() => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (window.location as any).reload = () => undefined;
     } catch {
       // Ignore reload patch failure in browser sandbox.
@@ -1945,7 +1946,7 @@ test("warns before replacing an existing rollback anchor on pulled remote import
         }
         return originalSetTimeout(handler, timeout, ...(args as []));
       }) as typeof window.setTimeout;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (window.location as any).reload = () => undefined;
     } catch {
       // Ignore reload patch failure in browser sandbox.

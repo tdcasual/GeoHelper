@@ -1,8 +1,8 @@
 import { createBackupEnvelope } from "@geohelper/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createRemoteSyncController } from "./remote-sync";
 import type { RemoteBackupSyncState } from "../state/settings-store";
+import { createRemoteSyncController } from "./remote-sync";
 
 const createLocalEnvelope = () =>
   createBackupEnvelope(

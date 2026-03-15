@@ -5,8 +5,8 @@ import type {
   RuntimeBackupComparableSummary,
   RuntimeBackupMetadata
 } from "../runtime/types";
-import type { BackupEnvelope, ImportRollbackAnchor } from "../storage/backup";
 import type { RuntimeProfile } from "../state/settings-store";
+import type { BackupEnvelope, ImportRollbackAnchor } from "../storage/backup";
 
 export interface RemoteBackupActionStatus {
   enabled: boolean;

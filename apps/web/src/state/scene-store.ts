@@ -1,6 +1,6 @@
 import { CommandBatch } from "@geohelper/protocol";
-import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
+import { createStore } from "zustand/vanilla";
 
 import { getGeoGebraAdapter } from "../geogebra/adapter";
 import { executeBatchWithAdapter } from "../geogebra/command-executor";
@@ -208,5 +208,5 @@ export const syncSceneStoreFromStorage = (
 export const useSceneStore = <T>(selector: (state: SceneStoreState) => T): T =>
   useStore(sceneStore, selector);
 
-export { SCENE_STORE_KEY } from "./scene-snapshot";
 export type { SceneTransaction } from "./scene-snapshot";
+export { SCENE_STORE_KEY } from "./scene-snapshot";

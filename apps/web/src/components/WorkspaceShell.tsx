@@ -11,14 +11,6 @@ import {
   useState
 } from "react";
 
-import { CanvasPanel } from "./CanvasPanel";
-import { ChatPanel } from "./ChatPanel";
-import { ModelModeSwitcher } from "./ModelModeSwitcher";
-import { SettingsDrawer } from "./SettingsDrawer";
-import { StudioInputPanel } from "./StudioInputPanel";
-import { StudioResultPanel } from "./StudioResultPanel";
-import { TeacherTemplateLibrary } from "./TeacherTemplateLibrary";
-import { TokenGateDialog } from "./TokenGateDialog";
 import {
   loginWithRuntime,
   resolveRuntimeCapabilities,
@@ -34,6 +26,19 @@ import {
 import { type StudioStartMode } from "../state/studio-start";
 import { useTemplateStore } from "../state/template-store";
 import { useUIStore } from "../state/ui-store";
+import { CanvasPanel } from "./CanvasPanel";
+import { ChatPanel } from "./ChatPanel";
+import { SettingsDrawer } from "./SettingsDrawer";
+import { StudioInputPanel } from "./StudioInputPanel";
+import { StudioResultPanel } from "./StudioResultPanel";
+import { TeacherTemplateLibrary } from "./TeacherTemplateLibrary";
+import { TokenGateDialog } from "./TokenGateDialog";
+import { readFileAsDataUrl } from "./workspace-shell/file-utils";
+import { WorkspaceChatComposer } from "./workspace-shell/WorkspaceChatComposer";
+import { WorkspaceChatHeader } from "./workspace-shell/WorkspaceChatHeader";
+import { WorkspaceChatMessages } from "./workspace-shell/WorkspaceChatMessages";
+import { WorkspaceConversationSidebar } from "./workspace-shell/WorkspaceConversationSidebar";
+import { WorkspaceTopBar } from "./workspace-shell/WorkspaceTopBar";
 
 interface ComposerDraftState {
   text: string;
@@ -46,20 +51,6 @@ const EMPTY_COMPOSER_DRAFT: ComposerDraftState = {
 };
 
 type MobileSurface = "canvas" | "chat";
-
-const readFileAsDataUrl = async (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-        return;
-      }
-      reject(new Error("FILE_READ_FAILED"));
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("FILE_READ_FAILED"));
-    reader.readAsDataURL(file);
-  });
 
 interface WorkspaceShellProps {
   initialDesktopInputMode?: StudioStartMode;
@@ -79,9 +70,6 @@ export const WorkspaceShell = ({
   const historyDrawerWidth = useUIStore((state) => state.historyDrawerWidth);
   const toggleChat = useUIStore((state) => state.toggleChat);
   const toggleHistoryDrawer = useUIStore((state) => state.toggleHistoryDrawer);
-  const setHistoryDrawerVisible = useUIStore(
-    (state) => state.setHistoryDrawerVisible
-  );
   const setHistoryDrawerWidth = useUIStore(
     (state) => state.setHistoryDrawerWidth
   );
@@ -835,42 +823,12 @@ export const WorkspaceShell = ({
   };
 
   const conversationSidebarContent = (
-    <>
-      <div className="conversation-sidebar-header">
-        <button
-          type="button"
-          className="new-conversation-button"
-          onClick={handleCreateConversation}
-        >
-          新建会话
-        </button>
-      </div>
-      <div className="conversation-list">
-        {conversations.map((conversation) => (
-          <button
-            key={conversation.id}
-            type="button"
-            data-testid="conversation-item"
-            className={`conversation-item${
-              conversation.id === activeConversationId
-                ? " conversation-item-active"
-                : ""
-            }`}
-            onClick={() => {
-              handleSelectConversation(conversation.id);
-            }}
-          >
-            <span className="conversation-item-title">{conversation.title}</span>
-            <span className="conversation-item-meta">
-              {new Date(conversation.updatedAt).toLocaleTimeString("zh-CN", {
-                hour: "2-digit",
-                minute: "2-digit"
-              })}
-            </span>
-          </button>
-        ))}
-      </div>
-    </>
+    <WorkspaceConversationSidebar
+      conversations={conversations}
+      activeConversationId={activeConversationId}
+      onCreateConversation={handleCreateConversation}
+      onSelectConversation={handleSelectConversation}
+    />
   );
 
   useEffect(() => {
@@ -886,258 +844,83 @@ export const WorkspaceShell = ({
   }, [onTemplateLibraryOpenChange, templateLibraryOpen]);
 
   const chatThreadHeader = (
-    <div className="chat-thread-header">
-      <h3>{activeConversation?.title ?? "新会话"}</h3>
-      <div className="chat-thread-actions">
-        <span className="scene-transaction-count">事务数: {sceneTransactionCount}</span>
-        <button
-          type="button"
-          className="history-toggle-button"
-          data-testid="history-toggle-button"
-          onClick={handleHistoryToggle}
-        >
-          {effectiveHistoryDrawerVisible ? "收起历史" : "历史"}
-        </button>
-      </div>
-    </div>
+    <WorkspaceChatHeader
+      title={activeConversation?.title ?? "新会话"}
+      sceneTransactionCount={sceneTransactionCount}
+      historyOpen={effectiveHistoryDrawerVisible}
+      onToggleHistory={handleHistoryToggle}
+    />
   );
 
   const chatMessagesContent = (
-    <div className="chat-messages">
-      {messages.length === 0 ? (
-        !compactViewport ? (
-          <div className="chat-empty-state">
-            <section className="chat-empty-card" data-testid="chat-empty-card">
-              <div className="chat-empty-copy">
-                <h4>开始输入你的几何需求</h4>
-                <p>也可以先试试这些模板，快速生成一个可编辑的起点。</p>
-              </div>
-              <div className="chat-empty-actions">
-                {templates.slice(0, 3).map((template) => (
-                  <button
-                    key={template.id}
-                    type="button"
-                    className="chat-empty-template-button"
-                    data-testid="chat-empty-template-button"
-                    onClick={() => applySlashTemplate(template.prompt)}
-                  >
-                    {template.title}
-                  </button>
-                ))}
-              </div>
-            </section>
-          </div>
-        ) : (
-          <div className="chat-empty chat-empty-compact" data-testid="chat-empty-compact">
-            <p>开始输入你的几何需求</p>
-            <div className="chat-empty-actions chat-empty-actions-compact">
-              {compactEmptyStateTemplates.map((template) => (
-                <button
-                  key={template.id}
-                  type="button"
-                  className="chat-empty-template-button"
-                  data-testid="chat-empty-template-button"
-                  onClick={() => applySlashTemplate(template.prompt)}
-                >
-                  {template.title}
-                </button>
-              ))}
-            </div>
-          </div>
-        )
-      ) : (
-        messages.map((message) => (
-          <article key={message.id} className={`chat-message chat-message-${message.role}`}>
-            {message.attachments && message.attachments.length > 0 ? (
-              <div className="chat-message-attachments">
-                {message.attachments.map((attachment) => (
-                  <figure key={attachment.id} className="chat-message-attachment">
-                    <img
-                      src={attachment.previewUrl ?? attachment.transportPayload}
-                      alt={attachment.name}
-                    />
-                    <figcaption>{attachment.name}</figcaption>
-                  </figure>
-                ))}
-              </div>
-            ) : null}
-            {message.content ? <div>{message.content}</div> : null}
-            {showAgentSteps &&
-            message.role === "assistant" &&
-            message.agentSteps &&
-            message.agentSteps.length > 0 ? (
-              <section className="agent-steps" data-testid="agent-steps">
-                <h4>执行步骤</h4>
-                <ul>
-                  {message.agentSteps.map((step, index) => (
-                    <li
-                      key={`${message.id}_${step.name}_${index}`}
-                      className={`agent-step agent-step-${step.status}`}
-                    >
-                      <span className="agent-step-name">{step.name}</span>
-                      <span className="agent-step-status">{step.status}</span>
-                      <span className="agent-step-time">{step.duration_ms}ms</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-          </article>
-        ))
-      )}
-      {mode === "official" && !sessionToken ? (
-        <div className="session-warning" data-testid="session-warning">
-          官方模式未登录或会话已过期，请输入 Token
-        </div>
-      ) : null}
-    </div>
+    <WorkspaceChatMessages
+      messages={messages}
+      compactViewport={compactViewport}
+      compactEmptyStateTemplates={compactEmptyStateTemplates}
+      templates={templates}
+      showAgentSteps={showAgentSteps}
+      mode={mode}
+      sessionToken={sessionToken}
+      onApplyTemplate={applySlashTemplate}
+    />
   );
 
   const composerContent = (
-    <form ref={composerFormRef} className="chat-composer" onSubmit={handleSend}>
-      <span className="chat-composer-hint">输入 / 调用模板命令</span>
-
-      {plusMenuOpen ? (
-        <div ref={plusMenuRef} className="plus-menu" data-testid="plus-menu">
-          <button
-            type="button"
-            className="plus-menu-item"
-            disabled={!supportsVisionUpload}
-            onClick={() => imageInputRef.current?.click()}
-          >
-            上传图片
-          </button>
-          {templates.slice(0, 8).map((template) => (
-            <button
-              key={template.id}
-              type="button"
-              className="plus-menu-item"
-              onClick={() => applyPlusTemplate(template.prompt)}
-            >
-              {template.title}
-            </button>
-          ))}
-          {!supportsVisionUpload ? (
-            <div className="plus-menu-note">{unsupportedVisionNotice}</div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {draftAttachments.length > 0 ? (
-        <div className="composer-attachment-tray">
-          {draftAttachments.map((attachment) => (
-            <div
-              key={attachment.id}
-              className="composer-attachment-item"
-              data-testid="composer-attachment-item"
-            >
-              <img
-                src={attachment.previewUrl ?? attachment.transportPayload}
-                alt={attachment.name}
-              />
-              <span>{attachment.name}</span>
-              <button type="button" onClick={() => removeAttachment(attachment.id)}>
-                移除
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {composerNotice ? <div className="chat-composer-notice">{composerNotice}</div> : null}
-
-      {slashMenuVisible ? (
-        <div className="slash-command-menu" data-testid="slash-command-menu">
-          {slashTemplates.map((template, index) => (
-            <button
-              key={template.id}
-              type="button"
-              data-testid="slash-command-item"
-              className={`slash-command-item${
-                index === slashSelectedIndex ? " slash-command-item-active" : ""
-              }`}
-              onMouseEnter={() => setSlashSelectedIndex(index)}
-              onClick={() => applySlashTemplate(template.prompt)}
-            >
-              <span className="slash-command-label">{`/${template.title}`}</span>
-              <span className="slash-command-preview">{template.prompt}</span>
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      <div
-        className={`chat-composer-input-shell${
-          composerDragActive ? " chat-composer-input-shell-drag-active" : ""
-        }`}
-        data-testid="chat-composer-shell"
-        onDragOver={handleComposerDragOver}
-        onDragLeave={handleComposerDragLeave}
-        onDrop={(event) => {
-          void handleComposerDrop(event);
-        }}
-      >
-        <button
-          ref={plusMenuButtonRef}
-          type="button"
-          className="plus-menu-button"
-          data-testid="plus-menu-button"
-          onClick={() => {
-            setPlusMenuOpen((value) => !value);
-            setSlashSelectedIndex(0);
-          }}
-        >
-          +
-        </button>
-        <textarea
-          ref={composerRef}
-          data-testid="chat-composer-input"
-          value={draft}
-          onChange={(event) => {
-            const nextValue = event.target.value;
-            setDraftForActiveConversation(nextValue);
-            setSlashMenuDismissed(false);
-            if (!nextValue.startsWith("/")) {
-              setSlashSelectedIndex(0);
-            } else {
-              setPlusMenuOpen(false);
-            }
-          }}
-          onFocus={() => {
-            if (draft.startsWith("/")) {
-              setSlashMenuDismissed(false);
-            }
-          }}
-          onKeyDown={handleComposerKeyDown}
-          onPaste={(event) => {
-            void handleComposerPaste(event);
-          }}
-          placeholder="例如：过点A和B作垂直平分线"
-          rows={2}
-        />
-        <button
-          type="submit"
-          disabled={
-            isSending ||
-            (draftAttachments.length === 0 && !draft.trim()) ||
-            slashMenuVisible
-          }
-        >
-          {isSending ? "生成中..." : "发送"}
-        </button>
-      </div>
-      <input
-        ref={imageInputRef}
-        data-testid="composer-image-input"
-        type="file"
-        accept="image/*"
-        multiple
-        hidden
-        onChange={(event) => {
-          void handleComposerImageChange(event);
-        }}
-      />
-    </form>
+    <WorkspaceChatComposer
+      composerFormRef={composerFormRef}
+      composerRef={composerRef}
+      imageInputRef={imageInputRef}
+      plusMenuButtonRef={plusMenuButtonRef}
+      plusMenuRef={plusMenuRef}
+      plusMenuOpen={plusMenuOpen}
+      supportsVisionUpload={supportsVisionUpload}
+      templates={templates}
+      unsupportedVisionNotice={unsupportedVisionNotice}
+      draftAttachments={draftAttachments}
+      composerNotice={composerNotice}
+      slashMenuVisible={slashMenuVisible}
+      slashTemplates={slashTemplates}
+      slashSelectedIndex={slashSelectedIndex}
+      composerDragActive={composerDragActive}
+      draft={draft}
+      isSending={isSending}
+      onSubmit={handleSend}
+      onTogglePlusMenu={() => {
+        setPlusMenuOpen((value) => !value);
+        setSlashSelectedIndex(0);
+      }}
+      onApplyPlusTemplate={applyPlusTemplate}
+      onRemoveAttachment={removeAttachment}
+      onSetSlashSelectedIndex={setSlashSelectedIndex}
+      onApplySlashTemplate={applySlashTemplate}
+      onDragOver={handleComposerDragOver}
+      onDragLeave={handleComposerDragLeave}
+      onDrop={(event) => {
+        void handleComposerDrop(event);
+      }}
+      onDraftChange={(event) => {
+        const nextValue = event.target.value;
+        setDraftForActiveConversation(nextValue);
+        setSlashMenuDismissed(false);
+        if (!nextValue.startsWith("/")) {
+          setSlashSelectedIndex(0);
+        } else {
+          setPlusMenuOpen(false);
+        }
+      }}
+      onComposerFocus={() => {
+        if (draft.startsWith("/")) {
+          setSlashMenuDismissed(false);
+        }
+      }}
+      onKeyDown={handleComposerKeyDown}
+      onPaste={(event) => {
+        void handleComposerPaste(event);
+      }}
+      onImageChange={(event) => {
+        void handleComposerImageChange(event);
+      }}
+    />
   );
 
   return (
@@ -1146,143 +929,29 @@ export const WorkspaceShell = ({
         !compactViewport && !chatVisible ? " chat-collapsed" : ""
       }${compactViewport ? ` mobile-surface-${mobileSurface}` : ""}${compactViewport ? " compact-viewport" : ""}${phoneViewport ? " phone-viewport" : ""}${shortViewport ? " short-viewport" : ""}`}
     >
-      <header className="top-bar">
-        <div className="top-bar-main">
-          <h1>GeoHelper</h1>
-          <div className="top-bar-actions">
-            <ModelModeSwitcher
-              mode={mode}
-              officialEnabled={runtimeSupportsOfficial}
-              onChange={handleModeChange}
-            />
-            <span className="runtime-tag">{`运行时：${activeRuntimeProfile?.name ?? runtimeTarget}`}</span>
-            {compactViewport ? (
-              <>
-                <button
-                  type="button"
-                  className="top-bar-button top-bar-button-secondary"
-                  onClick={openSettingsDrawer}
-                >
-                  设置
-                </button>
-                <button
-                  ref={mobileActionsButtonRef}
-                  type="button"
-                  className="top-bar-button top-bar-button-ghost top-bar-more-button"
-                  data-testid="mobile-more-button"
-                  onClick={handleMobileActionsToggle}
-                >
-                  更多
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className="top-bar-button top-bar-button-secondary"
-                  onClick={openSettingsDrawer}
-                >
-                  设置
-                </button>
-                <button
-                  type="button"
-                  className="top-bar-button top-bar-button-secondary"
-                  disabled={
-                    isSending || isSceneRollingBack || sceneTransactionCount === 0
-                  }
-                  onClick={handleRollbackAction}
-                >
-                  回滚上一步
-                </button>
-                <button
-                  type="button"
-                  className="top-bar-button top-bar-button-danger"
-                  disabled={isSending || isSceneRollingBack}
-                  onClick={handleClearSceneAction}
-                >
-                  清空画布
-                </button>
-                {mode === "official" && sessionToken && runtimeSupportsOfficial ? (
-                  <button
-                    type="button"
-                    className="top-bar-button top-bar-button-ghost"
-                    onClick={handleLogoutAction}
-                  >
-                    退出官方会话
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="top-bar-button top-bar-button-ghost"
-                  onClick={toggleChat}
-                >
-                  {chatVisible ? "收起对话" : "显示对话"}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-        {compactViewport ? (
-          <>
-            <div
-              className="mobile-surface-switcher"
-              data-testid="mobile-surface-switcher"
-            >
-              <button
-                type="button"
-                data-testid="mobile-surface-canvas"
-                className={`mobile-surface-button${
-                  mobileSurface === "canvas" ? " mobile-surface-button-active" : ""
-                }`}
-                aria-pressed={mobileSurface === "canvas"}
-                onClick={() => handleSelectMobileSurface("canvas")}
-              >
-                画布
-              </button>
-              <button
-                type="button"
-                data-testid="mobile-surface-chat"
-                className={`mobile-surface-button${
-                  mobileSurface === "chat" ? " mobile-surface-button-active" : ""
-                }`}
-                aria-pressed={mobileSurface === "chat"}
-                onClick={() => handleSelectMobileSurface("chat")}
-              >
-                对话
-              </button>
-            </div>
-            {mobileActionsOpen ? (
-              <div
-                ref={mobileActionsMenuRef}
-                className="top-bar-overflow-menu"
-                data-testid="mobile-overflow-menu"
-              >
-                <button
-                  type="button"
-                  disabled={
-                    isSending || isSceneRollingBack || sceneTransactionCount === 0
-                  }
-                  onClick={handleRollbackAction}
-                >
-                  回滚上一步
-                </button>
-                <button
-                  type="button"
-                  disabled={isSending || isSceneRollingBack}
-                  onClick={handleClearSceneAction}
-                >
-                  清空画布
-                </button>
-                {mode === "official" && sessionToken && runtimeSupportsOfficial ? (
-                  <button type="button" onClick={handleLogoutAction}>
-                    退出官方会话
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-          </>
-        ) : null}
-      </header>
+      <WorkspaceTopBar
+        mode={mode}
+        runtimeSupportsOfficial={runtimeSupportsOfficial}
+        activeRuntimeLabel={`运行时：${activeRuntimeProfile?.name ?? runtimeTarget}`}
+        compactViewport={compactViewport}
+        mobileActionsButtonRef={mobileActionsButtonRef}
+        mobileActionsMenuRef={mobileActionsMenuRef}
+        mobileActionsOpen={mobileActionsOpen}
+        mobileSurface={mobileSurface}
+        isSending={isSending}
+        isSceneRollingBack={isSceneRollingBack}
+        sceneTransactionCount={sceneTransactionCount}
+        sessionToken={sessionToken}
+        chatVisible={chatVisible}
+        onModeChange={handleModeChange}
+        onOpenSettings={openSettingsDrawer}
+        onToggleMobileActions={handleMobileActionsToggle}
+        onRollbackAction={handleRollbackAction}
+        onClearSceneAction={handleClearSceneAction}
+        onLogoutAction={handleLogoutAction}
+        onToggleChat={toggleChat}
+        onSelectMobileSurface={handleSelectMobileSurface}
+      />
       <div className="workspace-content">
         {!compactViewport ? (
           <>

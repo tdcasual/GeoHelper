@@ -4,9 +4,8 @@ import { WorkspaceShell } from "./components/WorkspaceShell";
 import {
   resolveStudioStartCopy,
   STUDIO_START_ACTIONS,
-  TEACHER_SCENARIO_SEEDS,
-  type StudioStartMode
-} from "./state/studio-start";
+  type StudioStartMode,
+  TEACHER_SCENARIO_SEEDS} from "./state/studio-start";
 
 const StudioHomepage = ({
   onEnterStudio,

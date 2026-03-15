@@ -1,22 +1,22 @@
+import type {
+  BackupEnvelope,
+  BackupInspection,
+  BackupPayload
+} from "@geohelper/protocol";
 import {
   createBackupBlob,
   createBackupEnvelope,
   inspectBackupEnvelope,
   parseBackupEnvelope
 } from "@geohelper/protocol";
-import type {
-  BackupEnvelope,
-  BackupInspection,
-  BackupPayload
-} from "@geohelper/protocol";
 
-import { STORAGE_SCHEMA_VERSION } from "./migrate";
 import { CHAT_STORE_KEY, syncChatStoreFromStorage } from "../state/chat-store";
-import { SCENE_STORE_KEY, sceneStore, syncSceneStoreFromStorage } from "../state/scene-store";
 import { mergeSceneSnapshots, normalizeSceneSnapshot } from "../state/scene-snapshot";
+import { SCENE_STORE_KEY, sceneStore, syncSceneStoreFromStorage } from "../state/scene-store";
 import { SETTINGS_KEY, syncSettingsStoreFromStorage } from "../state/settings-store";
-import { TEMPLATE_STORE_KEY, syncTemplateStoreFromStorage } from "../state/template-store";
-import { UI_PREFS_KEY, syncUIStoreFromStorage } from "../state/ui-store";
+import { syncTemplateStoreFromStorage,TEMPLATE_STORE_KEY } from "../state/template-store";
+import { syncUIStoreFromStorage,UI_PREFS_KEY } from "../state/ui-store";
+import { STORAGE_SCHEMA_VERSION } from "./migrate";
 
 
 export type BackupImportMode = "replace" | "merge";

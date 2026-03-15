@@ -1,11 +1,12 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+
 import { describe, expect, it } from "vitest";
+
 import {
-  detectBundleLayout,
-  buildVendorManifest
-} from "../../scripts/geogebra/lib/validate-bundle.mjs";
+  buildVendorManifest,
+  detectBundleLayout} from "../../scripts/geogebra/lib/validate-bundle.mjs";
 
 describe("detectBundleLayout", () => {
   it("finds deployggb.js and the html5 web3d codebase", async () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { toAppletPixelSize } from "./applet-size";
 
 describe("toAppletPixelSize", () => {

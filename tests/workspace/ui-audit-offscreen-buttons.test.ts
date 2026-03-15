@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { filterViewportButtonViolations } from "../../scripts/ui/lib/offscreen-buttons.mjs";
 
 describe("filterViewportButtonViolations", () => {

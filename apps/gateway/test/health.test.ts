@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { buildServer } from "../src/server";
 
 describe("GET /api/v1/health", () => {

@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { buildServer } from "../src/server";
 import { createMemoryKvClient } from "../src/services/kv-client";
-import { createRedisRateLimitStore } from "../src/services/redis-rate-limit-store";
 import { createMemoryRateLimitStore } from "../src/services/rate-limit-store";
+import { createRedisRateLimitStore } from "../src/services/redis-rate-limit-store";
 
 describe("rate limiting", () => {
   it("returns 429 when request quota is exceeded", async () => {

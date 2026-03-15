@@ -1,19 +1,18 @@
-import Fastify, { FastifyInstance, FastifyReply } from "fastify";
 import { fileURLToPath } from "node:url";
+
+import Fastify, { FastifyInstance, FastifyReply } from "fastify";
 
 import { loadConfig } from "./config";
 import { registerAdminRoutes } from "./routes/admin";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerCompileRoute } from "./routes/compile";
 import { registerHealthRoute } from "./routes/health";
-import {
-  createRedisRuntimeDependencyCheck,
-  createRuntimeReadinessService,
-  RuntimeReadinessService
-} from "./services/runtime-readiness";
 import { GatewayAlertEvent, sendAlert } from "./services/alerting";
+import {
+  createMemoryBackupStore,
+  GatewayBackupStore
+} from "./services/backup-store";
 import { createGatewayBuildInfo, GatewayBuildInfo } from "./services/build-info";
-import { createCompileGuard, CompileGuard } from "./services/compile-guard";
 import {
   buildTraceId,
   CompileEventSink,
@@ -21,30 +20,31 @@ import {
   createLogCompileEventSink,
   createMemoryCompileEventSink
 } from "./services/compile-events";
-import {
-  createMemoryBackupStore,
-  GatewayBackupStore
-} from "./services/backup-store";
-import { createRedisCompileEventSink } from "./services/redis-compile-event-sink";
-import { createRedisBackupStore } from "./services/redis-backup-store";
+import { CompileGuard,createCompileGuard } from "./services/compile-guard";
 import {
   createRedisKvClient,
   KvClient
 } from "./services/kv-client";
 import {
+  RequestCommandBatch,
+  requestCommandBatch as defaultRequestCommandBatch} from "./services/litellm-client";
+import {
   getDefaultMetricsStore,
 } from "./services/metrics";
 import { GatewayMetricsStore } from "./services/metrics-store";
 import {
-  requestCommandBatch as defaultRequestCommandBatch,
-  RequestCommandBatch
-} from "./services/litellm-client";
-import {
   getDefaultRateLimitStore,
 } from "./services/rate-limit";
 import { RateLimitStore } from "./services/rate-limit-store";
+import { createRedisBackupStore } from "./services/redis-backup-store";
+import { createRedisCompileEventSink } from "./services/redis-compile-event-sink";
 import { createRedisRateLimitStore } from "./services/redis-rate-limit-store";
 import { createRedisSessionRevocationStore } from "./services/redis-session-store";
+import {
+  createRedisRuntimeDependencyCheck,
+  createRuntimeReadinessService,
+  RuntimeReadinessService
+} from "./services/runtime-readiness";
 import {
   getDefaultSessionRevocationStore,
 } from "./services/session";

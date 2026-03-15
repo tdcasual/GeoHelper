@@ -11,12 +11,11 @@ import type {
   RuntimeBackupUploadResponse
 } from "../runtime/types";
 import {
-  type RemoteBackupSyncState,
   type RemoteBackupSyncMode,
   type RemoteBackupSyncResultInput,
+  type RemoteBackupSyncState,
   settingsStore
 } from "../state/settings-store";
-
 import type { BackupEnvelope } from "./backup";
 
 const DEFAULT_DELAY_MS = 30_000;

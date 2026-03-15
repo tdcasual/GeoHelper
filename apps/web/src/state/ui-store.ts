@@ -1,5 +1,5 @@
-import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
+import { createStore } from "zustand/vanilla";
 
 import { persistUiPrefsToIndexedDb } from "../storage/indexed-sync";
 

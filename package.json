@@ -3,10 +3,16 @@
   "private": true,
   "version": "0.0.1",
   "scripts": {
-    "test": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "deps:check": "depcruise apps/web/src apps/gateway/src --config .dependency-cruiser.cjs",
+    "verify:architecture": "bash scripts/quality/verify-architecture.sh",
+    "test": "sh -c 'localstorage_file=$(mktemp \"${TMPDIR:-/tmp}/geohelper-vitest-localstorage.XXXXXX\"); if [ \"$1\" = \"--\" ]; then shift; fi; NODE_OPTIONS=\"--localstorage-file=$localstorage_file${NODE_OPTIONS:+ $NODE_OPTIONS}\" node ./node_modules/vitest/vitest.mjs \"$@\"; status=$?; rm -f \"$localstorage_file\"; exit $status' --",
     "typecheck": "pnpm exec tsc -p apps/web/tsconfig.json --noEmit && pnpm exec tsc -p apps/gateway/tsconfig.json --noEmit && pnpm exec tsc -p packages/protocol/tsconfig.json --noEmit && pnpm exec tsc -p tests/tsconfig.json --noEmit",
     "test:e2e": "pnpm geogebra:sync && playwright test",
     "smoke:live-model": "bash scripts/smoke/live-model-chain.sh",
+    "quality:hotspots": "node scripts/quality/report-hotspots.mjs",
+    "quality:build-warnings": "node scripts/quality/check-build-warnings.mjs",
     "bench:quality": "node scripts/bench/run-quality-benchmark.mjs",
     "geogebra:sync": "node scripts/geogebra/sync-bundle.mjs",
     "build:web": "pnpm geogebra:sync && pnpm --filter @geohelper/web build",
@@ -19,8 +25,14 @@
     "smoke:gateway-backup-restore": "node scripts/smoke/gateway-backup-restore.mjs"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.56.1",
     "@types/node": "^24.11.0",
+    "@typescript-eslint/eslint-plugin": "^8.57.0",
+    "@typescript-eslint/parser": "^8.57.0",
+    "dependency-cruiser": "^17.3.9",
+    "eslint": "^10.0.3",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   },

@@ -1,13 +1,8 @@
 import { CommandBatch } from "@geohelper/protocol";
-import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
+import { createStore } from "zustand/vanilla";
 
 import { executeBatch } from "../geogebra/command-executor";
-import { persistChatSnapshotToIndexedDb } from "../storage/indexed-sync";
-import {
-  ensureRemoteSyncStartupCheck,
-  notifyRemoteSyncLocalMutation
-} from "../storage/remote-sync";
 import {
   compileWithRuntime,
   RuntimeApiError
@@ -19,13 +14,18 @@ import {
   RuntimeCompileResponse,
   RuntimeTarget
 } from "../runtime/types";
+import { persistChatSnapshotToIndexedDb } from "../storage/indexed-sync";
+import {
+  ensureRemoteSyncStartupCheck,
+  notifyRemoteSyncLocalMutation
+} from "../storage/remote-sync";
+import { sceneStore } from "./scene-store";
 import {
   appendDebugEventIfEnabled,
   CompileRuntimeOptions,
   resolveCompileRuntimeOptions,
   settingsStore
 } from "./settings-store";
-import { sceneStore } from "./scene-store";
 
 export type ChatAttachment = RuntimeAttachment;
 

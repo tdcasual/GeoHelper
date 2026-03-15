@@ -1,16 +1,15 @@
-import { KvClient } from "./kv-client";
 import {
   BackupStoreOptions,
   createGuardedWriteConflict,
   createMemoryBackupStore,
-  GuardedGatewayBackupWriteInput,
-  mergeRetainedBackupHistory,
-  pruneRetainedBackupHistory,
   GatewayBackupRecord,
   GatewayBackupStore,
   GatewayBackupSummary,
-  parseGatewayBackupEnvelope
-} from "./backup-store";
+  GuardedGatewayBackupWriteInput,
+  mergeRetainedBackupHistory,
+  parseGatewayBackupEnvelope,
+  pruneRetainedBackupHistory} from "./backup-store";
+import { KvClient } from "./kv-client";
 
 interface RedisBackupStoreOptions extends BackupStoreOptions {
   prefix?: string;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { readVendorConfig } from "../../scripts/geogebra/lib/read-vendor-config.mjs";
 
 describe("readVendorConfig", () => {

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildServer } from "../src/server";
+import { requestCommandBatch } from "../src/services/litellm-client";
 import { resetGatewayMetrics } from "../src/services/metrics";
 import { clearRateLimits } from "../src/services/rate-limit";
-import { requestCommandBatch } from "../src/services/litellm-client";
 
 describe("POST /api/v1/chat/compile client flags", () => {
   it("uses single-agent fallback path when requested", async () => {

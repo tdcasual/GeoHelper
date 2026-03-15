@@ -1,5 +1,6 @@
-import type { BackupEnvelope } from "../storage/backup";
 import { CommandBatch, type RuntimeAttachment } from "@geohelper/protocol";
+
+import type { BackupEnvelope } from "../storage/backup";
 
 export type ChatMode = "byok" | "official";
 export type RuntimeTarget = "gateway" | "direct";

@@ -1,5 +1,6 @@
-import fs from "node:fs";
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { createBackupEnvelope } from "../../packages/protocol/src/backup";

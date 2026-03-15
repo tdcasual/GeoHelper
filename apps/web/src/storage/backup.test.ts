@@ -1,7 +1,11 @@
+import { createBackupEnvelope } from "@geohelper/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createBackupEnvelope } from "@geohelper/protocol";
-
+import { registerGeoGebraAdapter } from "../geogebra/adapter";
+import { CHAT_STORE_KEY,chatStore } from "../state/chat-store";
+import { SCENE_STORE_KEY, sceneStore } from "../state/scene-store";
+import { SETTINGS_KEY, settingsStore } from "../state/settings-store";
+import { UI_PREFS_KEY, uiStore } from "../state/ui-store";
 import {
   captureCurrentAppImportRollbackAnchor,
   clearImportRollbackAnchor,
@@ -13,15 +17,10 @@ import {
   importBackupEnvelopeToLocalStorage,
   importRemoteBackupToLocalStorage,
   inspectBackup,
-  recordCurrentAppImportRollbackResult,
   readImportRollbackAnchor,
+  recordCurrentAppImportRollbackResult,
   restoreImportRollbackAnchorToLocalStorage
 } from "./backup";
-import { registerGeoGebraAdapter } from "../geogebra/adapter";
-import { chatStore, CHAT_STORE_KEY } from "../state/chat-store";
-import { SETTINGS_KEY, settingsStore } from "../state/settings-store";
-import { SCENE_STORE_KEY, sceneStore } from "../state/scene-store";
-import { UI_PREFS_KEY, uiStore } from "../state/ui-store";
 
 const TEMPLATE_STORE_KEY = "geohelper.templates.snapshot";
 

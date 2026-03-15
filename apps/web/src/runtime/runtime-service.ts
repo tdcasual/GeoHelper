@@ -13,10 +13,10 @@ import {
   RuntimeBackupGuardedUploadResponse,
   RuntimeBackupHistoryRequest,
   RuntimeBackupHistoryResponse,
-  RuntimeBackupProtectResponse,
-  RuntimeBackupProtectionRequest,
   RuntimeBackupLatestMetadataRequest,
   RuntimeBackupLatestMetadataResponse,
+  RuntimeBackupProtectionRequest,
+  RuntimeBackupProtectResponse,
   RuntimeBackupUnprotectResponse,
   RuntimeBackupUploadRequest,
   RuntimeBackupUploadResponse,
@@ -44,21 +44,20 @@ export type {
   RuntimeBackupGuardedUploadResponse,
   RuntimeBackupHistoryRequest,
   RuntimeBackupHistoryResponse,
-  RuntimeBackupProtectResponse,
-  RuntimeBackupProtectionRequest,
   RuntimeBackupLatestMetadataRequest,
   RuntimeBackupLatestMetadataResponse,
+  RuntimeBackupProtectionRequest,
+  RuntimeBackupProtectResponse,
   RuntimeBackupUnprotectResponse,
   RuntimeBackupUploadRequest,
   RuntimeBackupUploadResponse,
-  RuntimeTarget,
   RuntimeCapabilities,
   RuntimeCompileRequest,
   RuntimeCompileResponse,
   RuntimeLoginRequest,
   RuntimeLoginResponse,
-  RuntimeRevokeRequest
-};
+  RuntimeRevokeRequest,
+  RuntimeTarget};
 
 export { RuntimeApiError };
 

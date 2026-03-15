@@ -1,6 +1,15 @@
 import { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  compareGatewayBackup,
+  downloadGatewayBackup,
+  fetchGatewayBackupHistory,
+  protectGatewayBackupSnapshot,
+  unprotectGatewayBackupSnapshot,
+  uploadGatewayBackup,
+  uploadGatewayBackupGuarded
+} from "../runtime/runtime-service";
+import {
   ChatMode,
   type RemoteBackupSyncStatus,
   type RuntimeBackupComparableSummary,
@@ -17,37 +26,6 @@ import {
   useSettingsStore
 } from "../state/settings-store";
 import {
-  downloadGatewayBackup,
-  compareGatewayBackup,
-  fetchGatewayBackupHistory,
-  protectGatewayBackupSnapshot,
-  unprotectGatewayBackupSnapshot,
-  uploadGatewayBackup,
-  uploadGatewayBackupGuarded
-} from "../runtime/runtime-service";
-import {
-  createComparableSummaryFromBackupEnvelope,
-  formatRemoteBackupActionMessage,
-  resolveRemoteBackupHistoryBadgePresentation,
-  formatRemoteBackupHistorySummary,
-  formatRemoteBackupProtectionActionMessage,
-  formatRemoteBackupProtectionLimitMessage,
-  resolveImportActionGuardPresentation,
-  resolveImportRollbackAnchorPresentation,
-  resolveRemoteBackupPulledConversationImpactPresentation,
-  resolveRemoteBackupPulledPreviewGuardPresentation,
-  type RemoteBackupPullSource,
-  formatRemoteBackupSelectedPullMessage,
-  formatRemoteBackupRestoreWarning,
-  resolveRemoteBackupHistoryComparisonPresentation,
-  resolveRemoteBackupPulledPreviewPresentation,
-  resolveRemoteBackupHistorySelectionPresentation,
-  resolveRemoteBackupSyncPresentation,
-  resolveRemoteBackupActions,
-  shouldRecommendRemoteHistoryResolution,
-  shouldShowRemoteBackupForceUpload
-} from "./settings-remote-backup";
-import {
   BACKUP_FILENAME,
   type BackupEnvelope,
   BackupImportMode,
@@ -56,14 +34,34 @@ import {
   clearImportRollbackAnchor,
   exportCurrentAppBackup,
   exportCurrentAppBackupEnvelope,
-  inspectBackup,
   importAppBackupToLocalStorage,
   importRemoteBackupToLocalStorage,
-  recordCurrentAppImportRollbackResult,
+  inspectBackup,
   readImportRollbackAnchor,
+  recordCurrentAppImportRollbackResult,
   restoreImportRollbackAnchorToLocalStorage
 } from "../storage/backup";
 import { setRemoteSyncImportInProgress } from "../storage/remote-sync";
+import { SettingsDataSection } from "./settings-drawer/SettingsDataSection";
+import { SettingsExperimentsSection } from "./settings-drawer/SettingsExperimentsSection";
+import {
+  createComparableSummaryFromBackupEnvelope,
+  formatRemoteBackupActionMessage,
+  formatRemoteBackupHistorySummary,
+  formatRemoteBackupProtectionActionMessage,
+  formatRemoteBackupProtectionLimitMessage,
+  formatRemoteBackupSelectedPullMessage,
+  type RemoteBackupPullSource,
+  resolveImportActionGuardPresentation,
+  resolveImportRollbackAnchorPresentation,
+  resolveRemoteBackupActions,
+  resolveRemoteBackupHistoryComparisonPresentation,
+  resolveRemoteBackupHistorySelectionPresentation,
+  resolveRemoteBackupPulledConversationImpactPresentation,
+  resolveRemoteBackupPulledPreviewGuardPresentation,
+  resolveRemoteBackupPulledPreviewPresentation,
+  resolveRemoteBackupSyncPresentation
+} from "./settings-remote-backup";
 
 interface SettingsDrawerProps {
   open: boolean;
@@ -1251,6 +1249,93 @@ export const SettingsDrawer = ({
     }
   };
 
+  const handleLocalMergeImport = () => {
+    if (localMergeImportGuardPresentation.shouldArmFirst) {
+      setLocalReplaceImportArmed(false);
+      setLocalMergeImportArmed(true);
+      return;
+    }
+
+    setLocalMergeImportArmed(false);
+    setLocalReplaceImportArmed(false);
+    void handleImportBackup("merge");
+  };
+
+  const handleLocalReplaceImport = () => {
+    if (localReplaceImportGuardPresentation.shouldArmFirst) {
+      setLocalMergeImportArmed(false);
+      setLocalReplaceImportArmed(true);
+      return;
+    }
+
+    setLocalMergeImportArmed(false);
+    setLocalReplaceImportArmed(false);
+    void handleImportBackup("replace");
+  };
+
+  const handleCancelLocalImport = () => {
+    setLocalMergeImportArmed(false);
+    setLocalReplaceImportArmed(false);
+    setPendingBackupFile(null);
+    setBackupInspection(null);
+    setBackupMessage("已取消本次导入");
+  };
+
+  const handleToggleSelectedRemoteHistoryProtection = () => {
+    if (!selectedRemoteHistoryBackup) {
+      return;
+    }
+
+    void handleUpdateRemoteBackupProtection(
+      selectedRemoteHistoryBackup.is_protected ? "unprotect" : "protect"
+    );
+  };
+
+  const handlePullSelectedRemoteHistory = () => {
+    if (!selectedRemoteHistoryBackup) {
+      return;
+    }
+
+    void handlePullRemoteBackup(selectedRemoteHistoryBackup.snapshot_id);
+  };
+
+  const handleClearRemoteBackupAdminTokenAction = () => {
+    clearRemoteBackupAdminToken();
+    setRemoteBackupAdminTokenDraft("");
+    setBackupMessage("已清除网关管理员令牌");
+  };
+
+  const handleRemoteMergeImport = () => {
+    if (remoteMergeImportGuardPresentation.shouldArmFirst) {
+      setRemoteReplaceImportArmed(false);
+      setRemoteMergeImportArmed(true);
+      return;
+    }
+
+    setRemoteMergeImportArmed(false);
+    setRemoteReplaceImportArmed(false);
+    void handleImportPulledRemoteBackup("merge");
+  };
+
+  const handleRemoteReplaceImport = () => {
+    if (remoteReplaceImportGuardPresentation.shouldArmFirst) {
+      setRemoteMergeImportArmed(false);
+      setRemoteReplaceImportArmed(true);
+      return;
+    }
+
+    setRemoteMergeImportArmed(false);
+    setRemoteReplaceImportArmed(false);
+    void handleImportPulledRemoteBackup("replace");
+  };
+
+  const handleClearRemotePullResult = () => {
+    setRemoteMergeImportArmed(false);
+    setRemoteReplaceImportArmed(false);
+    setRemoteBackupPullResult(null);
+    setBackupMessage("已清除本次网关拉取结果");
+  };
+
   return (
     <div className="settings-drawer-backdrop" onClick={onClose}>
       <aside
@@ -1788,651 +1873,107 @@ export const SettingsDrawer = ({
         ) : null}
 
         {activeSection === "experiments" ? (
-        <section className="settings-section">
-          <h3>实验开关</h3>
-          <label className="settings-checkbox">
-            <input
-              data-testid="flag-show-agent-steps"
-              type="checkbox"
-              checked={experimentFlags.showAgentSteps}
-              onChange={(event) =>
-                setExperimentFlag("showAgentSteps", event.target.checked)
-              }
-            />
-            显示代理步骤
-          </label>
-          <label className="settings-checkbox">
-            <input
-              type="checkbox"
-              checked={experimentFlags.autoRetryEnabled}
-              onChange={(event) =>
-                setExperimentFlag("autoRetryEnabled", event.target.checked)
-              }
-            />
-            自动重试
-          </label>
-          <label className="settings-checkbox">
-            <input
-              type="checkbox"
-              checked={experimentFlags.requestTimeoutEnabled}
-              onChange={(event) =>
-                setExperimentFlag("requestTimeoutEnabled", event.target.checked)
-              }
-            />
-            请求超时控制
-          </label>
-          <label className="settings-checkbox">
-            <input
-              type="checkbox"
-              checked={experimentFlags.strictValidationEnabled}
-              onChange={(event) =>
-                setExperimentFlag("strictValidationEnabled", event.target.checked)
-              }
-            />
-            严格模式校验
-          </label>
-          <label className="settings-checkbox">
-            <input
-              type="checkbox"
-              checked={experimentFlags.fallbackSingleAgentEnabled}
-              onChange={(event) =>
-                setExperimentFlag(
-                  "fallbackSingleAgentEnabled",
-                  event.target.checked
-                )
-              }
-            />
-            失败回退单代理
-          </label>
-          <label className="settings-checkbox">
-            <input
-              type="checkbox"
-              checked={experimentFlags.debugLogPanelEnabled}
-              onChange={(event) =>
-                setExperimentFlag("debugLogPanelEnabled", event.target.checked)
-              }
-            />
-            调试日志面板
-          </label>
-          <label className="settings-checkbox">
-            <input
-              type="checkbox"
-              checked={experimentFlags.performanceSamplingEnabled}
-              onChange={(event) =>
-                setExperimentFlag(
-                  "performanceSamplingEnabled",
-                  event.target.checked
-                )
-              }
-            />
-            性能采样上报
-          </label>
-          <label>
-            默认重试次数
-            <input
-              type="number"
-              value={requestDefaults.retryAttempts}
-              onChange={(event) =>
-                setDefaultRetryAttempts(Number(event.target.value))
-              }
-            />
-          </label>
-        </section>
+          <SettingsExperimentsSection
+            experimentFlags={experimentFlags}
+            retryAttempts={requestDefaults.retryAttempts}
+            onSetExperimentFlag={setExperimentFlag}
+            onSetDefaultRetryAttempts={setDefaultRetryAttempts}
+          />
 
         ) : null}
 
         {activeSection === "data" ? (
-        <>
-        <section className="settings-section">
-          <h3>备份与恢复</h3>
-          <div className="settings-inline-actions">
-            <button type="button" onClick={handleExportBackup}>
-              导出备份
-            </button>
-            <button
-              type="button"
-              onClick={() => backupInputRef.current?.click()}
-            >
-              导入备份
-            </button>
-          </div>
-          {pendingBackupFile && backupInspection ? (
-            <article className="settings-import-preview">
-              <p>{`文件：${pendingBackupFile.name}`}</p>
-              <p>{`schema：v${backupInspection.schemaVersion}`}</p>
-              <p>{`创建时间：${new Date(backupInspection.createdAt).toLocaleString(
-                "zh-CN"
-              )}`}</p>
-              <p>{`会话数：${backupInspection.conversationCount}`}</p>
-              <p>{`来源版本：${backupInspection.appVersion}`}</p>
-              {backupInspection.migrationHint === "older" ? (
-                <p className="settings-warning-text">
-                  备份版本较旧，将按兼容方式导入
-                </p>
-              ) : null}
-              {backupInspection.migrationHint === "newer" ? (
-                <p className="settings-warning-text">
-                  备份版本高于当前应用，导入后可能存在字段降级
-                </p>
-              ) : null}
-              {localImportGuardWarning ? (
-                <p className="settings-warning-text">
-                  {localImportGuardWarning}
-                </p>
-              ) : null}
-              <div className="settings-inline-actions">
-                <button
-                  type="button"
-                  disabled={importingBackup}
-                  onClick={() => {
-                    if (localMergeImportGuardPresentation.shouldArmFirst) {
-                      setLocalReplaceImportArmed(false);
-                      setLocalMergeImportArmed(true);
-                      return;
-                    }
-
-                    setLocalMergeImportArmed(false);
-                    setLocalReplaceImportArmed(false);
-                    void handleImportBackup("merge");
-                  }}
-                >
-                  {localMergeImportGuardPresentation.buttonLabel}
-                </button>
-                <button
-                  type="button"
-                  className={
-                    localReplaceImportGuardPresentation.danger &&
-                    localReplaceImportArmed
-                      ? "top-bar-button-danger"
-                      : undefined
-                  }
-                  disabled={importingBackup}
-                  onClick={() => {
-                    if (localReplaceImportGuardPresentation.shouldArmFirst) {
-                      setLocalMergeImportArmed(false);
-                      setLocalReplaceImportArmed(true);
-                      return;
-                    }
-
-                    setLocalMergeImportArmed(false);
-                    setLocalReplaceImportArmed(false);
-                    void handleImportBackup("replace");
-                  }}
-                >
-                  {localReplaceImportGuardPresentation.buttonLabel}
-                </button>
-                <button
-                  type="button"
-                  disabled={importingBackup}
-                  onClick={() => {
-                    setLocalMergeImportArmed(false);
-                    setLocalReplaceImportArmed(false);
-                    setPendingBackupFile(null);
-                    setBackupInspection(null);
-                    setBackupMessage("已取消本次导入");
-                  }}
-                >
-                  取消
-                </button>
-              </div>
-            </article>
-          ) : null}
-          {importRollbackAnchorPresentation ? (
-            <article
-              className="settings-import-preview"
-              data-testid="import-rollback-anchor"
-            >
-              <p>{importRollbackAnchorPresentation.title}</p>
-              <p>{`捕获时间：${new Date(importRollbackAnchor!.capturedAt).toLocaleString("zh-CN")}`}</p>
-              <p>{importRollbackAnchorPresentation.sourceLabel}</p>
-              <p>{importRollbackAnchorPresentation.importModeLabel}</p>
-              <p>{importRollbackAnchorPresentation.summary}</p>
-              {importRollbackAnchorPresentation.resultSummary ? (
-                <p>{importRollbackAnchorPresentation.resultSummary}</p>
-              ) : null}
-              {importRollbackAnchorPresentation.outcomeSummary ? (
-                <p className="settings-hint">
-                  {importRollbackAnchorPresentation.outcomeSummary}
-                </p>
-              ) : null}
-              {importRollbackAnchorPresentation.currentStateSummary ? (
-                <p
-                  className={
-                    importRollbackAnchorPresentation.currentStateSummary ===
-                    "当前状态：本地已在这次导入后继续变化。"
-                      ? "settings-warning-text"
-                      : "settings-hint"
-                  }
-                >
-                  {importRollbackAnchorPresentation.currentStateSummary}
-                </p>
-              ) : null}
-              <p
-                className={
-                  importRollbackAnchorPresentation.currentStateSummary ===
-                  "当前状态：本地已在这次导入后继续变化。"
-                    ? "settings-warning-text"
-                    : "settings-hint"
-                }
-              >
-                {importRollbackAnchorPresentation.hint}
-              </p>
-              <div className="settings-inline-actions">
-                <button
-                  type="button"
-                  disabled={rollbackAnchorBusy || importingBackup || Boolean(remoteBackupBusyAction)}
-                  onClick={() => {
-                    void handleRestoreImportRollbackAnchor();
-                  }}
-                >
-                  恢复到导入前状态
-                </button>
-                <button
-                  type="button"
-                  disabled={rollbackAnchorBusy || importingBackup || Boolean(remoteBackupBusyAction)}
-                  onClick={handleClearImportRollbackAnchor}
-                >
-                  清除此恢复锚点
-                </button>
-              </div>
-            </article>
-          ) : null}
-
-          <section className="settings-section">
-            <h3>网关远端备份</h3>
-            <label>
-              管理员令牌
-              <input
-                type="password"
-                placeholder={
-                  remoteBackupAdminTokenCipher
-                    ? "已保存管理员令牌（重新输入可覆盖）"
-                    : "x-admin-token"
-                }
-                value={remoteBackupAdminTokenDraft}
-                onChange={(event) =>
-                  setRemoteBackupAdminTokenDraft(event.target.value)
-                }
-              />
-            </label>
-            <label>
-              轻量云同步
-              <select
-                value={remoteBackupSyncPreferences.mode}
-                onChange={(event) =>
-                  setRemoteBackupSyncMode(
-                    event.target.value as
-                      | "off"
-                      | "remind_only"
-                      | "delayed_upload"
-                  )
-                }
-              >
-                <option value="off">关闭</option>
-                <option value="remind_only">仅提醒（启动检查）</option>
-                <option value="delayed_upload">延迟上传</option>
-              </select>
-            </label>
-            <p className="settings-hint">
-              {remoteBackupActions.gatewayProfile
-                ? `远端网关：${remoteBackupActions.gatewayProfile.name}（${remoteBackupActions.gatewayProfile.baseUrl}）`
-                : remoteBackupActions.upload.reason}
-            </p>
-            <p className="settings-hint">
-              启动检查只拉取元数据；延迟上传也不会自动拉取或自动导入。
-            </p>
-            <article
-              className="settings-import-preview"
-              data-testid="remote-backup-sync-status"
-            >
-              <p>{`同步状态：${remoteBackupSyncPresentation.statusLabel}`}</p>
-              <p>{remoteBackupSyncPresentation.description}</p>
-              {remoteBackupSyncPresentation.latestSummary ? (
-                <p>{remoteBackupSyncPresentation.latestSummary}</p>
-              ) : (
-                <p>云端最新快照：尚未获取摘要</p>
-              )}
-              {remoteBackupSync.latestRemoteBackup ? (
-                <p>{`快照 ID：${remoteBackupSync.latestRemoteBackup.snapshot_id}`}</p>
-              ) : null}
-              {remoteBackupSyncPresentation.checkedAtLabel ? (
-                <p>{remoteBackupSyncPresentation.checkedAtLabel}</p>
-              ) : null}
-            </article>
-            {remoteBackupSync.history.length > 0 ? (
-              <article
-                className="settings-import-preview"
-                data-testid="remote-backup-history"
-              >
-                <p>{remoteBackupHistorySummary}</p>
-                <div className="settings-remote-backup-history-list">
-                  {remoteBackupSync.history.map((backup, index) => {
-                    const isSelected =
-                      backup.snapshot_id === selectedRemoteHistoryBackup?.snapshot_id;
-                    const isLatest =
-                      backup.snapshot_id === latestRemoteHistorySnapshotId || index === 0;
-                    const historyBadgePresentation =
-                      resolveRemoteBackupHistoryBadgePresentation(
-                        remoteBackupLocalSummary,
-                        backup
-                      );
-
-                    return (
-                      <button
-                        key={backup.snapshot_id}
-                        type="button"
-                        className={`settings-remote-backup-history-item${
-                          isSelected
-                            ? " settings-remote-backup-history-item-selected"
-                            : ""
-                        }`}
-                        onClick={() =>
-                          setSelectedRemoteHistorySnapshotId(backup.snapshot_id)
-                        }
-                      >
-                        <div className="settings-remote-backup-history-item-badges">
-                          <span>{isLatest ? "最新" : "历史"}</span>
-                          {backup.is_protected ? <span>已保护</span> : null}
-                          {historyBadgePresentation ? (
-                            <span
-                              className={`settings-remote-backup-history-relation-badge settings-remote-backup-history-relation-badge-${historyBadgePresentation.relation}`}
-                            >
-                              {historyBadgePresentation.label}
-                            </span>
-                          ) : null}
-                        </div>
-                        <span>{`${backup.conversation_count} 个会话`}</span>
-                        <span>{backup.snapshot_id}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {selectedRemoteHistoryPresentation ? (
-                  <div data-testid="remote-backup-selected-history">
-                    <p>{selectedRemoteHistoryPresentation.statusLabel}</p>
-                    <p>{selectedRemoteHistoryPresentation.snapshotIdLabel}</p>
-                    <p>{selectedRemoteHistoryPresentation.deviceIdLabel}</p>
-                    <p>{selectedRemoteHistoryPresentation.updatedAtLabel}</p>
-                    <p>{selectedRemoteHistoryPresentation.conversationCountLabel}</p>
-                    <p>{selectedRemoteHistoryPresentation.protectionLabel}</p>
-                    {selectedRemoteHistoryPresentation.protectedAtLabel ? (
-                      <p>{selectedRemoteHistoryPresentation.protectedAtLabel}</p>
-                    ) : null}
-                    {selectedRemoteHistoryComparisonPresentation ? (
-                      <>
-                        <p>{selectedRemoteHistoryComparisonPresentation.relationLabel}</p>
-                        <p>{selectedRemoteHistoryComparisonPresentation.recommendation}</p>
-                      </>
-                    ) : null}
-                    {shouldRecommendRemoteHistoryResolution(
-                      remoteBackupSync.status
-                    ) ? (
-                      <p className="settings-hint">
-                        建议先拉取当前选中的快照预览；如这是关键恢复点，可先保护当前选中的快照，再决定合并、覆盖或仍然覆盖云端。
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-                {selectedRemoteHistoryBackup ? (
-                  <div className="settings-inline-actions">
-                    <button
-                      type="button"
-                      disabled={
-                        Boolean(remoteBackupBusyAction) ||
-                        !remoteBackupActions.check.enabled
-                      }
-                      onClick={() => {
-                        void handleUpdateRemoteBackupProtection(
-                          selectedRemoteHistoryBackup.is_protected
-                            ? "unprotect"
-                            : "protect"
-                        );
-                      }}
-                    >
-                      {selectedRemoteHistoryBackup.is_protected ? "取消保护" : "保护此快照"}
-                    </button>
-                    {selectedRemoteHistoryBackup.snapshot_id !==
-                    latestRemoteHistorySnapshotId ? (
-                    <button
-                      type="button"
-                      disabled={
-                        Boolean(remoteBackupBusyAction) || !remoteBackupActions.pull.enabled
-                      }
-                      onClick={() => {
-                        void handlePullRemoteBackup(
-                          selectedRemoteHistoryBackup.snapshot_id
-                        );
-                      }}
-                    >
-                      拉取所选历史快照
-                    </button>
-                    ) : null}
-                  </div>
-                ) : null}
-              </article>
-            ) : null}
-            {!remoteBackupActions.upload.enabled && remoteBackupActions.upload.reason ? (
-              <p className="settings-warning-text">
-                {remoteBackupActions.upload.reason}
-              </p>
-            ) : null}
-            <div className="settings-inline-actions">
-              <button
-                type="button"
-                disabled={Boolean(remoteBackupBusyAction) || !remoteBackupAdminTokenDraft.trim()}
-                onClick={handleSaveRemoteBackupAdminToken}
-              >
-                保存管理员令牌
-              </button>
-              <button
-                type="button"
-                disabled={Boolean(remoteBackupBusyAction) || !remoteBackupAdminTokenCipher}
-                onClick={() => {
-                  clearRemoteBackupAdminToken();
-                  setRemoteBackupAdminTokenDraft("");
-                  setBackupMessage("已清除网关管理员令牌");
-                }}
-              >
-                清除管理员令牌
-              </button>
-            </div>
-            <div className="settings-inline-actions">
-              <button
-                type="button"
-                disabled={Boolean(remoteBackupBusyAction) || !remoteBackupActions.check.enabled}
-                onClick={handleCheckRemoteBackupSync}
-              >
-                检查云端状态
-              </button>
-              <button
-                type="button"
-                disabled={Boolean(remoteBackupBusyAction) || !remoteBackupActions.upload.enabled}
-                onClick={() => {
-                  void handleUploadRemoteBackup();
-                }}
-              >
-                上传最新快照
-              </button>
-              <button
-                type="button"
-                disabled={Boolean(remoteBackupBusyAction) || !remoteBackupActions.pull.enabled}
-                onClick={() => {
-                  void handlePullRemoteBackup();
-                }}
-              >
-                拉取最新快照
-              </button>
-            </div>
-            {shouldShowRemoteBackupForceUpload(remoteBackupSync.status) &&
-            remoteBackupActions.upload.enabled ? (
-              <div className="settings-inline-actions">
-                <button
-                  type="button"
-                  className="top-bar-button-danger"
-                  disabled={Boolean(remoteBackupBusyAction)}
-                  onClick={() => {
-                    void handleUploadRemoteBackup("force");
-                  }}
-                >
-                  仍然覆盖云端快照
-                </button>
-              </div>
-            ) : null}
-            {remoteBackupPullResult ? (
-              <article
-                className="settings-import-preview"
-                data-testid="remote-backup-pulled-preview"
-              >
-                <p>{`拉取时间：${new Date(remoteBackupPullResult.backup.stored_at).toLocaleString("zh-CN")}`}</p>
-                <p>{`schema：v${remoteBackupPullResult.backup.schema_version}`}</p>
-                <p>{`创建时间：${new Date(remoteBackupPullResult.backup.created_at).toLocaleString("zh-CN")}`}</p>
-                <p>{`快照 ID：${remoteBackupPullResult.backup.snapshot_id}`}</p>
-                <p>{`设备 ID：${remoteBackupPullResult.backup.device_id}`}</p>
-                <p>{`会话数：${remoteBackupPullResult.backup.conversation_count}`}</p>
-                <p>{`来源版本：${remoteBackupPullResult.backup.app_version}`}</p>
-                {remoteBackupPulledPreviewPresentation ? (
-                  <>
-                    <p>{remoteBackupPulledPreviewPresentation.sourceLabel}</p>
-                    <p>{remoteBackupPulledPreviewPresentation.relationLabel}</p>
-                    <p className="settings-hint">
-                      {remoteBackupPulledPreviewPresentation.recommendation}
-                    </p>
-                  </>
-                ) : null}
-                {remoteBackupPulledPreviewGuardPresentation ? (
-                  <>
-                    <p>{remoteBackupPulledPreviewGuardPresentation.targetLabel}</p>
-                    {remoteBackupPulledPreviewGuardPresentation.warning ? (
-                      <p className="settings-warning-text">
-                        {remoteBackupPulledPreviewGuardPresentation.warning}
-                      </p>
-                    ) : null}
-                  </>
-                ) : null}
-                {remoteBackupPulledConversationImpactPresentation ? (
-                  <>
-                    <p>{remoteBackupPulledConversationImpactPresentation.title}</p>
-                    <p className="settings-hint">
-                      {remoteBackupPulledConversationImpactPresentation.mergeSummary}
-                    </p>
-                    <p className="settings-hint">
-                      {remoteBackupPulledConversationImpactPresentation.replaceSummary}
-                    </p>
-                  </>
-                ) : null}
-                <p className="settings-warning-text">
-                  {formatRemoteBackupRestoreWarning(remoteBackupPullResult.backup)}
-                </p>
-                {remoteImportGuardWarning ? (
-                  <p className="settings-warning-text">
-                    {remoteImportGuardWarning}
-                  </p>
-                ) : null}
-                <div className="settings-inline-actions">
-                  <button
-                    type="button"
-                    disabled={
-                      Boolean(remoteBackupBusyAction) ||
-                      !remoteBackupActions.restore.enabled ||
-                      !remoteBackupPulledPreviewGuardPresentation?.importEnabled
-                    }
-                    onClick={() => {
-                      if (remoteMergeImportGuardPresentation.shouldArmFirst) {
-                        setRemoteReplaceImportArmed(false);
-                        setRemoteMergeImportArmed(true);
-                        return;
-                      }
-
-                      setRemoteMergeImportArmed(false);
-                      setRemoteReplaceImportArmed(false);
-                      void handleImportPulledRemoteBackup("merge");
-                    }}
-                  >
-                    {remoteMergeImportGuardPresentation.buttonLabel}
-                  </button>
-                  <button
-                    type="button"
-                    className={
-                      remoteReplaceImportGuardPresentation.danger &&
-                      remoteReplaceImportArmed
-                        ? "top-bar-button-danger"
-                        : undefined
-                    }
-                    disabled={
-                      Boolean(remoteBackupBusyAction) ||
-                      !remoteBackupActions.restore.enabled ||
-                      !remoteBackupPulledPreviewGuardPresentation?.importEnabled
-                    }
-                    onClick={() => {
-                      if (remoteReplaceImportGuardPresentation.shouldArmFirst) {
-                        setRemoteMergeImportArmed(false);
-                        setRemoteReplaceImportArmed(true);
-                        return;
-                      }
-
-                      setRemoteMergeImportArmed(false);
-                      setRemoteReplaceImportArmed(false);
-                      void handleImportPulledRemoteBackup("replace");
-                    }}
-                  >
-                    {remoteReplaceImportGuardPresentation.buttonLabel}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={Boolean(remoteBackupBusyAction)}
-                    onClick={() => {
-                      setRemoteMergeImportArmed(false);
-                      setRemoteReplaceImportArmed(false);
-                      setRemoteBackupPullResult(null);
-                      setBackupMessage("已清除本次网关拉取结果");
-                    }}
-                  >
-                    清除本次拉取
-                  </button>
-                </div>
-              </article>
-            ) : null}
-          </section>
-          <input
-            ref={backupInputRef}
-            type="file"
-            accept="application/json"
-            hidden
-            onChange={handleImportBackupSelect}
+          <SettingsDataSection
+            backupInputRef={backupInputRef}
+            pendingBackupFile={pendingBackupFile}
+            backupInspection={backupInspection}
+            localImportGuardWarning={localImportGuardWarning}
+            importingBackup={importingBackup}
+            localMergeImportGuardPresentation={localMergeImportGuardPresentation}
+            localReplaceImportGuardPresentation={localReplaceImportGuardPresentation}
+            localReplaceImportArmed={localReplaceImportArmed}
+            importRollbackAnchorCapturedAt={importRollbackAnchor?.capturedAt ?? null}
+            importRollbackAnchorPresentation={importRollbackAnchorPresentation}
+            rollbackAnchorBusy={rollbackAnchorBusy}
+            remoteBackupBusyAction={remoteBackupBusyAction}
+            remoteBackupAdminTokenDraft={remoteBackupAdminTokenDraft}
+            remoteBackupAdminTokenSaved={Boolean(remoteBackupAdminTokenCipher)}
+            remoteBackupSyncMode={remoteBackupSyncPreferences.mode}
+            remoteBackupActions={remoteBackupActions}
+            remoteBackupSync={remoteBackupSync}
+            remoteBackupSyncPresentation={remoteBackupSyncPresentation}
+            remoteBackupHistorySummary={remoteBackupHistorySummary}
+            latestRemoteHistorySnapshotId={latestRemoteHistorySnapshotId}
+            selectedRemoteHistoryBackup={selectedRemoteHistoryBackup}
+            selectedRemoteHistoryPresentation={selectedRemoteHistoryPresentation}
+            selectedRemoteHistoryComparisonPresentation={
+              selectedRemoteHistoryComparisonPresentation
+            }
+            remoteBackupLocalSummary={remoteBackupLocalSummary}
+            remoteBackupPullResult={remoteBackupPullResult}
+            remoteBackupPulledPreviewPresentation={
+              remoteBackupPulledPreviewPresentation
+            }
+            remoteBackupPulledPreviewGuardPresentation={
+              remoteBackupPulledPreviewGuardPresentation
+            }
+            remoteBackupPulledConversationImpactPresentation={
+              remoteBackupPulledConversationImpactPresentation
+            }
+            remoteImportGuardWarning={remoteImportGuardWarning}
+            remoteMergeImportGuardPresentation={
+              remoteMergeImportGuardPresentation
+            }
+            remoteReplaceImportGuardPresentation={
+              remoteReplaceImportGuardPresentation
+            }
+            remoteReplaceImportArmed={remoteReplaceImportArmed}
+            backupMessage={backupMessage}
+            debugEvents={debugEvents}
+            onExportBackup={() => {
+              void handleExportBackup();
+            }}
+            onLocalMergeImport={handleLocalMergeImport}
+            onLocalReplaceImport={handleLocalReplaceImport}
+            onCancelLocalImport={handleCancelLocalImport}
+            onRestoreImportRollbackAnchor={() => {
+              void handleRestoreImportRollbackAnchor();
+            }}
+            onClearImportRollbackAnchor={handleClearImportRollbackAnchor}
+            onRemoteBackupAdminTokenDraftChange={setRemoteBackupAdminTokenDraft}
+            onRemoteBackupSyncModeChange={setRemoteBackupSyncMode}
+            onSelectRemoteHistorySnapshot={setSelectedRemoteHistorySnapshotId}
+            onToggleRemoteHistoryProtection={
+              handleToggleSelectedRemoteHistoryProtection
+            }
+            onPullSelectedHistorySnapshot={handlePullSelectedRemoteHistory}
+            onSaveRemoteBackupAdminToken={() => {
+              void handleSaveRemoteBackupAdminToken();
+            }}
+            onClearRemoteBackupAdminToken={handleClearRemoteBackupAdminTokenAction}
+            onCheckRemoteBackupSync={() => {
+              void handleCheckRemoteBackupSync();
+            }}
+            onUploadRemoteBackup={() => {
+              void handleUploadRemoteBackup();
+            }}
+            onPullLatestRemoteBackup={() => {
+              void handlePullRemoteBackup();
+            }}
+            onForceUploadRemoteBackup={() => {
+              void handleUploadRemoteBackup("force");
+            }}
+            onRemoteMergeImport={handleRemoteMergeImport}
+            onRemoteReplaceImport={handleRemoteReplaceImport}
+            onClearRemotePullResult={handleClearRemotePullResult}
+            onBackupInputChange={(event) => {
+              void handleImportBackupSelect(event);
+            }}
+            onClearStoredSecrets={() => {
+              void clearStoredSecrets();
+            }}
+            onClearDebugEvents={clearDebugEvents}
           />
-          {backupMessage ? <p className="settings-hint">{backupMessage}</p> : null}
-        </section>
-
-        <section className="settings-section">
-          <h3>安全</h3>
-          <div className="settings-inline-actions">
-            <button type="button" onClick={() => clearStoredSecrets()}>
-              清除本地加密密钥与 BYOK 密文
-            </button>
-          </div>
-        </section>
-
-        <section className="settings-section">
-          <h3>调试日志</h3>
-          <div className="settings-inline-actions">
-            <button type="button" onClick={clearDebugEvents}>
-              清空日志
-            </button>
-          </div>
-          <div className="debug-log-panel">
-            {debugEvents.length === 0 ? (
-              <div className="settings-hint">暂无日志</div>
-            ) : (
-              debugEvents.map((item) => (
-                <article key={item.id} className={`debug-log-${item.level}`}>
-                  <time>{new Date(item.time).toLocaleTimeString("zh-CN")}</time>
-                  <span>{item.message}</span>
-                </article>
-              ))
-            )}
-          </div>
-        </section>
-        </>
         ) : null}
           </div>
         </div>
