@@ -1,7 +1,7 @@
 # Maintainability Baseline
 
 Date: 2026-03-16
-Status: Updated after Phase 2 Task 5 controller extraction
+Status: Updated after Phase 3 Task 1 hotspot reporting refinement
 
 ## Budgets
 
@@ -20,15 +20,19 @@ Status: Updated after Phase 2 Task 5 controller extraction
 
 ## Current Hotspots
 
-Measured after the latest Phase 2 refactor:
+Measured after the latest Phase 3 Task 1 update. The default hotspot report is now production-only and excludes `*.test.*` plus `src/test/**` noise unless `--include-tests` is passed explicitly.
 
-- `apps/web/src/components/SettingsDrawer.tsx`: `926` lines
-- `apps/web/src/components/WorkspaceShell.tsx`: `646` lines
-- `apps/web/src/state/settings-store.ts`: `893` lines
-- `apps/web/src/state/chat-store.ts`: `641` lines
-- `apps/web/src/styles.css`: `2284` lines
+- `apps/web/src/styles.css`: `2285` lines
+- `apps/web/src/components/settings-drawer/useRemoteBackupControls.ts`: `1105` lines
+- `apps/web/src/components/SettingsDrawer.tsx`: `927` lines
+- `apps/web/src/state/settings-store.ts`: `894` lines
+- `apps/web/src/components/settings-remote-backup.ts`: `816` lines
+- `apps/web/src/components/WorkspaceShell.tsx`: `647` lines
+- `apps/web/src/state/chat-store.ts`: `642` lines
+- `apps/web/src/components/settings-drawer/SettingsDataSection.tsx`: `613` lines
+- `apps/web/src/components/CanvasPanel.tsx`: `576` lines
 
-`SettingsDrawer.tsx`, `WorkspaceShell.tsx`, `backup.ts`, and `remote-sync.ts` are now within their Task 6 guardrails. The stricter first-wave category budgets still leave the state stores and stylesheet as active follow-up targets.
+`SettingsDrawer.tsx`, `WorkspaceShell.tsx`, `backup.ts`, and `remote-sync.ts` remain within their prior guardrails. The main active production-code follow-up targets are now the remote backup controller/presentation cluster, `settings-store.ts`, and the monolithic stylesheet entrypoint.
 
 ## Current Actionable Build Warning
 

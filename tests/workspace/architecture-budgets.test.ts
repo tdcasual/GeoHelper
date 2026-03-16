@@ -14,6 +14,11 @@ describe("architecture budgets", () => {
     expect(reportModule.classifyFile("apps/web/src/components/SettingsDrawer.tsx")).toBe(
       "component"
     );
+    expect(
+      reportModule.classifyFile(
+        "apps/web/src/components/settings-remote-backup.test.ts"
+      )
+    ).toBe("test");
     expect(reportModule.classifyFile("apps/web/src/state/settings-store.ts")).toBe(
       "store"
     );
@@ -48,6 +53,10 @@ describe("architecture budgets", () => {
         "apps/web/src/styles.css"
       ])
     );
+    expect(hotspotPaths).not.toContain(
+      "apps/web/src/components/settings-remote-backup.test.ts"
+    );
+    expect(hotspotPaths).not.toContain("apps/web/src/state/settings-store.test.ts");
 
     const settingsDrawer = hotspots.find(
       (item: { filePath: string }) =>

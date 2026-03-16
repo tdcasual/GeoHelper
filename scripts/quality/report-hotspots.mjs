@@ -27,8 +27,19 @@ const IGNORE_DIRS = new Set([
 ]);
 
 const SOURCE_EXTENSIONS = new Set([".css", ".ts", ".tsx"]);
+const TEST_FILE_PATTERNS = [
+  /\.test\.(ts|tsx|js|jsx|css)$/,
+  /\.spec\.(ts|tsx|js|jsx|css)$/
+];
+
+export const isTestFile = (filePath) =>
+  TEST_FILE_PATTERNS.some((pattern) => pattern.test(filePath)) ||
+  filePath.includes("/src/test/");
 
 export const classifyFile = (filePath) => {
+  if (isTestFile(filePath)) {
+    return "test";
+  }
   if (filePath.includes("/components/")) {
     return "component";
   }
@@ -52,6 +63,22 @@ const resolveBudget = (category, budgets) => {
     return budgets.maxStyleLines;
   }
   return null;
+};
+
+const resolveBudgetCategory = (filePath, category) => {
+  if (category !== "test") {
+    return category;
+  }
+  if (filePath.includes("/state/")) {
+    return "store";
+  }
+  if (filePath.endsWith(".css")) {
+    return "style";
+  }
+  if (filePath.includes("/components/")) {
+    return "component";
+  }
+  return "other";
 };
 
 const countLines = (text) => text.split(/\r?\n/).length;
@@ -85,11 +112,20 @@ const walkFiles = (cwd, relativeDir = "") => {
   return files;
 };
 
-export const collectHotspots = ({ cwd, budgets = loadBudgetConfig() }) =>
+export const collectHotspots = ({
+  cwd,
+  budgets = loadBudgetConfig(),
+  includeTests = false
+}) =>
   walkFiles(cwd)
     .map((filePath) => {
       const category = classifyFile(filePath);
-      const budget = resolveBudget(category, budgets);
+      if (category === "test" && !includeTests) {
+        return null;
+      }
+
+      const budgetCategory = resolveBudgetCategory(filePath, category);
+      const budget = resolveBudget(budgetCategory, budgets);
       if (budget == null) {
         return null;
       }
@@ -111,8 +147,12 @@ export const collectHotspots = ({ cwd, budgets = loadBudgetConfig() }) =>
     .filter(Boolean)
     .sort((left, right) => right.lineCount - left.lineCount);
 
-export const renderHotspotReport = ({ cwd, budgets = loadBudgetConfig() }) => {
-  const hotspots = collectHotspots({ cwd, budgets });
+export const renderHotspotReport = ({
+  cwd,
+  budgets = loadBudgetConfig(),
+  includeTests = false
+}) => {
+  const hotspots = collectHotspots({ cwd, budgets, includeTests });
   const lines = [
     "GeoHelper maintainability hotspot report",
     "",
@@ -135,5 +175,10 @@ export const renderHotspotReport = ({ cwd, budgets = loadBudgetConfig() }) => {
 };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  process.stdout.write(`${renderHotspotReport({ cwd: process.cwd() })}\n`);
+  process.stdout.write(
+    `${renderHotspotReport({
+      cwd: process.cwd(),
+      includeTests: process.argv.includes("--include-tests")
+    })}\n`
+  );
 }
