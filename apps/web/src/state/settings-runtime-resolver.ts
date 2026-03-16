@@ -1,0 +1,177 @@
+import { resolveRuntimeCapabilities } from "../runtime/runtime-service";
+import {
+  type ChatMode,
+  resolveRuntimeCapabilitiesForModel,
+  type RuntimeCapabilities
+} from "../runtime/types";
+import {
+  browserSecretService,
+  type SecretService
+} from "../services/secure-secret";
+import type {
+  ByokPreset,
+  ByokRuntimeIssue,
+  CompileRuntimeOptions,
+  SettingsStoreState
+} from "./settings-store";
+
+type DebugEventInput = {
+  level: "info" | "error";
+  message: string;
+};
+
+interface BuildCompileRuntimeOptionsInput {
+  state: SettingsStoreState;
+  conversationId: string;
+  mode: ChatMode;
+  secretService?: SecretService;
+  resolveCapabilities?: (params: {
+    target: "gateway" | "direct";
+    baseUrl?: string;
+    model?: string;
+  }) => Promise<RuntimeCapabilities>;
+}
+
+export interface BuildCompileRuntimeOptionsResult
+  extends CompileRuntimeOptions {
+  resolvedByokPresetId?: string;
+  didResolveByokKey: boolean;
+}
+
+const buildExtraHeaders = (
+  state: Pick<SettingsStoreState, "experimentFlags">
+): Record<string, string> => {
+  const headers: Record<string, string> = {};
+  if (state.experimentFlags.strictValidationEnabled) {
+    headers["x-client-strict-validation"] = "1";
+  }
+  if (state.experimentFlags.fallbackSingleAgentEnabled) {
+    headers["x-client-fallback-single-agent"] = "1";
+  }
+  if (state.experimentFlags.performanceSamplingEnabled) {
+    headers["x-client-performance-sampling"] = "1";
+  }
+  return headers;
+};
+
+const getDefaultPreset = (
+  mode: ChatMode,
+  state: Pick<
+    SettingsStoreState,
+    | "byokPresets"
+    | "officialPresets"
+    | "defaultByokPresetId"
+    | "defaultOfficialPresetId"
+  >
+) => {
+  if (mode === "byok") {
+    return (
+      state.byokPresets.find((item) => item.id === state.defaultByokPresetId) ??
+      state.byokPresets[0]
+    );
+  }
+
+  return (
+    state.officialPresets.find(
+      (item) => item.id === state.defaultOfficialPresetId
+    ) ?? state.officialPresets[0]
+  );
+};
+
+const getDefaultRuntimeProfile = (
+  state: Pick<SettingsStoreState, "runtimeProfiles" | "defaultRuntimeProfileId">
+) =>
+  state.runtimeProfiles.find(
+    (item) => item.id === state.defaultRuntimeProfileId
+  ) ?? state.runtimeProfiles[0];
+
+export const resolveRuntimeProfileSelection = (
+  state: SettingsStoreState,
+  mode: ChatMode = state.defaultMode
+): {
+  profile: SettingsStoreState["runtimeProfiles"][number];
+  capabilities: RuntimeCapabilities;
+} => {
+  const profile = getDefaultRuntimeProfile(state);
+  const preset = getDefaultPreset(mode, state);
+  return {
+    profile,
+    capabilities: resolveRuntimeCapabilitiesForModel({
+      runtimeTarget: profile.target,
+      model: preset?.model
+    })
+  };
+};
+
+export const buildCompileRuntimeOptions = async (
+  input: BuildCompileRuntimeOptionsInput
+): Promise<BuildCompileRuntimeOptionsResult> => {
+  const runtimeProfile = getDefaultRuntimeProfile(input.state);
+  const runtimeBaseUrl = runtimeProfile.baseUrl || undefined;
+  const preset = getDefaultPreset(input.mode, input.state);
+  const session = input.state.sessionOverrides[input.conversationId] ?? {};
+  const activeModel = session.model ?? preset.model;
+  const resolveCapabilities =
+    input.resolveCapabilities ?? resolveRuntimeCapabilities;
+  const runtimeCapabilities = await resolveCapabilities({
+    target: runtimeProfile.target,
+    baseUrl: runtimeBaseUrl,
+    model: activeModel
+  });
+
+  let byokEndpoint: string | undefined;
+  let byokKey: string | undefined;
+  let byokRuntimeIssue: ByokRuntimeIssue | undefined;
+  let resolvedByokPresetId: string | undefined;
+  let didResolveByokKey = false;
+
+  if (input.mode === "byok") {
+    const byokPreset = preset as ByokPreset;
+    resolvedByokPresetId = byokPreset.id;
+    if (runtimeProfile.target === "direct") {
+      byokEndpoint = byokPreset.endpoint || runtimeBaseUrl;
+    } else {
+      byokEndpoint = byokPreset.endpoint || undefined;
+    }
+
+    if (byokPreset.apiKeyCipher) {
+      try {
+        byokKey = await (input.secretService ?? browserSecretService).decrypt(
+          byokPreset.apiKeyCipher
+        );
+        didResolveByokKey = true;
+      } catch {
+        byokRuntimeIssue = {
+          code: "BYOK_KEY_DECRYPT_FAILED",
+          presetId: byokPreset.id,
+          presetName: byokPreset.name,
+          message: "BYOK Key 解密失败，请重新填写 API Key"
+        };
+      }
+    }
+  }
+
+  return {
+    runtimeTarget: runtimeProfile.target,
+    runtimeBaseUrl,
+    runtimeCapabilities,
+    model: activeModel,
+    byokEndpoint,
+    byokKey,
+    byokRuntimeIssue,
+    timeoutMs: input.state.experimentFlags.requestTimeoutEnabled
+      ? session.timeoutMs ?? preset.timeoutMs
+      : undefined,
+    retryAttempts: input.state.experimentFlags.autoRetryEnabled
+      ? session.retryAttempts ?? input.state.requestDefaults.retryAttempts
+      : 0,
+    extraHeaders: buildExtraHeaders(input.state),
+    resolvedByokPresetId,
+    didResolveByokKey
+  };
+};
+
+export const maybeAppendDebugEvent = <T extends DebugEventInput>(
+  state: Pick<SettingsStoreState, "experimentFlags">,
+  event: T
+): T[] => (state.experimentFlags.debugLogPanelEnabled ? [event] : []);

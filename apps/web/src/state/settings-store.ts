@@ -1,22 +1,29 @@
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 
-import { resolveRuntimeCapabilities } from "../runtime/runtime-service";
 import {
   ChatMode,
   RemoteBackupSyncStatus,
-  resolveRuntimeCapabilitiesForModel,
   RuntimeBackupCompareResponse,
   RuntimeBackupMetadata,
   RuntimeCapabilities,
-  RuntimeTarget,
+  RuntimeTarget
 } from "../runtime/types";
 import {
   browserSecretService,
   EncryptedSecret,
   SecretService
 } from "../services/secure-secret";
-import { persistSettingsSnapshotToIndexedDb } from "../storage/indexed-sync";
+import type { PersistedSettingsSnapshot } from "./settings-persistence";
+import {
+  loadSettingsSnapshot,
+  saveSettingsSnapshot
+} from "./settings-persistence";
+import {
+  buildCompileRuntimeOptions,
+  maybeAppendDebugEvent,
+  resolveRuntimeProfileSelection
+} from "./settings-runtime-resolver";
 
 export interface ModelPresetBase {
   id: string;
@@ -90,33 +97,12 @@ export interface RemoteBackupSyncResultInput {
   checkedAt?: string;
 }
 
-interface RequestDefaults {
-  retryAttempts: number;
-}
-
 export interface RuntimeProfile {
   id: string;
   name: string;
   target: RuntimeTarget;
   baseUrl: string;
   updatedAt: number;
-}
-
-interface PersistedSettingsSnapshot {
-  schemaVersion: 3;
-  defaultMode: ChatMode;
-  runtimeProfiles: RuntimeProfile[];
-  defaultRuntimeProfileId: string;
-  byokPresets: ByokPreset[];
-  officialPresets: OfficialPreset[];
-  defaultByokPresetId: string;
-  defaultOfficialPresetId: string;
-  remoteBackupAdminTokenCipher?: EncryptedSecret;
-  remoteBackupSyncPreferences: RemoteBackupSyncPreferences;
-  sessionOverrides: Record<string, SessionOverride>;
-  experimentFlags: ExperimentFlags;
-  requestDefaults: RequestDefaults;
-  debugEvents: DebugEvent[];
 }
 
 export interface SettingsStoreState extends PersistedSettingsSnapshot {
@@ -194,7 +180,6 @@ interface SettingsStoreDeps {
   secretService: SecretService;
 }
 
-export const SETTINGS_KEY = "geohelper.settings.snapshot";
 const DEBUG_EVENT_LIMIT = 100;
 
 const clampNumber = (
@@ -221,11 +206,6 @@ const createInitialRemoteBackupSyncState = (): RemoteBackupSyncState => ({
   lastCheckedAt: null,
   lastError: null
 });
-
-const createDefaultRemoteBackupSyncPreferences =
-  (): RemoteBackupSyncPreferences => ({
-    mode: "off"
-  });
 
 const applyRemoteBackupSnapshotToHistory = (
   history: RuntimeBackupMetadata[],
@@ -266,254 +246,6 @@ const mapComparisonResultToSyncStatus = (
 ): RemoteBackupSyncStatus =>
   result === "identical" ? "up_to_date" : result;
 
-const readGatewayBaseUrlFromEnv = (): string => {
-  const viteGatewayUrl =
-    typeof import.meta !== "undefined" && import.meta.env
-      ? import.meta.env.VITE_GATEWAY_URL
-      : undefined;
-  const processGatewayUrl =
-    typeof globalThis !== "undefined" &&
-    "process" in globalThis &&
-    (
-      globalThis as {
-        process?: {
-          env?: {
-            VITE_GATEWAY_URL?: string;
-          };
-        };
-      }
-    ).process?.env?.VITE_GATEWAY_URL;
-
-  const rawValue = viteGatewayUrl ?? processGatewayUrl;
-  const normalized = typeof rawValue === "string" ? rawValue : "";
-  return normalized.trim().replace(/\/+$/, "");
-};
-
-const createDefaultRuntimeProfiles = (): {
-  runtimeProfiles: RuntimeProfile[];
-  defaultRuntimeProfileId: string;
-} => {
-  const now = Date.now();
-  const gatewayBaseUrl = readGatewayBaseUrlFromEnv();
-  const gatewayProfile: RuntimeProfile = {
-    id: "runtime_gateway",
-    name: "Gateway",
-    target: "gateway",
-    baseUrl: gatewayBaseUrl,
-    updatedAt: now
-  };
-  const directProfile: RuntimeProfile = {
-    id: "runtime_direct",
-    name: "Direct BYOK",
-    target: "direct",
-    baseUrl: "",
-    updatedAt: now
-  };
-
-  return {
-    runtimeProfiles: [gatewayProfile, directProfile],
-    defaultRuntimeProfileId: gatewayProfile.id
-  };
-};
-
-const createDefaultByokPreset = (): ByokPreset => ({
-  id: `byok_${makeId()}`,
-  name: "默认 BYOK",
-  model: "gpt-4o-mini",
-  endpoint: "",
-  temperature: 0.2,
-  maxTokens: 1200,
-  timeoutMs: 20_000,
-  updatedAt: Date.now()
-});
-
-const createDefaultOfficialPreset = (): OfficialPreset => ({
-  id: `official_${makeId()}`,
-  name: "默认 Official",
-  model: "gpt-4o-mini",
-  temperature: 0.2,
-  maxTokens: 1200,
-  timeoutMs: 20_000,
-  updatedAt: Date.now()
-});
-
-const defaultExperimentFlags = (): ExperimentFlags => ({
-  showAgentSteps: true,
-  autoRetryEnabled: false,
-  requestTimeoutEnabled: true,
-  strictValidationEnabled: false,
-  fallbackSingleAgentEnabled: false,
-  debugLogPanelEnabled: false,
-  performanceSamplingEnabled: false
-});
-
-const canUseStorage = (): boolean =>
-  typeof localStorage !== "undefined" &&
-  typeof localStorage.getItem === "function" &&
-  typeof localStorage.setItem === "function";
-
-const asEncryptedSecret = (value: unknown): EncryptedSecret | undefined => {
-  if (!value || typeof value !== "object") {
-    return undefined;
-  }
-
-  const candidate = value as Partial<EncryptedSecret>;
-  if (
-    candidate.version !== 1 ||
-    candidate.algorithm !== "AES-GCM" ||
-    typeof candidate.iv !== "string" ||
-    typeof candidate.ciphertext !== "string"
-  ) {
-    return undefined;
-  }
-
-  return {
-    version: 1,
-    algorithm: "AES-GCM",
-    iv: candidate.iv,
-    ciphertext: candidate.ciphertext
-  };
-};
-
-const makeDefaultSnapshot = (): PersistedSettingsSnapshot => {
-  const runtime = createDefaultRuntimeProfiles();
-  const byok = createDefaultByokPreset();
-  const official = createDefaultOfficialPreset();
-  return {
-    schemaVersion: 3,
-    defaultMode: "byok",
-    runtimeProfiles: runtime.runtimeProfiles,
-    defaultRuntimeProfileId: runtime.defaultRuntimeProfileId,
-    byokPresets: [byok],
-    officialPresets: [official],
-    defaultByokPresetId: byok.id,
-    defaultOfficialPresetId: official.id,
-    remoteBackupSyncPreferences: createDefaultRemoteBackupSyncPreferences(),
-    sessionOverrides: {},
-    experimentFlags: defaultExperimentFlags(),
-    requestDefaults: {
-      retryAttempts: 1
-    },
-    debugEvents: []
-  };
-};
-
-const persistSnapshot = (state: PersistedSettingsSnapshot): void => {
-  if (!canUseStorage()) {
-    return;
-  }
-
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(state));
-  void persistSettingsSnapshotToIndexedDb(
-    state as unknown as Record<string, unknown>
-  );
-};
-
-const normalizeSnapshot = (
-  raw: Partial<PersistedSettingsSnapshot> | null | undefined
-): PersistedSettingsSnapshot => {
-  const fallback = makeDefaultSnapshot();
-  const runtimeProfiles =
-    Array.isArray(raw?.runtimeProfiles) && raw?.runtimeProfiles.length > 0
-      ? raw.runtimeProfiles
-          .map((item): RuntimeProfile => ({
-            id: String(item.id ?? ""),
-            name:
-              typeof item.name === "string" && item.name.trim()
-                ? item.name
-                : item.target === "gateway"
-                  ? "Gateway"
-                  : "Direct BYOK",
-            target: item.target === "gateway" ? "gateway" : "direct",
-            baseUrl:
-              typeof item.baseUrl === "string"
-                ? item.baseUrl.trim().replace(/\/+$/, "")
-                : "",
-            updatedAt:
-              typeof item.updatedAt === "number" ? item.updatedAt : Date.now()
-          }))
-          .filter((item) => item.id.length > 0)
-      : fallback.runtimeProfiles;
-  const byokPresets =
-    Array.isArray(raw?.byokPresets) && raw?.byokPresets.length > 0
-      ? raw.byokPresets
-      : fallback.byokPresets;
-  const officialPresets =
-    Array.isArray(raw?.officialPresets) && raw?.officialPresets.length > 0
-      ? raw.officialPresets
-      : fallback.officialPresets;
-  const defaultByokPresetId = byokPresets.some(
-    (item) => item.id === raw?.defaultByokPresetId
-  )
-    ? (raw?.defaultByokPresetId as string)
-    : byokPresets[0].id;
-  const defaultOfficialPresetId = officialPresets.some(
-    (item) => item.id === raw?.defaultOfficialPresetId
-  )
-    ? (raw?.defaultOfficialPresetId as string)
-    : officialPresets[0].id;
-  const defaultRuntimeProfileId = runtimeProfiles.some(
-    (item) => item.id === raw?.defaultRuntimeProfileId
-  )
-    ? (raw?.defaultRuntimeProfileId as string)
-    : runtimeProfiles.some((item) => item.id === fallback.defaultRuntimeProfileId)
-      ? fallback.defaultRuntimeProfileId
-      : runtimeProfiles[0].id;
-
-  return {
-    schemaVersion: 3,
-    defaultMode: raw?.defaultMode === "official" ? "official" : "byok",
-    runtimeProfiles,
-    defaultRuntimeProfileId,
-    byokPresets,
-    officialPresets,
-    defaultByokPresetId,
-    defaultOfficialPresetId,
-    remoteBackupAdminTokenCipher: asEncryptedSecret(
-      raw?.remoteBackupAdminTokenCipher
-    ),
-    remoteBackupSyncPreferences: {
-      mode:
-        raw?.remoteBackupSyncPreferences?.mode === "remind_only" ||
-        raw?.remoteBackupSyncPreferences?.mode === "delayed_upload"
-          ? raw.remoteBackupSyncPreferences.mode
-          : "off"
-    },
-    sessionOverrides:
-      raw?.sessionOverrides && typeof raw.sessionOverrides === "object"
-        ? raw.sessionOverrides
-        : {},
-    experimentFlags: {
-      ...defaultExperimentFlags(),
-      ...(raw?.experimentFlags ?? {})
-    },
-    requestDefaults: {
-      retryAttempts: clampNumber(raw?.requestDefaults?.retryAttempts ?? 1, {
-        min: 0,
-        max: 5,
-        fallback: 1
-      })
-    },
-    debugEvents: Array.isArray(raw?.debugEvents) ? raw.debugEvents : []
-  };
-};
-
-const loadSnapshot = (): PersistedSettingsSnapshot => {
-  if (!canUseStorage()) {
-    return makeDefaultSnapshot();
-  }
-
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) {
-      return makeDefaultSnapshot();
-    }
-    return normalizeSnapshot(JSON.parse(raw) as Partial<PersistedSettingsSnapshot>);
-  } catch {
-    return makeDefaultSnapshot();
-  }
-};
-
 const sanitizePresetNumeric = <
   T extends {
     temperature: number;
@@ -548,14 +280,14 @@ export const createSettingsStore = (
     secretService: browserSecretService,
     ...depsOverride
   };
-  const initial = loadSnapshot();
+  const initial = loadSettingsSnapshot();
 
   const saveState = (
     state: Omit<SettingsStoreState, "drawerOpen"> & {
       drawerOpen?: boolean;
     }
   ) => {
-    persistSnapshot({
+    saveSettingsSnapshot({
       schemaVersion: 3,
       defaultMode: state.defaultMode,
       runtimeProfiles: state.runtimeProfiles,
@@ -1098,135 +830,56 @@ const applySettingsSnapshotToStore = (
 
 export const syncSettingsStoreFromStorage = (
   store: ReturnType<typeof createSettingsStore> = settingsStore
-): PersistedSettingsSnapshot => applySettingsSnapshotToStore(store, loadSnapshot());
+): PersistedSettingsSnapshot =>
+  applySettingsSnapshotToStore(store, loadSettingsSnapshot());
 
 export const useSettingsStore = <T>(
   selector: (state: SettingsStoreState) => T
 ): T => useStore(settingsStore, selector);
 
-const buildExtraHeaders = (flags: ExperimentFlags): Record<string, string> => {
-  const headers: Record<string, string> = {};
-  if (flags.strictValidationEnabled) {
-    headers["x-client-strict-validation"] = "1";
-  }
-  if (flags.fallbackSingleAgentEnabled) {
-    headers["x-client-fallback-single-agent"] = "1";
-  }
-  if (flags.performanceSamplingEnabled) {
-    headers["x-client-performance-sampling"] = "1";
-  }
-  return headers;
-};
-
-const getDefaultPreset = (mode: ChatMode, state: SettingsStoreState) => {
-  if (mode === "byok") {
-    return (
-      state.byokPresets.find((item) => item.id === state.defaultByokPresetId) ??
-      state.byokPresets[0]
-    );
-  }
-
-  return (
-    state.officialPresets.find(
-      (item) => item.id === state.defaultOfficialPresetId
-    ) ?? state.officialPresets[0]
-  );
-};
-
 export { inferModelSupportsVision, resolveRuntimeCapabilitiesForModel } from "../runtime/types";
-
-const getDefaultRuntimeProfile = (
-  state: SettingsStoreState
-): RuntimeProfile => {
-  const preferred = state.runtimeProfiles.find(
-    (item) => item.id === state.defaultRuntimeProfileId
-  );
-  return preferred ?? state.runtimeProfiles[0];
-};
+export { SETTINGS_KEY } from "./settings-persistence";
 
 export const resolveRuntimeProfile = (): {
   profile: RuntimeProfile;
   capabilities: RuntimeCapabilities;
-} => {
-  const state = settingsStore.getState();
-  const profile = getDefaultRuntimeProfile(state);
-  const preset = getDefaultPreset(state.defaultMode, state);
-  return {
-    profile,
-    capabilities: resolveRuntimeCapabilitiesForModel({
-      runtimeTarget: profile.target,
-      model: preset?.model
-    })
-  };
-};
+} => resolveRuntimeProfileSelection(settingsStore.getState());
 
 export const resolveCompileRuntimeOptions = async (params: {
   conversationId: string;
   mode: ChatMode;
 }): Promise<CompileRuntimeOptions> => {
   const state = settingsStore.getState();
-  const runtimeProfile = getDefaultRuntimeProfile(state);
-  const runtimeBaseUrl = runtimeProfile.baseUrl || undefined;
-  const preset = getDefaultPreset(params.mode, state);
-  const session = state.sessionOverrides[params.conversationId] ?? {};
-  const activeModel = session.model ?? preset.model;
-  const runtimeCapabilities = await resolveRuntimeCapabilities({
-    target: runtimeProfile.target,
-    baseUrl: runtimeBaseUrl,
-    model: activeModel
+  const resolved = await buildCompileRuntimeOptions({
+    state,
+    conversationId: params.conversationId,
+    mode: params.mode
   });
 
-  let byokEndpoint: string | undefined;
-  let byokKey: string | undefined;
-  let byokRuntimeIssue: ByokRuntimeIssue | undefined;
+  if (
+    resolved.didResolveByokKey &&
+    state.byokRuntimeIssue?.presetId === resolved.resolvedByokPresetId &&
+    !resolved.byokRuntimeIssue
+  ) {
+    settingsStore.getState().setByokRuntimeIssue(null);
+  }
 
-  if (params.mode === "byok") {
-    const byokPreset = preset as ByokPreset;
-    if (runtimeProfile.target === "direct") {
-      byokEndpoint = byokPreset.endpoint || runtimeBaseUrl;
-    } else {
-      byokEndpoint = byokPreset.endpoint || undefined;
-    }
-    if (byokPreset.apiKeyCipher) {
-      try {
-        byokKey = await browserSecretService.decrypt(byokPreset.apiKeyCipher);
-        if (state.byokRuntimeIssue?.presetId === byokPreset.id) {
-          settingsStore.getState().setByokRuntimeIssue(null);
-        }
-      } catch {
-        byokRuntimeIssue = {
-          code: "BYOK_KEY_DECRYPT_FAILED",
-          presetId: byokPreset.id,
-          presetName: byokPreset.name,
-          message: "BYOK Key 解密失败，请重新填写 API Key"
-        };
-        settingsStore.getState().setByokRuntimeIssue(byokRuntimeIssue);
-        settingsStore.getState().appendDebugEvent({
-          level: "error",
-          message: "BYOK Key 解密失败，已跳过本次 key 注入"
-        });
-      }
+  if (resolved.byokRuntimeIssue) {
+    settingsStore.getState().setByokRuntimeIssue(resolved.byokRuntimeIssue);
+    for (const event of maybeAppendDebugEvent(state, {
+      level: "error",
+      message: "BYOK Key 解密失败，已跳过本次 key 注入"
+    })) {
+      settingsStore.getState().appendDebugEvent(event);
     }
   }
 
-  const timeoutMs = state.experimentFlags.requestTimeoutEnabled
-    ? session.timeoutMs ?? preset.timeoutMs
-    : undefined;
-
-  return {
-    runtimeTarget: runtimeProfile.target,
-    runtimeBaseUrl,
-    runtimeCapabilities,
-    model: activeModel,
-    byokEndpoint,
-    byokKey,
-    byokRuntimeIssue,
-    timeoutMs,
-    retryAttempts: state.experimentFlags.autoRetryEnabled
-      ? session.retryAttempts ?? state.requestDefaults.retryAttempts
-      : 0,
-    extraHeaders: buildExtraHeaders(state.experimentFlags)
-  };
+  const {
+    resolvedByokPresetId: _resolvedByokPresetId,
+    didResolveByokKey: _didResolveByokKey,
+    ...compileOptions
+  } = resolved;
+  return compileOptions;
 };
 
 export const appendDebugEventIfEnabled = (event: {
@@ -1234,9 +887,7 @@ export const appendDebugEventIfEnabled = (event: {
   message: string;
 }): void => {
   const state = settingsStore.getState();
-  if (!state.experimentFlags.debugLogPanelEnabled) {
-    return;
+  for (const enabledEvent of maybeAppendDebugEvent(state, event)) {
+    state.appendDebugEvent(enabledEvent);
   }
-
-  state.appendDebugEvent(event);
 };

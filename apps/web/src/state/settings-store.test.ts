@@ -2,13 +2,15 @@ import { readFile } from "node:fs/promises";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { browserSecretService } from "../services/secure-secret";
 import {
   createSettingsStore,
   inferModelSupportsVision,
   resolveCompileRuntimeOptions,
   resolveRuntimeCapabilitiesForModel,
   SETTINGS_KEY,
-  settingsStore} from "./settings-store";
+  settingsStore
+} from "./settings-store";
 
 const createMemoryStorage = (): Storage => {
   const map = new Map<string, string>();
@@ -192,6 +194,63 @@ describe("settings-store", () => {
     expect(options.runtimeCapabilities.supportsVision).toBe(true);
   });
 
+  it("keeps resolveCompileRuntimeOptions facade wiring store state updates", async () => {
+    const originalLocalStorage = globalThis.localStorage;
+    const originalState = settingsStore.getState();
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: createMemoryStorage()
+    });
+    const encryptSpy = vi.spyOn(browserSecretService, "encrypt").mockResolvedValue({
+      version: 1,
+      algorithm: "AES-GCM",
+      iv: "iv",
+      ciphertext: "enc:sk-live"
+    });
+    const decryptSpy = vi
+      .spyOn(browserSecretService, "decrypt")
+      .mockRejectedValue(new Error("decrypt failed"));
+
+    await settingsStore.getState().upsertByokPreset({
+      id: settingsStore.getState().defaultByokPresetId,
+      name: "OpenRouter",
+      model: "openai/gpt-4o-mini",
+      endpoint: "https://openrouter.ai/api/v1",
+      temperature: 0.2,
+      maxTokens: 1000,
+      timeoutMs: 20_000,
+      apiKey: "sk-live"
+    });
+    settingsStore.getState().setExperimentFlag("debugLogPanelEnabled", true);
+    settingsStore.getState().setByokRuntimeIssue(null);
+    settingsStore.getState().clearDebugEvents();
+
+    try {
+      const options = await resolveCompileRuntimeOptions({
+        conversationId: "conv_1",
+        mode: "byok"
+      });
+
+      expect(encryptSpy).toHaveBeenCalledWith("sk-live");
+      expect(decryptSpy).toHaveBeenCalled();
+      expect(options.byokRuntimeIssue?.code).toBe("BYOK_KEY_DECRYPT_FAILED");
+      expect(settingsStore.getState().byokRuntimeIssue?.code).toBe(
+        "BYOK_KEY_DECRYPT_FAILED"
+      );
+      expect(settingsStore.getState().debugEvents[0]?.message).toBe(
+        "BYOK Key 解密失败，已跳过本次 key 注入"
+      );
+    } finally {
+      encryptSpy.mockRestore();
+      decryptSpy.mockRestore();
+      settingsStore.setState(() => originalState);
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: originalLocalStorage
+      });
+    }
+  });
+
   it("avoids direct process.env access for gateway URL", async () => {
     const code = await readFile(
       new URL("./settings-store.ts", import.meta.url),
@@ -248,7 +307,7 @@ describe("settings-store", () => {
         secretService: secret
       });
       await expect(cleared.getState().readRemoteBackupAdminToken()).resolves.toBeNull();
-      expect(globalThis.localStorage.getItem(SETTINGS_KEY)).not.toContain(
+      expect(globalThis.localStorage.getItem(SETTINGS_KEY) ?? "").not.toContain(
         "enc:admin-secret"
       );
     } finally {
