@@ -2,6 +2,9 @@ import fs from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+const countLines = (path: string) =>
+  fs.readFileSync(path, "utf8").split(/\r?\n/).length;
+
 describe("state/storage boundaries", () => {
   it("keeps shell components from directly importing storage facades or runtime side effects", () => {
     const settingsDrawer = fs.readFileSync(
@@ -24,10 +27,17 @@ describe("state/storage boundaries", () => {
       "utf8"
     );
     const chatStore = fs.readFileSync("apps/web/src/state/chat-store.ts", "utf8");
+    const chatStoreActions = fs.readFileSync(
+      "apps/web/src/state/chat-store-actions.ts",
+      "utf8"
+    );
 
     expect(settingsStore).toContain("./settings-persistence");
     expect(settingsStore).toContain("./settings-runtime-resolver");
     expect(chatStore).toContain("./chat-persistence");
-    expect(chatStore).toContain("./chat-send-flow");
+    expect(chatStore).toContain("./chat-store-helpers");
+    expect(chatStore).toContain("./chat-store-actions");
+    expect(chatStoreActions).toContain("./chat-send-flow");
+    expect(countLines("apps/web/src/state/chat-store.ts")).toBeLessThan(500);
   });
 });
