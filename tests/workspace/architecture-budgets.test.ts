@@ -33,9 +33,10 @@ describe("architecture budgets", () => {
       expect.arrayContaining([
         "apps/web/src/components/SettingsDrawer.tsx",
         "apps/web/src/components/WorkspaceShell.tsx",
-        "apps/web/src/state/settings-store.ts",
         "apps/web/src/state/chat-store.ts",
-        "apps/web/src/styles.css"
+        "apps/web/src/styles.css",
+        "apps/web/src/components/settings-drawer/SettingsDataSection.tsx",
+        "apps/web/src/components/CanvasPanel.tsx"
       ])
     );
 
@@ -48,11 +49,13 @@ describe("architecture budgets", () => {
       expect.arrayContaining([
         "apps/web/src/components/SettingsDrawer.tsx",
         "apps/web/src/components/WorkspaceShell.tsx",
-        "apps/web/src/state/settings-store.ts",
         "apps/web/src/state/chat-store.ts",
-        "apps/web/src/styles.css"
+        "apps/web/src/styles.css",
+        "apps/web/src/components/settings-drawer/SettingsDataSection.tsx",
+        "apps/web/src/components/CanvasPanel.tsx"
       ])
     );
+    expect(hotspotPaths).not.toContain("apps/web/src/state/settings-store.ts");
     expect(hotspotPaths).not.toContain(
       "apps/web/src/components/settings-remote-backup.test.ts"
     );
@@ -69,7 +72,7 @@ describe("architecture budgets", () => {
     expect(countLines("apps/web/src/components/WorkspaceShell.tsx")).toBeLessThan(
       850
     );
-    expect(countLines("apps/web/src/state/settings-store.ts")).toBeLessThan(950);
+    expect(countLines("apps/web/src/state/settings-store.ts")).toBeLessThan(750);
     expect(countLines("apps/web/src/state/chat-store.ts")).toBeLessThan(700);
     expect(countLines("apps/web/src/storage/backup.ts")).toBeLessThan(450);
     expect(countLines("apps/web/src/storage/remote-sync.ts")).toBeLessThan(320);
@@ -100,7 +103,7 @@ describe("architecture budgets", () => {
     expect(baseline).toContain("maxStyleLines");
     expect(baseline).toContain("SettingsDrawer.tsx < 1400");
     expect(baseline).toContain("WorkspaceShell.tsx < 850");
-    expect(baseline).toContain("settings-store.ts < 950");
+    expect(baseline).toContain("settings-store.ts < 750");
     expect(baseline).toContain("chat-store.ts < 700");
     expect(baseline).toContain("backup.ts < 450");
     expect(baseline).toContain("remote-sync.ts < 320");

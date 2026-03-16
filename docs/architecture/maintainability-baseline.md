@@ -1,7 +1,7 @@
 # Maintainability Baseline
 
 Date: 2026-03-16
-Status: Updated after Phase 3 Task 1 hotspot reporting refinement
+Status: Updated after Phase 3 Task 4 settings store extraction
 
 ## Budgets
 
@@ -13,26 +13,23 @@ Status: Updated after Phase 3 Task 1 hotspot reporting refinement
 
 - `SettingsDrawer.tsx < 1400`
 - `WorkspaceShell.tsx < 850`
-- `settings-store.ts < 950`
+- `settings-store.ts < 750`
 - `chat-store.ts < 700`
 - `backup.ts < 450`
 - `remote-sync.ts < 320`
 
 ## Current Hotspots
 
-Measured after the latest Phase 3 Task 1 update. The default hotspot report is now production-only and excludes `*.test.*` plus `src/test/**` noise unless `--include-tests` is passed explicitly.
+Measured after the latest Phase 3 Task 4 update. The default hotspot report remains production-only and excludes `*.test.*` plus `src/test/**` noise unless `--include-tests` is passed explicitly.
 
 - `apps/web/src/styles.css`: `2285` lines
-- `apps/web/src/components/settings-drawer/useRemoteBackupControls.ts`: `1105` lines
 - `apps/web/src/components/SettingsDrawer.tsx`: `927` lines
-- `apps/web/src/state/settings-store.ts`: `894` lines
-- `apps/web/src/components/settings-remote-backup.ts`: `816` lines
 - `apps/web/src/components/WorkspaceShell.tsx`: `647` lines
 - `apps/web/src/state/chat-store.ts`: `642` lines
 - `apps/web/src/components/settings-drawer/SettingsDataSection.tsx`: `613` lines
 - `apps/web/src/components/CanvasPanel.tsx`: `576` lines
 
-`SettingsDrawer.tsx`, `WorkspaceShell.tsx`, `backup.ts`, and `remote-sync.ts` remain within their prior guardrails. The main active production-code follow-up targets are now the remote backup controller/presentation cluster, `settings-store.ts`, and the monolithic stylesheet entrypoint.
+`useRemoteBackupControls.ts`, `settings-remote-backup.ts`, `settings-store.ts`, `backup.ts`, and `remote-sync.ts` are now within their current guardrails. The main active production-code follow-up targets are the stylesheet entrypoint, the two top-level workspace shells, `chat-store.ts`, and the largest residual leaf components.
 
 ## Current Actionable Build Warning
 
