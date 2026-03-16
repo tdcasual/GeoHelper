@@ -1,7 +1,7 @@
 # Maintainability Baseline
 
-Date: 2026-03-15
-Status: Initial baseline before wave 1 maintainability work
+Date: 2026-03-16
+Status: Updated after Phase 2 Task 5 controller extraction
 
 ## Budgets
 
@@ -11,27 +11,21 @@ Status: Initial baseline before wave 1 maintainability work
 
 ## Current Hotspots
 
-Measured in the current baseline:
+Measured after the latest Phase 2 refactor:
 
-- `apps/web/src/components/SettingsDrawer.tsx`: `2442` lines
-- `apps/web/src/components/WorkspaceShell.tsx`: `1426` lines
-- `apps/web/src/state/settings-store.ts`: `1242` lines
-- `apps/web/src/state/chat-store.ts`: `903` lines
+- `apps/web/src/components/SettingsDrawer.tsx`: `926` lines
+- `apps/web/src/components/WorkspaceShell.tsx`: `646` lines
+- `apps/web/src/state/settings-store.ts`: `893` lines
+- `apps/web/src/state/chat-store.ts`: `641` lines
 - `apps/web/src/styles.css`: `2284` lines
 
-These files are intentionally recorded as required hotspots for the first maintenance wave so that any future tooling and docs continue to track them explicitly.
+`SettingsDrawer.tsx` and `WorkspaceShell.tsx` are no longer first-wave hotspot outliers, but the state stores and stylesheet still exceed the recorded budgets and remain active follow-up targets.
 
 ## Current Actionable Build Warning
 
-The current web build emits an actionable Vite warning related to backup code splitting:
+No actionable build warnings detected in the current web build as of 2026-03-16.
 
-```text
-dynamic import will not move module into another chunk
-```
-
-This warning is currently triggered by backup logic being both dynamically imported in remote sync code and statically imported by settings UI.
-
-Canonical normalized warning signature recorded for baseline matching:
+Resolved warning signature from the initial baseline:
 
 ```text
 apps/web/src/storage/backup.ts is dynamically imported by apps/web/src/storage/remote-sync.ts but also statically imported by apps/web/src/components/SettingsDrawer.tsx, dynamic import will not move module into another chunk.

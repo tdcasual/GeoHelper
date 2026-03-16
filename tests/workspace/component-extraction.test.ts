@@ -21,13 +21,17 @@ describe("component extraction progress", () => {
     expect(workspaceShell).toContain("./workspace-shell/WorkspaceConversationSidebar");
     expect(workspaceShell).toContain("./workspace-shell/WorkspaceChatMessages");
     expect(workspaceShell).toContain("./workspace-shell/WorkspaceChatComposer");
+    expect(workspaceShell).toContain("./workspace-shell/useWorkspaceRuntimeSession");
+    expect(workspaceShell).toContain("./workspace-shell/useWorkspaceComposer");
     expect(settingsDrawer).toContain("./settings-drawer/SettingsDataSection");
+    expect(settingsDrawer).toContain("./settings-drawer/useRemoteBackupControls");
+    expect(settingsDrawer).not.toContain("../storage/backup");
 
     expect(
       countLines("apps/web/src/components/WorkspaceShell.tsx")
-    ).toBeLessThan(1100);
+    ).toBeLessThan(850);
     expect(
       countLines("apps/web/src/components/SettingsDrawer.tsx")
-    ).toBeLessThan(2000);
+    ).toBeLessThan(1400);
   });
 });
