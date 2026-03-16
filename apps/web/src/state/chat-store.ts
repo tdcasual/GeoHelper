@@ -3,10 +3,7 @@ import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 
 import { executeBatch } from "../geogebra/command-executor";
-import {
-  compileWithRuntime,
-  RuntimeApiError
-} from "../runtime/runtime-service";
+import { compileWithRuntime } from "../runtime/runtime-service";
 import {
   AgentStep,
   ChatMode,
@@ -14,11 +11,20 @@ import {
   RuntimeCompileResponse,
   RuntimeTarget
 } from "../runtime/types";
-import { persistChatSnapshotToIndexedDb } from "../storage/indexed-sync";
+import { ensureRemoteSyncStartupCheck } from "../storage/remote-sync";
+import type { PersistedChatSnapshot } from "./chat-persistence";
 import {
-  ensureRemoteSyncStartupCheck,
-  notifyRemoteSyncLocalMutation
-} from "../storage/remote-sync";
+  loadChatSnapshot,
+  saveChatSnapshot
+} from "./chat-persistence";
+import {
+  buildAssistantMessageFromCompileResult,
+  buildAssistantMessageFromError,
+  buildAssistantMessageFromGuard,
+  buildCompileContext,
+  isOfficialSessionExpiredError,
+  resolveChatSendGuard
+} from "./chat-send-flow";
 import { sceneStore } from "./scene-store";
 import {
   appendDebugEventIfEnabled,
@@ -106,15 +112,6 @@ export interface ChatStoreDeps {
   logEvent: (event: { level: "info" | "error"; message: string }) => void;
 }
 
-interface PersistedChatSnapshot {
-  mode: ChatMode;
-  sessionToken: string | null;
-  conversations: ConversationThread[];
-  activeConversationId: string | null;
-  messages: ChatMessage[];
-  reauthRequired: boolean;
-}
-
 const defaultDeps: ChatStoreDeps = {
   compile: ({
     message,
@@ -154,10 +151,6 @@ const defaultDeps: ChatStoreDeps = {
 };
 
 const makeId = (): string => `${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
-const ATTACHMENT_CAPABILITY_MESSAGE =
-  "当前运行时或模型未开启图片能力，请切换到支持图片的运行时或模型后重试。";
-
-export const CHAT_STORE_KEY = "geohelper.chat.snapshot";
 
 const buildConversationTitle = (input: ChatSendInput | string): string => {
   const content = typeof input === "string" ? input : input.content;
@@ -221,127 +214,62 @@ const normalizeSendInput = (
   };
 };
 
+type PersistableChatState = Pick<
+  ChatStoreState,
+  | "mode"
+  | "sessionToken"
+  | "conversations"
+  | "activeConversationId"
+  | "messages"
+  | "reauthRequired"
+>;
 
-const canUseStorage = (): boolean =>
-  typeof localStorage !== "undefined" &&
-  typeof localStorage.getItem === "function" &&
-  typeof localStorage.setItem === "function";
+const toPersistedChatSnapshot = (
+  state: PersistableChatState
+): PersistedChatSnapshot => ({
+  mode: state.mode,
+  sessionToken: state.sessionToken,
+  conversations: state.conversations,
+  activeConversationId: state.activeConversationId,
+  messages: state.messages,
+  reauthRequired: state.reauthRequired
+});
 
-const loadSnapshot = (): PersistedChatSnapshot => {
-  const defaultConversation = createConversationThread();
+const buildStateWithAssistantMessage = (
+  state: PersistableChatState,
+  targetConversationId: string,
+  assistantMessage: ChatMessage,
+  overrides: Partial<
+    Pick<PersistableChatState, "sessionToken" | "reauthRequired">
+  > = {}
+): PersistableChatState => {
+  const targetConversation = state.conversations.find(
+    (item) => item.id === targetConversationId
+  );
+  const updatedConversation = targetConversation
+    ? {
+        ...targetConversation,
+        updatedAt: Date.now(),
+        messages: [...targetConversation.messages, assistantMessage]
+      }
+    : undefined;
+  const conversations = updatedConversation
+    ? moveConversationToTop(state.conversations, updatedConversation)
+    : state.conversations;
 
-  if (!canUseStorage()) {
-    return {
-      mode: "byok",
-      sessionToken: null,
-      conversations: [defaultConversation],
-      activeConversationId: defaultConversation.id,
-      messages: defaultConversation.messages,
-      reauthRequired: false
-    };
-  }
-
-  try {
-    const raw = localStorage.getItem(CHAT_STORE_KEY);
-    if (!raw) {
-      const fallbackConversation = createConversationThread();
-      return {
-        mode: "byok",
-        sessionToken: null,
-        conversations: [fallbackConversation],
-        activeConversationId: fallbackConversation.id,
-        messages: fallbackConversation.messages,
-        reauthRequired: false
-      };
-    }
-
-    const parsed = JSON.parse(raw) as Partial<PersistedChatSnapshot> & {
-      conversations?: Array<Partial<ConversationThread>>;
-      messages?: ChatMessage[];
-    };
-
-    const parsedConversations = Array.isArray(parsed.conversations)
-      ? parsed.conversations
-          .filter((item) => item && typeof item.id === "string")
-          .map((item) => ({
-            id: String(item.id),
-            title:
-              typeof item.title === "string" && item.title.trim()
-                ? item.title
-                : "新会话",
-            createdAt:
-              typeof item.createdAt === "number"
-                ? item.createdAt
-                : Date.now(),
-            updatedAt:
-              typeof item.updatedAt === "number"
-                ? item.updatedAt
-                : Date.now(),
-            messages: Array.isArray(item.messages)
-              ? item.messages.map((message) => ({
-                  ...message,
-                  attachments: Array.isArray(message.attachments)
-                    ? message.attachments
-                    : undefined
-                }))
-              : []
-          }))
-      : [];
-
-    const conversations =
-      parsedConversations.length > 0
-        ? parsedConversations
-        : Array.isArray(parsed.messages)
-          ? [
-              {
-                ...createConversationThread(
-                  buildConversationTitle(parsed.messages[0]?.content ?? "")
-                ),
-                messages: parsed.messages.map((message) => ({
-                  ...message,
-                  attachments: Array.isArray(message.attachments)
-                    ? message.attachments
-                    : undefined
-                }))
-              }
-            ]
-          : [createConversationThread()];
-
-    const activeConversationId =
-      typeof parsed.activeConversationId === "string" &&
-      conversations.some((item) => item.id === parsed.activeConversationId)
-        ? parsed.activeConversationId
-        : conversations[0]?.id ?? null;
-
-    return {
-      mode: parsed.mode ?? "byok",
-      sessionToken: parsed.sessionToken ?? null,
-      conversations,
-      activeConversationId,
-      messages: getMessagesForConversation(conversations, activeConversationId),
-      reauthRequired: Boolean(parsed.reauthRequired)
-    };
-  } catch {
-    const fallbackConversation = createConversationThread();
-    return {
-      mode: "byok",
-      sessionToken: null,
-      conversations: [fallbackConversation],
-      activeConversationId: fallbackConversation.id,
-      messages: fallbackConversation.messages,
-      reauthRequired: false
-    };
-  }
-};
-
-const persistSnapshot = (snapshot: PersistedChatSnapshot): void => {
-  if (!canUseStorage()) {
-    return;
-  }
-
-  localStorage.setItem(CHAT_STORE_KEY, JSON.stringify(snapshot));
-  void persistChatSnapshotToIndexedDb(snapshot as unknown as Record<string, unknown>);
-  notifyRemoteSyncLocalMutation();
+  return {
+    ...state,
+    conversations,
+    messages: getMessagesForConversation(conversations, state.activeConversationId),
+    sessionToken:
+      overrides.sessionToken !== undefined
+        ? overrides.sessionToken
+        : state.sessionToken,
+    reauthRequired:
+      overrides.reauthRequired !== undefined
+        ? overrides.reauthRequired
+        : state.reauthRequired
+  };
 };
 
 export const createChatStore = (
@@ -352,7 +280,10 @@ export const createChatStore = (
     ...depsOverride
   };
 
-  const initial = loadSnapshot();
+  const initial = loadChatSnapshot();
+  const saveState = (state: PersistableChatState): void => {
+    saveChatSnapshot(toPersistedChatSnapshot(state));
+  };
 
   return createStore<ChatStoreState>((set, get) => ({
     mode: initial.mode,
@@ -368,14 +299,7 @@ export const createChatStore = (
           ...state,
           mode
         };
-        persistSnapshot({
-          mode: next.mode,
-          sessionToken: next.sessionToken,
-          conversations: next.conversations,
-          activeConversationId: next.activeConversationId,
-          messages: next.messages,
-          reauthRequired: next.reauthRequired
-        });
+        saveState(next);
         return {
           mode
         };
@@ -384,16 +308,10 @@ export const createChatStore = (
       set((state) => {
         const next = {
           ...state,
-          sessionToken
+          sessionToken,
+          reauthRequired: false
         };
-        persistSnapshot({
-          mode: next.mode,
-          sessionToken: next.sessionToken,
-          conversations: next.conversations,
-          activeConversationId: next.activeConversationId,
-          messages: next.messages,
-          reauthRequired: next.reauthRequired
-        });
+        saveState(next);
         return {
           sessionToken,
           reauthRequired: false
@@ -405,7 +323,7 @@ export const createChatStore = (
         const conversations = [conversation, ...state.conversations];
         const activeConversationId = conversation.id;
         const messages = conversation.messages;
-        persistSnapshot({
+        saveState({
           mode: state.mode,
           sessionToken: state.sessionToken,
           conversations,
@@ -435,7 +353,7 @@ export const createChatStore = (
           state.conversations,
           conversationId
         );
-        persistSnapshot({
+        saveState({
           mode: state.mode,
           sessionToken: state.sessionToken,
           conversations: state.conversations,
@@ -454,14 +372,7 @@ export const createChatStore = (
           ...state,
           reauthRequired: false
         };
-        persistSnapshot({
-          mode: next.mode,
-          sessionToken: next.sessionToken,
-          conversations: next.conversations,
-          activeConversationId: next.activeConversationId,
-          messages: next.messages,
-          reauthRequired: next.reauthRequired
-        });
+        saveState(next);
         return {
           reauthRequired: false
         };
@@ -523,7 +434,7 @@ export const createChatStore = (
           state.activeConversationId ?? activeConversationId
         );
 
-        persistSnapshot({
+        saveState({
           mode: state.mode,
           sessionToken: state.sessionToken,
           conversations,
@@ -546,138 +457,33 @@ export const createChatStore = (
           conversationId: targetConversationId,
           mode: get().mode
         });
-        const runtimeSupportsOfficial =
-          runtime.runtimeCapabilities?.supportsOfficialAuth ?? true;
+        const guard = resolveChatSendGuard({
+          mode: get().mode,
+          runtime,
+          attachments: normalizedInput.attachments
+        });
+        if (guard) {
+          if ("logEvent" in guard) {
+            deps.logEvent(guard.logEvent);
+          }
+          if ("openSettings" in guard && guard.openSettings) {
+            settingsStore.getState().setDrawerOpen(true);
+          }
 
-        if (get().mode === "official" && !runtimeSupportsOfficial) {
-          const assistantMessage: ChatMessage = {
+          const assistantMessage = buildAssistantMessageFromGuard({
             id: makeId(),
-            role: "assistant",
-            content: "当前运行时不支持 Official 模式，请切换到 Gateway 运行时或改用 BYOK。"
-          };
-          set((state) => {
-            const targetConversation = state.conversations.find(
-              (item) => item.id === targetConversationId
-            );
-            const updatedConversation = targetConversation
-              ? {
-                  ...targetConversation,
-                  updatedAt: Date.now(),
-                  messages: [...targetConversation.messages, assistantMessage]
-                }
-              : undefined;
-            const conversations = updatedConversation
-              ? moveConversationToTop(state.conversations, updatedConversation)
-              : state.conversations;
-            const messages = getMessagesForConversation(
-              conversations,
-              state.activeConversationId
-            );
-            persistSnapshot({
-              mode: state.mode,
-              sessionToken: state.sessionToken,
-              conversations,
-              activeConversationId: state.activeConversationId,
-              messages,
-              reauthRequired: state.reauthRequired
-            });
-            return {
-              conversations,
-              messages,
-              isSending: false
-            };
+            guard
           });
-          return;
-        }
-
-        if (
-          normalizedInput.attachments.length > 0 &&
-          !runtime.runtimeCapabilities.supportsVision
-        ) {
-          const assistantMessage: ChatMessage = {
-            id: makeId(),
-            role: "assistant",
-            content: ATTACHMENT_CAPABILITY_MESSAGE
-          };
           set((state) => {
-            const targetConversation = state.conversations.find(
-              (item) => item.id === targetConversationId
+            const next = buildStateWithAssistantMessage(
+              state,
+              targetConversationId,
+              assistantMessage
             );
-            const updatedConversation = targetConversation
-              ? {
-                  ...targetConversation,
-                  updatedAt: Date.now(),
-                  messages: [...targetConversation.messages, assistantMessage]
-                }
-              : undefined;
-            const conversations = updatedConversation
-              ? moveConversationToTop(state.conversations, updatedConversation)
-              : state.conversations;
-            const messages = getMessagesForConversation(
-              conversations,
-              state.activeConversationId
-            );
-            persistSnapshot({
-              mode: state.mode,
-              sessionToken: state.sessionToken,
-              conversations,
-              activeConversationId: state.activeConversationId,
-              messages,
-              reauthRequired: state.reauthRequired
-            });
+            saveState(next);
             return {
-              conversations,
-              messages,
-              isSending: false
-            };
-          });
-          return;
-        }
-
-        if (
-          get().mode === "byok" &&
-          runtime.byokRuntimeIssue?.code === "BYOK_KEY_DECRYPT_FAILED"
-        ) {
-          const issue = runtime.byokRuntimeIssue;
-          deps.logEvent({
-            level: "error",
-            message: `BYOK Key 恢复提示：${issue.presetName}`
-          });
-          settingsStore.getState().setDrawerOpen(true);
-          const assistantMessage: ChatMessage = {
-            id: makeId(),
-            role: "assistant",
-            content: `BYOK 密钥不可用（预设：${issue.presetName}）。请在设置中重新填写 API Key 后重试。`
-          };
-          set((state) => {
-            const targetConversation = state.conversations.find(
-              (item) => item.id === targetConversationId
-            );
-            const updatedConversation = targetConversation
-              ? {
-                  ...targetConversation,
-                  updatedAt: Date.now(),
-                  messages: [...targetConversation.messages, assistantMessage]
-                }
-              : undefined;
-            const conversations = updatedConversation
-              ? moveConversationToTop(state.conversations, updatedConversation)
-              : state.conversations;
-            const messages = getMessagesForConversation(
-              conversations,
-              state.activeConversationId
-            );
-            persistSnapshot({
-              mode: state.mode,
-              sessionToken: state.sessionToken,
-              conversations,
-              activeConversationId: state.activeConversationId,
-              messages,
-              reauthRequired: state.reauthRequired
-            });
-            return {
-              conversations,
-              messages,
+              conversations: next.conversations,
+              messages: next.messages,
               isSending: false
             };
           });
@@ -703,21 +509,10 @@ export const createChatStore = (
             const targetConversation = get().conversations.find(
               (item) => item.id === targetConversationId
             );
-            const recentMessages =
-              targetConversation?.messages
-                .slice(-8)
-                .map((item) => ({
-                  role: item.role,
-                  content: item.content
-                })) ?? [];
-            const sceneTransactions = sceneStore
-              .getState()
-              .transactions.slice(0, 8)
-              .map((tx) => ({
-                sceneId: tx.sceneId,
-                transactionId: tx.transactionId,
-                commandCount: tx.commandCount
-              }));
+            const context = buildCompileContext({
+              conversation: targetConversation,
+              sceneTransactions: sceneStore.getState().transactions
+            });
             const response = await deps.compile({
               message: normalizedInput.content,
               attachments: normalizedInput.attachments,
@@ -730,10 +525,7 @@ export const createChatStore = (
               byokKey: runtime.byokKey,
               timeoutMs: runtime.timeoutMs,
               extraHeaders: runtime.extraHeaders,
-              context: {
-                recentMessages,
-                sceneTransactions
-              }
+              context
             });
             compileResult = {
               batch: response.batch,
@@ -743,11 +535,10 @@ export const createChatStore = (
             break;
           } catch (error) {
             lastError = error;
-            const isSessionExpired =
-              error instanceof RuntimeApiError &&
-              (error.code === "SESSION_EXPIRED" ||
-                error.code === "MISSING_AUTH_HEADER") &&
-              get().mode === "official";
+            const isSessionExpired = isOfficialSessionExpiredError(
+              error,
+              get().mode
+            );
             const shouldRetry =
               !isSessionExpired && attempt < runtime.retryAttempts;
             deps.logEvent({
@@ -770,104 +561,49 @@ export const createChatStore = (
         await deps.execute(batch);
         sceneStore.getState().recordTransaction(batch);
 
-        const assistantMessage: ChatMessage = {
+        const assistantMessage = buildAssistantMessageFromCompileResult({
           id: makeId(),
-          role: "assistant",
-          content: `已生成 ${batch.commands.length} 条指令`,
+          batch,
           traceId,
-          agentSteps: Array.isArray(agentSteps) ? agentSteps : []
-        };
+          agentSteps
+        });
         set((state) => {
-          const targetConversation = state.conversations.find(
-            (item) => item.id === targetConversationId
+          const next = buildStateWithAssistantMessage(
+            state,
+            targetConversationId,
+            assistantMessage
           );
-          if (!targetConversation) {
-            return {
-              isSending: false
-            };
-          }
-
-          const updatedConversation: ConversationThread = {
-            ...targetConversation,
-            updatedAt: Date.now(),
-            messages: [...targetConversation.messages, assistantMessage]
-          };
-          const conversations = moveConversationToTop(
-            state.conversations,
-            updatedConversation
-          );
-          const messages = getMessagesForConversation(
-            conversations,
-            state.activeConversationId
-          );
-          persistSnapshot({
-            mode: state.mode,
-            sessionToken: state.sessionToken,
-            conversations,
-            activeConversationId: state.activeConversationId,
-            messages,
-            reauthRequired: state.reauthRequired
-          });
+          saveState(next);
           return {
-            conversations,
-            messages,
+            conversations: next.conversations,
+            messages: next.messages,
             isSending: false
           };
         });
       } catch (error) {
-        const isSessionExpired =
-          error instanceof RuntimeApiError &&
-          (error.code === "SESSION_EXPIRED" ||
-            error.code === "MISSING_AUTH_HEADER") &&
-          get().mode === "official";
-
-        const isAttachmentsUnsupported =
-          error instanceof RuntimeApiError &&
-          error.code === "RUNTIME_ATTACHMENTS_UNSUPPORTED";
-
-        const assistantMessage: ChatMessage = {
+        const isSessionExpired = isOfficialSessionExpiredError(error, get().mode);
+        const assistantMessage = buildAssistantMessageFromError({
           id: makeId(),
-          role: "assistant",
-          content: isSessionExpired
-            ? "官方会话已过期，请重新输入 Token"
-            : isAttachmentsUnsupported
-              ? ATTACHMENT_CAPABILITY_MESSAGE
-              : "生成失败，请重试"
-        };
+          error,
+          mode: get().mode
+        });
         set((state) => {
-          const targetConversation = state.conversations.find(
-            (item) => item.id === targetConversationId
+          const next = buildStateWithAssistantMessage(
+            state,
+            targetConversationId,
+            assistantMessage,
+            {
+              sessionToken: isSessionExpired ? null : state.sessionToken,
+              reauthRequired: isSessionExpired ? true : state.reauthRequired
+            }
           );
-          const updatedConversation = targetConversation
-            ? {
-                ...targetConversation,
-                updatedAt: Date.now(),
-                messages: [...targetConversation.messages, assistantMessage]
-              }
-            : undefined;
-          const conversations = updatedConversation
-            ? moveConversationToTop(state.conversations, updatedConversation)
-            : state.conversations;
-          const messages = getMessagesForConversation(
-            conversations,
-            state.activeConversationId
-          );
-          const reauthRequired = isSessionExpired ? true : state.reauthRequired;
-          const sessionToken = isSessionExpired ? null : state.sessionToken;
-          persistSnapshot({
-            mode: state.mode,
-            sessionToken,
-            conversations,
-            activeConversationId: state.activeConversationId,
-            messages,
-            reauthRequired
-          });
+          saveState(next);
           return {
-            conversations,
-            messages,
+            conversations: next.conversations,
+            messages: next.messages,
             isSending: false,
-            sessionToken,
-            reauthRequired
+            sessionToken: next.sessionToken,
+            reauthRequired: next.reauthRequired
           };
         });
       }
@@ -897,7 +633,9 @@ const applyChatSnapshotToStore = (
 
 export const syncChatStoreFromStorage = (
   store: ReturnType<typeof createChatStore> = chatStore
-): PersistedChatSnapshot => applyChatSnapshotToStore(store, loadSnapshot());
+): PersistedChatSnapshot => applyChatSnapshotToStore(store, loadChatSnapshot());
 
 export const useChatStore = <T>(selector: (state: ChatStoreState) => T): T =>
   useStore(chatStore, selector);
+
+export { CHAT_STORE_KEY } from "./chat-persistence";
