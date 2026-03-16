@@ -9,7 +9,6 @@ export const loadBudgetConfig = () => ({
     "apps/web/src/components/SettingsDrawer.tsx",
     "apps/web/src/components/WorkspaceShell.tsx",
     "apps/web/src/state/chat-store.ts",
-    "apps/web/src/styles.css",
     "apps/web/src/components/settings-drawer/SettingsDataSection.tsx",
     "apps/web/src/components/CanvasPanel.tsx"
   ]

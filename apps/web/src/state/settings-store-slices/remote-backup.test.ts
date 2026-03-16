@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type {
-  RuntimeBackupCompareResponse,
   RuntimeBackupComparableSummary,
+  RuntimeBackupCompareResponse,
   RuntimeBackupMetadata,
   RuntimeBuildIdentity
 } from "../../runtime/types";

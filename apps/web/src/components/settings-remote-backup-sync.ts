@@ -129,18 +129,7 @@ export const resolveRemoteBackupSyncPresentation = (
 };
 
 export const createComparableSummaryFromBackupEnvelope = (
-  envelope: Pick<
-    BackupEnvelope,
-    | "schema_version"
-    | "created_at"
-    | "updated_at"
-    | "app_version"
-    | "checksum"
-    | "snapshot_id"
-    | "device_id"
-    | "base_snapshot_id"
-    | "conversations"
-  >
+  envelope: BackupEnvelope
 ): RuntimeBackupComparableSummary => ({
   schema_version: envelope.schema_version,
   created_at: envelope.created_at,

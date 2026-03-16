@@ -1,0 +1,30 @@
+:root {
+  --studio-paper: #f3eee4;
+  --studio-paper-elevated: #fbf7ef;
+  --studio-paper-deep: #efe4d4;
+  --studio-ink: #1f2a37;
+  --studio-ink-soft: #5e6a77;
+  --studio-line: #d8ccb8;
+  --studio-line-strong: #b79d79;
+  --studio-accent: #7c5b35;
+  --studio-accent-strong: #24364b;
+  --studio-accent-soft: #f1e5d4;
+  --studio-danger: #b42318;
+  --studio-canvas-line: #cdd8e7;
+  --studio-canvas-surface: linear-gradient(145deg, #fcfdfd 0%, #edf4fb 42%, #f7fbf8 100%);
+  --studio-shadow-soft: 0 18px 40px rgba(65, 53, 39, 0.08);
+  --studio-shadow-card: 0 14px 32px rgba(47, 39, 29, 0.1);
+  --studio-radius-lg: 22px;
+  --studio-radius-md: 16px;
+  color: var(--studio-ink);
+  background: var(--studio-paper);
+  font-family: "Avenir Next", "Helvetica Neue", "PingFang SC", sans-serif;
+}
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--studio-paper);
+}

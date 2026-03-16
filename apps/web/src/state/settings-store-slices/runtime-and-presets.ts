@@ -1,11 +1,11 @@
+import type { ChatMode, RuntimeTarget } from "../../runtime/types";
+import type { SecretService } from "../../services/secure-secret";
 import type {
   ByokPreset,
   OfficialPreset,
   RuntimeProfile,
   SettingsStoreState
 } from "../settings-store";
-import type { ChatMode, RuntimeTarget } from "../../runtime/types";
-import type { SecretService } from "../../services/secure-secret";
 
 type SettingsSet = (
   updater: (state: SettingsStoreState) => Partial<SettingsStoreState> | {}

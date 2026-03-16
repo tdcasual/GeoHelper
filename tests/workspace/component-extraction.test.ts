@@ -43,5 +43,8 @@ describe("component extraction progress", () => {
     expect(
       countLines("apps/web/src/components/settings-drawer/useRemoteBackupControls.ts")
     ).toBeLessThan(500);
+    expect(
+      countLines("apps/web/src/components/settings-remote-backup.ts")
+    ).toBeLessThan(120);
   });
 });

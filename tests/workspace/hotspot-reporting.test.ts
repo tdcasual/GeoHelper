@@ -14,7 +14,7 @@ describe("hotspot reporting", () => {
     );
   });
 
-  it("classifies test files separately and includes them only when requested", async () => {
+  it("classifies test files separately and includes over-budget test hotspots only when requested", async () => {
     const reportModule = await import("../../scripts/quality/report-hotspots.mjs");
 
     expect(
@@ -29,8 +29,6 @@ describe("hotspot reporting", () => {
     });
     const hotspotPaths = hotspots.map((item: { filePath: string }) => item.filePath);
 
-    expect(hotspotPaths).toContain(
-      "apps/web/src/components/settings-remote-backup.test.ts"
-    );
+    expect(hotspotPaths).toContain("apps/web/src/state/settings-store.test.ts");
   });
 });

@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type {
-  RuntimeBackupCompareResponse,
   RuntimeBackupComparableSummary,
-  RuntimeBuildIdentity,
-  RuntimeBackupMetadata
+  RuntimeBackupCompareResponse,
+  RuntimeBackupMetadata,
+  RuntimeBuildIdentity
 } from "../../../runtime/types";
 import { createRemoteBackupSyncActions } from "./sync-actions";
 

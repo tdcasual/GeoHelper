@@ -1,12 +1,12 @@
 import type {
+  RuntimeBackupCompareResponse,
+  RuntimeBackupMetadata
+} from "../../runtime/types";
+import type {
   RemoteBackupSyncResultInput,
   RemoteBackupSyncState,
   SettingsStoreState
 } from "../settings-store";
-import type {
-  RuntimeBackupCompareResponse,
-  RuntimeBackupMetadata
-} from "../../runtime/types";
 
 type SettingsSet = (
   updater: (state: SettingsStoreState) => Partial<SettingsStoreState> | {}

@@ -4,14 +4,34 @@ import type {
   BackupInspection,
   ImportRollbackAnchor
 } from "../../../storage/backup";
-import type { BackupModule } from "./load-backup-module";
 import type { RemoteBackupPulledResult } from "./sync-actions";
 
+interface RemoteBackupImportModule {
+  inspectBackup: (blob: Blob) => Promise<BackupInspection>;
+  captureCurrentAppImportRollbackAnchor: (options: {
+    source: "local_file" | "remote_latest" | "remote_selected_history";
+    importMode: BackupImportMode;
+    sourceDetail?: string | null;
+  }) => Promise<ImportRollbackAnchor>;
+  importAppBackupToLocalStorage: (
+    file: File,
+    options: { mode: BackupImportMode }
+  ) => Promise<unknown>;
+  recordCurrentAppImportRollbackResult: () => Promise<ImportRollbackAnchor>;
+  restoreImportRollbackAnchorToLocalStorage: () => Promise<unknown>;
+  clearImportRollbackAnchor: () => void;
+  importRemoteBackupToLocalStorage: (
+    remoteBackup: RemoteBackupPulledResult["backup"],
+    options: { mode: BackupImportMode }
+  ) => Promise<unknown>;
+  readImportRollbackAnchor: () => ImportRollbackAnchor | null;
+}
+
 export interface RemoteBackupImportActionDeps {
-  loadBackupModule: () => Promise<BackupModule>;
+  loadBackupModule: () => Promise<RemoteBackupImportModule>;
   pendingBackupFile: File | null;
   remoteBackupPullResult: RemoteBackupPulledResult | null;
-  restoreUnavailableMessage: string | null;
+  restoreUnavailableMessage?: string | null;
   setPendingBackupFile: (file: File | null) => void;
   setBackupInspection: (inspection: BackupInspection | null) => void;
   setImportRollbackAnchor: (anchor: ImportRollbackAnchor | null) => void;
