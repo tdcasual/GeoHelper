@@ -21,6 +21,10 @@ describe("component extraction progress", () => {
       "apps/web/src/components/settings-drawer/SettingsDataSection.tsx",
       "utf8"
     );
+    const canvasPanel = fs.readFileSync(
+      "apps/web/src/components/CanvasPanel.tsx",
+      "utf8"
+    );
     const remoteBackupControls = fs.readFileSync(
       "apps/web/src/components/settings-drawer/useRemoteBackupControls.ts",
       "utf8"
@@ -44,6 +48,8 @@ describe("component extraction progress", () => {
     expect(settingsDataSection).toContain("./data-section/ImportRollbackSection");
     expect(settingsDataSection).toContain("./data-section/RemoteBackupSection");
     expect(settingsDataSection).toContain("./data-section/DataMaintenanceSection");
+    expect(canvasPanel).toContain("./canvas-panel/runtime");
+    expect(canvasPanel).toContain("./canvas-panel/scene-sync");
     expect(settingsDrawer).not.toContain("../storage/backup");
     expect(remoteBackupControls).toContain("./remote-backup/import-actions");
     expect(remoteBackupControls).toContain("./remote-backup/sync-actions");
@@ -61,6 +67,7 @@ describe("component extraction progress", () => {
     expect(
       countLines("apps/web/src/components/settings-drawer/SettingsDataSection.tsx")
     ).toBeLessThan(400);
+    expect(countLines("apps/web/src/components/CanvasPanel.tsx")).toBeLessThan(400);
     expect(
       countLines("apps/web/src/components/settings-remote-backup.ts")
     ).toBeLessThan(120);
