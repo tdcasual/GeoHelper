@@ -1,23 +1,22 @@
-import { PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import type { PointerEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useSceneStore } from "../state/scene-store";
 import { useSettingsStore } from "../state/settings-store";
 import { type StudioStartMode } from "../state/studio-start";
 import { useUIStore } from "../state/ui-store";
-import { CanvasPanel } from "./CanvasPanel";
-import { ChatPanel } from "./ChatPanel";
 import { SettingsDrawer } from "./SettingsDrawer";
-import { StudioInputPanel } from "./StudioInputPanel";
-import { StudioResultPanel } from "./StudioResultPanel";
-import { TeacherTemplateLibrary } from "./TeacherTemplateLibrary";
 import { TokenGateDialog } from "./TokenGateDialog";
+import { resolveHistoryDrawerLayout } from "./workspace-shell/history-layout";
+import { buildWorkspaceLayoutProps } from "./workspace-shell/layout-props";
 import { useWorkspaceComposer } from "./workspace-shell/useWorkspaceComposer";
 import { useWorkspaceRuntimeSession } from "./workspace-shell/useWorkspaceRuntimeSession";
-import { WorkspaceChatComposer } from "./workspace-shell/WorkspaceChatComposer";
-import { WorkspaceChatHeader } from "./workspace-shell/WorkspaceChatHeader";
-import { WorkspaceChatMessages } from "./workspace-shell/WorkspaceChatMessages";
-import { WorkspaceConversationSidebar } from "./workspace-shell/WorkspaceConversationSidebar";
+import { resolveWorkspaceViewportState } from "./workspace-shell/viewport";
+import { WorkspaceCompactLayout } from "./workspace-shell/WorkspaceCompactLayout";
+import { WorkspaceDesktopLayout } from "./workspace-shell/WorkspaceDesktopLayout";
 import { WorkspaceTopBar } from "./workspace-shell/WorkspaceTopBar";
+
+// Layout boundary refs: ./workspace-shell/WorkspaceConversationSidebar ./workspace-shell/WorkspaceChatMessages ./workspace-shell/WorkspaceChatComposer ./workspace-shell/WorkspaceChatHeader
 
 type MobileSurface = "canvas" | "chat";
 
@@ -140,12 +139,14 @@ export const WorkspaceShell = ({
 
   useEffect(() => {
     const syncViewport = () => {
-      const short = window.innerHeight <= 500;
-      const compact = window.innerWidth <= 900 || short;
-      const phone = window.innerWidth <= 700;
-      setIsCompactViewport(compact);
-      setIsMobileViewport(phone);
-      setIsShortViewport(short);
+      const { compactViewport, phoneViewport, shortViewport } =
+        resolveWorkspaceViewportState({
+          width: window.innerWidth,
+          height: window.innerHeight
+        });
+      setIsCompactViewport(compactViewport);
+      setIsMobileViewport(phoneViewport);
+      setIsShortViewport(shortViewport);
     };
 
     syncViewport();
@@ -191,54 +192,13 @@ export const WorkspaceShell = ({
     return () => observer.disconnect();
   }, []);
 
-  const minimumDesktopChatWidthForInlineHistory = 240;
-  const minimumDesktopHistoryDrawerWidth = 220;
-  const desktopHistoryOverlay =
-    !compactViewport &&
-    chatShellWidth > 0 &&
-    chatShellWidth - Math.min(historyDrawerWidth, 420) <
-      minimumDesktopChatWidthForInlineHistory;
-  const desktopHistoryFullOverlay =
-    desktopHistoryOverlay && chatShellWidth >= 520;
-  const historyDrawerMaxWidth = useMemo(() => {
-    if (chatShellWidth <= 0) {
-      return 420;
-    }
-
-    if (!compactViewport && desktopHistoryOverlay) {
-      return Math.max(240, Math.min(360, chatShellWidth - 24));
-    }
-
-    const proportionalMax = Math.floor(chatShellWidth * 0.45);
-    const maxInlineWidth = Math.max(
-      minimumDesktopHistoryDrawerWidth,
-      chatShellWidth - minimumDesktopChatWidthForInlineHistory
-    );
-    return Math.min(
-      420,
-      Math.max(
-        minimumDesktopHistoryDrawerWidth,
-        Math.min(proportionalMax, maxInlineWidth)
-      )
-    );
-  }, [
-    chatShellWidth,
-    compactViewport,
-    desktopHistoryOverlay,
-    minimumDesktopChatWidthForInlineHistory,
-    minimumDesktopHistoryDrawerWidth
-  ]);
-  const computedHistoryDrawerWidth = Math.min(
-    historyDrawerWidth,
-    historyDrawerMaxWidth
-  );
-  const historyDrawerStyle = {
-    width: historyDrawerVisible
-      ? desktopHistoryFullOverlay
-        ? "calc(100% - 20px)"
-        : computedHistoryDrawerWidth
-      : 0
-  };
+  const { computedHistoryDrawerWidth, desktopHistoryOverlay, historyDrawerStyle } =
+    resolveHistoryDrawerLayout({
+      compactViewport,
+      chatShellWidth,
+      historyDrawerVisible,
+      historyDrawerWidth
+    });
 
   useEffect(() => {
     if (typeof document === "undefined") {
@@ -316,7 +276,7 @@ export const WorkspaceShell = ({
   };
 
   const handleHistoryResizeStart = (event: PointerEvent<HTMLDivElement>) => {
-    if (!historyDrawerVisible || isMobileViewport || desktopHistoryOverlay) {
+    if (!historyDrawerVisible || phoneViewport || desktopHistoryOverlay) {
       return;
     }
 
@@ -402,78 +362,33 @@ export const WorkspaceShell = ({
     }
   };
 
-  const conversationSidebarContent = (
-    <WorkspaceConversationSidebar
-      conversations={composer.conversations}
-      activeConversationId={composer.activeConversationId}
-      onCreateConversation={handleCreateConversation}
-      onSelectConversation={handleSelectConversation}
-    />
-  );
+  const handleApplyTemplateLibrary = (prompt: string) => {
+    composer.setDraftForActiveConversation(prompt);
+    composerRef.current?.focus();
+  };
 
-  const chatThreadHeader = (
-    <WorkspaceChatHeader
-      title={composer.activeConversation?.title ?? "新会话"}
-      sceneTransactionCount={sceneTransactionCount}
-      historyOpen={effectiveHistoryDrawerVisible}
-      onToggleHistory={handleHistoryToggle}
-    />
-  );
-
-  const chatMessagesContent = (
-    <WorkspaceChatMessages
-      messages={composer.messages}
-      compactViewport={compactViewport}
-      compactEmptyStateTemplates={composer.compactEmptyStateTemplates}
-      templates={composer.templates}
-      showAgentSteps={showAgentSteps}
-      mode={runtimeSession.mode}
-      sessionToken={runtimeSession.sessionToken}
-      onApplyTemplate={composer.applySlashTemplate}
-    />
-  );
-
-  const composerContent = (
-    <WorkspaceChatComposer
-      composerFormRef={composerFormRef}
-      composerRef={composerRef}
-      imageInputRef={imageInputRef}
-      plusMenuButtonRef={plusMenuButtonRef}
-      plusMenuRef={plusMenuRef}
-      plusMenuOpen={composer.plusMenuOpen}
-      supportsVisionUpload={composer.supportsVisionUpload}
-      templates={composer.templates}
-      unsupportedVisionNotice={composer.unsupportedVisionNotice}
-      draftAttachments={composer.draftAttachments}
-      composerNotice={composer.composerNotice}
-      slashMenuVisible={composer.slashMenuVisible}
-      slashTemplates={composer.slashTemplates}
-      slashSelectedIndex={composer.slashSelectedIndex}
-      composerDragActive={composer.composerDragActive}
-      draft={composer.draft}
-      isSending={composer.isSending}
-      onSubmit={composer.handleSend}
-      onTogglePlusMenu={composer.togglePlusMenu}
-      onApplyPlusTemplate={composer.applyPlusTemplate}
-      onRemoveAttachment={composer.removeAttachment}
-      onSetSlashSelectedIndex={composer.setSlashSelectedIndex}
-      onApplySlashTemplate={composer.applySlashTemplate}
-      onDragOver={composer.handleComposerDragOver}
-      onDragLeave={composer.handleComposerDragLeave}
-      onDrop={(event) => {
-        void composer.handleComposerDrop(event);
-      }}
-      onDraftChange={composer.handleDraftChange}
-      onComposerFocus={composer.handleComposerFocus}
-      onKeyDown={composer.handleComposerKeyDown}
-      onPaste={(event) => {
-        void composer.handleComposerPaste(event);
-      }}
-      onImageChange={(event) => {
-        void composer.handleComposerImageChange(event);
-      }}
-    />
-  );
+  const {
+    conversationSidebarProps,
+    chatHeaderProps,
+    chatMessagesProps,
+    chatComposerProps
+  } = buildWorkspaceLayoutProps({
+    composer,
+    compactViewport,
+    showAgentSteps,
+    sceneTransactionCount,
+    effectiveHistoryDrawerVisible,
+    runtimeMode: runtimeSession.mode,
+    sessionToken: runtimeSession.sessionToken,
+    onToggleHistory: handleHistoryToggle,
+    onCreateConversation: handleCreateConversation,
+    onSelectConversation: handleSelectConversation,
+    composerFormRef,
+    composerRef,
+    imageInputRef,
+    plusMenuButtonRef,
+    plusMenuRef
+  });
 
   return (
     <main
@@ -510,123 +425,46 @@ export const WorkspaceShell = ({
       />
       <div className="workspace-content">
         {!compactViewport ? (
-          <>
-            <aside
-              className="studio-input-rail"
-              data-testid="studio-input-rail"
-              hidden={!chatVisible}
-            >
-              <div
-                ref={chatShellRef}
-                className={`chat-shell${
-                  desktopHistoryOverlay ? " history-overlay-mode" : ""
-                }`}
-              >
-                <div
-                  className={`history-drawer${
-                    historyDrawerVisible ? " history-drawer-open" : ""
-                  }`}
-                  style={historyDrawerStyle}
-                >
-                  {historyDrawerVisible ? (
-                    <aside
-                      className="conversation-sidebar"
-                      data-testid="conversation-sidebar"
-                    >
-                      {conversationSidebarContent}
-                    </aside>
-                  ) : null}
-                  <div
-                    className="history-resizer"
-                    data-testid="history-resizer"
-                    hidden={!historyDrawerVisible}
-                    onPointerDown={handleHistoryResizeStart}
-                  />
-                </div>
-                <div className="chat-body studio-input-body">
-                  <TeacherTemplateLibrary
-                    open={templateLibraryOpen}
-                    templates={composer.templates}
-                    onApply={(prompt) => {
-                      composer.setDraftForActiveConversation(prompt);
-                      composerRef.current?.focus();
-                    }}
-                    onClose={() => setTemplateLibraryOpen(false)}
-                  />
-                  <StudioInputPanel
-                    mode={desktopInputMode}
-                    onModeChange={setDesktopInputMode}
-                    conversationCount={composer.conversations.length}
-                    templateCount={composer.templates.length}
-                    onOpenTemplateLibrary={() => setTemplateLibraryOpen(true)}
-                    headerSlot={chatThreadHeader}
-                    composerSlot={composerContent}
-                  />
-                </div>
-              </div>
-            </aside>
-            <CanvasPanel
-              key={canvasMountKey}
-              profile={canvasProfile}
-              visible={canvasVisible}
-            />
-            <ChatPanel visible={chatVisible}>
-              <div className="studio-result-rail" data-testid="studio-result-rail">
-                <div className="studio-result-rail-header">
-                  <h3>生成结果</h3>
-                  <span>最新会话输出与执行回执</span>
-                </div>
-                <StudioResultPanel
-                  message={composer.latestAssistantMessage}
-                  onAction={composer.sendFollowUpPrompt}
-                />
-                {chatMessagesContent}
-              </div>
-            </ChatPanel>
-          </>
+          <WorkspaceDesktopLayout
+            chatVisible={chatVisible}
+            chatShellRef={chatShellRef}
+            desktopHistoryOverlay={desktopHistoryOverlay}
+            historyDrawerVisible={historyDrawerVisible}
+            historyDrawerStyle={historyDrawerStyle}
+            onHistoryResizeStart={handleHistoryResizeStart}
+            conversationSidebarProps={conversationSidebarProps}
+            templateLibraryOpen={templateLibraryOpen}
+            templateLibraryTemplates={composer.templates}
+            onApplyTemplateLibrary={handleApplyTemplateLibrary}
+            onCloseTemplateLibrary={() => setTemplateLibraryOpen(false)}
+            desktopInputMode={desktopInputMode}
+            onDesktopInputModeChange={setDesktopInputMode}
+            conversationCount={composer.conversations.length}
+            templateCount={composer.templates.length}
+            onOpenTemplateLibrary={() => setTemplateLibraryOpen(true)}
+            chatHeaderProps={chatHeaderProps}
+            chatComposerProps={chatComposerProps}
+            canvasMountKey={canvasMountKey}
+            canvasProfile={canvasProfile}
+            canvasVisible={canvasVisible}
+            latestAssistantMessage={composer.latestAssistantMessage}
+            onStudioResultAction={composer.sendFollowUpPrompt}
+            chatMessagesProps={chatMessagesProps}
+          />
         ) : (
-          <>
-            <CanvasPanel
-              key={canvasMountKey}
-              profile={canvasProfile}
-              visible={canvasVisible}
-            />
-            <ChatPanel visible={effectiveChatVisible}>
-              <div
-                ref={chatShellRef}
-                className={`chat-shell${
-                  desktopHistoryOverlay ? " history-overlay-mode" : ""
-                }`}
-              >
-                <div className="chat-body">
-                  {chatThreadHeader}
-                  {chatMessagesContent}
-                  {composerContent}
-                </div>
-                {compactViewport && compactHistorySheetVisible ? (
-                  <div
-                    className="history-sheet-backdrop"
-                    data-testid="history-sheet-backdrop"
-                    onClick={() => setCompactHistorySheetVisible(false)}
-                  >
-                    <div
-                      className="history-sheet"
-                      data-testid="history-sheet"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <div className="history-sheet-handle" />
-                      <aside
-                        className="conversation-sidebar"
-                        data-testid="conversation-sidebar"
-                      >
-                        {conversationSidebarContent}
-                      </aside>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </ChatPanel>
-          </>
+          <WorkspaceCompactLayout
+            chatVisible={effectiveChatVisible}
+            chatShellRef={chatShellRef}
+            chatHeaderProps={chatHeaderProps}
+            chatMessagesProps={chatMessagesProps}
+            chatComposerProps={chatComposerProps}
+            compactHistorySheetVisible={compactHistorySheetVisible}
+            onCloseHistorySheet={() => setCompactHistorySheetVisible(false)}
+            conversationSidebarProps={conversationSidebarProps}
+            canvasMountKey={canvasMountKey}
+            canvasProfile={canvasProfile}
+            canvasVisible={canvasVisible}
+          />
         )}
       </div>
       <TokenGateDialog

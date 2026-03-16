@@ -29,6 +29,10 @@ describe("component extraction progress", () => {
     expect(workspaceShell).toContain("./workspace-shell/WorkspaceConversationSidebar");
     expect(workspaceShell).toContain("./workspace-shell/WorkspaceChatMessages");
     expect(workspaceShell).toContain("./workspace-shell/WorkspaceChatComposer");
+    expect(workspaceShell).toContain("./workspace-shell/WorkspaceDesktopLayout");
+    expect(workspaceShell).toContain("./workspace-shell/WorkspaceCompactLayout");
+    expect(workspaceShell).toContain("./workspace-shell/viewport");
+    expect(workspaceShell).toContain("./workspace-shell/history-layout");
     expect(workspaceShell).toContain("./workspace-shell/useWorkspaceRuntimeSession");
     expect(workspaceShell).toContain("./workspace-shell/useWorkspaceComposer");
     expect(settingsDrawer).toContain("./settings-drawer/SettingsGeneralSection");
@@ -47,7 +51,7 @@ describe("component extraction progress", () => {
 
     expect(
       countLines("apps/web/src/components/WorkspaceShell.tsx")
-    ).toBeLessThan(850);
+    ).toBeLessThan(500);
     expect(
       countLines("apps/web/src/components/SettingsDrawer.tsx")
     ).toBeLessThan(500);
