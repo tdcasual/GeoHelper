@@ -86,7 +86,18 @@ describe("chat-send-flow", () => {
           version: "1.0",
           scene_id: "scene_1",
           transaction_id: "tx_1",
-          commands: [{ name: "Circle", args: ["A", "B"] }],
+          commands: [
+            {
+              id: "cmd_circle",
+              op: "create_conic",
+              args: {
+                kind: "Circle",
+                points: ["A", "B"]
+              },
+              depends_on: [],
+              idempotency_key: "cmd_circle_1"
+            }
+          ],
           post_checks: [],
           explanations: []
         },

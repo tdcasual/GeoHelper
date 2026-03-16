@@ -3,6 +3,9 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+const countLines = (filePath: string) =>
+  fs.readFileSync(filePath, "utf8").split(/\r?\n/).length;
+
 describe("architecture budgets", () => {
   it("defines maintainability budgets, hotspot scanning, and build warning detection", async () => {
     const reportModule = await import("../../scripts/quality/report-hotspots.mjs");
@@ -51,6 +54,16 @@ describe("architecture budgets", () => {
         item.filePath === "apps/web/src/components/SettingsDrawer.tsx"
     );
     expect(settingsDrawer?.lineCount).toBeGreaterThan(budgets.maxComponentLines);
+    expect(countLines("apps/web/src/components/SettingsDrawer.tsx")).toBeLessThan(
+      1400
+    );
+    expect(countLines("apps/web/src/components/WorkspaceShell.tsx")).toBeLessThan(
+      850
+    );
+    expect(countLines("apps/web/src/state/settings-store.ts")).toBeLessThan(950);
+    expect(countLines("apps/web/src/state/chat-store.ts")).toBeLessThan(700);
+    expect(countLines("apps/web/src/storage/backup.ts")).toBeLessThan(450);
+    expect(countLines("apps/web/src/storage/remote-sync.ts")).toBeLessThan(320);
 
     expect(
       warningModule.containsActionableBuildWarning(
@@ -76,6 +89,12 @@ describe("architecture budgets", () => {
     expect(baseline).toContain("maxComponentLines");
     expect(baseline).toContain("maxStoreLines");
     expect(baseline).toContain("maxStyleLines");
+    expect(baseline).toContain("SettingsDrawer.tsx < 1400");
+    expect(baseline).toContain("WorkspaceShell.tsx < 850");
+    expect(baseline).toContain("settings-store.ts < 950");
+    expect(baseline).toContain("chat-store.ts < 700");
+    expect(baseline).toContain("backup.ts < 450");
+    expect(baseline).toContain("remote-sync.ts < 320");
     expect(baseline).toContain("dynamic import will not move module into another chunk");
   });
 });

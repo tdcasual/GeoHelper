@@ -11,6 +11,12 @@ These rules establish a first-pass dependency boundary before the larger maintai
 3. `production app code must not import tests/`
 4. `production app code must not import scripts/`
 
+## Web Internal Rules
+
+1. `components/` 不直接导入 `storage/backup.ts`
+2. shell components 通过 controller hooks 间接访问 runtime side effects
+3. `state/*-store.ts` 优先依赖 `*-persistence.ts` 和 `*-resolver.ts`
+
 ## Shared Contract
 
 The shared contract layer lives in `packages/protocol`.

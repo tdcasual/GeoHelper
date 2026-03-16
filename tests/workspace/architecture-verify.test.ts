@@ -17,6 +17,10 @@ describe("architecture verify script", () => {
       "docs/architecture/maintainability-baseline.md",
       "utf8"
     );
+    const dependencyRules = fs.readFileSync(
+      "docs/architecture/dependency-rules.md",
+      "utf8"
+    );
 
     const warningModule = await import("../../scripts/quality/check-build-warnings.mjs");
     const warnings = [
@@ -48,5 +52,11 @@ describe("architecture verify script", () => {
     expect(betaChecklist).toContain("pnpm lint");
     expect(betaChecklist).toContain("pnpm deps:check");
     expect(betaChecklist).toContain("pnpm verify:architecture");
+    expect(baseline).toContain("No actionable build warnings detected");
+    expect(baseline).toContain("Resolved warning signature");
+    expect(baseline).not.toContain("The current web build emits an actionable Vite warning");
+    expect(dependencyRules).toContain("`components/` 不直接导入 `storage/backup.ts`");
+    expect(dependencyRules).toContain("shell components 通过 controller hooks 间接访问 runtime side effects");
+    expect(dependencyRules).toContain("`state/*-store.ts` 优先依赖 `*-persistence.ts` 和 `*-resolver.ts`");
   });
 });

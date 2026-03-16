@@ -9,6 +9,15 @@ Status: Updated after Phase 2 Task 5 controller extraction
 - `maxStoreLines`: `600`
 - `maxStyleLines`: `700`
 
+## Wave 2 Guardrails
+
+- `SettingsDrawer.tsx < 1400`
+- `WorkspaceShell.tsx < 850`
+- `settings-store.ts < 950`
+- `chat-store.ts < 700`
+- `backup.ts < 450`
+- `remote-sync.ts < 320`
+
 ## Current Hotspots
 
 Measured after the latest Phase 2 refactor:
@@ -19,7 +28,7 @@ Measured after the latest Phase 2 refactor:
 - `apps/web/src/state/chat-store.ts`: `641` lines
 - `apps/web/src/styles.css`: `2284` lines
 
-`SettingsDrawer.tsx` and `WorkspaceShell.tsx` are no longer first-wave hotspot outliers, but the state stores and stylesheet still exceed the recorded budgets and remain active follow-up targets.
+`SettingsDrawer.tsx`, `WorkspaceShell.tsx`, `backup.ts`, and `remote-sync.ts` are now within their Task 6 guardrails. The stricter first-wave category budgets still leave the state stores and stylesheet as active follow-up targets.
 
 ## Current Actionable Build Warning
 
