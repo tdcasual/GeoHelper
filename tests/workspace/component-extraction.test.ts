@@ -27,6 +27,9 @@ describe("component extraction progress", () => {
     expect(workspaceShell).toContain("./workspace-shell/WorkspaceChatComposer");
     expect(workspaceShell).toContain("./workspace-shell/useWorkspaceRuntimeSession");
     expect(workspaceShell).toContain("./workspace-shell/useWorkspaceComposer");
+    expect(settingsDrawer).toContain("./settings-drawer/SettingsGeneralSection");
+    expect(settingsDrawer).toContain("./settings-drawer/SettingsModelsSection");
+    expect(settingsDrawer).toContain("./settings-drawer/SettingsSessionSection");
     expect(settingsDrawer).toContain("./settings-drawer/SettingsDataSection");
     expect(settingsDrawer).toContain("./settings-drawer/useRemoteBackupControls");
     expect(settingsDrawer).not.toContain("../storage/backup");
@@ -39,7 +42,7 @@ describe("component extraction progress", () => {
     ).toBeLessThan(850);
     expect(
       countLines("apps/web/src/components/SettingsDrawer.tsx")
-    ).toBeLessThan(1400);
+    ).toBeLessThan(500);
     expect(
       countLines("apps/web/src/components/settings-drawer/useRemoteBackupControls.ts")
     ).toBeLessThan(500);
