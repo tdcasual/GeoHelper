@@ -17,6 +17,10 @@ describe("component extraction progress", () => {
       "apps/web/src/components/SettingsDrawer.tsx",
       "utf8"
     );
+    const settingsDataSection = fs.readFileSync(
+      "apps/web/src/components/settings-drawer/SettingsDataSection.tsx",
+      "utf8"
+    );
     const remoteBackupControls = fs.readFileSync(
       "apps/web/src/components/settings-drawer/useRemoteBackupControls.ts",
       "utf8"
@@ -32,6 +36,10 @@ describe("component extraction progress", () => {
     expect(settingsDrawer).toContain("./settings-drawer/SettingsSessionSection");
     expect(settingsDrawer).toContain("./settings-drawer/SettingsDataSection");
     expect(settingsDrawer).toContain("./settings-drawer/useRemoteBackupControls");
+    expect(settingsDataSection).toContain("./data-section/LocalBackupSection");
+    expect(settingsDataSection).toContain("./data-section/ImportRollbackSection");
+    expect(settingsDataSection).toContain("./data-section/RemoteBackupSection");
+    expect(settingsDataSection).toContain("./data-section/DataMaintenanceSection");
     expect(settingsDrawer).not.toContain("../storage/backup");
     expect(remoteBackupControls).toContain("./remote-backup/import-actions");
     expect(remoteBackupControls).toContain("./remote-backup/sync-actions");
@@ -46,6 +54,9 @@ describe("component extraction progress", () => {
     expect(
       countLines("apps/web/src/components/settings-drawer/useRemoteBackupControls.ts")
     ).toBeLessThan(500);
+    expect(
+      countLines("apps/web/src/components/settings-drawer/SettingsDataSection.tsx")
+    ).toBeLessThan(400);
     expect(
       countLines("apps/web/src/components/settings-remote-backup.ts")
     ).toBeLessThan(120);
