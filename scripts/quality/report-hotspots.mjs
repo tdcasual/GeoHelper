@@ -5,13 +5,7 @@ export const loadBudgetConfig = () => ({
   maxComponentLines: 500,
   maxStoreLines: 600,
   maxStyleLines: 700,
-  requiredHotspots: [
-    "apps/web/src/components/SettingsDrawer.tsx",
-    "apps/web/src/components/WorkspaceShell.tsx",
-    "apps/web/src/state/chat-store.ts",
-    "apps/web/src/components/settings-drawer/SettingsDataSection.tsx",
-    "apps/web/src/components/CanvasPanel.tsx"
-  ]
+  requiredHotspots: []
 });
 
 const IGNORE_DIRS = new Set([

@@ -29,50 +29,41 @@ describe("architecture budgets", () => {
     expect(budgets.maxComponentLines).toBe(500);
     expect(budgets.maxStoreLines).toBe(600);
     expect(budgets.maxStyleLines).toBe(700);
-    expect(budgets.requiredHotspots).toEqual(
-      expect.arrayContaining([
-        "apps/web/src/components/SettingsDrawer.tsx",
-        "apps/web/src/components/WorkspaceShell.tsx",
-        "apps/web/src/state/chat-store.ts",
-        "apps/web/src/components/settings-drawer/SettingsDataSection.tsx",
-        "apps/web/src/components/CanvasPanel.tsx"
-      ])
-    );
+    expect(budgets.requiredHotspots).toEqual([]);
 
     const hotspots = reportModule.collectHotspots({
       cwd: process.cwd(),
       budgets
     });
     const hotspotPaths = hotspots.map((item: { filePath: string }) => item.filePath);
-    expect(hotspotPaths).toEqual(
-      expect.arrayContaining([
-        "apps/web/src/components/SettingsDrawer.tsx",
-        "apps/web/src/components/WorkspaceShell.tsx",
-        "apps/web/src/state/chat-store.ts",
-        "apps/web/src/components/settings-drawer/SettingsDataSection.tsx",
-        "apps/web/src/components/CanvasPanel.tsx"
-      ])
+    expect(hotspotPaths).not.toContain("apps/web/src/components/SettingsDrawer.tsx");
+    expect(hotspotPaths).not.toContain("apps/web/src/components/WorkspaceShell.tsx");
+    expect(hotspotPaths).not.toContain("apps/web/src/state/chat-store.ts");
+    expect(hotspotPaths).not.toContain(
+      "apps/web/src/components/settings-drawer/SettingsDataSection.tsx"
     );
+    expect(hotspotPaths).not.toContain("apps/web/src/components/CanvasPanel.tsx");
     expect(hotspotPaths).not.toContain("apps/web/src/state/settings-store.ts");
     expect(hotspotPaths).not.toContain("apps/web/src/styles.css");
     expect(hotspotPaths).not.toContain(
       "apps/web/src/components/settings-remote-backup.test.ts"
     );
     expect(hotspotPaths).not.toContain("apps/web/src/state/settings-store.test.ts");
-
-    const settingsDrawer = hotspots.find(
-      (item: { filePath: string }) =>
-        item.filePath === "apps/web/src/components/SettingsDrawer.tsx"
+    expect(reportModule.renderHotspotReport({ cwd: process.cwd(), budgets })).toContain(
+      "No over-budget files detected."
     );
-    expect(settingsDrawer?.lineCount).toBeGreaterThan(budgets.maxComponentLines);
     expect(countLines("apps/web/src/components/SettingsDrawer.tsx")).toBeLessThan(
-      1400
+      500
     );
     expect(countLines("apps/web/src/components/WorkspaceShell.tsx")).toBeLessThan(
-      850
+      500
     );
     expect(countLines("apps/web/src/state/settings-store.ts")).toBeLessThan(750);
-    expect(countLines("apps/web/src/state/chat-store.ts")).toBeLessThan(700);
+    expect(countLines("apps/web/src/state/chat-store.ts")).toBeLessThan(500);
+    expect(
+      countLines("apps/web/src/components/settings-drawer/SettingsDataSection.tsx")
+    ).toBeLessThan(400);
+    expect(countLines("apps/web/src/components/CanvasPanel.tsx")).toBeLessThan(400);
     expect(countLines("apps/web/src/styles.css")).toBeLessThan(120);
     expect(countLines("apps/web/src/storage/backup.ts")).toBeLessThan(450);
     expect(countLines("apps/web/src/storage/remote-sync.ts")).toBeLessThan(320);
@@ -97,15 +88,20 @@ describe("architecture budgets", () => {
     expect(baseline).toContain("WorkspaceShell.tsx");
     expect(baseline).toContain("settings-store.ts");
     expect(baseline).toContain("chat-store.ts");
+    expect(baseline).toContain("SettingsDataSection.tsx");
+    expect(baseline).toContain("CanvasPanel.tsx");
     expect(baseline).toContain("styles.css");
     expect(baseline).toContain("maxComponentLines");
     expect(baseline).toContain("maxStoreLines");
     expect(baseline).toContain("maxStyleLines");
-    expect(baseline).toContain("SettingsDrawer.tsx < 1400");
-    expect(baseline).toContain("WorkspaceShell.tsx < 850");
+    expect(baseline).toContain("No active production hotspots over budget");
+    expect(baseline).toContain("SettingsDrawer.tsx < 500");
+    expect(baseline).toContain("SettingsDataSection.tsx < 400");
+    expect(baseline).toContain("WorkspaceShell.tsx < 500");
+    expect(baseline).toContain("CanvasPanel.tsx < 400");
     expect(baseline).toContain("settings-store.ts < 750");
     expect(baseline).toContain("styles.css < 120");
-    expect(baseline).toContain("chat-store.ts < 700");
+    expect(baseline).toContain("chat-store.ts < 500");
     expect(baseline).toContain("backup.ts < 450");
     expect(baseline).toContain("remote-sync.ts < 320");
     expect(baseline).toContain("dynamic import will not move module into another chunk");

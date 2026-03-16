@@ -1,7 +1,7 @@
 # Maintainability Baseline
 
 Date: 2026-03-16
-Status: Updated after Phase 3 Task 6 style modularity and guardrail ratchet
+Status: Updated after Phase 4 guardrail ratchet
 
 ## Budgets
 
@@ -9,36 +9,39 @@ Status: Updated after Phase 3 Task 6 style modularity and guardrail ratchet
 - `maxStoreLines`: `600`
 - `maxStyleLines`: `700`
 
-## Phase 3 Guardrails
+## Phase 4 Guardrails
 
-- `SettingsDrawer.tsx < 1400`
-- `WorkspaceShell.tsx < 850`
+- `SettingsDrawer.tsx < 500`
+- `SettingsDataSection.tsx < 400`
+- `WorkspaceShell.tsx < 500`
+- `CanvasPanel.tsx < 400`
 - `useRemoteBackupControls.ts < 500`
 - `settings-remote-backup.ts < 120`
 - `settings-store.ts < 750`
 - `styles.css < 120`
-- `chat-store.ts < 700`
+- `chat-store.ts < 500`
 - `backup.ts < 450`
 - `remote-sync.ts < 320`
 
 ## Current Hotspots
 
-Measured after the latest Phase 3 Task 6 update. The default hotspot report remains production-only and excludes `*.test.*` plus `src/test/**` noise unless `--include-tests` is passed explicitly.
+Measured after the Phase 4 maintainability cleanup. The default hotspot report remains production-only and excludes `*.test.*` plus `src/test/**` noise unless `--include-tests` is passed explicitly.
 
-- `apps/web/src/components/SettingsDrawer.tsx`: `927` lines
-- `apps/web/src/components/WorkspaceShell.tsx`: `647` lines
-- `apps/web/src/state/chat-store.ts`: `642` lines
-- `apps/web/src/components/settings-drawer/SettingsDataSection.tsx`: `613` lines
-- `apps/web/src/components/CanvasPanel.tsx`: `576` lines
+- No active production hotspots over budget
 
 ## Under-Guardrail Recovery
 
+- `apps/web/src/components/SettingsDrawer.tsx`: `417` lines
+- `apps/web/src/components/settings-drawer/SettingsDataSection.tsx`: `115` lines
+- `apps/web/src/components/WorkspaceShell.tsx`: `484` lines
+- `apps/web/src/components/CanvasPanel.tsx`: `394` lines
+- `apps/web/src/state/chat-store.ts`: `218` lines
 - `apps/web/src/styles.css`: `6` lines
 - `apps/web/src/components/settings-drawer/useRemoteBackupControls.ts`: `459` lines
 - `apps/web/src/components/settings-remote-backup.ts`: `4` lines
 - `apps/web/src/state/settings-store.ts`: `341` lines
 
-`useRemoteBackupControls.ts`, `settings-remote-backup.ts`, `settings-store.ts`, `styles.css`, `backup.ts`, and `remote-sync.ts` are now within their current guardrails. The active production-code follow-up targets are the two top-level workspace shells, `chat-store.ts`, and the largest residual leaf components that still exceed the hotspot budgets.
+`SettingsDrawer.tsx`, `SettingsDataSection.tsx`, `WorkspaceShell.tsx`, `CanvasPanel.tsx`, `chat-store.ts`, `useRemoteBackupControls.ts`, `settings-remote-backup.ts`, `settings-store.ts`, `styles.css`, `backup.ts`, and `remote-sync.ts` are now within their current guardrails.
 
 ## Current Actionable Build Warning
 
@@ -50,11 +53,12 @@ Resolved warning signature from the initial baseline:
 apps/web/src/storage/backup.ts is dynamically imported by apps/web/src/storage/remote-sync.ts but also statically imported by apps/web/src/components/SettingsDrawer.tsx, dynamic import will not move module into another chunk.
 ```
 
-## Wave 1 Intent
+## Steady State Intent
 
-Wave 1 does not try to eliminate every hotspot immediately. It establishes:
+Phase 4 establishes the current steady state:
 
 1. repeatable hotspot reporting
-2. budget documentation
+2. budget documentation tied to current production files
 3. build warning detection
 4. CI visibility for maintainability drift
+5. no active production hotspots over budget by default
