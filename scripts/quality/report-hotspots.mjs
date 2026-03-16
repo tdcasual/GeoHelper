@@ -5,6 +5,7 @@ export const loadBudgetConfig = () => ({
   maxComponentLines: 500,
   maxStoreLines: 600,
   maxStyleLines: 700,
+  maxTestLines: 600,
   requiredHotspots: []
 });
 
@@ -56,23 +57,17 @@ const resolveBudget = (category, budgets) => {
   if (category === "style") {
     return budgets.maxStyleLines;
   }
+  if (category === "test") {
+    return budgets.maxTestLines;
+  }
   return null;
 };
 
-const resolveBudgetCategory = (filePath, category) => {
+export const resolveBudgetCategory = (filePath, category) => {
   if (category !== "test") {
     return category;
   }
-  if (filePath.includes("/state/")) {
-    return "store";
-  }
-  if (filePath.endsWith(".css")) {
-    return "style";
-  }
-  if (filePath.includes("/components/")) {
-    return "component";
-  }
-  return "other";
+  return "test";
 };
 
 const countLines = (text) => text.split(/\r?\n/).length;
@@ -150,7 +145,7 @@ export const renderHotspotReport = ({
   const lines = [
     "GeoHelper maintainability hotspot report",
     "",
-    `Budgets: component<=${budgets.maxComponentLines}, store<=${budgets.maxStoreLines}, style<=${budgets.maxStyleLines}`,
+    `Budgets: component<=${budgets.maxComponentLines}, store<=${budgets.maxStoreLines}, style<=${budgets.maxStyleLines}, test<=${budgets.maxTestLines}`,
     ""
   ];
 

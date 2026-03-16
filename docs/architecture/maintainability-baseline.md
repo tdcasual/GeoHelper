@@ -1,15 +1,16 @@
 # Maintainability Baseline
 
 Date: 2026-03-16
-Status: Updated after Phase 4 guardrail ratchet
+Status: Updated during Phase 6 test maintainability rollout
 
 ## Budgets
 
 - `maxComponentLines`: `500`
 - `maxStoreLines`: `600`
 - `maxStyleLines`: `700`
+- `maxTestLines`: `600`
 
-## Phase 4 Guardrails
+## Guardrails
 
 - `SettingsDrawer.tsx < 500`
 - `SettingsDataSection.tsx < 400`
@@ -22,12 +23,23 @@ Status: Updated after Phase 4 guardrail ratchet
 - `chat-store.ts < 500`
 - `backup.ts < 450`
 - `remote-sync.ts < 320`
+- `settings-store.test.ts < 260`
+- `backup.test.ts < 260`
+- `gateway-client.test.ts < 260`
+- `admin-backups.test.ts < 260`
+- `redis-backup-store.test.ts < 260`
+- `settings-drawer.spec.ts < 260`
+- `fullscreen-toggle.spec.ts < 260`
 
 ## Current Hotspots
 
-Measured after the Phase 4 maintainability cleanup. The default hotspot report remains production-only and excludes `*.test.*` plus `src/test/**` noise unless `--include-tests` is passed explicitly.
+Measured during the Phase 6 test maintainability rollout. The default hotspot report remains production-only; `--include-tests` now applies an explicit test budget and surfaces oversized suites across app, gateway, and e2e test directories.
 
 - No active production hotspots over budget
+
+Current include-tests hotspots:
+
+- No active include-tests hotspots over budget
 
 ## Under-Guardrail Recovery
 
@@ -40,8 +52,28 @@ Measured after the Phase 4 maintainability cleanup. The default hotspot report r
 - `apps/web/src/components/settings-drawer/useRemoteBackupControls.ts`: `459` lines
 - `apps/web/src/components/settings-remote-backup.ts`: `4` lines
 - `apps/web/src/state/settings-store.ts`: `341` lines
+- `apps/web/src/state/settings-store.test.ts`: `27` lines
+- `apps/web/src/storage/backup.test.ts`: `23` lines
+- `apps/web/src/runtime/gateway-client.test.ts`: `55` lines
+- `apps/gateway/test/admin-backups.test.ts`: `57` lines
+- `apps/gateway/test/redis-backup-store.test.ts`: `71` lines
+- `tests/e2e/settings-drawer.spec.ts`: `63` lines
+- `tests/e2e/settings-drawer.general.spec.ts`: `489` lines
+- `tests/e2e/settings-drawer.backup.spec.ts`: `210` lines
+- `tests/e2e/settings-drawer.rollback.spec.ts`: `464` lines
+- `tests/e2e/settings-drawer.remote-sync.spec.ts`: `538` lines
+- `tests/e2e/settings-drawer.remote-import.spec.ts`: `379` lines
+- `tests/e2e/settings-drawer.remote-history.spec.ts`: `250` lines
+- `tests/e2e/settings-drawer.remote-protection.spec.ts`: `320` lines
+- `tests/e2e/fullscreen-toggle.spec.ts`: `77` lines
+- `tests/e2e/fullscreen-toggle.desktop.spec.ts`: `230` lines
+- `tests/e2e/fullscreen-toggle.mobile-layout.spec.ts`: `275` lines
+- `tests/e2e/fullscreen-toggle.mobile-chat.spec.ts`: `276` lines
+- `apps/web/src/storage/backup.import.test.ts`: `424` lines
+- `apps/web/src/runtime/gateway-client.history.test.ts`: `417` lines
 
 `SettingsDrawer.tsx`, `SettingsDataSection.tsx`, `WorkspaceShell.tsx`, `CanvasPanel.tsx`, `chat-store.ts`, `useRemoteBackupControls.ts`, `settings-remote-backup.ts`, `settings-store.ts`, `styles.css`, `backup.ts`, and `remote-sync.ts` are now within their current guardrails.
+`settings-store.test.ts`, `backup.test.ts`, `gateway-client.test.ts`, `admin-backups.test.ts`, `redis-backup-store.test.ts`, `settings-drawer.spec.ts`, and `fullscreen-toggle.spec.ts` are now within the thin-suite test guardrails.
 
 ## Current Actionable Build Warning
 
@@ -55,10 +87,10 @@ apps/web/src/storage/backup.ts is dynamically imported by apps/web/src/storage/r
 
 ## Steady State Intent
 
-Phase 4 establishes the current steady state:
+The current steady state keeps two views in sync:
 
 1. repeatable hotspot reporting
-2. budget documentation tied to current production files
+2. budget documentation tied to both production and test maintainability thresholds
 3. build warning detection
-4. CI visibility for maintainability drift
+4. CI visibility for production drift by default and test drift via `--include-tests`
 5. no active production hotspots over budget by default
