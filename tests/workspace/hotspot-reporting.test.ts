@@ -12,11 +12,25 @@ describe("hotspot reporting", () => {
     expect(hotspotPaths).not.toContain(
       "apps/web/src/state/settings-store.test.ts"
     );
+    expect(hotspotPaths).not.toContain("apps/gateway/src/routes/compile.ts");
+    expect(hotspotPaths).not.toContain("apps/web/src/storage/backup-import.ts");
   });
 
-  it("classifies test files separately and only reports still-over-budget test hotspots when requested", async () => {
+  it("classifies modules and test files separately and only reports still-over-budget test hotspots when requested", async () => {
     const reportModule = await import("../../scripts/quality/report-hotspots.mjs");
 
+    expect(reportModule.classifyFile("apps/web/src/runtime/gateway-client.ts")).toBe(
+      "module"
+    );
+    expect(reportModule.classifyFile("apps/web/src/storage/backup-import.ts")).toBe(
+      "module"
+    );
+    expect(reportModule.classifyFile("apps/gateway/src/routes/compile.ts")).toBe(
+      "module"
+    );
+    expect(reportModule.classifyFile("apps/gateway/src/services/backup-store.ts")).toBe(
+      "module"
+    );
     expect(
       reportModule.classifyFile(
         "apps/web/src/components/settings-remote-backup.test.ts"
@@ -26,8 +40,12 @@ describe("hotspot reporting", () => {
       reportModule.resolveBudgetCategory("apps/web/src/state/settings-store.test.ts", "test")
     ).toBe("test");
 
+    const budgets = reportModule.loadBudgetConfig();
+    expect(budgets.maxModuleLines).toBe(500);
+
     const hotspots = reportModule.collectHotspots({
       cwd: process.cwd(),
+      budgets,
       includeTests: true
     });
     const hotspotPaths = hotspots.map((item: { filePath: string }) => item.filePath);

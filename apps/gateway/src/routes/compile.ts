@@ -1,14 +1,13 @@
-import { type RuntimeAttachment,RuntimeAttachmentSchema } from "@geohelper/protocol";
-import { FastifyInstance, FastifyReply } from "fastify";
+import { RuntimeAttachmentSchema } from "@geohelper/protocol";
+import { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import { GatewayConfig } from "../config";
-import { GatewayAlertEvent, GatewayAlertUpstreamContext, sendAlert } from "../services/alerting";
+import { GatewayAlertUpstreamContext } from "../services/alerting";
 import { GatewayBuildInfo } from "../services/build-info";
 import {
   buildTraceId,
   CompileEventSink,
-  CompileEventType,
   CompileFinalStatus
 } from "../services/compile-events";
 import {
@@ -17,7 +16,6 @@ import {
   CompileGuardTimeoutError
 } from "../services/compile-guard";
 import {
-  CompileContext,
   CompileMode,
   RequestCommandBatch
 } from "../services/litellm-client";
@@ -38,6 +36,12 @@ import { RateLimitStore } from "../services/rate-limit-store";
 import { verifySessionToken } from "../services/session";
 import { SessionRevocationStore } from "../services/session-store";
 import { InvalidCommandBatchError } from "../services/verify-command-batch";
+import { createCompileRouteAlerting } from "./compile-route-alerts";
+import {
+  mergeCompileMetadata,
+  normalizeCompileContext,
+  summarizeCompileAttachments
+} from "./compile-route-helpers";
 
 const CompileBodySchema = z.object({
   message: z.string().min(1),
@@ -84,10 +88,6 @@ const CompileBodySchema = z.object({
     .optional()
 });
 
-interface CompileReplyWithAlert extends FastifyReply {
-  geohelperAlertEvent?: GatewayAlertEvent;
-}
-
 export interface CompileRouteDeps {
   requestCommandBatch: RequestCommandBatch;
   sessionStore: SessionRevocationStore;
@@ -103,81 +103,25 @@ export const registerCompileRoute = (
   config: GatewayConfig,
   deps: CompileRouteDeps
 ): void => {
-  const normalizeContext = (
-    raw: z.infer<typeof CompileBodySchema>["context"]
-  ): CompileContext | undefined => {
-    if (!raw) {
-      return undefined;
-    }
-
-    const recentMessages = raw.recentMessages ?? raw.recent_messages;
-    const sceneTransactions =
-      raw.sceneTransactions ??
-      raw.scene_transactions?.map((item) => ({
-        sceneId: item.scene_id,
-        transactionId: item.transaction_id,
-        commandCount: item.command_count
-      }));
-
-    if (!recentMessages?.length && !sceneTransactions?.length) {
-      return undefined;
-    }
-
-    return {
-      recentMessages,
-      sceneTransactions
-    };
-  };
-
-  const summarizeAttachments = (
-    attachments?: RuntimeAttachment[]
-  ): Record<string, unknown> | undefined => {
-    if (!attachments?.length) {
-      return undefined;
-    }
-
-    return {
-      attachments_count: attachments.length,
-      attachment_kinds: [...new Set(attachments.map((attachment) => attachment.kind))]
-    };
-  };
-
-  const mergeMetadata = (
-    ...parts: Array<Record<string, unknown> | undefined>
-  ): Record<string, unknown> | undefined => {
-    const merged = Object.assign({}, ...parts.filter(Boolean));
-    return Object.keys(merged).length > 0 ? merged : undefined;
-  };
-
   app.post("/api/v1/chat/compile", async (request, reply) => {
     const totalStartedAt = Date.now();
     const traceId = buildTraceId(request.id);
     let eventMode: CompileMode | undefined;
-
-    const writeCompileEvent = async (
-      event: CompileEventType,
-      finalStatus: CompileFinalStatus,
-      statusCode: number,
-      extras: {
-        detail?: string;
-        metadata?: Record<string, unknown>;
-        upstreamCallCount?: number;
-      } = {}
-    ): Promise<void> => {
-      await deps.compileEventSink.write({
-        event,
-        finalStatus,
-        traceId,
-        requestId: request.id,
-        path: request.url,
-        method: request.method,
-        mode: eventMode,
-        statusCode,
-        upstreamCallCount: extras.upstreamCallCount ?? 0,
-        detail: extras.detail,
-        metadata: extras.metadata
-      });
-    };
+    const {
+      deferCompileOperatorAlert,
+      sendCompileOperatorAlert,
+      writeCompileEvent
+    } = createCompileRouteAlerting({
+      alertWebhookUrl: config.alertWebhookUrl,
+      buildInfo: deps.buildInfo,
+      compileEventSink: deps.compileEventSink,
+      getMode: () => eventMode,
+      method: request.method,
+      path: request.url,
+      reply,
+      requestId: request.id,
+      traceId
+    });
 
     const buildCompileAlertUpstream = (
       input: {
@@ -217,65 +161,6 @@ export const registerCompileRoute = (
       }
     };
 
-    const buildCompileOperatorAlert = (
-      event: string,
-      finalStatus: CompileFinalStatus,
-      statusCode: number,
-      extras: {
-        detail?: string;
-        error?: string;
-        metadata?: Record<string, unknown>;
-        upstream?: GatewayAlertUpstreamContext;
-      } = {}
-    ): GatewayAlertEvent => ({
-      traceId,
-      path: request.url,
-      method: request.method,
-      statusCode,
-      event,
-      finalStatus,
-      detail: extras.detail,
-      error: extras.error,
-      metadata: extras.metadata,
-      git_sha: deps.buildInfo.git_sha,
-      build_time: deps.buildInfo.build_time,
-      node_env: deps.buildInfo.node_env,
-      redis_enabled: deps.buildInfo.redis_enabled,
-      upstream: extras.upstream
-    });
-
-    const sendCompileOperatorAlert = async (
-      event: string,
-      finalStatus: CompileFinalStatus,
-      statusCode: number,
-      extras: {
-        detail?: string;
-        error?: string;
-        metadata?: Record<string, unknown>;
-        upstream?: GatewayAlertUpstreamContext;
-      } = {}
-    ): Promise<void> => {
-      await sendAlert(
-        config.alertWebhookUrl,
-        buildCompileOperatorAlert(event, finalStatus, statusCode, extras)
-      );
-    };
-
-    const deferCompileOperatorAlert = (
-      event: string,
-      finalStatus: CompileFinalStatus,
-      statusCode: number,
-      extras: {
-        detail?: string;
-        error?: string;
-        metadata?: Record<string, unknown>;
-        upstream?: GatewayAlertUpstreamContext;
-      } = {}
-    ): void => {
-      (reply as CompileReplyWithAlert).geohelperAlertEvent =
-        buildCompileOperatorAlert(event, finalStatus, statusCode, extras);
-    };
-
     const rateKey = `${request.ip}:compile`;
     const limit = await consumeRateLimit(
       rateKey,
@@ -311,7 +196,7 @@ export const registerCompileRoute = (
 
     const mode = parsed.data.mode as CompileMode;
     eventMode = mode;
-    const attachmentMetadata = summarizeAttachments(parsed.data.attachments);
+    const attachmentMetadata = summarizeCompileAttachments(parsed.data.attachments);
     const attachmentsPresent = (parsed.data.attachments?.length ?? 0) > 0;
 
     if (attachmentsPresent && !config.attachmentsEnabled) {
@@ -371,7 +256,7 @@ export const registerCompileRoute = (
         typeof byokEndpoint === "string" ? byokEndpoint : undefined,
       byokKey: typeof byokKey === "string" ? byokKey : undefined,
       attachments: parsed.data.attachments,
-      context: normalizeContext(parsed.data.context)
+      context: normalizeCompileContext(parsed.data.context)
     };
     const alertUpstream = buildCompileAlertUpstream(compileInput);
 
@@ -434,13 +319,13 @@ export const registerCompileRoute = (
         await writeCompileEvent("compile_fallback", "fallback", 200, {
           detail: fallbackSteps.map((step) => step.name).join(","),
           upstreamCallCount: result.upstream_calls,
-          metadata: mergeMetadata(attachmentMetadata, {
+          metadata: mergeCompileMetadata(attachmentMetadata, {
             fallback_steps: fallbackSteps.map((step) => step.name)
           })
         });
         await sendCompileOperatorAlert("compile_fallback", "fallback", 200, {
           detail: fallbackSteps.map((step) => step.name).join(","),
-          metadata: mergeMetadata(attachmentMetadata, {
+          metadata: mergeCompileMetadata(attachmentMetadata, {
             fallback_steps: fallbackSteps.map((step) => step.name)
           }),
           upstream: alertUpstream
@@ -449,13 +334,13 @@ export const registerCompileRoute = (
         await writeCompileEvent("compile_repair", "repair", 200, {
           detail: "repair agent produced a valid batch",
           upstreamCallCount: result.upstream_calls,
-          metadata: mergeMetadata(attachmentMetadata, {
+          metadata: mergeCompileMetadata(attachmentMetadata, {
             repair: true
           })
         });
         await sendCompileOperatorAlert("compile_repair", "repair", 200, {
           detail: "repair agent produced a valid batch",
-          metadata: mergeMetadata(attachmentMetadata, {
+          metadata: mergeCompileMetadata(attachmentMetadata, {
             repair: true
           }),
           upstream: alertUpstream
@@ -473,13 +358,13 @@ export const registerCompileRoute = (
         recordCompileFailure(totalMs, 0, deps.metricsStore);
         await writeCompileEvent("compile_runtime_rejected", "runtime_rejected", 503, {
           detail: "max_in_flight_reached",
-          metadata: mergeMetadata(attachmentMetadata, {
+          metadata: mergeCompileMetadata(attachmentMetadata, {
             max_in_flight: config.compileMaxInFlight
           })
         });
         deferCompileOperatorAlert("compile_runtime_rejected", "runtime_rejected", 503, {
           detail: "max_in_flight_reached",
-          metadata: mergeMetadata(attachmentMetadata, {
+          metadata: mergeCompileMetadata(attachmentMetadata, {
             max_in_flight: config.compileMaxInFlight
           }),
           upstream: alertUpstream
@@ -496,13 +381,13 @@ export const registerCompileRoute = (
         recordCompileFailure(totalMs, 0, deps.metricsStore);
         await writeCompileEvent("compile_timeout", "timeout", 504, {
           detail: "compile_timeout",
-          metadata: mergeMetadata(attachmentMetadata, {
+          metadata: mergeCompileMetadata(attachmentMetadata, {
             timeout_ms: config.compileTimeoutMs
           })
         });
         deferCompileOperatorAlert("compile_timeout", "timeout", 504, {
           detail: "compile_timeout",
-          metadata: mergeMetadata(attachmentMetadata, {
+          metadata: mergeCompileMetadata(attachmentMetadata, {
             timeout_ms: config.compileTimeoutMs
           }),
           upstream: alertUpstream
@@ -519,7 +404,7 @@ export const registerCompileRoute = (
         recordCompileFailure(totalMs, 0, deps.metricsStore);
         await writeCompileEvent("compile_validation_failure", "validation_failure", 422, {
           detail: "invalid_command_batch",
-          metadata: mergeMetadata(attachmentMetadata, {
+          metadata: mergeCompileMetadata(attachmentMetadata, {
             issues: error.issues
           })
         });

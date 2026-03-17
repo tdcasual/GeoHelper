@@ -4,6 +4,7 @@ import path from "node:path";
 export const loadBudgetConfig = () => ({
   maxComponentLines: 500,
   maxStoreLines: 600,
+  maxModuleLines: 500,
   maxStyleLines: 700,
   maxTestLines: 600,
   requiredHotspots: []
@@ -41,6 +42,14 @@ export const classifyFile = (filePath) => {
   if (filePath.includes("/state/")) {
     return "store";
   }
+  if (
+    filePath.includes("/runtime/") ||
+    filePath.includes("/storage/") ||
+    filePath.includes("/routes/") ||
+    filePath.includes("/services/")
+  ) {
+    return "module";
+  }
   if (filePath.endsWith(".css")) {
     return "style";
   }
@@ -53,6 +62,9 @@ const resolveBudget = (category, budgets) => {
   }
   if (category === "store") {
     return budgets.maxStoreLines;
+  }
+  if (category === "module") {
+    return budgets.maxModuleLines;
   }
   if (category === "style") {
     return budgets.maxStyleLines;
@@ -145,7 +157,7 @@ export const renderHotspotReport = ({
   const lines = [
     "GeoHelper maintainability hotspot report",
     "",
-    `Budgets: component<=${budgets.maxComponentLines}, store<=${budgets.maxStoreLines}, style<=${budgets.maxStyleLines}, test<=${budgets.maxTestLines}`,
+    `Budgets: component<=${budgets.maxComponentLines}, store<=${budgets.maxStoreLines}, module<=${budgets.maxModuleLines}, style<=${budgets.maxStyleLines}, test<=${budgets.maxTestLines}`,
     ""
   ];
 

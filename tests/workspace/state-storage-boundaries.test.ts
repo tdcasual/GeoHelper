@@ -40,4 +40,24 @@ describe("state/storage boundaries", () => {
     expect(chatStoreActions).toContain("./chat-send-flow");
     expect(countLines("apps/web/src/state/chat-store.ts")).toBeLessThan(500);
   });
+
+  it("keeps import orchestration and compile routes delegating to focused helper modules", () => {
+    const backupImport = fs.readFileSync(
+      "apps/web/src/storage/backup-import.ts",
+      "utf8"
+    );
+    const compileRoute = fs.readFileSync(
+      "apps/gateway/src/routes/compile.ts",
+      "utf8"
+    );
+
+    expect(backupImport).toContain("./backup-import-chat");
+    expect(backupImport).toContain("./backup-import-settings");
+    expect(backupImport).toContain("./backup-import-templates");
+    expect(countLines("apps/web/src/storage/backup-import.ts")).toBeLessThan(450);
+
+    expect(compileRoute).toContain("./compile-route-helpers");
+    expect(compileRoute).toContain("./compile-route-alerts");
+    expect(countLines("apps/gateway/src/routes/compile.ts")).toBeLessThan(500);
+  });
 });

@@ -23,11 +23,21 @@ describe("architecture budgets", () => {
       "store"
     );
     expect(reportModule.classifyFile("apps/web/src/styles.css")).toBe("style");
+    expect(reportModule.classifyFile("apps/web/src/runtime/gateway-client.ts")).toBe(
+      "module"
+    );
+    expect(reportModule.classifyFile("apps/web/src/storage/backup-import.ts")).toBe(
+      "module"
+    );
+    expect(reportModule.classifyFile("apps/gateway/src/routes/compile.ts")).toBe(
+      "module"
+    );
     expect(reportModule.classifyFile("packages/protocol/src/schema.ts")).toBe("other");
 
     const budgets = reportModule.loadBudgetConfig();
     expect(budgets.maxComponentLines).toBe(500);
     expect(budgets.maxStoreLines).toBe(600);
+    expect(budgets.maxModuleLines).toBe(500);
     expect(budgets.maxStyleLines).toBe(700);
     expect(budgets.maxTestLines).toBe(600);
     expect(budgets.requiredHotspots).toEqual([]);
@@ -66,6 +76,8 @@ describe("architecture budgets", () => {
       "apps/web/src/components/settings-remote-backup.test.ts"
     );
     expect(hotspotPaths).not.toContain("apps/web/src/state/settings-store.test.ts");
+    expect(hotspotPaths).not.toContain("apps/gateway/src/routes/compile.ts");
+    expect(hotspotPaths).not.toContain("apps/web/src/storage/backup-import.ts");
     const includeTestHotspots = reportModule.collectHotspots({
       cwd: process.cwd(),
       budgets,
@@ -116,9 +128,8 @@ describe("architecture budgets", () => {
     expect(includeTestHotspotPaths).not.toContain(
       "apps/gateway/test/redis-backup-store.test.ts"
     );
-    expect(reportModule.renderHotspotReport({ cwd: process.cwd(), budgets })).toContain(
-      "No over-budget files detected."
-    );
+    const defaultReport = reportModule.renderHotspotReport({ cwd: process.cwd(), budgets });
+    expect(defaultReport).toContain("No over-budget files detected.");
     const includeTestReport = reportModule.renderHotspotReport({
       cwd: process.cwd(),
       budgets,
@@ -141,7 +152,11 @@ describe("architecture budgets", () => {
     expect(countLines("apps/web/src/components/CanvasPanel.tsx")).toBeLessThan(400);
     expect(countLines("apps/web/src/styles.css")).toBeLessThan(120);
     expect(countLines("apps/web/src/storage/backup.ts")).toBeLessThan(450);
+    expect(countLines("apps/web/src/storage/backup-import.ts")).toBeLessThan(450);
     expect(countLines("apps/web/src/storage/remote-sync.ts")).toBeLessThan(320);
+    expect(countLines("apps/web/src/runtime/gateway-client.ts")).toBeLessThan(500);
+    expect(countLines("apps/gateway/src/routes/compile.ts")).toBeLessThan(500);
+    expect(countLines("apps/gateway/src/routes/admin.ts")).toBeLessThan(500);
     expect(countLines("apps/web/src/state/settings-store.test.ts")).toBeLessThan(260);
     expect(countLines("apps/web/src/storage/backup.test.ts")).toBeLessThan(260);
     expect(countLines("apps/web/src/runtime/gateway-client.test.ts")).toBeLessThan(
@@ -193,6 +208,7 @@ describe("architecture budgets", () => {
     expect(baseline).toContain("styles.css");
     expect(baseline).toContain("maxComponentLines");
     expect(baseline).toContain("maxStoreLines");
+    expect(baseline).toContain("maxModuleLines");
     expect(baseline).toContain("maxStyleLines");
     expect(baseline).toContain("maxTestLines");
     expect(baseline).toContain("No active production hotspots over budget");
@@ -208,6 +224,10 @@ describe("architecture budgets", () => {
     expect(baseline).toContain("styles.css < 120");
     expect(baseline).toContain("chat-store.ts < 500");
     expect(baseline).toContain("backup.ts < 450");
+    expect(baseline).toContain("backup-import.ts < 450");
+    expect(baseline).toContain("gateway-client.ts < 500");
+    expect(baseline).toContain("compile.ts < 500");
+    expect(baseline).toContain("admin.ts < 500");
     expect(baseline).toContain("remote-sync.ts < 320");
     expect(baseline).toContain("settings-store.test.ts < 260");
     expect(baseline).toContain("backup.test.ts < 260");
