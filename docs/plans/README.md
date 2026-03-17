@@ -6,6 +6,10 @@ This directory stores dated design and implementation documents.
 
 Use this section when you know the problem domain first and only then want the right design/plan documents.
 
+### Strategy
+
+- Product boundary reset: [`2026-03-17-product-scope-reset-design.md`](./2026-03-17-product-scope-reset-design.md)
+
 ### Runtime
 
 - App baseline: [`2026-03-04-geogebra-llm-app-design.md`](./2026-03-04-geogebra-llm-app-design.md), [`2026-03-04-geogebra-llm-m0-m1-implementation-plan.md`](./2026-03-04-geogebra-llm-m0-m1-implementation-plan.md)
@@ -21,6 +25,8 @@ Use this section when you know the problem domain first and only then want the r
 - Ultrawide settings drawer: [`2026-03-07-ultrawide-settings-drawer-design.md`](./2026-03-07-ultrawide-settings-drawer-design.md), [`2026-03-07-ultrawide-settings-drawer-implementation-plan.md`](./2026-03-07-ultrawide-settings-drawer-implementation-plan.md)
 - VNext teacher diagram studio: [`2026-03-14-vnext-teacher-diagram-studio-design.md`](./2026-03-14-vnext-teacher-diagram-studio-design.md)
 - VNext teacher diagram studio implementation: [`2026-03-14-vnext-teacher-diagram-studio-implementation-plan.md`](./2026-03-14-vnext-teacher-diagram-studio-implementation-plan.md)
+- Teacher studio review flow implementation: [`2026-03-17-teacher-studio-review-flow-implementation-plan.md`](./2026-03-17-teacher-studio-review-flow-implementation-plan.md)
+- Teacher studio confirmation loop and canvas linking: [`2026-03-17-teacher-studio-confirmation-canvas-link-implementation-plan.md`](./2026-03-17-teacher-studio-confirmation-canvas-link-implementation-plan.md)
 
 ### Responsive
 
@@ -71,11 +77,14 @@ The frontend documents split naturally into two layers:
 
 - product/runtime foundations that explain why the app is structured the way it is
 - iterative UI and responsive stabilization plans that refine the shipped experience across desktop, tablet, mobile, and short-height layouts
+- the 2026-03-17 scope reset that defines how all subsequent product work should be interpreted
 
 ### Product & Runtime Foundation
 
 | Theme | Date | Design | Implementation | Status |
 | --- | --- | --- | --- | --- |
+| Product scope reset | 2026-03-17 | [`2026-03-17-product-scope-reset-design.md`](./2026-03-17-product-scope-reset-design.md) | — | Current strategic boundary |
+| Teacher studio review flow | 2026-03-17 | [`2026-03-17-product-scope-reset-design.md`](./2026-03-17-product-scope-reset-design.md) | [`2026-03-17-teacher-studio-review-flow-implementation-plan.md`](./2026-03-17-teacher-studio-review-flow-implementation-plan.md) | Planned |
 | GeoHelper app baseline | 2026-03-04 | [`2026-03-04-geogebra-llm-app-design.md`](./2026-03-04-geogebra-llm-app-design.md) | [`2026-03-04-geogebra-llm-m0-m1-implementation-plan.md`](./2026-03-04-geogebra-llm-m0-m1-implementation-plan.md) | Baseline delivered |
 | Dual runtime architecture | 2026-03-05 | [`2026-03-05-dual-runtime-architecture-design.md`](./2026-03-05-dual-runtime-architecture-design.md) | — | Implemented in V1 baseline |
 | Settings center foundation | 2026-03-05 | [`2026-03-05-settings-center-design.md`](./2026-03-05-settings-center-design.md) | — | Validated + implemented via later UI work |
@@ -103,33 +112,37 @@ The frontend documents split naturally into two layers:
 
 ### Backend
 
-1. Start with [`2026-03-11-backend-v2-roadmap.md`](./2026-03-11-backend-v2-roadmap.md).
-2. Continue through [`2026-03-11-backend-v3-operability-roadmap.md`](./2026-03-11-backend-v3-operability-roadmap.md) and [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md).
-3. Read [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md) for the ops-closure layer.
-4. Continue with [`2026-03-12-backend-v6-vision-attachments-roadmap.md`](./2026-03-12-backend-v6-vision-attachments-roadmap.md) for the current gateway vision/attachment layer.
-5. Read [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md) for the baseline lightweight cloud sync layer.
-6. Read [`2026-03-12-backend-v7b-guarded-lightweight-sync-roadmap.md`](./2026-03-12-backend-v7b-guarded-lightweight-sync-roadmap.md) for conflict-safe uploads without adding SQL.
-7. Read [`2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md`](./2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md) for the Route 1 snapshot-history layer: explicit history browsing and selected-snapshot recovery without adding SQL.
-8. Read [`2026-03-13-backend-v7d-protected-history-retention-roadmap.md`](./2026-03-13-backend-v7d-protected-history-retention-roadmap.md) for the retention layer: protected recovery anchors plus separate ordinary/protected snapshot limits.
-9. Read [`2026-03-13-backend-v7e-selected-history-preflight-roadmap.md`](./2026-03-13-backend-v7e-selected-history-preflight-roadmap.md) for the selected-snapshot recovery guidance layer: selected retained snapshot relation versus the current local snapshot before pull/import.
-10. Read [`2026-03-14-backend-v7f-history-relation-badges-roadmap.md`](./2026-03-14-backend-v7f-history-relation-badges-roadmap.md) for the list-scanning guidance layer: compact local-relation badges across retained snapshot history.
-11. Read [`2026-03-14-backend-v7g-pulled-preview-import-guidance-roadmap.md`](./2026-03-14-backend-v7g-pulled-preview-import-guidance-roadmap.md) for the pulled-preview import-decision guidance layer.
-12. Read [`2026-03-14-backend-v7h-selected-history-pull-stale-guard-roadmap.md`](./2026-03-14-backend-v7h-selected-history-pull-stale-guard-roadmap.md) for the selected-history stale-preview safety layer.
-13. Read [`2026-03-14-backend-v7i-pulled-preview-impact-counts-roadmap.md`](./2026-03-14-backend-v7i-pulled-preview-impact-counts-roadmap.md) for the conversation-level import impact preview layer.
-14. Read [`2026-03-14-backend-v7j-replace-import-confirmation-roadmap.md`](./2026-03-14-backend-v7j-replace-import-confirmation-roadmap.md) for the explicit second-click confirmation safety layer before dangerous replace imports.
-15. Read [`2026-03-14-backend-v7k-import-rollback-anchor-roadmap.md`](./2026-03-14-backend-v7k-import-rollback-anchor-roadmap.md) for the browser-local rollback anchor layer after manual imports.
-16. Read [`2026-03-14-backend-v7l-import-outcome-summary-roadmap.md`](./2026-03-14-backend-v7l-import-outcome-summary-roadmap.md) for the post-import outcome summary and safer rollback-context layer.
-17. Read [`2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md`](./2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md) for the current rollback-anchor safety layer: explicit confirmation before replacing the current rollback anchor with a newer import undo point.
+1. Start with [`2026-03-17-product-scope-reset-design.md`](./2026-03-17-product-scope-reset-design.md) so the backend docs are read through the current local-first, snapshot-based product boundary.
+2. Continue with [`2026-03-11-backend-v2-roadmap.md`](./2026-03-11-backend-v2-roadmap.md).
+3. Continue through [`2026-03-11-backend-v3-operability-roadmap.md`](./2026-03-11-backend-v3-operability-roadmap.md) and [`2026-03-11-backend-v4-automation-backup-roadmap.md`](./2026-03-11-backend-v4-automation-backup-roadmap.md).
+4. Read [`2026-03-12-backend-v5-ops-closure-roadmap.md`](./2026-03-12-backend-v5-ops-closure-roadmap.md) for the ops-closure layer.
+5. Continue with [`2026-03-12-backend-v6-vision-attachments-roadmap.md`](./2026-03-12-backend-v6-vision-attachments-roadmap.md) for the current gateway vision/attachment layer.
+6. Read [`2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md`](./2026-03-12-backend-v7a-lightweight-cloud-sync-roadmap.md) for the baseline lightweight cloud sync layer.
+7. Read [`2026-03-12-backend-v7b-guarded-lightweight-sync-roadmap.md`](./2026-03-12-backend-v7b-guarded-lightweight-sync-roadmap.md) for conflict-safe uploads without adding SQL.
+8. Read [`2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md`](./2026-03-12-backend-v7c-snapshot-history-resolution-roadmap.md) for the Route 1 snapshot-history layer: explicit history browsing and selected-snapshot recovery without adding SQL.
+9. Read [`2026-03-13-backend-v7d-protected-history-retention-roadmap.md`](./2026-03-13-backend-v7d-protected-history-retention-roadmap.md) for the retention layer: protected recovery anchors plus separate ordinary/protected snapshot limits.
+10. Read [`2026-03-13-backend-v7e-selected-history-preflight-roadmap.md`](./2026-03-13-backend-v7e-selected-history-preflight-roadmap.md) for the selected-snapshot recovery guidance layer: selected retained snapshot relation versus the current local snapshot before pull/import.
+11. Read [`2026-03-14-backend-v7f-history-relation-badges-roadmap.md`](./2026-03-14-backend-v7f-history-relation-badges-roadmap.md) for the list-scanning guidance layer: compact local-relation badges across retained snapshot history.
+12. Read [`2026-03-14-backend-v7g-pulled-preview-import-guidance-roadmap.md`](./2026-03-14-backend-v7g-pulled-preview-import-guidance-roadmap.md) for the pulled-preview import-decision guidance layer.
+13. Read [`2026-03-14-backend-v7h-selected-history-pull-stale-guard-roadmap.md`](./2026-03-14-backend-v7h-selected-history-pull-stale-guard-roadmap.md) for the selected-history stale-preview safety layer.
+14. Read [`2026-03-14-backend-v7i-pulled-preview-impact-counts-roadmap.md`](./2026-03-14-backend-v7i-pulled-preview-impact-counts-roadmap.md) for the conversation-level import impact preview layer.
+15. Read [`2026-03-14-backend-v7j-replace-import-confirmation-roadmap.md`](./2026-03-14-backend-v7j-replace-import-confirmation-roadmap.md) for the explicit second-click confirmation safety layer before dangerous replace imports.
+16. Read [`2026-03-14-backend-v7k-import-rollback-anchor-roadmap.md`](./2026-03-14-backend-v7k-import-rollback-anchor-roadmap.md) for the browser-local rollback anchor layer after manual imports.
+17. Read [`2026-03-14-backend-v7l-import-outcome-summary-roadmap.md`](./2026-03-14-backend-v7l-import-outcome-summary-roadmap.md) for the post-import outcome summary and safer rollback-context layer.
+18. Read [`2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md`](./2026-03-14-backend-v7m-rollback-anchor-overwrite-guard-roadmap.md) for the current rollback-anchor safety layer: explicit confirmation before replacing the current rollback anchor with a newer import undo point.
 
 ### Frontend
 
-1. Start with the product baseline: [`2026-03-04-geogebra-llm-app-design.md`](./2026-03-04-geogebra-llm-app-design.md) and [`2026-03-04-geogebra-llm-m0-m1-implementation-plan.md`](./2026-03-04-geogebra-llm-m0-m1-implementation-plan.md).
-2. Read [`2026-03-05-dual-runtime-architecture-design.md`](./2026-03-05-dual-runtime-architecture-design.md) for runtime mode context.
-3. Read the settings/composer path: [`2026-03-05-settings-center-design.md`](./2026-03-05-settings-center-design.md), [`2026-03-06-composer-vision-settings-center-design.md`](./2026-03-06-composer-vision-settings-center-design.md), and [`2026-03-06-composer-vision-settings-implementation-plan.md`](./2026-03-06-composer-vision-settings-implementation-plan.md).
-4. Read [`2026-03-06-geogebra-self-hosted-latest-design.md`](./2026-03-06-geogebra-self-hosted-latest-design.md) and [`2026-03-06-geogebra-self-hosted-latest-implementation-plan.md`](./2026-03-06-geogebra-self-hosted-latest-implementation-plan.md) for vendor-sync/self-hosting history.
-5. Read the chat and responsive series in order: [`2026-03-05-chat-ui-redesign-design.md`](./2026-03-05-chat-ui-redesign-design.md), [`2026-03-05-chat-ui-redesign-implementation-plan.md`](./2026-03-05-chat-ui-redesign-implementation-plan.md), then the 2026-03-06 to 2026-03-08 stabilization plans.
-6. Read [`2026-03-14-vnext-teacher-diagram-studio-design.md`](./2026-03-14-vnext-teacher-diagram-studio-design.md) and [`2026-03-14-vnext-teacher-diagram-studio-implementation-plan.md`](./2026-03-14-vnext-teacher-diagram-studio-implementation-plan.md) for the next product-facing direction: homepage + workspace reframe around teacher-first diagram generation.
-7. Finish with [`2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md`](./2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md) when debugging restore, hydration, or in-place backup import behavior.
+1. Start with [`2026-03-17-product-scope-reset-design.md`](./2026-03-17-product-scope-reset-design.md) to anchor the current product boundary.
+2. Continue with the product baseline: [`2026-03-04-geogebra-llm-app-design.md`](./2026-03-04-geogebra-llm-app-design.md) and [`2026-03-04-geogebra-llm-m0-m1-implementation-plan.md`](./2026-03-04-geogebra-llm-m0-m1-implementation-plan.md).
+3. Read [`2026-03-05-dual-runtime-architecture-design.md`](./2026-03-05-dual-runtime-architecture-design.md) for runtime mode context.
+4. Read the settings/composer path: [`2026-03-05-settings-center-design.md`](./2026-03-05-settings-center-design.md), [`2026-03-06-composer-vision-settings-center-design.md`](./2026-03-06-composer-vision-settings-center-design.md), and [`2026-03-06-composer-vision-settings-implementation-plan.md`](./2026-03-06-composer-vision-settings-implementation-plan.md).
+5. Read [`2026-03-06-geogebra-self-hosted-latest-design.md`](./2026-03-06-geogebra-self-hosted-latest-design.md) and [`2026-03-06-geogebra-self-hosted-latest-implementation-plan.md`](./2026-03-06-geogebra-self-hosted-latest-implementation-plan.md) for vendor-sync/self-hosting history.
+6. Read the chat and responsive series in order: [`2026-03-05-chat-ui-redesign-design.md`](./2026-03-05-chat-ui-redesign-design.md), [`2026-03-05-chat-ui-redesign-implementation-plan.md`](./2026-03-05-chat-ui-redesign-implementation-plan.md), then the 2026-03-06 to 2026-03-08 stabilization plans.
+7. Read [`2026-03-14-vnext-teacher-diagram-studio-design.md`](./2026-03-14-vnext-teacher-diagram-studio-design.md) and [`2026-03-14-vnext-teacher-diagram-studio-implementation-plan.md`](./2026-03-14-vnext-teacher-diagram-studio-implementation-plan.md) for the product-facing direction: homepage + workspace reframe around teacher-first diagram generation.
+8. Continue with [`2026-03-17-teacher-studio-review-flow-implementation-plan.md`](./2026-03-17-teacher-studio-review-flow-implementation-plan.md) for the first reviewability layer: structured result contract, review panel, continue editing, and teacher-facing failure handling.
+9. Then read [`2026-03-17-teacher-studio-confirmation-canvas-link-implementation-plan.md`](./2026-03-17-teacher-studio-confirmation-canvas-link-implementation-plan.md) for the next execution layer: actionable uncertainty closure, browser-side canvas focus, and compact/mobile review-to-canvas linking.
+10. Finish with [`2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md`](./2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md) when debugging restore, hydration, or in-place backup import behavior.
 
 ## Related Runtime Docs
 
