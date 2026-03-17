@@ -4,6 +4,7 @@ import { buildServer } from "../src/server";
 import { createMemoryKvClient } from "../src/services/kv-client";
 import { createRedisSessionRevocationStore } from "../src/services/redis-session-store";
 import { createMemorySessionRevocationStore } from "../src/services/session-store";
+import { createGeometryAgentResponder } from "./helpers/geometry-agent-stub";
 
 describe("POST /api/v1/auth/token/revoke", () => {
   it("revokes session and blocks future official compile calls", async () => {
@@ -15,14 +16,7 @@ describe("POST /api/v1/auth/token/revoke", () => {
       },
       {
         sessionStore,
-        requestCommandBatch: async () => ({
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        })
+        requestCommandBatch: createGeometryAgentResponder()
       }
     );
 
@@ -69,14 +63,7 @@ describe("POST /api/v1/auth/token/revoke", () => {
       {
         kvClient,
         sessionStore: createRedisSessionRevocationStore(kvClient),
-        requestCommandBatch: async () => ({
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        })
+        requestCommandBatch: createGeometryAgentResponder()
       }
     );
 
@@ -103,14 +90,7 @@ describe("POST /api/v1/auth/token/revoke", () => {
       {
         kvClient,
         sessionStore: createRedisSessionRevocationStore(kvClient),
-        requestCommandBatch: async () => ({
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        })
+        requestCommandBatch: createGeometryAgentResponder()
       }
     );
 

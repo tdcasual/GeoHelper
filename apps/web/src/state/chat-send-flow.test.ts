@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { createAgentRunEnvelopeFixture } from "../test-utils/agent-run-fixture";
 import {
   buildAssistantMessageFromError,
   buildAssistantMessageFromGuard,
@@ -84,41 +85,88 @@ describe("chat-send-flow", () => {
     expect(
       buildAssistantMessageFromCompileResult({
         id: "msg_assistant",
-        batch: {
-          version: "1.0",
-          scene_id: "scene_1",
-          transaction_id: "tx_1",
-          commands: [
-            {
-              id: "cmd_circle",
-              op: "create_conic",
-              args: {
-                kind: "Circle",
-                points: ["A", "B"]
-              },
-              depends_on: [],
-              idempotency_key: "cmd_circle_1"
+        agentRun: createAgentRunEnvelopeFixture({
+          run: {
+            id: "run_1"
+          },
+          draft: {
+            commandBatchDraft: {
+              version: "1.0",
+              scene_id: "scene_1",
+              transaction_id: "tx_1",
+              commands: [
+                {
+                  id: "cmd_circle",
+                  op: "create_conic",
+                  args: {
+                    kind: "Circle",
+                    points: ["A", "B"]
+                  },
+                  depends_on: [],
+                  idempotency_key: "cmd_circle_1"
+                }
+              ],
+              post_checks: [
+                "待确认：点 D 在线段 BC 上",
+                "注意：请检查角平分线是否穿过顶点 A"
+              ],
+              explanations: ["已创建三角形 ABC", "已作角平分线 AD"]
             }
-          ],
-          post_checks: [
-            "待确认：点 D 在线段 BC 上",
-            "注意：请检查角平分线是否穿过顶点 A"
-          ],
-          explanations: ["已创建三角形 ABC", "已作角平分线 AD"]
-        },
-        traceId: "trace_1",
-        agentSteps: [
-          {
-            name: "intent",
-            status: "ok",
-            duration_ms: 12
+          },
+          teacherPacket: {
+            summary: ["已创建三角形 ABC", "已作角平分线 AD"],
+            warnings: ["注意：请检查角平分线是否穿过顶点 A"],
+            uncertainties: [
+              {
+                id: "unc_点_d_在线段_bc_上",
+                label: "点 D 在线段 BC 上",
+                reviewStatus: "pending",
+                followUpPrompt:
+                  "请基于当前图形结果，重新检查并明确以下待确认条件：点 D 在线段 BC 上。如果条件不成立，也请直接指出。"
+              }
+            ],
+            canvasLinks: [
+              {
+                id: "summary_1",
+                scope: "summary",
+                text: "已创建三角形 ABC",
+                objectLabels: ["A", "B", "C"]
+              },
+              {
+                id: "summary_2",
+                scope: "summary",
+                text: "已作角平分线 AD",
+                objectLabels: ["A", "D"]
+              },
+              {
+                id: "uncertainty_unc_点_d_在线段_bc_上",
+                scope: "uncertainty",
+                text: "点 D 在线段 BC 上",
+                objectLabels: ["D", "B", "C"],
+                uncertaintyId: "unc_点_d_在线段_bc_上"
+              }
+            ]
+          },
+          telemetry: {
+            upstreamCallCount: 2,
+            degraded: false,
+            retryCount: 0,
+            stages: [
+              {
+                name: "author",
+                status: "ok",
+                durationMs: 12
+              }
+            ]
           }
-        ]
+        }),
+        traceId: "trace_1",
       })
     ).toMatchObject({
       role: "assistant",
       content: "已创建三角形 ABC\n已作角平分线 AD",
       traceId: "trace_1",
+      agentRunId: "run_1",
       result: {
         status: "success",
         commandCount: 1,
@@ -158,7 +206,7 @@ describe("chat-send-flow", () => {
       },
       agentSteps: [
         {
-          name: "intent",
+          name: "author",
           status: "ok",
           duration_ms: 12
         }
@@ -170,14 +218,34 @@ describe("chat-send-flow", () => {
     expect(
       buildAssistantMessageFromCompileResult({
         id: "msg_assistant_fallback",
-        batch: {
-          version: "1.0",
-          scene_id: "scene_1",
-          transaction_id: "tx_1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        }
+        agentRun: createAgentRunEnvelopeFixture({
+          run: {
+            id: "run_fallback"
+          },
+          draft: {
+            commandBatchDraft: {
+              version: "1.0",
+              scene_id: "scene_1",
+              transaction_id: "tx_1",
+              commands: [],
+              post_checks: [],
+              explanations: []
+            }
+          },
+          teacherPacket: {
+            summary: ["已生成 0 条指令"],
+            warnings: [],
+            uncertainties: [],
+            canvasLinks: [],
+            nextActions: []
+          },
+          telemetry: {
+            upstreamCallCount: 1,
+            degraded: false,
+            retryCount: 0,
+            stages: []
+          }
+        })
       })
     ).toMatchObject({
       content: "已生成 0 条指令",

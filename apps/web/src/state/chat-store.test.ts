@@ -1,50 +1,50 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { RuntimeApiError } from "../runtime/orchestrator";
+import { createAgentRunEnvelopeFixture } from "../test-utils/agent-run-fixture";
 import { createChatStore } from "./chat-store";
 import { sceneStore } from "./scene-store";
 import { settingsStore } from "./settings-store";
 
+const createCompileResponse = (overrides: Parameters<
+  typeof createAgentRunEnvelopeFixture
+>[0] = {}) => ({
+  agent_run: createAgentRunEnvelopeFixture(overrides)
+});
+
 describe("chat-store", () => {
   it("stores compile result and appends assistant message", async () => {
-    const compile = vi.fn().mockResolvedValue({
-      batch: {
-        version: "1.0",
-        scene_id: "s1",
-        transaction_id: "t1",
-        commands: [],
-        post_checks: [],
-        explanations: []
-      },
-      agent_steps: [
-        {
-          name: "intent",
-          status: "ok",
-          duration_ms: 8
+    const compile = vi.fn().mockResolvedValue(
+      createCompileResponse({
+        run: {
+          id: "run_store"
+        },
+        telemetry: {
+          upstreamCallCount: 2,
+          degraded: false,
+          retryCount: 0,
+          stages: [
+            {
+              name: "author",
+              status: "ok",
+              durationMs: 8
+            }
+          ]
         }
-      ]
-    });
+      })
+    );
     const store = createChatStore({ compile });
 
     await store.getState().send("画一个圆");
 
     const message = store.getState().messages.at(-1);
     expect(message?.role).toBe("assistant");
-    expect(message?.agentSteps?.[0]?.name).toBe("intent");
+    expect(message?.agentRunId).toBe("run_store");
+    expect(message?.agentSteps?.[0]?.name).toBe("author");
   });
 
   it("dispatches proof-assist follow-up prompts as explicit user requests", async () => {
-    const compile = vi.fn().mockResolvedValue({
-      batch: {
-        version: "1.0",
-        scene_id: "s1",
-        transaction_id: "t1",
-        commands: [],
-        post_checks: [],
-        explanations: []
-      },
-      agent_steps: []
-    });
+    const compile = vi.fn().mockResolvedValue(createCompileResponse());
     const store = createChatStore({ compile });
 
     await store
@@ -94,17 +94,7 @@ describe("chat-store", () => {
   });
 
   it("isolates messages between conversations when switching", async () => {
-    const compile = vi.fn().mockResolvedValue({
-      batch: {
-        version: "1.0",
-        scene_id: "s1",
-        transaction_id: "t1",
-        commands: [],
-        post_checks: [],
-        explanations: []
-      },
-      agent_steps: []
-    });
+    const compile = vi.fn().mockResolvedValue(createCompileResponse());
     const store = createChatStore({ compile });
 
     const firstConversationId = store.getState().activeConversationId;
@@ -125,17 +115,7 @@ describe("chat-store", () => {
   });
 
   it("stores image attachments on user messages and forwards them to compile", async () => {
-    const compile = vi.fn().mockResolvedValue({
-      batch: {
-        version: "1.0",
-        scene_id: "s1",
-        transaction_id: "t1",
-        commands: [],
-        post_checks: [],
-        explanations: []
-      },
-      agent_steps: []
-    });
+    const compile = vi.fn().mockResolvedValue(createCompileResponse());
     const resolveCompileOptions = vi.fn().mockResolvedValue({
       runtimeTarget: "direct",
       runtimeBaseUrl: "https://openrouter.ai/api/v1",
@@ -179,17 +159,7 @@ describe("chat-store", () => {
     const compile = vi
       .fn()
       .mockRejectedValueOnce(new Error("network"))
-      .mockResolvedValue({
-        batch: {
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        },
-        agent_steps: []
-      });
+      .mockResolvedValue(createCompileResponse());
     const resolveCompileOptions = vi.fn().mockResolvedValue({
       model: "gpt-4o-mini",
       byokEndpoint: "https://openrouter.ai/api/v1",
@@ -256,17 +226,7 @@ describe("chat-store", () => {
       explanations: []
     });
 
-    const compile = vi.fn().mockResolvedValue({
-      batch: {
-        version: "1.0",
-        scene_id: "s1",
-        transaction_id: "t1",
-        commands: [],
-        post_checks: [],
-        explanations: []
-      },
-      agent_steps: []
-    });
+    const compile = vi.fn().mockResolvedValue(createCompileResponse());
     const store = createChatStore({ compile });
 
     await store.getState().send("先画一个圆");

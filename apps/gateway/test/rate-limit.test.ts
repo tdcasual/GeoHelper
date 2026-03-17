@@ -4,6 +4,7 @@ import { buildServer } from "../src/server";
 import { createMemoryKvClient } from "../src/services/kv-client";
 import { createMemoryRateLimitStore } from "../src/services/rate-limit-store";
 import { createRedisRateLimitStore } from "../src/services/redis-rate-limit-store";
+import { createGeometryAgentResponder } from "./helpers/geometry-agent-stub";
 
 describe("rate limiting", () => {
   it("returns 429 when request quota is exceeded", async () => {
@@ -16,14 +17,7 @@ describe("rate limiting", () => {
       },
       {
         rateLimitStore,
-        requestCommandBatch: async () => ({
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        })
+        requestCommandBatch: createGeometryAgentResponder()
       }
     );
 
@@ -61,14 +55,7 @@ describe("rate limiting", () => {
       {
         kvClient,
         rateLimitStore: createRedisRateLimitStore(kvClient),
-        requestCommandBatch: async () => ({
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        })
+        requestCommandBatch: createGeometryAgentResponder()
       }
     );
 
@@ -77,14 +64,7 @@ describe("rate limiting", () => {
       {
         kvClient,
         rateLimitStore: createRedisRateLimitStore(kvClient),
-        requestCommandBatch: async () => ({
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        })
+        requestCommandBatch: createGeometryAgentResponder()
       }
     );
 

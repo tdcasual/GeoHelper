@@ -176,49 +176,64 @@ const classifyReviewLines = (
 
 export const buildAssistantMessageFromCompileResult = (input: {
   id: string;
-  batch: RuntimeCompileResponse["batch"];
+  agentRun: RuntimeCompileResponse["agent_run"];
   traceId?: RuntimeCompileResponse["trace_id"];
-  agentSteps?: RuntimeCompileResponse["agent_steps"];
 }): ChatMessage => {
-  const explanationReview = classifyReviewLines(input.batch.explanations, "summary");
-  const postCheckReview = classifyReviewLines(input.batch.post_checks, "warning");
-  const fallbackSummary = `已生成 ${input.batch.commands.length} 条指令`;
+  const batch = input.agentRun.draft.commandBatchDraft;
+  const teacherSummary = normalizeLines(input.agentRun.teacherPacket.summary);
+  const explanationReview = classifyReviewLines(batch.explanations, "summary");
+  const postCheckReview = classifyReviewLines(batch.post_checks, "warning");
+  const fallbackSummary = `已生成 ${batch.commands.length} 条指令`;
   const summaryItems =
-    explanationReview.summaryItems.length > 0
-      ? explanationReview.summaryItems
+    teacherSummary.length > 0
+      ? teacherSummary
+      : explanationReview.summaryItems.length > 0
+        ? explanationReview.summaryItems
       : [fallbackSummary];
+  const warningItems =
+    input.agentRun.teacherPacket.warnings.length > 0
+      ? normalizeLines(input.agentRun.teacherPacket.warnings)
+      : [
+          ...explanationReview.warningItems,
+          ...postCheckReview.warningItems
+        ];
+  const uncertaintyItems =
+    input.agentRun.teacherPacket.uncertainties.length > 0
+      ? input.agentRun.teacherPacket.uncertainties
+      : [
+          ...explanationReview.uncertaintyItems,
+          ...postCheckReview.uncertaintyItems
+        ];
+  const canvasLinks =
+    input.agentRun.teacherPacket.canvasLinks.length > 0
+      ? input.agentRun.teacherPacket.canvasLinks
+      : buildStudioCanvasLinks({
+          summaryItems,
+          warningItems,
+          uncertaintyItems
+        });
 
   return {
     id: input.id,
     role: "assistant",
     content: summaryItems.join("\n"),
     result: {
-      status: "success",
-      commandCount: input.batch.commands.length,
+      status: input.agentRun.run.status === "failed" ? "error" : "success",
+      commandCount: batch.commands.length,
       summaryItems,
-      explanationLines: normalizeLines(input.batch.explanations),
-      warningItems: [
-        ...explanationReview.warningItems,
-        ...postCheckReview.warningItems
-      ],
-      uncertaintyItems: [
-        ...explanationReview.uncertaintyItems,
-        ...postCheckReview.uncertaintyItems
-      ],
-      canvasLinks: buildStudioCanvasLinks({
-        summaryItems,
-        warningItems: [
-          ...explanationReview.warningItems,
-          ...postCheckReview.warningItems
-        ],
-        uncertaintyItems: [
-          ...explanationReview.uncertaintyItems,
-          ...postCheckReview.uncertaintyItems
-        ]
-      })
+      explanationLines: normalizeLines(batch.explanations),
+      warningItems,
+      uncertaintyItems,
+      canvasLinks
     },
+    agentRunId: input.agentRun.run.id,
     traceId: input.traceId,
-    agentSteps: Array.isArray(input.agentSteps) ? input.agentSteps : []
+    agentSteps: input.agentRun.telemetry.stages.map((stage) => ({
+      name: stage.name,
+      status: stage.status,
+      duration_ms: stage.durationMs,
+      detail: stage.detail
+    }))
   };
 };
 

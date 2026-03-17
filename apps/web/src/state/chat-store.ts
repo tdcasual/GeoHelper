@@ -1,4 +1,4 @@
-import { CommandBatch } from "@geohelper/protocol";
+import { type AgentRunEnvelope, CommandBatch } from "@geohelper/protocol";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 
@@ -8,11 +8,13 @@ import {
   AgentStep,
   ChatMode,
   RuntimeAttachment,
+  RuntimeCompileRequest,
   RuntimeCompileResponse,
   RuntimeTarget
 } from "../runtime/types";
 import { ensureRemoteSyncStartupCheck } from "../storage/remote-sync";
 import type { PersistedChatSnapshot } from "./chat-persistence";
+import { agentRunStore } from "./agent-run-store";
 import type {
   ChatStudioResult,
   ChatStudioUncertaintyReviewStatus
@@ -34,6 +36,7 @@ export interface ChatMessage {
   content: string;
   attachments?: ChatAttachment[];
   result?: ChatStudioResult;
+  agentRunId?: string;
   traceId?: string;
   agentSteps?: AgentStep[];
 }
@@ -41,6 +44,7 @@ export interface ChatMessage {
 export interface ChatSendInput {
   content: string;
   attachments?: ChatAttachment[];
+  repair?: RuntimeCompileRequest["repair"];
 }
 
 export interface ConversationThread {
@@ -97,6 +101,7 @@ export interface ChatStoreDeps {
         commandCount: number;
       }>;
     };
+    repair?: RuntimeCompileRequest["repair"];
   }) => Promise<RuntimeCompileResponse>;
   execute: (batch: CommandBatch) => Promise<void>;
   resolveCompileOptions: (input: {
@@ -104,6 +109,10 @@ export interface ChatStoreDeps {
     mode: ChatMode;
   }) => Promise<CompileRuntimeOptions>;
   logEvent: (event: { level: "info" | "error"; message: string }) => void;
+  recordAgentRun: (input: {
+    messageId: string;
+    agentRun: AgentRunEnvelope;
+  }) => void;
 }
 
 const defaultDeps: ChatStoreDeps = {
@@ -119,7 +128,8 @@ const defaultDeps: ChatStoreDeps = {
     timeoutMs,
     extraHeaders,
     attachments,
-    context
+    context,
+    repair
   }) =>
     compileWithRuntime({
       target: runtimeTarget ?? "gateway",
@@ -133,6 +143,7 @@ const defaultDeps: ChatStoreDeps = {
       extraHeaders,
       attachments,
       context,
+      repair,
       sessionToken: sessionToken ?? undefined
     }),
   execute: (batch) => executeBatch(batch),
@@ -141,7 +152,12 @@ const defaultDeps: ChatStoreDeps = {
       conversationId,
       mode
     }),
-  logEvent: (event) => appendDebugEventIfEnabled(event)
+  logEvent: (event) => appendDebugEventIfEnabled(event),
+  recordAgentRun: ({ messageId, agentRun }) => {
+    const state = agentRunStore.getState();
+    state.upsertRun(agentRun);
+    state.linkMessageToRun(messageId, agentRun.run.id);
+  }
 };
 
 export const createChatStore = (

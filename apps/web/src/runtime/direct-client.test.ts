@@ -39,7 +39,9 @@ describe("direct runtime client", () => {
       model: "openai/gpt-4o-mini"
     });
 
-    expect(result.batch.scene_id).toBe("scene_1");
+    expect(result.agent_run.run.target).toBe("direct");
+    expect(result.agent_run.draft.commandBatchDraft.scene_id).toBe("scene_1");
+    expect(result.agent_run.teacherPacket.summary[0]).toContain("已生成");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -96,6 +98,45 @@ describe("direct runtime client", () => {
         type: "image_url",
         image_url: { url: "data:image/png;base64,AAAA" }
       }
+    ]);
+  });
+
+  it("includes a direct-lite stage timeline in the returned agent run", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                version: "1.0",
+                scene_id: "scene_1",
+                transaction_id: "tx_1",
+                commands: [],
+                post_checks: [],
+                explanations: ["已生成草案"]
+              })
+            }
+          }
+        ]
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createDirectClient();
+    const result = await client.compile({
+      target: "direct",
+      mode: "byok",
+      message: "作线段 AB 的中点 M",
+      byokEndpoint: "https://openrouter.ai/api/v1",
+      byokKey: "sk-live"
+    });
+
+    expect(result.agent_run.telemetry.stages).toEqual([
+      expect.objectContaining({
+        name: "author",
+        status: "ok"
+      })
     ]);
   });
 

@@ -1,5 +1,6 @@
-import { type RuntimeAttachment } from "@geohelper/protocol";
+import { type AgentRunStatus, type RuntimeAttachment } from "@geohelper/protocol";
 
+import { type CompileFinalStatus } from "../services/compile-events";
 import { type CompileContext } from "../services/litellm-client";
 
 interface RawCompileContext {
@@ -67,4 +68,17 @@ export const mergeCompileMetadata = (
 ): Record<string, unknown> | undefined => {
   const merged = Object.assign({}, ...parts.filter(Boolean));
   return Object.keys(merged).length > 0 ? merged : undefined;
+};
+
+export const toCompileFinalStatusFromAgentRun = (
+  status: AgentRunStatus
+): Extract<CompileFinalStatus, "success" | "needs_review" | "degraded"> => {
+  switch (status) {
+    case "success":
+    case "needs_review":
+    case "degraded":
+      return status;
+    case "failed":
+      return "needs_review";
+  }
 };

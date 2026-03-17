@@ -1,23 +1,20 @@
-import type { PointerEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
-import { sceneFocusStore } from "../state/scene-focus-store";
 import { useSceneStore } from "../state/scene-store";
 import { useSettingsStore } from "../state/settings-store";
 import { type StudioStartMode } from "../state/studio-start";
 import { useUIStore } from "../state/ui-store";
 import { SettingsDrawer } from "./SettingsDrawer";
 import { TokenGateDialog } from "./TokenGateDialog";
-import { resolveHistoryDrawerLayout } from "./workspace-shell/history-layout";
 import { buildWorkspaceLayoutProps } from "./workspace-shell/layout-props";
 import { useWorkspaceComposer } from "./workspace-shell/useWorkspaceComposer";
+import { useWorkspaceShellBehavior } from "./workspace-shell/useWorkspaceShellBehavior";
 import { useWorkspaceRuntimeSession } from "./workspace-shell/useWorkspaceRuntimeSession";
-import { resolveWorkspaceViewportState } from "./workspace-shell/viewport";
 import { WorkspaceCompactLayout } from "./workspace-shell/WorkspaceCompactLayout";
 import { WorkspaceDesktopLayout } from "./workspace-shell/WorkspaceDesktopLayout";
 import { WorkspaceTopBar } from "./workspace-shell/WorkspaceTopBar";
 
-// Layout boundary refs: ./workspace-shell/WorkspaceConversationSidebar ./workspace-shell/WorkspaceChatMessages ./workspace-shell/WorkspaceChatComposer ./workspace-shell/WorkspaceChatHeader
+// Layout boundary refs: ./workspace-shell/WorkspaceConversationSidebar ./workspace-shell/WorkspaceChatMessages ./workspace-shell/WorkspaceChatComposer ./workspace-shell/WorkspaceChatHeader ./workspace-shell/viewport ./workspace-shell/history-layout
 
 type MobileSurface = "canvas" | "chat";
 
@@ -122,334 +119,72 @@ export const WorkspaceShell = ({
   const effectiveHistoryDrawerVisible = compactViewport
     ? compactHistorySheetVisible
     : historyDrawerVisible;
-  const canvasVisible = !compactViewport || mobileSurface === "canvas";
-  const effectiveChatVisible = compactViewport
-    ? mobileSurface === "chat"
-    : chatVisible;
-
-  useEffect(() => {
-    if (typeof document === "undefined") {
-      return;
-    }
-
-    const syncFullscreenState = () => {
-      setCanvasFullscreenActive(!!document.fullscreenElement);
-    };
-
-    syncFullscreenState();
-    document.addEventListener("fullscreenchange", syncFullscreenState);
-    return () => {
-      document.removeEventListener("fullscreenchange", syncFullscreenState);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!canvasFullscreenActive) {
-      setCanvasMountKey(rawCanvasMountKey);
-    }
-  }, [canvasFullscreenActive, rawCanvasMountKey]);
-
-  useEffect(() => {
-    const syncViewport = () => {
-      const { compactViewport, phoneViewport, shortViewport } =
-        resolveWorkspaceViewportState({
-          width: window.innerWidth,
-          height: window.innerHeight
-        });
-      setIsCompactViewport(compactViewport);
-      setIsMobileViewport(phoneViewport);
-      setIsShortViewport(shortViewport);
-    };
-
-    syncViewport();
-    window.addEventListener("resize", syncViewport);
-    return () => {
-      window.removeEventListener("resize", syncViewport);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!compactViewport) {
-      setMobileActionsOpen(false);
-      setCompactHistorySheetVisible(false);
-      return;
-    }
-
-    setMobileActionsOpen(false);
-    setMobileSurface("canvas");
-    setCompactHistorySheetVisible(false);
-  }, [compactViewport]);
-
-  useEffect(() => {
-    if (
-      compactViewport &&
-      mobileSurface !== "chat" &&
-      compactHistorySheetVisible
-    ) {
-      setCompactHistorySheetVisible(false);
-    }
-  }, [compactHistorySheetVisible, compactViewport, mobileSurface]);
-
-  useEffect(() => {
-    const node = chatShellRef.current;
-    if (!node || typeof ResizeObserver === "undefined") {
-      return;
-    }
-
-    const observer = new ResizeObserver((entries) => {
-      const nextWidth = entries[0]?.contentRect.width ?? 0;
-      setChatShellWidth(nextWidth);
-    });
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-
-  const { computedHistoryDrawerWidth, desktopHistoryOverlay, historyDrawerStyle } =
-    resolveHistoryDrawerLayout({
-      compactViewport,
-      chatShellWidth,
-      historyDrawerVisible,
-      historyDrawerWidth
-    });
-
-  useEffect(() => {
-    if (typeof document === "undefined") {
-      return;
-    }
-
-    const handlePointerDown = (event: globalThis.PointerEvent) => {
-      const target = event.target as Node | null;
-      if (!target) {
-        return;
-      }
-
-      if (mobileActionsOpen) {
-        const insideActionsMenu = mobileActionsMenuRef.current?.contains(target);
-        const insideActionsButton = mobileActionsButtonRef.current?.contains(target);
-        if (!insideActionsMenu && !insideActionsButton) {
-          setMobileActionsOpen(false);
-        }
-      }
-
-      if (composer.plusMenuOpen) {
-        const insidePlusMenu = plusMenuRef.current?.contains(target);
-        const insidePlusButton = plusMenuButtonRef.current?.contains(target);
-        if (!insidePlusMenu && !insidePlusButton) {
-          composer.setPlusMenuOpen(false);
-        }
-      }
-
-      if (composer.slashMenuVisible) {
-        const insideComposer = composerFormRef.current?.contains(target);
-        if (!insideComposer) {
-          composer.closeComposerMenus();
-        }
-      }
-    };
-
-    if (
-      mobileActionsOpen ||
-      composer.plusMenuOpen ||
-      composer.slashMenuVisible
-    ) {
-      document.addEventListener("pointerdown", handlePointerDown);
-    }
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-    };
-  }, [
+  const {
+    computedHistoryDrawerWidth,
+    desktopHistoryOverlay,
+    historyDrawerStyle,
+    canvasVisible,
+    effectiveChatVisible,
+    openSettingsDrawer,
+    handleHistoryResizeStart,
+    handleRollbackAction,
+    handleClearSceneAction,
+    handleLogoutAction,
+    handleSelectMobileSurface,
+    handleMobileActionsToggle,
+    handleHistoryToggle,
+    handleCreateConversation,
+    handleSelectConversation,
+    handleApplyTemplateLibrary,
+    handleFocusUncertainty
+  } = useWorkspaceShellBehavior({
+    chatShellRef,
+    composerFormRef,
+    composerRef,
+    mobileActionsButtonRef,
+    mobileActionsMenuRef,
+    plusMenuButtonRef,
+    plusMenuRef,
+    initialDesktopInputMode,
+    initialTemplateLibraryOpen,
+    onTemplateLibraryOpenChange,
+    composer,
+    chatVisible,
+    historyDrawerVisible,
+    historyDrawerWidth,
+    toggleHistoryDrawer,
+    setHistoryDrawerWidth,
+    setSettingsOpen,
+    rollbackLastScene,
+    clearScene,
+    handleLogout: runtimeSession.handleLogout,
+    compactViewport,
+    setIsCompactViewport,
+    phoneViewport,
+    setIsMobileViewport,
+    shortViewport,
+    setIsShortViewport,
+    mobileSurface,
+    setMobileSurface,
     mobileActionsOpen,
-    composer.closeComposerMenus,
-    composer.plusMenuOpen,
-    composer.setPlusMenuOpen,
-    composer.slashMenuVisible
-  ]);
-
-  useEffect(() => {
-    setDesktopInputMode(initialDesktopInputMode);
-  }, [initialDesktopInputMode]);
-
-  useEffect(() => {
-    setTemplateLibraryOpen(initialTemplateLibraryOpen);
-  }, [initialTemplateLibraryOpen]);
-
-  useEffect(() => {
-    if (!canvasFocusNotice) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setCanvasFocusNotice(null);
-      setActiveFocusUncertaintyId((current) =>
-        current === canvasFocusNotice.uncertaintyId ? null : current
-      );
-    }, 4200);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [canvasFocusNotice]);
-
-  useEffect(() => {
-    onTemplateLibraryOpenChange?.(templateLibraryOpen);
-  }, [onTemplateLibraryOpenChange, templateLibraryOpen]);
-
-  useEffect(() => {
-    const currentUncertainties =
-      composer.latestAssistantMessage?.result?.uncertaintyItems ?? [];
-    if (
-      activeFocusUncertaintyId &&
-      !currentUncertainties.some((item) => item.id === activeFocusUncertaintyId)
-    ) {
-      setActiveFocusUncertaintyId(null);
-    }
-  }, [activeFocusUncertaintyId, composer.latestAssistantMessage]);
-
-  const openSettingsDrawer = () => {
-    setSettingsOpen(true);
-    setMobileActionsOpen(false);
-    composer.closeComposerMenus();
-    if (compactViewport) {
-      setCompactHistorySheetVisible(false);
-    }
-  };
-
-  const handleHistoryResizeStart = (event: PointerEvent<HTMLDivElement>) => {
-    if (!historyDrawerVisible || phoneViewport || desktopHistoryOverlay) {
-      return;
-    }
-
-    event.preventDefault();
-    const startX = event.clientX;
-    const startWidth = computedHistoryDrawerWidth;
-    const onMove = (moveEvent: globalThis.PointerEvent) => {
-      const delta = moveEvent.clientX - startX;
-      setHistoryDrawerWidth(startWidth + delta);
-    };
-    const onEnd = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onEnd);
-      window.removeEventListener("pointercancel", onEnd);
-    };
-
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onEnd);
-    window.addEventListener("pointercancel", onEnd);
-  };
-
-  const handleRollbackAction = () => {
-    setMobileActionsOpen(false);
-    composer.setPlusMenuOpen(false);
-    void rollbackLastScene();
-  };
-
-  const handleClearSceneAction = () => {
-    setMobileActionsOpen(false);
-    composer.setPlusMenuOpen(false);
-    void clearScene();
-  };
-
-  const handleLogoutAction = () => {
-    setMobileActionsOpen(false);
-    composer.setPlusMenuOpen(false);
-    void runtimeSession.handleLogout();
-  };
-
-  const handleSelectMobileSurface = (surface: MobileSurface) => {
-    setMobileSurface(surface);
-    setMobileActionsOpen(false);
-    composer.setPlusMenuOpen(false);
-    if (surface !== "chat") {
-      setCompactHistorySheetVisible(false);
-    }
-  };
-
-  const handleMobileActionsToggle = () => {
-    if (mobileActionsOpen) {
-      setMobileActionsOpen(false);
-      return;
-    }
-
-    composer.setPlusMenuOpen(false);
-    setCompactHistorySheetVisible(false);
-    setMobileActionsOpen(true);
-  };
-
-  const handleHistoryToggle = () => {
-    composer.setPlusMenuOpen(false);
-    if (compactViewport) {
-      setMobileActionsOpen(false);
-      setMobileSurface("chat");
-      setCompactHistorySheetVisible((value) => !value);
-      return;
-    }
-
-    toggleHistoryDrawer();
-  };
-
-  const handleCreateConversation = () => {
-    composer.createConversationWithComposerState();
-    if (compactViewport) {
-      setCompactHistorySheetVisible(false);
-    }
-  };
-
-  const handleSelectConversation = (conversationId: string) => {
-    composer.selectConversationWithComposerState(conversationId);
-    if (compactViewport) {
-      setCompactHistorySheetVisible(false);
-    }
-  };
-
-  const handleApplyTemplateLibrary = (prompt: string) => {
-    composer.setDraftForActiveConversation(prompt);
-    composerRef.current?.focus();
-  };
-
-  const handleFocusUncertainty = (uncertaintyId: string) => {
-    const result = composer.latestAssistantMessage?.result;
-    const uncertainty = result?.uncertaintyItems.find(
-      (item) => item.id === uncertaintyId
-    );
-    const canvasLink = result?.canvasLinks.find(
-      (item) =>
-        item.scope === "uncertainty" && item.uncertaintyId === uncertaintyId
-    );
-
-    if (!uncertainty) {
-      return;
-    }
-
-    if (canvasLink) {
-      sceneFocusStore.getState().requestFocus({
-        source: "uncertainty",
-        objectLabels: canvasLink.objectLabels,
-        revealCanvas: true,
-        ttlMs: 4200
-      });
-      setActiveFocusUncertaintyId(uncertaintyId);
-      setCanvasFocusNotice({
-        message: `已定位对象：${canvasLink.objectLabels.join("、")}`,
-        tone: "info",
-        uncertaintyId
-      });
-      if (compactViewport) {
-        setMobileSurface("canvas");
-      }
-      return;
-    }
-
-    setActiveFocusUncertaintyId(uncertaintyId);
-    setCanvasFocusNotice({
-      message: `暂时无法自动定位“${uncertainty.label}”，请手动核对画布。`,
-      tone: "warning",
-      uncertaintyId
-    });
-    if (compactViewport) {
-      setMobileSurface("canvas");
-    }
-  };
+    setMobileActionsOpen,
+    compactHistorySheetVisible,
+    setCompactHistorySheetVisible,
+    canvasFullscreenActive,
+    setCanvasFullscreenActive,
+    chatShellWidth,
+    setChatShellWidth,
+    desktopInputMode,
+    setDesktopInputMode,
+    templateLibraryOpen,
+    setTemplateLibraryOpen,
+    activeFocusUncertaintyId,
+    setActiveFocusUncertaintyId,
+    canvasFocusNotice,
+    setCanvasFocusNotice,
+    rawCanvasMountKey,
+    setCanvasMountKey
+  });
 
   const {
     conversationSidebarProps,

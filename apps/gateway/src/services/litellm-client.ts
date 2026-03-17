@@ -28,6 +28,7 @@ export interface CompileInput {
   byokKey?: string;
   attachments?: RuntimeAttachment[];
   context?: CompileContext;
+  systemPrompt?: string;
 }
 
 export type RequestCommandBatch = (input: CompileInput) => Promise<unknown>;
@@ -57,6 +58,11 @@ const TRANSIENT_FETCH_ERROR_CODES = new Set([
   "ENOTFOUND",
   "ETIMEDOUT"
 ]);
+
+const DEFAULT_JSON_SYSTEM_PROMPT =
+  "Return only valid JSON. Do not include markdown.";
+const DEFAULT_COMMAND_BATCH_SYSTEM_PROMPT =
+  "Return only valid JSON for a CommandBatch. Do not include markdown.";
 
 const parseJsonFromLLMContent = (value: unknown): unknown => {
   if (typeof value !== "string") {
@@ -158,7 +164,7 @@ const requestBatchFromTarget = async (
           {
             role: "system",
             content:
-              "Return only valid JSON for a CommandBatch. Do not include markdown."
+              input.systemPrompt?.trim() || DEFAULT_JSON_SYSTEM_PROMPT
           },
           {
             role: "user",
@@ -208,7 +214,11 @@ export const requestCommandBatch: RequestCommandBatch = async (input) => {
   let lastError: unknown;
   for (const [index, target] of targets.entries()) {
     try {
-      return await requestBatchFromTarget(target, input);
+      return await requestBatchFromTarget(target, {
+        ...input,
+        systemPrompt:
+          input.systemPrompt?.trim() || DEFAULT_COMMAND_BATCH_SYSTEM_PROMPT
+      });
     } catch (error) {
       lastError = error;
       if (!isTransientUpstreamError(error) || index === targets.length - 1) {

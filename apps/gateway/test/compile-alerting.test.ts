@@ -4,6 +4,11 @@ import { buildServer } from "../src/server";
 import { createMemoryCompileEventSink } from "../src/services/compile-events";
 import { resetGatewayMetrics } from "../src/services/metrics";
 import { clearRateLimits } from "../src/services/rate-limit";
+import {
+  createGeometryAgentResponder,
+  createGeometryDraftFixture,
+  createGeometryReviewFixture
+} from "./helpers/geometry-agent-stub";
 
 const buildAlertEnv = (overrides: Partial<NodeJS.ProcessEnv> = {}) => ({
   ALERT_WEBHOOK_URL: "https://alerts.example.com/hook",
@@ -70,28 +75,13 @@ describe("compile alerting", () => {
     });
   });
 
-  it("writes fallback events and sends fallback alert webhook", async () => {
+  it("does not send webhook for a normal compile success", async () => {
     const compileEventSink = createMemoryCompileEventSink();
     const app = buildServer(
       buildAlertEnv(),
       {
         compileEventSink,
-        requestCommandBatch: async (input) => {
-          if (input.message.startsWith("Intent extraction")) {
-            throw new Error("intent unavailable");
-          }
-          if (input.message.startsWith("Planner output")) {
-            throw new Error("planner unavailable");
-          }
-          return {
-            version: "1.0",
-            scene_id: "s1",
-            transaction_id: "t1",
-            commands: [],
-            post_checks: [],
-            explanations: []
-          };
-        }
+        requestCommandBatch: createGeometryAgentResponder()
       }
     );
 
@@ -104,92 +94,71 @@ describe("compile alerting", () => {
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.payload).trace_id).toBe("tr_req-1");
     expect(res.headers["x-trace-id"]).toBe("tr_req-1");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}"));
-    expectCommonAlertPayload(body, {
-      event: "compile_fallback",
-      finalStatus: "fallback",
-      traceId: "tr_req-1",
-      targets: [
-        {
-          source: "primary",
-          endpoint: "https://litellm.primary.example.com",
-          model: "gpt-4o-mini"
-        },
-        {
-          source: "fallback",
-          endpoint: "https://litellm.fallback.example.com",
-          model: "gpt-4.1-mini"
-        }
-      ]
-    });
-    expect(body.path).toBe("/api/v1/chat/compile");
-    expect(body.metadata).toEqual({
-      fallback_steps: ["intent", "planner"]
-    });
+    expect(fetchMock).not.toHaveBeenCalled();
 
     const events = compileEventSink.readAll();
     expect(events).toEqual(
-      expect.arrayContaining([
+      [
         expect.objectContaining({
           event: "compile_success",
           requestId: "req-1",
           traceId: "tr_req-1",
           mode: "byok",
-          finalStatus: "fallback"
-        }),
-        expect.objectContaining({
-          event: "compile_fallback",
-          requestId: "req-1",
-          traceId: "tr_req-1",
-          mode: "byok",
-          finalStatus: "fallback"
+          finalStatus: "success"
         })
-      ])
+      ]
     );
-
-    const fallbackEvent = events.find((event) => event.event === "compile_fallback");
-    expect(fallbackEvent?.upstreamCallCount).toBeGreaterThanOrEqual(1);
   });
 
   it("writes repair events and sends repair alert webhook", async () => {
     const compileEventSink = createMemoryCompileEventSink();
-    let call = 0;
     const app = buildServer(
       buildAlertEnv(),
       {
         compileEventSink,
-        requestCommandBatch: async () => {
-          call += 1;
-          if (call === 3) {
-            return {
-              version: "1.0",
-              scene_id: "s1",
-              transaction_id: "t1",
-              commands: [
-                {
-                  id: "c1",
-                  op: "eval_js",
-                  args: {},
-                  depends_on: [],
-                  idempotency_key: "k1"
-                }
-              ],
-              post_checks: [],
-              explanations: []
-            };
-          }
-
-          return {
-            version: "1.0",
-            scene_id: "s1",
-            transaction_id: "t1",
-            commands: [],
-            post_checks: [],
-            explanations: []
-          };
-        }
+        requestCommandBatch: createGeometryAgentResponder({
+          drafts: [
+            createGeometryDraftFixture({
+              commandBatchDraft: {
+                version: "1.0",
+                scene_id: "scene_repair_before",
+                transaction_id: "tx_repair_before",
+                commands: [
+                  {
+                    id: "c1",
+                    op: "create_line",
+                    args: {
+                      from: "A",
+                      to: "A"
+                    },
+                    depends_on: [],
+                    idempotency_key: "k1"
+                  }
+                ],
+                post_checks: [],
+                explanations: []
+              }
+            }),
+            createGeometryDraftFixture({
+              commandBatchDraft: {
+                version: "1.0",
+                scene_id: "scene_repair_after",
+                transaction_id: "tx_repair_after",
+                commands: [],
+                post_checks: [],
+                explanations: []
+              }
+            })
+          ],
+          reviews: [
+            createGeometryReviewFixture({
+              verdict: "revise",
+              summary: ["命令需要修复"],
+              repairInstructions: ["重新生成一份可执行草案"]
+            }),
+            createGeometryReviewFixture()
+          ]
+        })
       }
     );
 
@@ -222,9 +191,11 @@ describe("compile alerting", () => {
         }
       ]
     });
-    expect(body.metadata).toEqual({
-      repair: true
-    });
+    expect(body.metadata).toEqual(
+      expect.objectContaining({
+        repair: true
+      })
+    );
 
     const events = compileEventSink.readAll();
     expect(events).toEqual(

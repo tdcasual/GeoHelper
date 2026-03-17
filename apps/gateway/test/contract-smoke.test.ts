@@ -6,6 +6,10 @@ import { describe, expect, it } from "vitest";
 
 import { buildServer } from "../src/server";
 import { clearRateLimits } from "../src/services/rate-limit";
+import {
+  createGeometryAgentResponder,
+  createGeometryDraftFixture
+} from "./helpers/geometry-agent-stub";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -26,17 +30,25 @@ describe("api contract doc", () => {
         GATEWAY_ENABLE_ATTACHMENTS: "1"
       },
       {
-        requestCommandBatch: async (input) => {
-          attachmentCount = ((input as { attachments?: unknown[] }).attachments ?? []).length;
-          return {
-            version: "1.0",
-            scene_id: "scene_contract_attachment",
-            transaction_id: "tx_contract_attachment",
-            commands: [],
-            post_checks: [],
-            explanations: []
-          };
-        }
+        requestCommandBatch: createGeometryAgentResponder({
+          drafts: [
+            createGeometryDraftFixture({
+              commandBatchDraft: {
+                version: "1.0",
+                scene_id: "scene_contract_attachment",
+                transaction_id: "tx_contract_attachment",
+                commands: [],
+                post_checks: [],
+                explanations: []
+              }
+            })
+          ],
+          onRequest: (input) => {
+            if (input.systemPrompt?.includes("GeometryDraftPackage")) {
+              attachmentCount = ((input as { attachments?: unknown[] }).attachments ?? []).length;
+            }
+          }
+        })
       }
     );
 
@@ -79,13 +91,19 @@ describe("api contract doc", () => {
     const app = buildServer(
       {},
       {
-        requestCommandBatch: async () => ({
-          version: "1.0",
-          scene_id: "scene_contract",
-          transaction_id: "tx_contract",
-          commands: [],
-          post_checks: [],
-          explanations: []
+        requestCommandBatch: createGeometryAgentResponder({
+          drafts: [
+            createGeometryDraftFixture({
+              commandBatchDraft: {
+                version: "1.0",
+                scene_id: "scene_contract",
+                transaction_id: "tx_contract",
+                commands: [],
+                post_checks: [],
+                explanations: []
+              }
+            })
+          ]
         })
       }
     );

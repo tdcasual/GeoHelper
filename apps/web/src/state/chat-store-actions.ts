@@ -1,6 +1,6 @@
-import type { CommandBatch } from "@geohelper/protocol";
-
+import { getGeoGebraAdapter } from "../geogebra/adapter";
 import type { RuntimeCompileResponse } from "../runtime/types";
+import { buildCanvasEvidenceFromAgentRun } from "./canvas-evidence";
 import {
   buildAssistantMessageFromCompileResult,
   buildAssistantMessageFromError,
@@ -282,8 +282,7 @@ export const createChatStoreActions = ({
       let lastError: unknown;
       let compileResult:
         | {
-            batch: CommandBatch;
-            agentSteps: RuntimeCompileResponse["agent_steps"];
+            agentRun: RuntimeCompileResponse["agent_run"];
             traceId: RuntimeCompileResponse["trace_id"];
           }
         | undefined;
@@ -309,11 +308,11 @@ export const createChatStoreActions = ({
             byokKey: runtime.byokKey,
             timeoutMs: runtime.timeoutMs,
             extraHeaders: runtime.extraHeaders,
-            context
+            context,
+            repair: normalizedInput.repair
           });
           compileResult = {
-            batch: response.batch,
-            agentSteps: response.agent_steps,
+            agentRun: response.agent_run,
             traceId: response.trace_id
           };
           break;
@@ -340,18 +339,32 @@ export const createChatStoreActions = ({
         throw lastError ?? new Error("Compile result is empty");
       }
 
-      const { batch, agentSteps, traceId } = compileResult;
+      const { agentRun, traceId } = compileResult;
+      const batch = agentRun.draft.commandBatchDraft;
       await deps.execute(batch);
       sceneStore.getState().recordTransaction(batch);
+      const agentRunWithCanvas = {
+        ...agentRun,
+        evidence: {
+          ...agentRun.evidence,
+          canvas: buildCanvasEvidenceFromAgentRun({
+            agentRun,
+            sceneXml: getGeoGebraAdapter().getXML?.() ?? null
+          })
+        }
+      };
 
-      finishSend(
-        buildAssistantMessageFromCompileResult({
-          id: makeId(),
-          batch,
-          traceId,
-          agentSteps
-        })
-      );
+      const assistantMessage = buildAssistantMessageFromCompileResult({
+        id: makeId(),
+        agentRun: agentRunWithCanvas,
+        traceId
+      });
+      deps.recordAgentRun({
+        messageId: assistantMessage.id,
+        agentRun: agentRunWithCanvas
+      });
+
+      finishSend(assistantMessage);
     } catch (error) {
       const isSessionExpired = isOfficialSessionExpiredError(error, get().mode);
       finishSend(

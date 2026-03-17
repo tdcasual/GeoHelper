@@ -10,6 +10,7 @@ import type {
 export interface NormalizedChatSendInput {
   content: string;
   attachments: ChatAttachment[];
+  repair?: ChatSendInput["repair"];
 }
 
 export type PersistableChatState = Pick<
@@ -88,7 +89,8 @@ export const normalizeSendInput = (
 
   return {
     content: input.content,
-    attachments: Array.isArray(input.attachments) ? input.attachments : []
+    attachments: Array.isArray(input.attachments) ? input.attachments : [],
+    repair: input.repair
   };
 };
 

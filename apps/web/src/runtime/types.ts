@@ -1,4 +1,9 @@
-import { CommandBatch, type RuntimeAttachment } from "@geohelper/protocol";
+import {
+  AgentRunEnvelopeSchema,
+  type GeometryCanvasEvidence,
+  type AgentRunEnvelope,
+  type RuntimeAttachment
+} from "@geohelper/protocol";
 
 import type { BackupEnvelope } from "../storage/backup";
 
@@ -36,7 +41,7 @@ export const runtimeCapabilitiesByTarget: Record<
   direct: {
     supportsOfficialAuth: false,
     supportsVision: true,
-    supportsAgentSteps: false,
+    supportsAgentSteps: true,
     supportsServerMetrics: false,
     supportsRateLimitHeaders: false
   }
@@ -103,13 +108,21 @@ export interface RuntimeCompileRequest {
       commandCount: number;
     }>;
   };
+  repair?: {
+    sourceRun: AgentRunEnvelope;
+    teacherInstruction: string;
+    canvasEvidence: GeometryCanvasEvidence;
+  };
 }
 
 export interface RuntimeCompileResponse {
   trace_id?: string;
-  batch: CommandBatch;
-  agent_steps?: AgentStep[];
+  agent_run: AgentRunEnvelope;
 }
+
+export const normalizeAgentRunEnvelope = (
+  value: unknown
+): AgentRunEnvelope => AgentRunEnvelopeSchema.parse(value);
 
 export interface RuntimeLoginRequest {
   target: RuntimeTarget;

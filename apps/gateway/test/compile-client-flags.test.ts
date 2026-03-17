@@ -4,9 +4,13 @@ import { buildServer } from "../src/server";
 import { requestCommandBatch } from "../src/services/litellm-client";
 import { resetGatewayMetrics } from "../src/services/metrics";
 import { clearRateLimits } from "../src/services/rate-limit";
+import {
+  createGeometryAgentResponder,
+  createGeometryDraftFixture
+} from "./helpers/geometry-agent-stub";
 
 describe("POST /api/v1/chat/compile client flags", () => {
-  it("uses single-agent fallback path when requested", async () => {
+  it("accepts legacy single-agent flag while still using the agent workflow", async () => {
     clearRateLimits();
     resetGatewayMetrics();
 
@@ -14,17 +18,11 @@ describe("POST /api/v1/chat/compile client flags", () => {
     const app = buildServer(
       {},
       {
-        requestCommandBatch: async () => {
-          callCount += 1;
-          return {
-            version: "1.0",
-            scene_id: "s1",
-            transaction_id: "t1",
-            commands: [],
-            post_checks: [],
-            explanations: []
-          };
-        }
+        requestCommandBatch: createGeometryAgentResponder({
+          onRequest: () => {
+            callCount += 1;
+          }
+        })
       }
     );
 
@@ -42,10 +40,10 @@ describe("POST /api/v1/chat/compile client flags", () => {
 
     expect(res.statusCode).toBe(200);
     const payload = JSON.parse(res.payload);
-    expect(payload.agent_steps).toHaveLength(1);
-    expect(payload.agent_steps[0].name).toBe("command");
+    expect(payload.agent_steps.length).toBeGreaterThanOrEqual(3);
+    expect(payload.agent_steps[0].name).toBe("author");
     expect(payload.agent_steps[0].status).toBe("ok");
-    expect(callCount).toBe(1);
+    expect(callCount).toBe(2);
   });
 
   it("returns perf headers when performance sampling is requested", async () => {
@@ -55,14 +53,7 @@ describe("POST /api/v1/chat/compile client flags", () => {
     const app = buildServer(
       {},
       {
-        requestCommandBatch: async () => ({
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        })
+        requestCommandBatch: createGeometryAgentResponder()
       }
     );
 
@@ -99,17 +90,14 @@ describe("POST /api/v1/chat/compile client flags", () => {
     const app = buildServer(
       {},
       {
-        requestCommandBatch: async (input) => {
-          capturedInput = input as typeof capturedInput;
-          return {
-            version: "1.0",
-            scene_id: "s1",
-            transaction_id: "t1",
-            commands: [],
-            post_checks: [],
-            explanations: []
-          };
-        }
+        requestCommandBatch: createGeometryAgentResponder({
+          drafts: [createGeometryDraftFixture()],
+          onRequest: (input) => {
+            if (input.systemPrompt?.includes("GeometryDraftPackage")) {
+              capturedInput = input as typeof capturedInput;
+            }
+          }
+        })
       }
     );
 
@@ -233,6 +221,44 @@ describe("requestCommandBatch upstream fallback routing", () => {
         }
       }
     ]);
+  });
+
+  it("uses a custom system prompt when provided", async () => {
+    process.env.LITELLM_ENDPOINT = "https://primary.example.com";
+    process.env.LITELLM_MODEL = "primary-model";
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                version: "1.0",
+                scene_id: "s1",
+                transaction_id: "t1",
+                commands: [],
+                post_checks: [],
+                explanations: []
+              })
+            }
+          }
+        ]
+      })
+    });
+
+    await requestCommandBatch({
+      message: "画一个圆",
+      mode: "byok",
+      systemPrompt: "Return only valid JSON for a GeometryDraftPackage."
+    });
+
+    const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(String(requestInit.body));
+    expect(body.messages[0].content).toBe(
+      "Return only valid JSON for a GeometryDraftPackage."
+    );
   });
 
   it("retries transient upstream failures against configured fallback endpoint and model", async () => {

@@ -2,6 +2,56 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createGatewayClient } from "./gateway-client";
 
+const createAgentRunEnvelope = () => ({
+  run: {
+    id: "run_1",
+    target: "gateway" as const,
+    mode: "byok" as const,
+    status: "success" as const,
+    iterationCount: 1,
+    startedAt: "2026-03-17T10:00:00.000Z",
+    finishedAt: "2026-03-17T10:00:01.000Z",
+    totalDurationMs: 1000
+  },
+  draft: {
+    normalizedIntent: "看图生成几何步骤",
+    assumptions: [],
+    constructionPlan: ["识别关键点", "补全作图步骤"],
+    namingPlan: ["A", "B", "C"],
+    commandBatchDraft: {
+      version: "1.0",
+      scene_id: "scene_1",
+      transaction_id: "tx_1",
+      commands: [],
+      post_checks: [],
+      explanations: ["已生成草案"]
+    },
+    teachingOutline: ["先识别图形要素"],
+    reviewChecklist: ["检查标记点名称"]
+  },
+  reviews: [],
+  evidence: {
+    preflight: {
+      status: "passed" as const,
+      issues: [],
+      referencedLabels: ["A", "B", "C"],
+      generatedLabels: ["A", "B", "C"]
+    }
+  },
+  teacherPacket: {
+    summary: ["已生成草案"],
+    warnings: [],
+    uncertainties: [],
+    nextActions: ["执行到画布"],
+    canvasLinks: []
+  },
+  telemetry: {
+    upstreamCallCount: 1,
+    degraded: false,
+    stages: []
+  }
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
@@ -79,21 +129,13 @@ describe("gateway runtime client compile flows", () => {
       ok: true,
       json: async () => ({
         trace_id: "tr_1",
-        batch: {
-          version: "1.0",
-          scene_id: "scene_1",
-          transaction_id: "tx_1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        },
-        agent_steps: []
+        agent_run: createAgentRunEnvelope()
       })
     });
     vi.stubGlobal("fetch", fetchMock);
 
     const client = createGatewayClient();
-    await client.compile({
+    const result = await client.compile({
       target: "gateway",
       baseUrl: "https://gateway.example.com",
       mode: "byok",
@@ -124,6 +166,7 @@ describe("gateway runtime client compile flows", () => {
         transportPayload: "data:image/png;base64,AAAA"
       }
     ]);
+    expect(result.agent_run.draft.normalizedIntent).toBe("看图生成几何步骤");
   });
 
   it("uses VITE_GATEWAY_URL as fallback base url", async () => {
@@ -131,14 +174,7 @@ describe("gateway runtime client compile flows", () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        batch: {
-          version: "1.0",
-          scene_id: "scene_1",
-          transaction_id: "tx_1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        }
+        agent_run: createAgentRunEnvelope()
       })
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -151,7 +187,7 @@ describe("gateway runtime client compile flows", () => {
     });
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      "https://gateway.env.example.com/api/v1/chat/compile"
+      "https://gateway.env.example.com/api/v2/agent/runs"
     );
   });
 
@@ -159,14 +195,7 @@ describe("gateway runtime client compile flows", () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        batch: {
-          version: "1.0",
-          scene_id: "scene_1",
-          transaction_id: "tx_1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        }
+        agent_run: createAgentRunEnvelope()
       })
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -178,6 +207,6 @@ describe("gateway runtime client compile flows", () => {
       message: "画一个圆"
     });
 
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/chat/compile");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v2/agent/runs");
   });
 });

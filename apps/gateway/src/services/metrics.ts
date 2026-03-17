@@ -111,6 +111,27 @@ export const recordCompilePerfSample = (
   });
 };
 
+export const recordAgentRunQualitySample = (
+  sample: {
+    status: "success" | "needs_review" | "degraded" | "failed";
+    iterationCount: number;
+  },
+  store: GatewayMetricsStore = defaultMetricsStore
+): void => {
+  writeUpdatedState(store, (state) => {
+    state.agentRunTotal += 1;
+    state.agentRunIterationSum += Math.max(0, sample.iterationCount);
+    if (sample.status === "success") {
+      state.agentRunSuccess += 1;
+    } else if (sample.status === "needs_review") {
+      state.agentRunNeedsReview += 1;
+    } else if (sample.status === "degraded") {
+      state.agentRunDegraded += 1;
+    }
+    return state;
+  });
+};
+
 export const getGatewayMetricsSnapshot = (
   store: GatewayMetricsStore = defaultMetricsStore
 ) => {
@@ -158,6 +179,18 @@ export const getGatewayMetricsSnapshot = (
       perf_sample_count: state.perfSampleCount,
       perf_total_ms_avg: Number(perfTotalAvg.toFixed(4)),
       perf_upstream_ms_avg: Number(perfUpstreamAvg.toFixed(4))
+    },
+    agent_runs: {
+      total_runs: state.agentRunTotal,
+      success: state.agentRunSuccess,
+      needs_review: state.agentRunNeedsReview,
+      degraded: state.agentRunDegraded,
+      average_iteration_count:
+        state.agentRunTotal === 0
+          ? 0
+          : Number(
+              (state.agentRunIterationSum / state.agentRunTotal).toFixed(4)
+            )
     }
   };
 };

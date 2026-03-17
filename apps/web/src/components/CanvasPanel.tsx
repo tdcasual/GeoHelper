@@ -5,21 +5,9 @@ import { toAppletPixelSize } from "../geogebra/applet-size";
 import { toGeoGebraRuntimeConfig } from "../geogebra/vendor-runtime";
 import { useSceneFocusStore } from "../state/scene-focus-store";
 import { sceneStore } from "../state/scene-store";
-import {
-  type CanvasUiProfile,
-  ensureGeoGebraScript,
-  type GeoGebraAppletObject,
-  getLiveAppletObject,
-  loadGeoGebraManifest,
-  resolveAppletObject,
-  toAppletConfig
-} from "./canvas-panel/runtime";
+import { type CanvasUiProfile, ensureGeoGebraScript, type GeoGebraAppletObject, getLiveAppletObject, loadGeoGebraManifest, resolveAppletObject, toAppletConfig } from "./canvas-panel/runtime";
 import { bindGeoGebraSceneListeners, createRuntimeAdapter, createSceneCaptureController } from "./canvas-panel/scene-sync";
-
-interface CanvasFocusNotice {
-  message: string;
-  tone?: "info" | "warning";
-}
+import { CanvasPanelFrame, type CanvasFocusNotice } from "./canvas-panel/CanvasPanelFrame";
 
 interface CanvasPanelProps {
   profile: CanvasUiProfile;
@@ -27,18 +15,10 @@ interface CanvasPanelProps {
   focusNotice?: CanvasFocusNotice | null;
 }
 
-export const CanvasPanel = ({
-  profile,
-  visible,
-  focusNotice
-}: CanvasPanelProps) => {
-  const [status, setStatus] = useState<"loading" | "ready" | "error">(
-    "loading"
-  );
+export const CanvasPanel = ({ profile, visible, focusNotice }: CanvasPanelProps) => {
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const focusRequest = useSceneFocusStore((state) => state.focusRequest);
-  const consumeFocusRequest = useSceneFocusStore(
-    (state) => state.consumeFocusRequest
-  );
+  const consumeFocusRequest = useSceneFocusStore((state) => state.consumeFocusRequest);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appletObjectRef = useRef<GeoGebraAppletObject | null>(null);
@@ -394,42 +374,7 @@ export const CanvasPanel = ({
     };
   }, [initializeReadyRuntime, profile, scheduleAppletResize]);
 
-  return (
-    <section className="canvas-panel" data-panel="canvas" hidden={!visible}>
-      <div ref={hostRef} className="geogebra-host" data-testid="geogebra-host">
-        <div id="geogebra-container" className="geogebra-container" />
-        {focusNotice ? (
-          <div
-            className={`canvas-focus-notice${
-              focusNotice.tone === "warning"
-                ? " canvas-focus-notice-warning"
-                : ""
-            }`}
-            data-testid="canvas-focus-notice"
-          >
-            {focusNotice.message}
-          </div>
-        ) : null}
-        <button
-          type="button"
-          className="canvas-fullscreen-button"
-          data-testid="canvas-fullscreen-button"
-          aria-label={isFullscreen ? "退出全屏" : "全屏显示"}
-          onClick={() => {
-            void handleFullscreenToggle();
-          }}
-        >
-          {isFullscreen ? "↙" : "↗"}
-        </button>
-        {status === "loading" ? (
-          <div className="canvas-overlay">GeoGebra 正在加载...</div>
-        ) : null}
-        {status === "error" ? (
-          <div className="canvas-overlay canvas-overlay-error">
-            GeoGebra 加载失败，请刷新页面重试
-          </div>
-        ) : null}
-      </div>
-    </section>
-  );
+  return <CanvasPanelFrame hostRef={hostRef} visible={visible} status={status} focusNotice={focusNotice} isFullscreen={isFullscreen} onFullscreenToggle={() => {
+    void handleFullscreenToggle();
+  }} />;
 };

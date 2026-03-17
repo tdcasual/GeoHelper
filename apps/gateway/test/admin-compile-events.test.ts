@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildServer } from "../src/server";
 import { createMemoryCompileEventSink } from "../src/services/compile-events";
+import { createGeometryAgentResponder } from "./helpers/geometry-agent-stub";
 
 describe("GET /admin/compile-events", () => {
   it("returns recent compile events in reverse chronological order", async () => {
@@ -10,14 +11,7 @@ describe("GET /admin/compile-events", () => {
       {},
       {
         compileEventSink,
-        requestCommandBatch: async () => ({
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        })
+        requestCommandBatch: createGeometryAgentResponder()
       }
     );
 

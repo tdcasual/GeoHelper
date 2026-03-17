@@ -1,27 +1,41 @@
 import { expect, test } from "@playwright/test";
 
+import { createAgentRunPayload } from "./agent-run.test-helpers";
+
 test("compact chat surface keeps the latest review result after surface switches", async ({
   page
 }) => {
-  await page.route("**/api/v1/chat/compile", async (route) => {
+  await page.route("**/api/v2/agent/runs", async (route) => {
     await route.fulfill({
       status: 200,
       headers: {
         "content-type": "application/json",
         "access-control-allow-origin": "*"
       },
-      body: JSON.stringify({
-        trace_id: "tr_compact_review",
-        batch: {
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: ["待确认：点 D 在线段 BC 上"],
-          explanations: ["已创建三角形 ABC"]
-        },
-        agent_steps: [{ name: "intent", status: "ok", duration_ms: 5 }]
-      })
+      body: JSON.stringify(
+        createAgentRunPayload({
+          traceId: "tr_compact_review",
+          runId: "run_compact_review",
+          summary: ["已创建三角形 ABC"],
+          uncertainties: [
+            {
+              id: "unc_点_d_在线段_bc_上",
+              label: "点 D 在线段 BC 上",
+              followUpPrompt: "请确认点 D 是否在线段 BC 上，并说明原因。",
+              reviewStatus: "pending"
+            }
+          ],
+          canvasLinks: [
+            {
+              id: "link_unc_d",
+              scope: "uncertainty",
+              text: "点 D 在线段 BC 上",
+              objectLabels: ["D", "B", "C"],
+              uncertaintyId: "unc_点_d_在线段_bc_上"
+            }
+          ]
+        })
+      )
     });
   });
 
@@ -48,7 +62,7 @@ test("compact chat surface keeps the latest review result after surface switches
 test("review panel offers retry after a failed generation", async ({ page }) => {
   let attempts = 0;
 
-  await page.route("**/api/v1/chat/compile", async (route) => {
+  await page.route("**/api/v2/agent/runs", async (route) => {
     attempts += 1;
     if (attempts === 1) {
       await route.fulfill({
@@ -73,18 +87,13 @@ test("review panel offers retry after a failed generation", async ({ page }) => 
         "content-type": "application/json",
         "access-control-allow-origin": "*"
       },
-      body: JSON.stringify({
-        trace_id: "tr_retry_success",
-        batch: {
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: [],
-          explanations: ["已创建可编辑图形"]
-        },
-        agent_steps: [{ name: "intent", status: "ok", duration_ms: 5 }]
-      })
+      body: JSON.stringify(
+        createAgentRunPayload({
+          traceId: "tr_retry_success",
+          runId: "run_retry_success",
+          summary: ["已创建可编辑图形"]
+        })
+      )
     });
   });
 
@@ -99,31 +108,45 @@ test("review panel offers retry after a failed generation", async ({ page }) => 
   await expect(resultPanel.getByText("本轮生成失败")).toBeVisible();
   await page.getByRole("button", { name: "重试当前请求" }).click();
   await expect(resultPanel.getByText("可继续补图")).toBeVisible();
-  await expect(resultPanel.getByText("已创建可编辑图形")).toBeVisible();
+  await expect(
+    resultPanel.locator("li").filter({ hasText: /^已创建可编辑图形$/ })
+  ).toBeVisible();
 });
 
 test("review panel lets the teacher confirm one uncertainty item", async ({
   page
 }) => {
-  await page.route("**/api/v1/chat/compile", async (route) => {
+  await page.route("**/api/v2/agent/runs", async (route) => {
     await route.fulfill({
       status: 200,
       headers: {
         "content-type": "application/json",
         "access-control-allow-origin": "*"
       },
-      body: JSON.stringify({
-        trace_id: "tr_confirm_review",
-        batch: {
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: ["待确认：点 D 在线段 BC 上"],
-          explanations: ["已创建三角形 ABC"]
-        },
-        agent_steps: [{ name: "intent", status: "ok", duration_ms: 5 }]
-      })
+      body: JSON.stringify(
+        createAgentRunPayload({
+          traceId: "tr_confirm_review",
+          runId: "run_confirm_review",
+          summary: ["已创建三角形 ABC"],
+          uncertainties: [
+            {
+              id: "unc_点_d_在线段_bc_上",
+              label: "点 D 在线段 BC 上",
+              followUpPrompt: "请确认点 D 是否在线段 BC 上，并说明原因。",
+              reviewStatus: "pending"
+            }
+          ],
+          canvasLinks: [
+            {
+              id: "link_unc_d",
+              scope: "uncertainty",
+              text: "点 D 在线段 BC 上",
+              objectLabels: ["D", "B", "C"],
+              uncertaintyId: "unc_点_d_在线段_bc_上"
+            }
+          ]
+        })
+      )
     });
   });
 
@@ -145,7 +168,7 @@ test("repairing one uncertainty sends a focused follow-up prompt", async ({
 }) => {
   const capturedMessages: string[] = [];
 
-  await page.route("**/api/v1/chat/compile", async (route) => {
+  await page.route("**/api/v2/agent/runs", async (route) => {
     const body = route.request().postDataJSON() as { message?: string };
     capturedMessages.push(body.message ?? "");
 
@@ -155,24 +178,36 @@ test("repairing one uncertainty sends a focused follow-up prompt", async ({
         "content-type": "application/json",
         "access-control-allow-origin": "*"
       },
-      body: JSON.stringify({
-        trace_id: `tr_repair_${capturedMessages.length}`,
-        batch: {
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: `t${capturedMessages.length}`,
-          commands: [],
-          post_checks:
-            capturedMessages.length === 1
-              ? ["待确认：点 D 在线段 BC 上"]
-              : [],
-          explanations:
-            capturedMessages.length === 1
-              ? ["已创建三角形 ABC"]
-              : ["已重新检查点 D 条件"]
-        },
-        agent_steps: [{ name: "intent", status: "ok", duration_ms: 5 }]
-      })
+      body: JSON.stringify(
+        capturedMessages.length === 1
+          ? createAgentRunPayload({
+              traceId: `tr_repair_${capturedMessages.length}`,
+              runId: `run_repair_${capturedMessages.length}`,
+              summary: ["已创建三角形 ABC"],
+              uncertainties: [
+                {
+                  id: "unc_点_d_在线段_bc_上",
+                  label: "点 D 在线段 BC 上",
+                  followUpPrompt: "请确认点 D 是否在线段 BC 上，并说明原因。",
+                  reviewStatus: "pending"
+                }
+              ],
+              canvasLinks: [
+                {
+                  id: "link_unc_d",
+                  scope: "uncertainty",
+                  text: "点 D 在线段 BC 上",
+                  objectLabels: ["D", "B", "C"],
+                  uncertaintyId: "unc_点_d_在线段_bc_上"
+                }
+              ]
+            })
+          : createAgentRunPayload({
+              traceId: `tr_repair_${capturedMessages.length}`,
+              runId: `run_repair_${capturedMessages.length}`,
+              summary: ["已重新检查点 D 条件"]
+            })
+      )
     });
   });
 

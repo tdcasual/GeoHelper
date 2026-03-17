@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ChatMessage } from "../state/chat-store";
+import { createAgentRunEnvelopeFixture } from "../test-utils/agent-run-fixture";
 import { toStudioResultViewModel } from "./studio-result-panel";
 
 describe("studio-result-panel", () => {
@@ -84,6 +85,111 @@ describe("studio-result-panel", () => {
     expect(viewModel.reviewSummary).toEqual({
       pendingCount: 0,
       confirmedCount: 0,
+      needsFixCount: 0
+    });
+  });
+
+  it("prefers first-class agent run telemetry and teacher packet when provided", () => {
+    const message: ChatMessage = {
+      id: "msg_assistant_3",
+      role: "assistant",
+      content: "旧摘要",
+      result: {
+        status: "success",
+        commandCount: 1,
+        summaryItems: ["旧摘要"],
+        explanationLines: [],
+        warningItems: [],
+        uncertaintyItems: [],
+        canvasLinks: []
+      },
+      agentRunId: "run_1",
+      agentSteps: []
+    };
+
+    const viewModel = toStudioResultViewModel(
+      message,
+      createAgentRunEnvelopeFixture({
+        run: {
+          id: "run_1"
+        },
+        teacherPacket: {
+          summary: ["新摘要"],
+          warnings: ["注意：请检查圆心位置"]
+        },
+        telemetry: {
+          upstreamCallCount: 2,
+          degraded: false,
+          retryCount: 0,
+          stages: [
+            {
+              name: "reviewer_1",
+              status: "ok",
+              durationMs: 42
+            }
+          ]
+        }
+      })
+    );
+
+    expect(viewModel.summary.items).toEqual(["新摘要"]);
+    expect(viewModel.warningItems).toEqual(["注意：请检查圆心位置"]);
+    expect(viewModel.executionSteps).toEqual([
+      {
+        label: "reviewer_1",
+        status: "ok",
+        durationMs: 42
+      }
+    ]);
+  });
+
+  it("keeps local uncertainty review status updates ahead of stale agent-run packet data", () => {
+    const message: ChatMessage = {
+      id: "msg_assistant_local_review",
+      role: "assistant",
+      content: "已创建三角形 ABC",
+      result: {
+        status: "success",
+        commandCount: 1,
+        summaryItems: ["已创建三角形 ABC"],
+        explanationLines: [],
+        warningItems: [],
+        uncertaintyItems: [
+          {
+            id: "unc_d",
+            label: "点 D 在线段 BC 上",
+            reviewStatus: "confirmed",
+            followUpPrompt: "请确认点 D 是否在线段 BC 上。"
+          }
+        ],
+        canvasLinks: []
+      },
+      agentRunId: "run_local_review"
+    };
+
+    const viewModel = toStudioResultViewModel(
+      message,
+      createAgentRunEnvelopeFixture({
+        run: {
+          id: "run_local_review"
+        },
+        teacherPacket: {
+          uncertainties: [
+            {
+              id: "unc_d",
+              label: "点 D 在线段 BC 上",
+              reviewStatus: "pending",
+              followUpPrompt: "请确认点 D 是否在线段 BC 上。"
+            }
+          ]
+        }
+      })
+    );
+
+    expect(viewModel.uncertainties[0]?.reviewStatus).toBe("confirmed");
+    expect(viewModel.reviewSummary).toEqual({
+      pendingCount: 0,
+      confirmedCount: 1,
       needsFixCount: 0
     });
   });

@@ -1,6 +1,6 @@
-import { verifyCommandBatch } from "./compile-pipeline";
 import { RuntimeApiError, RuntimeClient } from "./orchestrator";
 import {
+  normalizeAgentRunEnvelope,
   RuntimeBackupCompareRequest,
   RuntimeBackupCompareResponse,
   RuntimeBackupDownloadRequest,
@@ -328,7 +328,7 @@ export const createGatewayClient = (): GatewayRuntimeClient => {
           ? setTimeout(() => controller.abort(), request.timeoutMs)
           : undefined;
 
-      const response = await fetch(`${baseUrl}/api/v1/chat/compile`, {
+      const response = await fetch(`${baseUrl}/api/v2/agent/runs`, {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -336,7 +336,8 @@ export const createGatewayClient = (): GatewayRuntimeClient => {
           mode: request.mode,
           model: request.model,
           attachments: request.attachments,
-          context: request.context
+          context: request.context,
+          repair: request.repair
         }),
         signal: controller?.signal
       }).finally(() => {
@@ -351,19 +352,12 @@ export const createGatewayClient = (): GatewayRuntimeClient => {
 
       const payload = (await response.json()) as {
         trace_id?: string;
-        batch: unknown;
-        agent_steps?: Array<{
-          name: string;
-          status: "ok" | "fallback" | "error" | "skipped";
-          duration_ms: number;
-          detail?: string;
-        }>;
+        agent_run: unknown;
       };
 
       return {
         trace_id: payload.trace_id,
-        batch: verifyCommandBatch(payload.batch),
-        agent_steps: payload.agent_steps
+        agent_run: normalizeAgentRunEnvelope(payload.agent_run)
       };
     },
 

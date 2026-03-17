@@ -11,6 +11,11 @@ export interface CompileMetricsState {
   perfSampleCount: number;
   perfTotalMsSum: number;
   perfUpstreamMsSum: number;
+  agentRunTotal: number;
+  agentRunSuccess: number;
+  agentRunNeedsReview: number;
+  agentRunDegraded: number;
+  agentRunIterationSum: number;
 }
 
 export interface GatewayMetricsStore {
@@ -33,7 +38,12 @@ export const createEmptyCompileMetricsState = (
   latencySamplesMs: [],
   perfSampleCount: 0,
   perfTotalMsSum: 0,
-  perfUpstreamMsSum: 0
+  perfUpstreamMsSum: 0,
+  agentRunTotal: 0,
+  agentRunSuccess: 0,
+  agentRunNeedsReview: 0,
+  agentRunDegraded: 0,
+  agentRunIterationSum: 0
 });
 
 export const createMemoryMetricsStore = (): GatewayMetricsStore => {

@@ -1,3 +1,5 @@
+import type { AgentRunEnvelope } from "@geohelper/protocol";
+
 import type { ChatMessage } from "../state/chat-store";
 import type { ChatStudioUncertaintyItem } from "../state/chat-result";
 import { resolveProofAssistActions } from "./proof-assist-actions";
@@ -34,7 +36,8 @@ export interface StudioResultViewModel {
 }
 
 export const toStudioResultViewModel = (
-  message: ChatMessage | null | undefined
+  message: ChatMessage | null | undefined,
+  agentRun?: AgentRunEnvelope | null
 ): StudioResultViewModel => {
   if (!message || message.role !== "assistant") {
     return {
@@ -56,13 +59,18 @@ export const toStudioResultViewModel = (
   }
 
   const summaryItems =
-    message.result?.summaryItems.length && message.result.summaryItems.length > 0
-      ? message.result.summaryItems
+    agentRun?.teacherPacket.summary.length && agentRun.teacherPacket.summary.length > 0
+      ? agentRun.teacherPacket.summary
+      : message.result?.summaryItems.length && message.result.summaryItems.length > 0
+        ? message.result.summaryItems
       : message.content
           .split("\n")
           .map((line) => line.trim())
           .filter(Boolean);
-  const uncertainties = message.result?.uncertaintyItems ?? [];
+  const uncertainties =
+    message.result?.uncertaintyItems.length
+      ? message.result.uncertaintyItems
+      : agentRun?.teacherPacket.uncertainties ?? message.result?.uncertaintyItems ?? [];
   const reviewSummary = uncertainties.reduce(
     (acc, item) => {
       if (item.reviewStatus === "confirmed") {
@@ -83,20 +91,28 @@ export const toStudioResultViewModel = (
   );
 
   return {
-    status: message.result?.status ?? "idle",
+    status:
+      message.result?.status ??
+      (agentRun?.run.status === "failed" ? "error" : "idle"),
     summary: {
       title: "图形摘要",
       items: summaryItems.length > 0 ? summaryItems : ["暂无生成结果"]
     },
     reviewSummary,
-    executionSteps: Array.isArray(message.agentSteps)
-      ? message.agentSteps.map((step) => ({
+    executionSteps: agentRun
+      ? agentRun.telemetry.stages.map((stage) => ({
+          label: stage.name,
+          status: stage.status,
+          durationMs: stage.durationMs
+        }))
+      : Array.isArray(message.agentSteps)
+        ? message.agentSteps.map((step) => ({
           label: step.name,
           status: step.status,
           durationMs: step.duration_ms
         }))
-      : [],
-    warningItems: message.result?.warningItems ?? [],
+        : [],
+    warningItems: agentRun?.teacherPacket.warnings ?? message.result?.warningItems ?? [],
     uncertainties,
     nextActions: resolveProofAssistActions(message)
   };

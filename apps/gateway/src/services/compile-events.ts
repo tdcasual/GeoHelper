@@ -9,6 +9,8 @@ export type CompileEventType =
 
 export type CompileFinalStatus =
   | "success"
+  | "needs_review"
+  | "degraded"
   | "fallback"
   | "repair"
   | "validation_failure"

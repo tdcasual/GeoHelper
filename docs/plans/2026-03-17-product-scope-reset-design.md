@@ -180,6 +180,11 @@ GeoHelper 不做：
 3. 对象关系、几何约束、命名和缺失项的可见性。
 4. 更明确的“需要老师确认”的界面语义。
 
+当前实现基线：
+
+1. Gateway 主链路已经切到 `AgentRun` 驱动的 `author -> reviewer -> optional reviser -> preflight` workflow。
+2. `/api/v1/chat/compile` 继续保留，但仅作为 legacy response shell，不再代表独立的旧 compile chain。
+
 Track A 与 Track B 的当前执行落地计划见 [`2026-03-17-teacher-studio-review-flow-implementation-plan.md`](./2026-03-17-teacher-studio-review-flow-implementation-plan.md)。
 
 ### 8.3 Track C: Local-First Recovery and Self-Hosted Ops Polish

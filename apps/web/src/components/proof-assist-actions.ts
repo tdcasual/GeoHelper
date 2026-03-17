@@ -1,3 +1,8 @@
+import type {
+  AgentRunEnvelope,
+  GeometryCanvasEvidence
+} from "@geohelper/protocol";
+
 import type { ChatMessage } from "../state/chat-store";
 import type {
   ChatStudioResult,
@@ -57,7 +62,11 @@ const buildRepairPrompt = (
 
 export const resolveUncertaintyRepairPrompt = (
   message: ChatMessage | null | undefined,
-  uncertaintyId: string
+  uncertaintyId: string,
+  options?: {
+    agentRun?: AgentRunEnvelope | null;
+    canvasEvidence?: GeometryCanvasEvidence | null;
+  }
 ): string | null => {
   const result: ChatStudioResult | undefined =
     message?.role === "assistant" ? message.result : undefined;
@@ -77,7 +86,16 @@ export const resolveUncertaintyRepairPrompt = (
     return null;
   }
 
-  return buildRepairPrompt(summary, uncertainty);
+  const draftSuffix = options?.agentRun
+    ? `\n当前草案：${options.agentRun.draft.normalizedIntent}`
+    : "";
+  const canvasEvidenceSuffix = options?.canvasEvidence
+    ? `\n画布证据：已执行 ${options.canvasEvidence.executedCommandCount} 条指令；可见对象：${options.canvasEvidence.visibleLabels.join(
+        "、"
+      )}${options.canvasEvidence.teacherFocus ? `；教师关注：${options.canvasEvidence.teacherFocus}` : ""}`
+    : "";
+
+  return `${buildRepairPrompt(summary, uncertainty)}${draftSuffix}${canvasEvidenceSuffix}`;
 };
 
 export const resolveProofAssistActions = (

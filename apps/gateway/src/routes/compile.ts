@@ -3,7 +3,6 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import { GatewayConfig } from "../config";
-import { GatewayAlertUpstreamContext } from "../services/alerting";
 import { GatewayBuildInfo } from "../services/build-info";
 import {
   buildTraceId,
@@ -15,32 +14,38 @@ import {
   CompileGuardBusyError,
   CompileGuardTimeoutError
 } from "../services/compile-guard";
+import { createAgentWorkflow } from "../services/agent-workflow";
+import { createGeometryAuthor } from "../services/geometry-author";
+import { createGeometryPreflight } from "../services/geometry-preflight";
+import { createGeometryReviewer } from "../services/geometry-reviewer";
+import { createGeometryReviser } from "../services/geometry-reviser";
 import {
   CompileMode,
   RequestCommandBatch
 } from "../services/litellm-client";
 import {
+  recordAgentRunQualitySample,
   recordCompileFailure,
   recordCompilePerfSample,
   recordCompileRateLimited,
   recordCompileSuccess
 } from "../services/metrics";
 import { GatewayMetricsStore } from "../services/metrics-store";
-import { resolveUpstreamTargets } from "../services/model-router";
-import {
-  compileWithMultiAgent,
-  compileWithSingleAgent
-} from "../services/multi-agent";
 import { consumeRateLimit } from "../services/rate-limit";
 import { RateLimitStore } from "../services/rate-limit-store";
 import { verifySessionToken } from "../services/session";
 import { SessionRevocationStore } from "../services/session-store";
-import { InvalidCommandBatchError } from "../services/verify-command-batch";
+import {
+  buildCompileAlertUpstream,
+  LegacyAgentStep,
+  toLegacyAgentSteps
+} from "./compile-route-agent-adapter";
 import { createCompileRouteAlerting } from "./compile-route-alerts";
 import {
   mergeCompileMetadata,
   normalizeCompileContext,
-  summarizeCompileAttachments
+  summarizeCompileAttachments,
+  toCompileFinalStatusFromAgentRun
 } from "./compile-route-helpers";
 
 const CompileBodySchema = z.object({
@@ -123,44 +128,6 @@ export const registerCompileRoute = (
       traceId
     });
 
-    const buildCompileAlertUpstream = (
-      input: {
-        mode: CompileMode;
-        model?: string;
-        byokEndpoint?: string;
-        byokKey?: string;
-      }
-    ): GatewayAlertUpstreamContext | undefined => {
-      try {
-        const targets = resolveUpstreamTargets(
-          {
-            byokEndpoint: input.byokEndpoint,
-            byokKey: input.byokKey,
-            model: input.model
-          },
-          {
-            LITELLM_ENDPOINT: config.litellmEndpoint,
-            LITELLM_API_KEY: config.litellmApiKey,
-            LITELLM_MODEL: config.litellmModel,
-            LITELLM_FALLBACK_ENDPOINT: config.litellmFallbackEndpoint,
-            LITELLM_FALLBACK_API_KEY: config.litellmFallbackApiKey,
-            LITELLM_FALLBACK_MODEL: config.litellmFallbackModel
-          }
-        );
-
-        return {
-          mode: input.mode,
-          targets: targets.map((target) => ({
-            source: target.source,
-            endpoint: target.endpoint,
-            model: target.model
-          }))
-        };
-      } catch {
-        return undefined;
-      }
-    };
-
     const rateKey = `${request.ip}:compile`;
     const limit = await consumeRateLimit(
       rateKey,
@@ -241,10 +208,8 @@ export const registerCompileRoute = (
 
     const byokEndpoint = request.headers["x-byok-endpoint"];
     const byokKey = request.headers["x-byok-key"];
-    const fallbackSingleAgent = request.headers["x-client-fallback-single-agent"];
     const performanceSampling = request.headers["x-client-performance-sampling"];
     const strictValidation = request.headers["x-client-strict-validation"];
-    const useSingleAgent = fallbackSingleAgent === "1" || attachmentsPresent;
     const samplePerf = performanceSampling === "1";
     const strictMode = strictValidation === "1";
 
@@ -258,38 +223,88 @@ export const registerCompileRoute = (
       attachments: parsed.data.attachments,
       context: normalizeCompileContext(parsed.data.context)
     };
-    const alertUpstream = buildCompileAlertUpstream(compileInput);
+    const alertUpstream = buildCompileAlertUpstream(config, compileInput);
+
+    let upstreamCallCount = 0;
+    let upstreamMs = 0;
+    const countedRequester: RequestCommandBatch = async (input) => {
+      upstreamCallCount += 1;
+      const startedAt = Date.now();
+      try {
+        return await deps.requestCommandBatch(input);
+      } finally {
+        upstreamMs += Date.now() - startedAt;
+      }
+    };
+
+    const workflow = createAgentWorkflow({
+      author: createGeometryAuthor(countedRequester),
+      reviewer: createGeometryReviewer(countedRequester),
+      reviser: createGeometryReviser(countedRequester),
+      preflight: createGeometryPreflight(),
+      getUpstreamCallCount: () => upstreamCallCount,
+      buildRunId: () => `compile_${request.id}`
+    });
 
     try {
-      const result = await deps.compileGuard.run(async () =>
-        useSingleAgent
-          ? compileWithSingleAgent(compileInput, deps.requestCommandBatch)
-          : compileWithMultiAgent(compileInput, deps.requestCommandBatch)
-      );
+      const agentRun = await deps.compileGuard.run(() => workflow(compileInput));
       const totalMs = Date.now() - totalStartedAt;
+      const legacyAgentSteps = toLegacyAgentSteps(agentRun.telemetry.stages);
+      const retryCount = Math.max(0, agentRun.run.iterationCount - 1);
+      const hadFallback = legacyAgentSteps.some(
+        (step) => step.status === "fallback"
+      );
+      const repaired = legacyAgentSteps.some(
+        (step) => step.name === "repair" && step.status === "ok"
+      );
+      const estimatedCostUsd =
+        Math.max(0, config.costPerRequestUsd) *
+        Math.max(1, agentRun.telemetry.upstreamCallCount);
+      const successMetadata = mergeCompileMetadata(attachmentMetadata, {
+        iterationCount: agentRun.run.iterationCount,
+        reviewerVerdict: agentRun.reviews.at(-1)?.verdict ?? null,
+        degraded: agentRun.telemetry.degraded
+      });
 
-      const retryCount = result.agent_steps.some(
-        (step) => step.name === "repair" && step.status === "ok"
-      )
-        ? 1
-        : 0;
-      const hadFallback = result.agent_steps.some(
-        (step) => step.status === "fallback"
+      recordAgentRunQualitySample(
+        {
+          status:
+            agentRun.run.status === "success" ||
+            agentRun.run.status === "needs_review" ||
+            agentRun.run.status === "degraded"
+              ? agentRun.run.status
+              : "failed",
+          iterationCount: agentRun.run.iterationCount
+        },
+        deps.metricsStore
       );
-      const fallbackSteps = result.agent_steps.filter(
-        (step) => step.status === "fallback"
-      );
-      const repaired = result.agent_steps.some(
-        (step) => step.name === "repair" && step.status === "ok"
-      );
+
+      if (agentRun.evidence.preflight.status === "failed") {
+        recordCompileFailure(totalMs, 0, deps.metricsStore);
+        await writeCompileEvent("compile_validation_failure", "validation_failure", 422, {
+          detail: "invalid_command_batch",
+          upstreamCallCount: agentRun.telemetry.upstreamCallCount,
+          metadata: mergeCompileMetadata(successMetadata, {
+            issues: agentRun.evidence.preflight.issues
+          })
+        });
+        return reply.status(422).send({
+          error: {
+            code: "INVALID_COMMAND_BATCH",
+            message: strictMode
+              ? "Command batch validation failed (strict)"
+              : "Command batch validation failed",
+            details: agentRun.evidence.preflight.issues
+          }
+        });
+      }
+
       const finalStatus: CompileFinalStatus = hadFallback
         ? "fallback"
         : repaired
           ? "repair"
-          : "success";
-      const estimatedCostUsd =
-        Math.max(0, config.costPerRequestUsd) *
-        Math.max(1, result.upstream_calls);
+          : toCompileFinalStatusFromAgentRun(agentRun.run.status);
+
       recordCompileSuccess(
         {
           retryCount,
@@ -300,47 +315,51 @@ export const registerCompileRoute = (
         deps.metricsStore
       );
       await writeCompileEvent("compile_success", finalStatus, 200, {
-        upstreamCallCount: result.upstream_calls,
-        metadata: attachmentMetadata
+        upstreamCallCount: agentRun.telemetry.upstreamCallCount,
+        metadata: successMetadata
       });
+
       if (samplePerf) {
         recordCompilePerfSample(
           {
             totalMs,
-            upstreamMs: result.upstream_ms
+            upstreamMs
           },
           deps.metricsStore
         );
         reply.header("x-perf-total-ms", String(totalMs));
-        reply.header("x-perf-upstream-ms", String(result.upstream_ms));
+        reply.header("x-perf-upstream-ms", String(upstreamMs));
       }
 
-      if (fallbackSteps.length > 0) {
+      if (hadFallback) {
+        const fallbackSteps = legacyAgentSteps
+          .filter((step) => step.status === "fallback")
+          .map((step) => step.name);
         await writeCompileEvent("compile_fallback", "fallback", 200, {
-          detail: fallbackSteps.map((step) => step.name).join(","),
-          upstreamCallCount: result.upstream_calls,
-          metadata: mergeCompileMetadata(attachmentMetadata, {
-            fallback_steps: fallbackSteps.map((step) => step.name)
+          detail: fallbackSteps.join(","),
+          upstreamCallCount: agentRun.telemetry.upstreamCallCount,
+          metadata: mergeCompileMetadata(successMetadata, {
+            fallback_steps: fallbackSteps
           })
         });
         await sendCompileOperatorAlert("compile_fallback", "fallback", 200, {
-          detail: fallbackSteps.map((step) => step.name).join(","),
-          metadata: mergeCompileMetadata(attachmentMetadata, {
-            fallback_steps: fallbackSteps.map((step) => step.name)
+          detail: fallbackSteps.join(","),
+          metadata: mergeCompileMetadata(successMetadata, {
+            fallback_steps: fallbackSteps
           }),
           upstream: alertUpstream
         });
       } else if (repaired) {
         await writeCompileEvent("compile_repair", "repair", 200, {
           detail: "repair agent produced a valid batch",
-          upstreamCallCount: result.upstream_calls,
-          metadata: mergeCompileMetadata(attachmentMetadata, {
+          upstreamCallCount: agentRun.telemetry.upstreamCallCount,
+          metadata: mergeCompileMetadata(successMetadata, {
             repair: true
           })
         });
         await sendCompileOperatorAlert("compile_repair", "repair", 200, {
           detail: "repair agent produced a valid batch",
-          metadata: mergeCompileMetadata(attachmentMetadata, {
+          metadata: mergeCompileMetadata(successMetadata, {
             repair: true
           }),
           upstream: alertUpstream
@@ -349,8 +368,8 @@ export const registerCompileRoute = (
 
       return reply.send({
         trace_id: traceId,
-        batch: result.batch,
-        agent_steps: result.agent_steps
+        batch: agentRun.draft.commandBatchDraft,
+        agent_steps: legacyAgentSteps
       });
     } catch (error) {
       const totalMs = Date.now() - totalStartedAt;
@@ -396,25 +415,6 @@ export const registerCompileRoute = (
           error: {
             code: error.code,
             message: error.message
-          }
-        });
-      }
-
-      if (error instanceof InvalidCommandBatchError) {
-        recordCompileFailure(totalMs, 0, deps.metricsStore);
-        await writeCompileEvent("compile_validation_failure", "validation_failure", 422, {
-          detail: "invalid_command_batch",
-          metadata: mergeCompileMetadata(attachmentMetadata, {
-            issues: error.issues
-          })
-        });
-        return reply.status(422).send({
-          error: {
-            code: "INVALID_COMMAND_BATCH",
-            message: strictMode
-              ? "Command batch validation failed (strict)"
-              : "Command batch validation failed",
-            details: error.issues
           }
         });
       }

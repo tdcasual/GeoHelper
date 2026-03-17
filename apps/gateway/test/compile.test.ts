@@ -3,21 +3,22 @@ import { describe, expect, it } from "vitest";
 import { buildServer } from "../src/server";
 import { createMemoryCompileEventSink } from "../src/services/compile-events";
 import { clearRateLimits } from "../src/services/rate-limit";
+import {
+  createGeometryAgentResponder,
+  createGeometryDraftFixture,
+  createGeometryReviewFixture
+} from "./helpers/geometry-agent-stub";
 
 describe("POST /api/v1/chat/compile", () => {
   it("returns validated command batch", async () => {
     clearRateLimits();
 
-    const app = buildServer({}, {
-      requestCommandBatch: async () => ({
-        version: "1.0",
-        scene_id: "s1",
-        transaction_id: "t1",
-        commands: [],
-        post_checks: [],
-        explanations: []
-      })
-    });
+    const app = buildServer(
+      {},
+      {
+        requestCommandBatch: createGeometryAgentResponder()
+      }
+    );
 
     const res = await app.inject({
       method: "POST",
@@ -32,23 +33,19 @@ describe("POST /api/v1/chat/compile", () => {
     const payload = JSON.parse(res.payload);
     expect(payload.batch.version).toBe("1.0");
     expect(Array.isArray(payload.agent_steps)).toBe(true);
-    expect(payload.agent_steps.length).toBeGreaterThanOrEqual(4);
+    expect(payload.agent_steps.length).toBeGreaterThanOrEqual(3);
   });
 
 
   it("rejects attachments when gateway attachment capability is disabled", async () => {
     clearRateLimits();
 
-    const app = buildServer({}, {
-      requestCommandBatch: async () => ({
-        version: "1.0",
-        scene_id: "s1",
-        transaction_id: "t1",
-        commands: [],
-        post_checks: [],
-        explanations: []
-      })
-    });
+    const app = buildServer(
+      {},
+      {
+        requestCommandBatch: createGeometryAgentResponder()
+      }
+    );
 
     const res = await app.inject({
       method: "POST",
@@ -82,7 +79,11 @@ describe("POST /api/v1/chat/compile", () => {
     clearRateLimits();
 
     const compileEventSink = createMemoryCompileEventSink();
-    let capturedInput: { attachments?: Array<{ mimeType: string; transportPayload: string }> } | undefined;
+    let capturedInput:
+      | {
+          attachments?: Array<{ mimeType: string; transportPayload: string }>;
+        }
+      | undefined;
 
     const app = buildServer(
       {
@@ -90,17 +91,13 @@ describe("POST /api/v1/chat/compile", () => {
       },
       {
         compileEventSink,
-        requestCommandBatch: async (input) => {
-          capturedInput = input as typeof capturedInput;
-          return {
-            version: "1.0",
-            scene_id: "s1",
-            transaction_id: "t1",
-            commands: [],
-            post_checks: [],
-            explanations: []
-          };
-        }
+        requestCommandBatch: createGeometryAgentResponder({
+          onRequest: (input) => {
+            if (input.systemPrompt?.includes("GeometryDraftPackage")) {
+              capturedInput = input as typeof capturedInput;
+            }
+          }
+        })
       }
     );
 
@@ -133,10 +130,12 @@ describe("POST /api/v1/chat/compile", () => {
     const successEvent = compileEventSink
       .readAll()
       .find((event) => event.event === "compile_success");
-    expect(successEvent?.metadata).toEqual({
+    expect(successEvent?.metadata).toEqual(
+      expect.objectContaining({
       attachments_count: 1,
       attachment_kinds: ["image"]
-    });
+      })
+    );
     expect(JSON.stringify(compileEventSink.readAll())).not.toContain(
       "data:image/png;base64,AAAA"
     );
@@ -145,40 +144,51 @@ describe("POST /api/v1/chat/compile", () => {
   it("repairs invalid first draft and still succeeds", async () => {
     clearRateLimits();
 
-    let call = 0;
+    const draftWithInvalidBatch = createGeometryDraftFixture({
+      commandBatchDraft: {
+        version: "1.0",
+        scene_id: "scene_invalid",
+        transaction_id: "tx_invalid",
+        commands: [
+          {
+            id: "c1",
+            op: "create_line",
+            args: {
+              from: "A",
+              to: "A"
+            },
+            depends_on: [],
+            idempotency_key: "k1"
+          }
+        ],
+        post_checks: [],
+        explanations: ["初稿包含无效命令"]
+      }
+    });
+    const repairedDraft = createGeometryDraftFixture({
+      commandBatchDraft: {
+        version: "1.0",
+        scene_id: "scene_repaired",
+        transaction_id: "tx_repaired",
+        commands: [],
+        post_checks: [],
+        explanations: ["修正后草案"]
+      }
+    });
     const app = buildServer(
       {},
       {
-        requestCommandBatch: async () => {
-          call += 1;
-          if (call === 3) {
-            return {
-              version: "1.0",
-              scene_id: "s1",
-              transaction_id: "t1",
-              commands: [
-                {
-                  id: "c1",
-                  op: "eval_js",
-                  args: {},
-                  depends_on: [],
-                  idempotency_key: "k1"
-                }
-              ],
-              post_checks: [],
-              explanations: []
-            };
-          }
-
-          return {
-            version: "1.0",
-            scene_id: "s1",
-            transaction_id: "t1",
-            commands: [],
-            post_checks: [],
-            explanations: []
-          };
-        }
+        requestCommandBatch: createGeometryAgentResponder({
+          drafts: [draftWithInvalidBatch, repairedDraft],
+          reviews: [
+            createGeometryReviewFixture({
+              verdict: "revise",
+              summary: ["命令草案包含无效操作"],
+              repairInstructions: ["请移除无效命令并重新生成可执行草案"]
+            }),
+            createGeometryReviewFixture()
+          ]
+        })
       }
     );
 

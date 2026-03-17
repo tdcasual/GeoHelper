@@ -4,15 +4,10 @@ import { buildServer } from "../src/server";
 import { createMemoryCompileEventSink } from "../src/services/compile-events";
 import { resetGatewayMetrics } from "../src/services/metrics";
 import { clearRateLimits } from "../src/services/rate-limit";
-
-const validBatch = {
-  version: "1.0",
-  scene_id: "s1",
-  transaction_id: "t1",
-  commands: [],
-  post_checks: [],
-  explanations: []
-};
+import {
+  createGeometryAgentResponder,
+  createGeometryDraftFixture
+} from "./helpers/geometry-agent-stub";
 
 describe("compile runtime guard", () => {
   const originalFetch = globalThis.fetch;
@@ -55,15 +50,29 @@ describe("compile runtime guard", () => {
       },
       {
         compileEventSink,
-        requestCommandBatch: async () => {
-          invocationCount += 1;
-          if (invocationCount === 1) {
-            resolveFirstCall?.();
-            await firstCallGate;
+        requestCommandBatch: createGeometryAgentResponder({
+          drafts: [
+            createGeometryDraftFixture({
+              commandBatchDraft: {
+                version: "1.0",
+                scene_id: "s1",
+                transaction_id: "t1",
+                commands: [],
+                post_checks: [],
+                explanations: []
+              }
+            })
+          ],
+          onRequest: async (input) => {
+            if (input.systemPrompt?.includes("GeometryDraftPackage")) {
+              invocationCount += 1;
+              if (invocationCount === 1) {
+                resolveFirstCall?.();
+                await firstCallGate;
+              }
+            }
           }
-
-          return validBatch;
-        }
+        })
       }
     );
 
@@ -129,8 +138,7 @@ describe("compile runtime guard", () => {
               reject(new Error("upstream still hanging"));
             }, 200);
           });
-
-          return validBatch;
+          return null;
         }
       }
     );

@@ -1,6 +1,7 @@
 @import "./styles/tokens.css";
 @import "./styles/homepage.css";
 @import "./styles/workspace-shell.css";
+@import "./styles/workspace-shell-studio.css";
 @import "./styles/chat.css";
 @import "./styles/settings-drawer.css";
 @import "./styles/responsive.css";
