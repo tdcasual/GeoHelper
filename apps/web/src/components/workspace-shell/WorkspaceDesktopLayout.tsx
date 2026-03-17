@@ -30,8 +30,17 @@ interface WorkspaceDesktopLayoutProps {
   onCloseTemplateLibrary: () => void;
   desktopInputMode: StudioStartMode;
   onDesktopInputModeChange: (mode: StudioStartMode) => void;
-  conversationCount: number;
-  templateCount: number;
+  currentConversationTitle: string;
+  recentConversations: Array<{
+    id: string;
+    title: string;
+    updatedAt: number;
+    isActive: boolean;
+  }>;
+  recentTemplates: ComponentProps<typeof TeacherTemplateLibrary>["templates"];
+  onContinueCurrent: () => void;
+  onSelectConversation: (conversationId: string) => void;
+  onApplyContinueTemplate: (prompt: string) => void;
   onOpenTemplateLibrary: () => void;
   chatHeaderProps: ComponentProps<typeof WorkspaceChatHeader>;
   chatComposerProps: ComponentProps<typeof WorkspaceChatComposer>;
@@ -40,6 +49,7 @@ interface WorkspaceDesktopLayoutProps {
   canvasVisible: boolean;
   latestAssistantMessage: ComponentProps<typeof StudioResultPanel>["message"];
   onStudioResultAction: ComponentProps<typeof StudioResultPanel>["onAction"];
+  onRetryLatestPrompt: ComponentProps<typeof StudioResultPanel>["onRetry"];
   chatMessagesProps: ComponentProps<typeof WorkspaceChatMessages>;
 }
 
@@ -57,8 +67,12 @@ export const WorkspaceDesktopLayout = ({
   onCloseTemplateLibrary,
   desktopInputMode,
   onDesktopInputModeChange,
-  conversationCount,
-  templateCount,
+  currentConversationTitle,
+  recentConversations,
+  recentTemplates,
+  onContinueCurrent,
+  onSelectConversation,
+  onApplyContinueTemplate,
   onOpenTemplateLibrary,
   chatHeaderProps,
   chatComposerProps,
@@ -67,6 +81,7 @@ export const WorkspaceDesktopLayout = ({
   canvasVisible,
   latestAssistantMessage,
   onStudioResultAction,
+  onRetryLatestPrompt,
   chatMessagesProps
 }: WorkspaceDesktopLayoutProps) => (
   <>
@@ -105,8 +120,12 @@ export const WorkspaceDesktopLayout = ({
           <StudioInputPanel
             mode={desktopInputMode}
             onModeChange={onDesktopInputModeChange}
-            conversationCount={conversationCount}
-            templateCount={templateCount}
+            currentConversationTitle={currentConversationTitle}
+            recentConversations={recentConversations}
+            recentTemplates={recentTemplates}
+            onContinueCurrent={onContinueCurrent}
+            onSelectConversation={onSelectConversation}
+            onApplyTemplate={onApplyContinueTemplate}
             onOpenTemplateLibrary={onOpenTemplateLibrary}
             headerSlot={<WorkspaceChatHeader {...chatHeaderProps} />}
             composerSlot={<WorkspaceChatComposer {...chatComposerProps} />}
@@ -128,6 +147,7 @@ export const WorkspaceDesktopLayout = ({
         <StudioResultPanel
           message={latestAssistantMessage}
           onAction={onStudioResultAction}
+          onRetry={onRetryLatestPrompt}
         />
         <WorkspaceChatMessages {...chatMessagesProps} />
       </div>

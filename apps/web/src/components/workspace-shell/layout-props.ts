@@ -124,6 +124,14 @@ export const buildWorkspaceLayoutProps = ({
     conversationSidebarProps,
     chatHeaderProps,
     chatMessagesProps,
-    chatComposerProps
+    chatComposerProps,
+    recentConversations: composer.conversations.slice(0, 3).map((conversation) => ({
+      id: conversation.id,
+      title: conversation.title,
+      updatedAt: conversation.updatedAt,
+      isActive: conversation.id === composer.activeConversationId
+    })),
+    recentTemplates: composer.templates.slice(0, 3),
+    currentConversationTitle: composer.activeConversation?.title ?? "新会话"
   };
 };

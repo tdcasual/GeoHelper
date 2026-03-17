@@ -429,6 +429,19 @@ export const useWorkspaceComposer = ({
     closeComposerMenus();
   };
 
+  const retryLatestPrompt = async () => {
+    const latestUserMessage =
+      [...messages].reverse().find((message) => message.role === "user") ?? null;
+    if (!latestUserMessage) {
+      return;
+    }
+
+    await send({
+      content: latestUserMessage.content,
+      attachments: latestUserMessage.attachments
+    });
+  };
+
   return {
     activeConversation,
     activeConversationId,
@@ -454,6 +467,7 @@ export const useWorkspaceComposer = ({
     messages,
     plusMenuOpen,
     removeAttachment,
+    retryLatestPrompt,
     selectConversationWithComposerState,
     sendFollowUpPrompt,
     setDraftForActiveConversation,

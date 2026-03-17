@@ -1,4 +1,5 @@
 import type { ChatMessage } from "../state/chat-store";
+import type { ChatStudioResult } from "../state/chat-result";
 
 export type ProofAssistActionId =
   | "add_auxiliary"
@@ -48,7 +49,10 @@ const buildPrompt = (
 export const resolveProofAssistActions = (
   message: ChatMessage | null | undefined
 ): ProofAssistAction[] => {
-  if (!message || message.role !== "assistant") {
+  const result: ChatStudioResult | undefined =
+    message?.role === "assistant" ? message.result : undefined;
+
+  if (!message || message.role !== "assistant" || !result) {
     return ACTION_LABELS.map((item) => ({
       ...item,
       prompt: "",
@@ -57,16 +61,10 @@ export const resolveProofAssistActions = (
     }));
   }
 
-  const lines = message.content
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const uncertainties = lines
-    .filter((line) => line.startsWith("待确认："))
-    .map((line) => line.replace("待确认：", "").trim());
-  const summaryLines = lines.filter((line) => !line.startsWith("待确认："));
-  const summary = summaryLines.join("；");
+  const summary = result.summaryItems.join("；");
+  const uncertainties = result.uncertaintyItems.map((item) => item.label);
   const hasContext =
+    result.status === "success" &&
     summary.length > 0 &&
     summary !== "暂无生成结果" &&
     !summary.includes("生成失败");

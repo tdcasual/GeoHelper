@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildAssistantMessageFromError,
+  buildAssistantMessageFromGuard,
   buildAssistantMessageFromCompileResult,
   buildCompileContext,
   resolveChatSendGuard
@@ -98,8 +100,11 @@ describe("chat-send-flow", () => {
               idempotency_key: "cmd_circle_1"
             }
           ],
-          post_checks: [],
-          explanations: []
+          post_checks: [
+            "待确认：点 D 在线段 BC 上",
+            "注意：请检查角平分线是否穿过顶点 A"
+          ],
+          explanations: ["已创建三角形 ABC", "已作角平分线 AD"]
         },
         traceId: "trace_1",
         agentSteps: [
@@ -112,8 +117,25 @@ describe("chat-send-flow", () => {
       })
     ).toMatchObject({
       role: "assistant",
-      content: "已生成 1 条指令",
+      content: "已创建三角形 ABC\n已作角平分线 AD",
       traceId: "trace_1",
+      result: {
+        status: "success",
+        commandCount: 1,
+        summaryItems: ["已创建三角形 ABC", "已作角平分线 AD"],
+        explanationLines: ["已创建三角形 ABC", "已作角平分线 AD"],
+        warningItems: ["注意：请检查角平分线是否穿过顶点 A"],
+        uncertaintyItems: [
+          {
+            id: "unc_点_d_在线段_bc_上",
+            label: "点 D 在线段 BC 上",
+            reviewStatus: "pending",
+            followUpPrompt:
+              "请基于当前图形结果，重新检查并明确以下待确认条件：点 D 在线段 BC 上。如果条件不成立，也请直接指出。"
+          }
+        ],
+        canvasLinks: []
+      },
       agentSteps: [
         {
           name: "intent",
@@ -121,6 +143,69 @@ describe("chat-send-flow", () => {
           duration_ms: 12
         }
       ]
+    });
+  });
+
+  it("falls back to command-count content when compile result lacks explanations", () => {
+    expect(
+      buildAssistantMessageFromCompileResult({
+        id: "msg_assistant_fallback",
+        batch: {
+          version: "1.0",
+          scene_id: "scene_1",
+          transaction_id: "tx_1",
+          commands: [],
+          post_checks: [],
+          explanations: []
+        }
+      })
+    ).toMatchObject({
+      content: "已生成 0 条指令",
+      result: {
+        status: "success",
+        commandCount: 0,
+        summaryItems: ["已生成 0 条指令"],
+        canvasLinks: []
+      }
+    });
+  });
+
+  it("builds structured guard messages for teacher-facing review", () => {
+    expect(
+      buildAssistantMessageFromGuard({
+        id: "msg_guard",
+        guard: {
+          kind: "attachments_unsupported",
+          assistantMessage: "当前运行时或模型未开启图片能力"
+        }
+      })
+    ).toMatchObject({
+      role: "assistant",
+      result: {
+        status: "guard",
+        commandCount: 0,
+        summaryItems: ["当前运行时或模型未开启图片能力"],
+        canvasLinks: []
+      }
+    });
+  });
+
+  it("builds structured error messages for teacher-facing review", () => {
+    expect(
+      buildAssistantMessageFromError({
+        id: "msg_error",
+        error: new Error("boom"),
+        mode: "byok"
+      })
+    ).toMatchObject({
+      role: "assistant",
+      content: "生成失败，请重试",
+      result: {
+        status: "error",
+        commandCount: 0,
+        summaryItems: ["生成失败，请重试"],
+        canvasLinks: []
+      }
     });
   });
 });

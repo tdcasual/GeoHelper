@@ -15,8 +15,8 @@ const mockCompile = async (page: import("@playwright/test").Page) => {
           scene_id: "s1",
           transaction_id: "t1",
           commands: [],
-          post_checks: [],
-          explanations: []
+          post_checks: ["待确认：点 D 在线段 BC 上"],
+          explanations: ["已创建三角形 ABC", "已作角平分线 AD"]
         },
         agent_steps: [
           { name: "intent", status: "ok", duration_ms: 5 },
@@ -42,9 +42,12 @@ test("right rail shows structured result sections after one send", async ({
   const resultRail = page.getByTestId("studio-result-rail");
   const resultPanel = page.getByTestId("studio-result-panel");
   await expect(resultRail).toBeVisible();
+  await expect(resultPanel.getByRole("heading", { name: "结果状态" })).toBeVisible();
   await expect(resultPanel.getByRole("heading", { name: "图形摘要" })).toBeVisible();
   await expect(resultPanel.getByRole("heading", { name: "执行步骤" })).toBeVisible();
+  await expect(resultPanel.getByRole("heading", { name: "待确认" })).toBeVisible();
   await expect(resultPanel.getByRole("heading", { name: "下一步动作" })).toBeVisible();
+  await expect(resultPanel.getByText("点 D 在线段 BC 上")).toBeVisible();
   await expect(resultRail.getByRole("button", { name: "补辅助线" })).toBeVisible();
   await expect(resultRail.getByRole("button", { name: "生成讲解思路" })).toBeVisible();
   await expect(page.getByTestId("proof-assist-action-add_auxiliary")).toBeEnabled();

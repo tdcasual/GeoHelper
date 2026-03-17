@@ -1,4 +1,5 @@
 import type { ChatMessage } from "../state/chat-store";
+import type { ChatStudioUncertaintyItem } from "../state/chat-result";
 import { resolveProofAssistActions } from "./proof-assist-actions";
 
 export interface StudioResultAction {
@@ -16,12 +17,14 @@ export interface StudioResultStep {
 }
 
 export interface StudioResultViewModel {
+  status: "idle" | "success" | "guard" | "error";
   summary: {
     title: string;
     items: string[];
   };
   executionSteps: StudioResultStep[];
-  uncertainties: string[];
+  warningItems: string[];
+  uncertainties: ChatStudioUncertaintyItem[];
   nextActions: StudioResultAction[];
 }
 
@@ -30,26 +33,28 @@ export const toStudioResultViewModel = (
 ): StudioResultViewModel => {
   if (!message || message.role !== "assistant") {
     return {
+      status: "idle",
       summary: {
         title: "图形摘要",
         items: ["暂无生成结果"]
       },
       executionSteps: [],
+      warningItems: [],
       uncertainties: [],
       nextActions: resolveProofAssistActions(message)
     };
   }
 
-  const lines = message.content
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const uncertainties = lines
-    .filter((line) => line.startsWith("待确认："))
-    .map((line) => line.replace("待确认：", "").trim());
-  const summaryItems = lines.filter((line) => !line.startsWith("待确认："));
+  const summaryItems =
+    message.result?.summaryItems.length && message.result.summaryItems.length > 0
+      ? message.result.summaryItems
+      : message.content
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean);
 
   return {
+    status: message.result?.status ?? "idle",
     summary: {
       title: "图形摘要",
       items: summaryItems.length > 0 ? summaryItems : ["暂无生成结果"]
@@ -61,7 +66,8 @@ export const toStudioResultViewModel = (
           durationMs: step.duration_ms
         }))
       : [],
-    uncertainties,
+    warningItems: message.result?.warningItems ?? [],
+    uncertainties: message.result?.uncertaintyItems ?? [],
     nextActions: resolveProofAssistActions(message)
   };
 };

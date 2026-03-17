@@ -21,5 +21,14 @@ test("studio input rail exposes image, text, and continue modes without regressi
   await expect(page.getByTestId("chat-composer-input")).toBeVisible();
 
   await page.getByTestId("studio-input-mode-continue").click();
-  await expect(page.getByTestId("studio-continue-mode-panel")).toContainText("最近输入");
+  const continuePanel = page.getByTestId("studio-continue-panel");
+  await expect(continuePanel).toBeVisible();
+  await expect(continuePanel).toContainText("继续当前画稿");
+  await expect(continuePanel).toContainText("新会话");
+  await expect(continuePanel.getByRole("button", { name: "画圆" })).toBeVisible();
+
+  await continuePanel.getByRole("button", { name: "画圆" }).click();
+  await expect(page.getByTestId("chat-composer-input")).toHaveValue(
+    "过点A为圆心，半径为3作圆。"
+  );
 });

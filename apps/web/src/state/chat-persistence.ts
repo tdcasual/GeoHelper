@@ -1,6 +1,7 @@
 import type { ChatMode } from "../runtime/types";
 import { persistChatSnapshotToIndexedDb } from "../storage/indexed-sync";
 import { notifyRemoteSyncLocalMutation } from "../storage/remote-sync";
+import { normalizeChatStudioResult } from "./chat-result";
 import type { ChatMessage, ConversationThread } from "./chat-store";
 
 export interface PersistedChatSnapshot {
@@ -69,7 +70,8 @@ const normalizeMessage = (message: ChatMessage): ChatMessage => ({
   ...message,
   attachments: Array.isArray(message.attachments)
     ? message.attachments
-    : undefined
+    : undefined,
+  result: normalizeChatStudioResult(message.result)
 });
 
 export const loadChatSnapshot = (): PersistedChatSnapshot => {

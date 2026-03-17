@@ -1,6 +1,7 @@
 import { RuntimeApiError } from "../runtime/runtime-service";
 import type { RuntimeCompileResponse } from "../runtime/types";
 import type { ChatMode } from "../runtime/types";
+import { buildUncertaintyFollowUpPrompt } from "./chat-result";
 import type {
   ChatAttachment,
   ChatMessage,
@@ -94,21 +95,121 @@ export const buildAssistantMessageFromGuard = (input: {
 }): ChatMessage => ({
   id: input.id,
   role: "assistant",
-  content: input.guard.assistantMessage
+  content: input.guard.assistantMessage,
+  result: {
+    status: "guard",
+    commandCount: 0,
+    summaryItems: [input.guard.assistantMessage],
+    explanationLines: [],
+    warningItems: [],
+    uncertaintyItems: [],
+    canvasLinks: []
+  }
 });
+
+const normalizeLines = (items: string[]): string[] =>
+  items.map((item) => item.trim()).filter(Boolean);
+
+const toUncertaintyId = (label: string, index: number): string =>
+  `unc_${label
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "_")
+    .replace(/^_+|_+$/g, "") || index + 1}`;
+
+const classifyReviewLines = (
+  items: string[],
+  mode: "summary" | "warning"
+): {
+  summaryItems: string[];
+  warningItems: string[];
+  uncertaintyItems: Array<{
+    id: string;
+    label: string;
+    followUpPrompt: string;
+    reviewStatus: "pending";
+  }>;
+} =>
+  normalizeLines(items).reduce<{
+    summaryItems: string[];
+    warningItems: string[];
+    uncertaintyItems: Array<{
+      id: string;
+      label: string;
+      followUpPrompt: string;
+      reviewStatus: "pending";
+    }>;
+  }>(
+    (acc, line) => {
+      if (line.startsWith("待确认：")) {
+        const label = line.replace("待确认：", "").trim();
+        if (label) {
+          acc.uncertaintyItems.push({
+            id: toUncertaintyId(label, acc.uncertaintyItems.length),
+            label,
+            followUpPrompt: buildUncertaintyFollowUpPrompt(label),
+            reviewStatus: "pending"
+          });
+        }
+        return acc;
+      }
+
+      if (
+        mode === "warning" ||
+        line.startsWith("注意：") ||
+        line.startsWith("警告：")
+      ) {
+        acc.warningItems.push(line);
+        return acc;
+      }
+
+      acc.summaryItems.push(line);
+      return acc;
+    },
+    {
+      summaryItems: [],
+      warningItems: [],
+      uncertaintyItems: []
+    }
+  );
 
 export const buildAssistantMessageFromCompileResult = (input: {
   id: string;
   batch: RuntimeCompileResponse["batch"];
   traceId?: RuntimeCompileResponse["trace_id"];
   agentSteps?: RuntimeCompileResponse["agent_steps"];
-}): ChatMessage => ({
-  id: input.id,
-  role: "assistant",
-  content: `已生成 ${input.batch.commands.length} 条指令`,
-  traceId: input.traceId,
-  agentSteps: Array.isArray(input.agentSteps) ? input.agentSteps : []
-});
+}): ChatMessage => {
+  const explanationReview = classifyReviewLines(input.batch.explanations, "summary");
+  const postCheckReview = classifyReviewLines(input.batch.post_checks, "warning");
+  const fallbackSummary = `已生成 ${input.batch.commands.length} 条指令`;
+  const summaryItems =
+    explanationReview.summaryItems.length > 0
+      ? explanationReview.summaryItems
+      : [fallbackSummary];
+
+  return {
+    id: input.id,
+    role: "assistant",
+    content: summaryItems.join("\n"),
+    result: {
+      status: "success",
+      commandCount: input.batch.commands.length,
+      summaryItems,
+      explanationLines: normalizeLines(input.batch.explanations),
+      warningItems: [
+        ...explanationReview.warningItems,
+        ...postCheckReview.warningItems
+      ],
+      uncertaintyItems: [
+        ...explanationReview.uncertaintyItems,
+        ...postCheckReview.uncertaintyItems
+      ],
+      canvasLinks: []
+    },
+    traceId: input.traceId,
+    agentSteps: Array.isArray(input.agentSteps) ? input.agentSteps : []
+  };
+};
 
 export const isOfficialSessionExpiredError = (
   error: unknown,
@@ -123,13 +224,26 @@ export const buildAssistantMessageFromError = (input: {
   id: string;
   error: unknown;
   mode: ChatMode;
-}): ChatMessage => ({
-  id: input.id,
-  role: "assistant",
-  content: isOfficialSessionExpiredError(input.error, input.mode)
+}): ChatMessage => {
+  const content = isOfficialSessionExpiredError(input.error, input.mode)
     ? "官方会话已过期，请重新输入 Token"
     : input.error instanceof RuntimeApiError &&
         input.error.code === "RUNTIME_ATTACHMENTS_UNSUPPORTED"
       ? ATTACHMENT_CAPABILITY_MESSAGE
-      : "生成失败，请重试"
-});
+      : "生成失败，请重试";
+
+  return {
+    id: input.id,
+    role: "assistant",
+    content,
+    result: {
+      status: "error",
+      commandCount: 0,
+      summaryItems: [content],
+      explanationLines: [],
+      warningItems: [],
+      uncertaintyItems: [],
+      canvasLinks: []
+    }
+  };
+};

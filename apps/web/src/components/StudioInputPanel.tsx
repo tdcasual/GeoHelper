@@ -1,12 +1,25 @@
 import { ReactNode } from "react";
 
 import type { StudioStartMode } from "../state/studio-start";
+import type { PromptTemplate } from "../state/template-store";
+import { StudioContinuePanel } from "./StudioContinuePanel";
+
+interface StudioInputConversationItem {
+  id: string;
+  title: string;
+  updatedAt: number;
+  isActive: boolean;
+}
 
 interface StudioInputPanelProps {
   mode: StudioStartMode;
   onModeChange: (mode: StudioStartMode) => void;
-  conversationCount: number;
-  templateCount: number;
+  currentConversationTitle: string;
+  recentConversations: StudioInputConversationItem[];
+  recentTemplates: PromptTemplate[];
+  onContinueCurrent: () => void;
+  onSelectConversation: (conversationId: string) => void;
+  onApplyTemplate: (prompt: string) => void;
   onOpenTemplateLibrary: () => void;
   headerSlot: ReactNode;
   composerSlot: ReactNode;
@@ -15,8 +28,12 @@ interface StudioInputPanelProps {
 export const StudioInputPanel = ({
   mode,
   onModeChange,
-  conversationCount,
-  templateCount,
+  currentConversationTitle,
+  recentConversations,
+  recentTemplates,
+  onContinueCurrent,
+  onSelectConversation,
+  onApplyTemplate,
   onOpenTemplateLibrary,
   headerSlot,
   composerSlot
@@ -73,16 +90,15 @@ export const StudioInputPanel = ({
     ) : null}
 
     {mode === "continue" ? (
-      <section
-        className="studio-input-mode-panel"
-        data-testid="studio-continue-mode-panel"
-      >
-        <strong>最近输入</strong>
-        <p>{`当前有 ${conversationCount} 个会话、${templateCount} 个模板可继续复用。`}</p>
-        <button type="button" onClick={onOpenTemplateLibrary}>
-          打开模板库
-        </button>
-      </section>
+      <StudioContinuePanel
+        currentConversationTitle={currentConversationTitle}
+        recentConversations={recentConversations}
+        recentTemplates={recentTemplates}
+        onContinueCurrent={onContinueCurrent}
+        onSelectConversation={onSelectConversation}
+        onApplyTemplate={onApplyTemplate}
+        onOpenTemplateLibrary={onOpenTemplateLibrary}
+      />
     ) : null}
 
     {headerSlot}

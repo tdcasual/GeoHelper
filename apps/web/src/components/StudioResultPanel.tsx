@@ -4,16 +4,42 @@ import { toStudioResultViewModel } from "./studio-result-panel";
 interface StudioResultPanelProps {
   message: ChatMessage | null;
   onAction?: (prompt: string) => void | Promise<void>;
+  onRetry?: () => void | Promise<void>;
 }
 
 export const StudioResultPanel = ({
   message,
-  onAction
+  onAction,
+  onRetry
 }: StudioResultPanelProps) => {
   const viewModel = toStudioResultViewModel(message);
+  const statusLabel =
+    viewModel.status === "success"
+      ? "可继续补图"
+      : viewModel.status === "guard"
+        ? "需要先处理运行时限制"
+        : viewModel.status === "error"
+          ? "本轮生成失败"
+          : "等待生成";
 
   return (
     <section className="studio-result-panel" data-testid="studio-result-panel">
+      <section className="studio-result-section">
+        <h3>结果状态</h3>
+        <p>{statusLabel}</p>
+        {viewModel.status === "error" ? (
+          <button
+            type="button"
+            className="studio-result-retry-button"
+            onClick={() => {
+              void onRetry?.();
+            }}
+          >
+            重试当前请求
+          </button>
+        ) : null}
+      </section>
+
       <section className="studio-result-section">
         <h3>图形摘要</h3>
         <ul>
@@ -40,12 +66,23 @@ export const StudioResultPanel = ({
         )}
       </section>
 
+      {viewModel.warningItems.length > 0 ? (
+        <section className="studio-result-section">
+          <h3>注意事项</h3>
+          <ul>
+            {viewModel.warningItems.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {viewModel.uncertainties.length > 0 ? (
         <section className="studio-result-section">
           <h3>待确认</h3>
           <ul>
             {viewModel.uncertainties.map((item) => (
-              <li key={item}>{item}</li>
+              <li key={item.id}>{item.label}</li>
             ))}
           </ul>
         </section>

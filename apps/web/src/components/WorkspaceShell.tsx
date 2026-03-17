@@ -371,7 +371,10 @@ export const WorkspaceShell = ({
     conversationSidebarProps,
     chatHeaderProps,
     chatMessagesProps,
-    chatComposerProps
+    chatComposerProps,
+    recentConversations,
+    recentTemplates,
+    currentConversationTitle
   } = buildWorkspaceLayoutProps({
     composer,
     compactViewport,
@@ -439,8 +442,14 @@ export const WorkspaceShell = ({
             onCloseTemplateLibrary={() => setTemplateLibraryOpen(false)}
             desktopInputMode={desktopInputMode}
             onDesktopInputModeChange={setDesktopInputMode}
-            conversationCount={composer.conversations.length}
-            templateCount={composer.templates.length}
+            currentConversationTitle={currentConversationTitle}
+            recentConversations={recentConversations}
+            recentTemplates={recentTemplates}
+            onContinueCurrent={() => {
+              composerRef.current?.focus();
+            }}
+            onSelectConversation={handleSelectConversation}
+            onApplyContinueTemplate={handleApplyTemplateLibrary}
             onOpenTemplateLibrary={() => setTemplateLibraryOpen(true)}
             chatHeaderProps={chatHeaderProps}
             chatComposerProps={chatComposerProps}
@@ -449,6 +458,7 @@ export const WorkspaceShell = ({
             canvasVisible={canvasVisible}
             latestAssistantMessage={composer.latestAssistantMessage}
             onStudioResultAction={composer.sendFollowUpPrompt}
+            onRetryLatestPrompt={composer.retryLatestPrompt}
             chatMessagesProps={chatMessagesProps}
           />
         ) : (
@@ -461,6 +471,18 @@ export const WorkspaceShell = ({
             compactHistorySheetVisible={compactHistorySheetVisible}
             onCloseHistorySheet={() => setCompactHistorySheetVisible(false)}
             conversationSidebarProps={conversationSidebarProps}
+            currentConversationTitle={currentConversationTitle}
+            recentConversations={recentConversations}
+            recentTemplates={recentTemplates}
+            onContinueCurrent={() => {
+              composerRef.current?.focus();
+            }}
+            onSelectConversation={handleSelectConversation}
+            onApplyTemplate={handleApplyTemplateLibrary}
+            onOpenTemplateLibrary={() => setTemplateLibraryOpen(true)}
+            latestAssistantMessage={composer.latestAssistantMessage}
+            onStudioResultAction={composer.sendFollowUpPrompt}
+            onRetryLatestPrompt={composer.retryLatestPrompt}
             canvasMountKey={canvasMountKey}
             canvasProfile={canvasProfile}
             canvasVisible={canvasVisible}

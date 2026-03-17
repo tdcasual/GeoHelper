@@ -2,6 +2,8 @@ import type { ComponentProps, RefObject } from "react";
 
 import { CanvasPanel } from "../CanvasPanel";
 import { ChatPanel } from "../ChatPanel";
+import { StudioContinuePanel } from "../StudioContinuePanel";
+import { StudioResultPanel } from "../StudioResultPanel";
 import { WorkspaceChatComposer } from "./WorkspaceChatComposer";
 import { WorkspaceChatHeader } from "./WorkspaceChatHeader";
 import { WorkspaceChatMessages } from "./WorkspaceChatMessages";
@@ -16,6 +18,27 @@ interface WorkspaceCompactLayoutProps {
   compactHistorySheetVisible: boolean;
   onCloseHistorySheet: () => void;
   conversationSidebarProps: ComponentProps<typeof WorkspaceConversationSidebar>;
+  currentConversationTitle: string;
+  recentConversations: Array<{
+    id: string;
+    title: string;
+    updatedAt: number;
+    isActive: boolean;
+  }>;
+  recentTemplates: Array<{
+    id: string;
+    title: string;
+    prompt: string;
+    category: string;
+    updatedAt: number;
+  }>;
+  onContinueCurrent: () => void;
+  onSelectConversation: (conversationId: string) => void;
+  onApplyTemplate: (prompt: string) => void;
+  onOpenTemplateLibrary: () => void;
+  latestAssistantMessage: ComponentProps<typeof StudioResultPanel>["message"];
+  onStudioResultAction: ComponentProps<typeof StudioResultPanel>["onAction"];
+  onRetryLatestPrompt: ComponentProps<typeof StudioResultPanel>["onRetry"];
   canvasMountKey: string;
   canvasProfile: ComponentProps<typeof CanvasPanel>["profile"];
   canvasVisible: boolean;
@@ -30,6 +53,16 @@ export const WorkspaceCompactLayout = ({
   compactHistorySheetVisible,
   onCloseHistorySheet,
   conversationSidebarProps,
+  currentConversationTitle,
+  recentConversations,
+  recentTemplates,
+  onContinueCurrent,
+  onSelectConversation,
+  onApplyTemplate,
+  onOpenTemplateLibrary,
+  latestAssistantMessage,
+  onStudioResultAction,
+  onRetryLatestPrompt,
   canvasMountKey,
   canvasProfile,
   canvasVisible
@@ -44,6 +77,24 @@ export const WorkspaceCompactLayout = ({
       <div ref={chatShellRef} className="chat-shell">
         <div className="chat-body">
           <WorkspaceChatHeader {...chatHeaderProps} />
+          {chatMessagesProps.messages.length === 0 ? (
+            <StudioContinuePanel
+              currentConversationTitle={currentConversationTitle}
+              recentConversations={recentConversations}
+              recentTemplates={recentTemplates}
+              onContinueCurrent={onContinueCurrent}
+              onSelectConversation={onSelectConversation}
+              onApplyTemplate={onApplyTemplate}
+              onOpenTemplateLibrary={onOpenTemplateLibrary}
+            />
+          ) : null}
+          {latestAssistantMessage ? (
+            <StudioResultPanel
+              message={latestAssistantMessage}
+              onAction={onStudioResultAction}
+              onRetry={onRetryLatestPrompt}
+            />
+          ) : null}
           <WorkspaceChatMessages {...chatMessagesProps} />
           <WorkspaceChatComposer {...chatComposerProps} />
         </div>

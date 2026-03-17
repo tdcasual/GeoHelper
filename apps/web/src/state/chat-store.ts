@@ -13,6 +13,7 @@ import {
 } from "../runtime/types";
 import { ensureRemoteSyncStartupCheck } from "../storage/remote-sync";
 import type { PersistedChatSnapshot } from "./chat-persistence";
+import type { ChatStudioResult } from "./chat-result";
 import { loadChatSnapshot, saveChatSnapshot } from "./chat-persistence";
 import { createChatStoreActions } from "./chat-store-actions";
 import { type PersistableChatState,toPersistedChatSnapshot } from "./chat-store-helpers";
@@ -29,6 +30,7 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   attachments?: ChatAttachment[];
+  result?: ChatStudioResult;
   traceId?: string;
   agentSteps?: AgentStep[];
 }
