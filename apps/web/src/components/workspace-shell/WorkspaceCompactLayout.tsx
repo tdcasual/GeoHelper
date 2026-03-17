@@ -39,9 +39,22 @@ interface WorkspaceCompactLayoutProps {
   latestAssistantMessage: ComponentProps<typeof StudioResultPanel>["message"];
   onStudioResultAction: ComponentProps<typeof StudioResultPanel>["onAction"];
   onRetryLatestPrompt: ComponentProps<typeof StudioResultPanel>["onRetry"];
+  onConfirmLatestUncertainty: ComponentProps<
+    typeof StudioResultPanel
+  >["onConfirmUncertainty"];
+  onRepairLatestUncertainty: ComponentProps<
+    typeof StudioResultPanel
+  >["onRepairUncertainty"];
+  onFocusLatestUncertainty: ComponentProps<
+    typeof StudioResultPanel
+  >["onFocusUncertainty"];
+  activeFocusUncertaintyId?: ComponentProps<
+    typeof StudioResultPanel
+  >["activeUncertaintyId"];
   canvasMountKey: string;
   canvasProfile: ComponentProps<typeof CanvasPanel>["profile"];
   canvasVisible: boolean;
+  canvasFocusNotice?: ComponentProps<typeof CanvasPanel>["focusNotice"];
 }
 
 export const WorkspaceCompactLayout = ({
@@ -63,15 +76,21 @@ export const WorkspaceCompactLayout = ({
   latestAssistantMessage,
   onStudioResultAction,
   onRetryLatestPrompt,
+  onConfirmLatestUncertainty,
+  onRepairLatestUncertainty,
+  onFocusLatestUncertainty,
+  activeFocusUncertaintyId,
   canvasMountKey,
   canvasProfile,
-  canvasVisible
+  canvasVisible,
+  canvasFocusNotice
 }: WorkspaceCompactLayoutProps) => (
   <>
     <CanvasPanel
       key={canvasMountKey}
       profile={canvasProfile}
       visible={canvasVisible}
+      focusNotice={canvasFocusNotice}
     />
     <ChatPanel visible={chatVisible}>
       <div ref={chatShellRef} className="chat-shell">
@@ -93,6 +112,10 @@ export const WorkspaceCompactLayout = ({
               message={latestAssistantMessage}
               onAction={onStudioResultAction}
               onRetry={onRetryLatestPrompt}
+              onConfirmUncertainty={onConfirmLatestUncertainty}
+              onRepairUncertainty={onRepairLatestUncertainty}
+              onFocusUncertainty={onFocusLatestUncertainty}
+              activeUncertaintyId={activeFocusUncertaintyId}
             />
           ) : null}
           <WorkspaceChatMessages {...chatMessagesProps} />

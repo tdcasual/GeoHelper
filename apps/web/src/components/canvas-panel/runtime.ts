@@ -14,6 +14,10 @@ export interface GeoGebraAppletObject {
   recalculateEnvironments?: () => void;
   getXML?: () => string;
   setXML?: (xml: string) => void;
+  focusObjects?: (objectLabels: string[]) => boolean;
+  clearFocusedObjects?: () => void;
+  setSelectedObject?: (label: string, selected: boolean) => void;
+  clearSelectedObjects?: () => void;
   registerAddListener?: (listener: GeoGebraListener) => void;
   unregisterAddListener?: (listener: GeoGebraListener) => void;
   registerUpdateListener?: (listener: GeoGebraListener) => void;

@@ -18,6 +18,7 @@ import {
   useSettingsStore
 } from "../../state/settings-store";
 import { useTemplateStore } from "../../state/template-store";
+import { resolveUncertaintyRepairPrompt } from "../proof-assist-actions";
 import { readFileAsDataUrl } from "./file-utils";
 
 interface ComposerDraftState {
@@ -53,6 +54,9 @@ export const useWorkspaceComposer = ({
   const isSending = useChatStore((state) => state.isSending);
   const send = useChatStore((state) => state.send);
   const sendFollowUpPrompt = useChatStore((state) => state.sendFollowUpPrompt);
+  const updateUncertaintyReviewStatus = useChatStore(
+    (state) => state.updateUncertaintyReviewStatus
+  );
   const createConversation = useChatStore((state) => state.createConversation);
   const selectConversation = useChatStore((state) => state.selectConversation);
   const templates = useTemplateStore((state) => state.templates);
@@ -442,6 +446,37 @@ export const useWorkspaceComposer = ({
     });
   };
 
+  const confirmUncertainty = (uncertaintyId: string) => {
+    if (!latestAssistantMessage?.id) {
+      return;
+    }
+
+    updateUncertaintyReviewStatus({
+      messageId: latestAssistantMessage.id,
+      uncertaintyId,
+      reviewStatus: "confirmed"
+    });
+  };
+
+  const repairUncertainty = async (uncertaintyId: string) => {
+    if (!latestAssistantMessage?.id) {
+      return;
+    }
+
+    const prompt = resolveUncertaintyRepairPrompt(
+      latestAssistantMessage,
+      uncertaintyId
+    );
+    updateUncertaintyReviewStatus({
+      messageId: latestAssistantMessage.id,
+      uncertaintyId,
+      reviewStatus: "needs_fix"
+    });
+    if (prompt) {
+      await sendFollowUpPrompt(prompt);
+    }
+  };
+
   return {
     activeConversation,
     activeConversationId,
@@ -466,6 +501,8 @@ export const useWorkspaceComposer = ({
     latestAssistantMessage,
     messages,
     plusMenuOpen,
+    confirmUncertainty,
+    repairUncertainty,
     removeAttachment,
     retryLatestPrompt,
     selectConversationWithComposerState,

@@ -47,9 +47,22 @@ interface WorkspaceDesktopLayoutProps {
   canvasMountKey: string;
   canvasProfile: ComponentProps<typeof CanvasPanel>["profile"];
   canvasVisible: boolean;
+  canvasFocusNotice?: ComponentProps<typeof CanvasPanel>["focusNotice"];
   latestAssistantMessage: ComponentProps<typeof StudioResultPanel>["message"];
   onStudioResultAction: ComponentProps<typeof StudioResultPanel>["onAction"];
   onRetryLatestPrompt: ComponentProps<typeof StudioResultPanel>["onRetry"];
+  onConfirmLatestUncertainty: ComponentProps<
+    typeof StudioResultPanel
+  >["onConfirmUncertainty"];
+  onRepairLatestUncertainty: ComponentProps<
+    typeof StudioResultPanel
+  >["onRepairUncertainty"];
+  onFocusLatestUncertainty: ComponentProps<
+    typeof StudioResultPanel
+  >["onFocusUncertainty"];
+  activeFocusUncertaintyId?: ComponentProps<
+    typeof StudioResultPanel
+  >["activeUncertaintyId"];
   chatMessagesProps: ComponentProps<typeof WorkspaceChatMessages>;
 }
 
@@ -79,9 +92,14 @@ export const WorkspaceDesktopLayout = ({
   canvasMountKey,
   canvasProfile,
   canvasVisible,
+  canvasFocusNotice,
   latestAssistantMessage,
   onStudioResultAction,
   onRetryLatestPrompt,
+  onConfirmLatestUncertainty,
+  onRepairLatestUncertainty,
+  onFocusLatestUncertainty,
+  activeFocusUncertaintyId,
   chatMessagesProps
 }: WorkspaceDesktopLayoutProps) => (
   <>
@@ -137,6 +155,7 @@ export const WorkspaceDesktopLayout = ({
       key={canvasMountKey}
       profile={canvasProfile}
       visible={canvasVisible}
+      focusNotice={canvasFocusNotice}
     />
     <ChatPanel visible={chatVisible}>
       <div className="studio-result-rail" data-testid="studio-result-rail">
@@ -148,6 +167,10 @@ export const WorkspaceDesktopLayout = ({
           message={latestAssistantMessage}
           onAction={onStudioResultAction}
           onRetry={onRetryLatestPrompt}
+          onConfirmUncertainty={onConfirmLatestUncertainty}
+          onRepairUncertainty={onRepairLatestUncertainty}
+          onFocusUncertainty={onFocusLatestUncertainty}
+          activeUncertaintyId={activeFocusUncertaintyId}
         />
         <WorkspaceChatMessages {...chatMessagesProps} />
       </div>

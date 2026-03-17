@@ -2,6 +2,7 @@ import { RuntimeApiError } from "../runtime/runtime-service";
 import type { RuntimeCompileResponse } from "../runtime/types";
 import type { ChatMode } from "../runtime/types";
 import { buildUncertaintyFollowUpPrompt } from "./chat-result";
+import { buildStudioCanvasLinks } from "./chat-result-linking";
 import type {
   ChatAttachment,
   ChatMessage,
@@ -204,7 +205,17 @@ export const buildAssistantMessageFromCompileResult = (input: {
         ...explanationReview.uncertaintyItems,
         ...postCheckReview.uncertaintyItems
       ],
-      canvasLinks: []
+      canvasLinks: buildStudioCanvasLinks({
+        summaryItems,
+        warningItems: [
+          ...explanationReview.warningItems,
+          ...postCheckReview.warningItems
+        ],
+        uncertaintyItems: [
+          ...explanationReview.uncertaintyItems,
+          ...postCheckReview.uncertaintyItems
+        ]
+      })
     },
     traceId: input.traceId,
     agentSteps: Array.isArray(input.agentSteps) ? input.agentSteps : []

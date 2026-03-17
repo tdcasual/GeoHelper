@@ -5,12 +5,20 @@ interface StudioResultPanelProps {
   message: ChatMessage | null;
   onAction?: (prompt: string) => void | Promise<void>;
   onRetry?: () => void | Promise<void>;
+  onConfirmUncertainty?: (uncertaintyId: string) => void | Promise<void>;
+  onRepairUncertainty?: (uncertaintyId: string) => void | Promise<void>;
+  onFocusUncertainty?: (uncertaintyId: string) => void | Promise<void>;
+  activeUncertaintyId?: string | null;
 }
 
 export const StudioResultPanel = ({
   message,
   onAction,
-  onRetry
+  onRetry,
+  onConfirmUncertainty,
+  onRepairUncertainty,
+  onFocusUncertainty,
+  activeUncertaintyId
 }: StudioResultPanelProps) => {
   const viewModel = toStudioResultViewModel(message);
   const statusLabel =
@@ -80,10 +88,78 @@ export const StudioResultPanel = ({
       {viewModel.uncertainties.length > 0 ? (
         <section className="studio-result-section">
           <h3>待确认</h3>
+          <p>
+            待处理 {viewModel.reviewSummary.pendingCount} · 已确认{" "}
+            {viewModel.reviewSummary.confirmedCount} · 需修正{" "}
+            {viewModel.reviewSummary.needsFixCount}
+          </p>
           <ul>
-            {viewModel.uncertainties.map((item) => (
-              <li key={item.id}>{item.label}</li>
-            ))}
+            {viewModel.uncertainties.map((item) => {
+              const isActive = activeUncertaintyId === item.id;
+              const reviewStateClass =
+                item.reviewStatus === "confirmed"
+                  ? " studio-review-item-confirmed"
+                  : item.reviewStatus === "needs_fix"
+                    ? " studio-review-item-needs-fix"
+                    : "";
+
+              return (
+                <li
+                  key={item.id}
+                  className={`studio-review-item${
+                    isActive ? " studio-review-item-active" : ""
+                  }${reviewStateClass}`}
+                  data-testid={`studio-uncertainty-${item.id}`}
+                  data-focus-state={isActive ? "active" : "idle"}
+                >
+                  <div>
+                    <span>{item.label}</span>
+                    <span>
+                      {item.reviewStatus === "confirmed"
+                        ? "已确认"
+                        : item.reviewStatus === "needs_fix"
+                          ? "需修正"
+                          : "待处理"}
+                    </span>
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      data-testid={`studio-uncertainty-focus-${item.id}`}
+                      disabled={!onFocusUncertainty}
+                      onClick={() => {
+                        void onFocusUncertainty?.(item.id);
+                      }}
+                    >
+                      定位到画布
+                    </button>
+                    <button
+                      type="button"
+                      data-testid={`studio-uncertainty-confirm-${item.id}`}
+                      disabled={
+                        viewModel.status !== "success" ||
+                        item.reviewStatus === "confirmed"
+                      }
+                      onClick={() => {
+                        void onConfirmUncertainty?.(item.id);
+                      }}
+                    >
+                      确认无误
+                    </button>
+                    <button
+                      type="button"
+                      data-testid={`studio-uncertainty-repair-${item.id}`}
+                      disabled={viewModel.status !== "success"}
+                      onClick={() => {
+                        void onRepairUncertainty?.(item.id);
+                      }}
+                    >
+                      需要修正
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </section>
       ) : null}

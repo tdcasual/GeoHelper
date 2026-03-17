@@ -1,6 +1,7 @@
 import type { PointerEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
+import { sceneFocusStore } from "../state/scene-focus-store";
 import { useSceneStore } from "../state/scene-store";
 import { useSettingsStore } from "../state/settings-store";
 import { type StudioStartMode } from "../state/studio-start";
@@ -19,6 +20,12 @@ import { WorkspaceTopBar } from "./workspace-shell/WorkspaceTopBar";
 // Layout boundary refs: ./workspace-shell/WorkspaceConversationSidebar ./workspace-shell/WorkspaceChatMessages ./workspace-shell/WorkspaceChatComposer ./workspace-shell/WorkspaceChatHeader
 
 type MobileSurface = "canvas" | "chat";
+
+interface CanvasFocusNoticeState {
+  message: string;
+  tone: "info" | "warning";
+  uncertaintyId: string | null;
+}
 
 interface WorkspaceShellProps {
   initialDesktopInputMode?: StudioStartMode;
@@ -76,6 +83,11 @@ export const WorkspaceShell = ({
   const [templateLibraryOpen, setTemplateLibraryOpen] = useState(
     initialTemplateLibraryOpen
   );
+  const [activeFocusUncertaintyId, setActiveFocusUncertaintyId] = useState<
+    string | null
+  >(null);
+  const [canvasFocusNotice, setCanvasFocusNotice] =
+    useState<CanvasFocusNoticeState | null>(null);
 
   const compactViewport = isCompactViewport;
   const phoneViewport = isMobileViewport;
@@ -263,8 +275,36 @@ export const WorkspaceShell = ({
   }, [initialTemplateLibraryOpen]);
 
   useEffect(() => {
+    if (!canvasFocusNotice) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setCanvasFocusNotice(null);
+      setActiveFocusUncertaintyId((current) =>
+        current === canvasFocusNotice.uncertaintyId ? null : current
+      );
+    }, 4200);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [canvasFocusNotice]);
+
+  useEffect(() => {
     onTemplateLibraryOpenChange?.(templateLibraryOpen);
   }, [onTemplateLibraryOpenChange, templateLibraryOpen]);
+
+  useEffect(() => {
+    const currentUncertainties =
+      composer.latestAssistantMessage?.result?.uncertaintyItems ?? [];
+    if (
+      activeFocusUncertaintyId &&
+      !currentUncertainties.some((item) => item.id === activeFocusUncertaintyId)
+    ) {
+      setActiveFocusUncertaintyId(null);
+    }
+  }, [activeFocusUncertaintyId, composer.latestAssistantMessage]);
 
   const openSettingsDrawer = () => {
     setSettingsOpen(true);
@@ -367,6 +407,50 @@ export const WorkspaceShell = ({
     composerRef.current?.focus();
   };
 
+  const handleFocusUncertainty = (uncertaintyId: string) => {
+    const result = composer.latestAssistantMessage?.result;
+    const uncertainty = result?.uncertaintyItems.find(
+      (item) => item.id === uncertaintyId
+    );
+    const canvasLink = result?.canvasLinks.find(
+      (item) =>
+        item.scope === "uncertainty" && item.uncertaintyId === uncertaintyId
+    );
+
+    if (!uncertainty) {
+      return;
+    }
+
+    if (canvasLink) {
+      sceneFocusStore.getState().requestFocus({
+        source: "uncertainty",
+        objectLabels: canvasLink.objectLabels,
+        revealCanvas: true,
+        ttlMs: 4200
+      });
+      setActiveFocusUncertaintyId(uncertaintyId);
+      setCanvasFocusNotice({
+        message: `已定位对象：${canvasLink.objectLabels.join("、")}`,
+        tone: "info",
+        uncertaintyId
+      });
+      if (compactViewport) {
+        setMobileSurface("canvas");
+      }
+      return;
+    }
+
+    setActiveFocusUncertaintyId(uncertaintyId);
+    setCanvasFocusNotice({
+      message: `暂时无法自动定位“${uncertainty.label}”，请手动核对画布。`,
+      tone: "warning",
+      uncertaintyId
+    });
+    if (compactViewport) {
+      setMobileSurface("canvas");
+    }
+  };
+
   const {
     conversationSidebarProps,
     chatHeaderProps,
@@ -456,9 +540,14 @@ export const WorkspaceShell = ({
             canvasMountKey={canvasMountKey}
             canvasProfile={canvasProfile}
             canvasVisible={canvasVisible}
+            canvasFocusNotice={canvasFocusNotice}
             latestAssistantMessage={composer.latestAssistantMessage}
             onStudioResultAction={composer.sendFollowUpPrompt}
             onRetryLatestPrompt={composer.retryLatestPrompt}
+            onConfirmLatestUncertainty={composer.confirmUncertainty}
+            onRepairLatestUncertainty={composer.repairUncertainty}
+            onFocusLatestUncertainty={handleFocusUncertainty}
+            activeFocusUncertaintyId={activeFocusUncertaintyId}
             chatMessagesProps={chatMessagesProps}
           />
         ) : (
@@ -483,9 +572,14 @@ export const WorkspaceShell = ({
             latestAssistantMessage={composer.latestAssistantMessage}
             onStudioResultAction={composer.sendFollowUpPrompt}
             onRetryLatestPrompt={composer.retryLatestPrompt}
+            onConfirmLatestUncertainty={composer.confirmUncertainty}
+            onRepairLatestUncertainty={composer.repairUncertainty}
+            onFocusLatestUncertainty={handleFocusUncertainty}
+            activeFocusUncertaintyId={activeFocusUncertaintyId}
             canvasMountKey={canvasMountKey}
             canvasProfile={canvasProfile}
             canvasVisible={canvasVisible}
+            canvasFocusNotice={canvasFocusNotice}
           />
         )}
       </div>

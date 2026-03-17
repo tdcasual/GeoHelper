@@ -18,7 +18,8 @@ const createBaseState = (): ChatStoreState => ({
   selectConversation: () => undefined,
   acknowledgeReauth: () => undefined,
   send: async () => undefined,
-  sendFollowUpPrompt: async () => undefined
+  sendFollowUpPrompt: async () => undefined,
+  updateUncertaintyReviewStatus: () => undefined
 });
 
 const createDeps = (): ChatStoreDeps => ({
@@ -130,5 +131,88 @@ describe("chat-store actions", () => {
     expect(assistantMessage?.result?.uncertaintyItems[0]?.label).toBe(
       "点 D 在线段 BC 上"
     );
+  });
+
+  it("updates one uncertainty review status without changing unrelated items", () => {
+    const harness = createActionHarness({
+      activeConversationId: "conv_review",
+      conversations: [
+        {
+          id: "conv_review",
+          title: "Triangle",
+          createdAt: 1,
+          updatedAt: 2,
+          messages: [
+            {
+              id: "msg_assistant_review",
+              role: "assistant",
+              content: "已创建三角形 ABC",
+              result: {
+                status: "success",
+                commandCount: 1,
+                summaryItems: ["已创建三角形 ABC"],
+                explanationLines: [],
+                warningItems: [],
+                uncertaintyItems: [
+                  {
+                    id: "unc_d",
+                    label: "点 D 在线段 BC 上",
+                    reviewStatus: "pending",
+                    followUpPrompt: "请确认点 D 是否在线段 BC 上。"
+                  },
+                  {
+                    id: "unc_angle",
+                    label: "AD 是否平分角 A",
+                    reviewStatus: "pending",
+                    followUpPrompt: "请确认 AD 是否平分角 A。"
+                  }
+                ],
+                canvasLinks: []
+              }
+            }
+          ]
+        }
+      ],
+      messages: [
+        {
+          id: "msg_assistant_review",
+          role: "assistant",
+          content: "已创建三角形 ABC",
+          result: {
+            status: "success",
+            commandCount: 1,
+            summaryItems: ["已创建三角形 ABC"],
+            explanationLines: [],
+            warningItems: [],
+            uncertaintyItems: [
+              {
+                id: "unc_d",
+                label: "点 D 在线段 BC 上",
+                reviewStatus: "pending",
+                followUpPrompt: "请确认点 D 是否在线段 BC 上。"
+              },
+              {
+                id: "unc_angle",
+                label: "AD 是否平分角 A",
+                reviewStatus: "pending",
+                followUpPrompt: "请确认 AD 是否平分角 A。"
+              }
+            ],
+            canvasLinks: []
+          }
+        }
+      ]
+    });
+
+    harness.actions.updateUncertaintyReviewStatus({
+      messageId: "msg_assistant_review",
+      uncertaintyId: "unc_d",
+      reviewStatus: "confirmed"
+    });
+
+    const result = harness.getState().messages[0]?.result;
+    expect(result?.uncertaintyItems[0]?.reviewStatus).toBe("confirmed");
+    expect(result?.uncertaintyItems[1]?.reviewStatus).toBe("pending");
+    expect(harness.saveState).toHaveBeenCalled();
   });
 });

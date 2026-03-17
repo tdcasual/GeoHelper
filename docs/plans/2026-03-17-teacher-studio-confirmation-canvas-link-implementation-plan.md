@@ -1,5 +1,7 @@
 # GeoHelper Teacher Studio Confirmation Loop and Canvas Linking Implementation Plan
 
+Status: Implemented on `main` through Task 6 on 2026-03-17
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** 把当前 teacher studio 的“待确认”从被动展示升级为可确认、可修正、可重试、可定位到画布的老师审阅闭环。

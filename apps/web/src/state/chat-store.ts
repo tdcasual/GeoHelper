@@ -13,7 +13,10 @@ import {
 } from "../runtime/types";
 import { ensureRemoteSyncStartupCheck } from "../storage/remote-sync";
 import type { PersistedChatSnapshot } from "./chat-persistence";
-import type { ChatStudioResult } from "./chat-result";
+import type {
+  ChatStudioResult,
+  ChatStudioUncertaintyReviewStatus
+} from "./chat-result";
 import { loadChatSnapshot, saveChatSnapshot } from "./chat-persistence";
 import { createChatStoreActions } from "./chat-store-actions";
 import { type PersistableChatState,toPersistedChatSnapshot } from "./chat-store-helpers";
@@ -63,6 +66,11 @@ export interface ChatStoreState {
   acknowledgeReauth: () => void;
   send: (input: string | ChatSendInput) => Promise<void>;
   sendFollowUpPrompt: (prompt: string) => Promise<void>;
+  updateUncertaintyReviewStatus: (input: {
+    messageId: string;
+    uncertaintyId: string;
+    reviewStatus: ChatStudioUncertaintyReviewStatus;
+  }) => void;
 }
 
 export interface ChatStoreDeps {

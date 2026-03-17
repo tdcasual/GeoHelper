@@ -1,5 +1,8 @@
 import type { ChatMessage } from "../state/chat-store";
-import type { ChatStudioResult } from "../state/chat-result";
+import type {
+  ChatStudioResult,
+  ChatStudioUncertaintyItem
+} from "../state/chat-result";
 
 export type ProofAssistActionId =
   | "add_auxiliary"
@@ -44,6 +47,37 @@ const buildPrompt = (
   }
 
   return `基于当前图形结果，请尝试给出证明思路或证明草稿，并标出仍需确认的条件。\n当前结果：${summary}${uncertaintySuffix}`;
+};
+
+const buildRepairPrompt = (
+  summary: string,
+  uncertainty: ChatStudioUncertaintyItem
+): string =>
+  `请基于当前图形结果，仅针对这一项待确认条件完成核对与修正：${uncertainty.label}\n当前结果：${summary}\n检查要求：${uncertainty.followUpPrompt}`;
+
+export const resolveUncertaintyRepairPrompt = (
+  message: ChatMessage | null | undefined,
+  uncertaintyId: string
+): string | null => {
+  const result: ChatStudioResult | undefined =
+    message?.role === "assistant" ? message.result : undefined;
+  if (!result || result.status !== "success") {
+    return null;
+  }
+
+  const summary = result.summaryItems.join("；");
+  if (!summary) {
+    return null;
+  }
+
+  const uncertainty = result.uncertaintyItems.find(
+    (item) => item.id === uncertaintyId
+  );
+  if (!uncertainty) {
+    return null;
+  }
+
+  return buildRepairPrompt(summary, uncertainty);
 };
 
 export const resolveProofAssistActions = (

@@ -3,13 +3,17 @@ export interface GeoGebraAdapter {
   setValue: (name: string, value: number) => void;
   getXML?: () => string | null;
   setXML?: (xml: string) => void;
+  focusObjects?: (objectLabels: string[]) => boolean;
+  clearFocusedObjects?: () => void;
 }
 
 export const createNoopAdapter = (): GeoGebraAdapter => ({
   evalCommand: () => undefined,
   setValue: () => undefined,
   getXML: () => null,
-  setXML: () => undefined
+  setXML: () => undefined,
+  focusObjects: () => false,
+  clearFocusedObjects: () => undefined
 });
 
 let runtimeAdapter: GeoGebraAdapter = createNoopAdapter();

@@ -44,31 +44,35 @@ const mockGeoGebraRuntime = async (page: import("@playwright/test").Page) => {
       }
     };
 
-     
+
     (window as any).__geohelperGgbSizeCalls = [];
-     
+
     (window as any).__geohelperGgbRecalculateCount = 0;
-     
+
     (window as any).__geohelperGgbInjectedTo = [];
-     
+
     (window as any).__geohelperGgbParamsHistory = [];
-     
+
     (window as any).__geohelperGgbEvalCommands = [];
-     
+
     (window as any).__geohelperGgbSetXmlCalls = [];
-     
+
+    (window as any).__geohelperGgbFocusCalls = [];
+
+    (window as any).__geohelperGgbClearFocusCount = 0;
+
     (window as any).__geohelperGgbCurrentXml = "<xml/>";
-     
+
     (window as any).__geohelperGgbAppletOnLoadCalls = 0;
-     
+
     (window as any).__geohelperGgbListenerHistory = [];
-     
+
     (window as any).__geohelperEmitSceneMutation = (
       eventType: "add" | "update" | "remove" | "clear" | "rename",
       payload?: unknown,
       nextXml?: string
     ) => {
-       
+
       const listenerSet = (window as any).__geohelperGgbActiveListeners as
         | Record<string, Listener[]>
         | undefined;
@@ -76,7 +80,7 @@ const mockGeoGebraRuntime = async (page: import("@playwright/test").Page) => {
         return;
       }
       if (typeof nextXml === "string") {
-         
+
         (window as any).__geohelperGgbCurrentXml = nextXml;
       }
       for (const listener of listenerSet[eventType] ?? []) {
@@ -90,11 +94,11 @@ const mockGeoGebraRuntime = async (page: import("@playwright/test").Page) => {
       }
     };
 
-     
+
     (window as any).GGBApplet = function (params: Record<string, unknown>) {
-       
+
       (window as any).__geohelperGgbParams = params;
-       
+
       (window as any).__geohelperGgbParamsHistory.push(params);
 
       const listeners: Record<string, Listener[]> = {
@@ -104,33 +108,42 @@ const mockGeoGebraRuntime = async (page: import("@playwright/test").Page) => {
         clear: [],
         rename: []
       };
-       
+
       (window as any).__geohelperGgbActiveListeners = listeners;
-       
+
       (window as any).__geohelperGgbListenerHistory.push(listeners);
 
       const appletObject = {
         evalCommand: (command: string) => {
-           
+
           (window as any).__geohelperGgbEvalCommands.push(command);
         },
         setValue: () => undefined,
         setSize: (width: number, height: number) => {
-           
+
           (window as any).__geohelperGgbSizeCalls.push({ width, height });
         },
         recalculateEnvironments: () => {
-           
+
           (window as any).__geohelperGgbRecalculateCount += 1;
         },
         getXML: () =>
-           
+
           (window as any).__geohelperGgbCurrentXml,
         setXML: (xml: string) => {
-           
+
           (window as any).__geohelperGgbCurrentXml = xml;
-           
+
           (window as any).__geohelperGgbSetXmlCalls.push(xml);
+        },
+        focusObjects: (objectLabels: string[]) => {
+
+          (window as any).__geohelperGgbFocusCalls.push([...objectLabels]);
+          return true;
+        },
+        clearFocusedObjects: () => {
+
+          (window as any).__geohelperGgbClearFocusCount += 1;
         },
         registerAddListener: (listener: Listener) => {
           listeners.add.push(listener);
@@ -166,18 +179,18 @@ const mockGeoGebraRuntime = async (page: import("@playwright/test").Page) => {
 
       return {
         inject: (containerId: string) => {
-           
+
           (window as any).__geohelperGgbInjectedTo.push(containerId);
-           
+
           (window as any).ggbApplet = appletObject;
           if (typeof params.appletOnLoad === "function") {
             params.appletOnLoad(appletObject);
-             
+
             (window as any).__geohelperGgbAppletOnLoadCalls += 1;
           }
         },
         setHTML5Codebase: (codebase: string) => {
-           
+
           (window as any).__geohelperGgbCodebase = codebase;
         },
         getAppletObject: () => appletObject
@@ -196,7 +209,7 @@ test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
     .poll(
       () =>
         page.evaluate(
-           
+
           () => ((window as any).__geohelperGgbInjectedTo as string[])[0]
         ),
       { message: "GeoGebra applet should inject into the container" }
@@ -207,7 +220,7 @@ test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
     .poll(
       () =>
         page.evaluate(
-           
+
           () => typeof (window as any).__geohelperGgbParams?.appletOnLoad
         ),
       { message: "GeoGebra applet should pass an appletOnLoad callback" }
@@ -218,7 +231,7 @@ test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
     .poll(
       () =>
         page.evaluate(
-           
+
           () => (window as any).__geohelperGgbAppletOnLoadCalls
         ),
       { message: "GeoGebra applet should finish mount through appletOnLoad" }
@@ -229,7 +242,7 @@ test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
     .poll(
       () =>
         page.evaluate(
-           
+
           () => (window as any).__geohelperGgbParams
         ),
       { message: "GeoGebra applet should enable menu and fullscreen controls" }
@@ -246,7 +259,7 @@ test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
     .poll(
       () =>
         page.evaluate(
-           
+
           () => (window as any).__geohelperGgbCodebase
         ),
       { message: "GeoGebra applet should receive the local codebase path" }
@@ -257,7 +270,7 @@ test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
     .poll(
       () =>
         page.evaluate(
-           
+
           () => ((window as any).__geohelperGgbSizeCalls as Array<unknown>).length
         ),
       { message: "GeoGebra applet should sync to the initial host size" }
@@ -265,7 +278,7 @@ test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
     .toBeGreaterThan(0);
 
   const widthBeforeResize = await page.evaluate(
-     
+
     () => (window as any).__geohelperGgbSizeCalls.at(-1)?.width ?? 0
   );
 
@@ -275,7 +288,7 @@ test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
     .poll(
       () =>
         page.evaluate(
-           
+
           () => (window as any).__geohelperGgbSizeCalls.at(-1)?.width ?? 0
         ),
       { message: "GeoGebra applet should resize when the viewport grows" }
@@ -283,7 +296,7 @@ test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
     .toBeGreaterThan(widthBeforeResize);
 
   const widthBeforeChatCollapse = await page.evaluate(
-     
+
     () => (window as any).__geohelperGgbSizeCalls.at(-1)?.width ?? 0
   );
 
@@ -293,7 +306,7 @@ test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
     .poll(
       () =>
         page.evaluate(
-           
+
           () => (window as any).__geohelperGgbSizeCalls.at(-1)?.width ?? 0
         ),
       {
@@ -307,7 +320,7 @@ test("mounts GeoGebra applet when GGBApplet is available", async ({ page }) => {
     .poll(
       () =>
         page.evaluate(
-           
+
           () => (window as any).__geohelperGgbRecalculateCount
         ),
       { message: "GeoGebra applet should recalculate after host size changes" }
@@ -327,7 +340,7 @@ test("re-mounts GeoGebra with a compact mobile profile after viewport mode chang
     .poll(
       () =>
         page.evaluate(
-           
+
           () => ((window as any).__geohelperGgbParamsHistory as Array<unknown>).length
         )
     )
@@ -339,7 +352,7 @@ test("re-mounts GeoGebra with a compact mobile profile after viewport mode chang
     .poll(
       () =>
         page.evaluate(
-           
+
           () => ((window as any).__geohelperGgbParamsHistory as Array<unknown>).length
         ),
       { message: "viewport profile change should trigger a fresh applet mount" }
@@ -350,7 +363,7 @@ test("re-mounts GeoGebra with a compact mobile profile after viewport mode chang
     .poll(
       () =>
         page.evaluate(
-           
+
           () => (window as any).__geohelperGgbParamsHistory.at(-1)
         )
     )
@@ -378,7 +391,7 @@ test("re-mounts GeoGebra when desktop enters compact short viewport mode", async
     .poll(
       () =>
         page.evaluate(
-           
+
           () => ((window as any).__geohelperGgbParamsHistory as Array<unknown>).length
         )
     )
@@ -390,7 +403,7 @@ test("re-mounts GeoGebra when desktop enters compact short viewport mode", async
     .poll(
       () =>
         page.evaluate(
-           
+
           () => ((window as any).__geohelperGgbParamsHistory as Array<unknown>).length
         ),
       {
@@ -404,7 +417,7 @@ test("re-mounts GeoGebra when desktop enters compact short viewport mode", async
     .poll(
       () =>
         page.evaluate(() => {
-           
+
           const history = (window as any).__geohelperGgbParamsHistory as Array<Record<string, unknown>>;
           return history.at(-1) ?? null;
         })
@@ -463,14 +476,14 @@ test("replays persisted scene transactions after mount and viewport remount", as
   await expect
     .poll(() =>
       page.evaluate(
-         
+
         () => (window as any).__geohelperGgbEvalCommands as string[]
       )
     )
     .toContain("A=(2,1)");
 
   const replayCountBeforeRemount = await page.evaluate(
-     
+
     () => ((window as any).__geohelperGgbEvalCommands as string[]).length
   );
 
@@ -480,7 +493,7 @@ test("replays persisted scene transactions after mount and viewport remount", as
     .poll(
       () =>
         page.evaluate(
-           
+
           () => ((window as any).__geohelperGgbEvalCommands as string[]).length
         ),
       { message: "scene transactions should replay into the new applet after remount" }
@@ -498,14 +511,14 @@ test("captures manual GeoGebra mutations into the persisted scene snapshot", asy
   await expect
     .poll(() =>
       page.evaluate(
-         
+
         () => ((window as any).__geohelperGgbActiveListeners?.add?.length ?? 0)
       )
     )
     .toBeGreaterThan(0);
 
   await page.evaluate(() => {
-     
+
     (window as any).__geohelperEmitSceneMutation(
       "add",
       "A",
@@ -523,6 +536,41 @@ test("captures manual GeoGebra mutations into the persisted scene snapshot", asy
     "<xml><element label='A' /></xml>"
   );
   expect(sceneSnapshot.transactions[0].source).toBe("manual");
+});
+
+test("applies browser-side focus requests through the runtime focus bridge", async ({
+  page
+}) => {
+  await mockGeoGebraRuntime(page);
+
+  await openWorkspace(page);
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () => (window as any).__geohelperGgbAppletOnLoadCalls
+        )
+    )
+    .toBeGreaterThan(0);
+
+  await page.evaluate(async () => {
+    // @ts-expect-error browser-only Vite module import used by Playwright
+    const mod = await import("/src/state/scene-focus-store.ts");
+    mod.sceneFocusStore.getState().requestFocus({
+      source: "summary",
+      objectLabels: ["A", "B", "C"],
+      revealCanvas: false
+    });
+  });
+
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => ((window as any).__geohelperGgbFocusCalls as string[][]).at(-1) ?? null
+      )
+    )
+    .toEqual(["A", "B", "C"]);
 });
 
 test("closes slash menu on outside click while keeping the draft", async ({

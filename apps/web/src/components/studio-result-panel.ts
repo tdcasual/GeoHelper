@@ -22,6 +22,11 @@ export interface StudioResultViewModel {
     title: string;
     items: string[];
   };
+  reviewSummary: {
+    pendingCount: number;
+    confirmedCount: number;
+    needsFixCount: number;
+  };
   executionSteps: StudioResultStep[];
   warningItems: string[];
   uncertainties: ChatStudioUncertaintyItem[];
@@ -38,6 +43,11 @@ export const toStudioResultViewModel = (
         title: "图形摘要",
         items: ["暂无生成结果"]
       },
+      reviewSummary: {
+        pendingCount: 0,
+        confirmedCount: 0,
+        needsFixCount: 0
+      },
       executionSteps: [],
       warningItems: [],
       uncertainties: [],
@@ -52,6 +62,25 @@ export const toStudioResultViewModel = (
           .split("\n")
           .map((line) => line.trim())
           .filter(Boolean);
+  const uncertainties = message.result?.uncertaintyItems ?? [];
+  const reviewSummary = uncertainties.reduce(
+    (acc, item) => {
+      if (item.reviewStatus === "confirmed") {
+        acc.confirmedCount += 1;
+      } else if (item.reviewStatus === "needs_fix") {
+        acc.needsFixCount += 1;
+      } else {
+        acc.pendingCount += 1;
+      }
+
+      return acc;
+    },
+    {
+      pendingCount: 0,
+      confirmedCount: 0,
+      needsFixCount: 0
+    }
+  );
 
   return {
     status: message.result?.status ?? "idle",
@@ -59,6 +88,7 @@ export const toStudioResultViewModel = (
       title: "图形摘要",
       items: summaryItems.length > 0 ? summaryItems : ["暂无生成结果"]
     },
+    reviewSummary,
     executionSteps: Array.isArray(message.agentSteps)
       ? message.agentSteps.map((step) => ({
           label: step.name,
@@ -67,7 +97,7 @@ export const toStudioResultViewModel = (
         }))
       : [],
     warningItems: message.result?.warningItems ?? [],
-    uncertainties: message.result?.uncertaintyItems ?? [],
+    uncertainties,
     nextActions: resolveProofAssistActions(message)
   };
 };

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { ChatMessage } from "../state/chat-store";
-import { resolveProofAssistActions } from "./proof-assist-actions";
+import {
+  resolveProofAssistActions,
+  resolveUncertaintyRepairPrompt
+} from "./proof-assist-actions";
 
 describe("proof-assist-actions", () => {
   it("builds enabled teacher follow-up actions from assistant result context", () => {
@@ -67,5 +70,43 @@ describe("proof-assist-actions", () => {
     });
 
     expect(actions.every((item) => item.disabled)).toBe(true);
+  });
+
+  it("builds a repair prompt for one specific uncertainty item", () => {
+    const prompt = resolveUncertaintyRepairPrompt(
+      {
+        id: "msg_assistant_repair",
+        role: "assistant",
+        content: "已创建三角形 ABC。",
+        result: {
+          status: "success",
+          commandCount: 2,
+          summaryItems: ["已创建三角形 ABC", "已标出角平分线 AD"],
+          explanationLines: ["已创建三角形 ABC", "已标出角平分线 AD"],
+          warningItems: [],
+          uncertaintyItems: [
+            {
+              id: "unc_d",
+              label: "点 D 在线段 BC 上",
+              reviewStatus: "pending",
+              followUpPrompt: "请确认点 D 是否在线段 BC 上，并说明原因。"
+            },
+            {
+              id: "unc_angle",
+              label: "AD 是否平分角 A",
+              reviewStatus: "pending",
+              followUpPrompt: "请确认 AD 是否平分角 A。"
+            }
+          ],
+          canvasLinks: []
+        }
+      },
+      "unc_d"
+    );
+
+    expect(prompt).toContain("点 D 在线段 BC 上");
+    expect(prompt).toContain("请确认点 D 是否在线段 BC 上，并说明原因。");
+    expect(prompt).toContain("已创建三角形 ABC");
+    expect(prompt).not.toContain("AD 是否平分角 A");
   });
 });

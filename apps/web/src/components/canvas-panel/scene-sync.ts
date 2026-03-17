@@ -1,6 +1,20 @@
 import type { GeoGebraAdapter } from "../../geogebra/adapter";
 import type { GeoGebraAppletObject } from "./runtime";
 
+const FOCUS_SUPPRESS_MS = 160;
+
+const normalizeObjectLabels = (objectLabels: string[]): string[] =>
+  objectLabels.map((item) => item.trim()).filter(Boolean);
+
+const clearRuntimeFocus = (appletObject: GeoGebraAppletObject | null) => {
+  if (!appletObject) {
+    return;
+  }
+
+  appletObject.clearFocusedObjects?.();
+  appletObject.clearSelectedObjects?.();
+};
+
 export const createSceneCaptureController = (
   readXml: () => string | null,
   onCapture?: (xml: string) => void
@@ -46,6 +60,31 @@ export const createRuntimeAdapter = (
   setXML: (xml) => {
     suppressSceneCapture(640);
     appletObject?.setXML?.(xml);
+  },
+  focusObjects: (objectLabels) => {
+    const labels = normalizeObjectLabels(objectLabels);
+    if (labels.length === 0) {
+      return false;
+    }
+
+    suppressSceneCapture(FOCUS_SUPPRESS_MS);
+    if (typeof appletObject?.focusObjects === "function") {
+      return appletObject.focusObjects(labels) !== false;
+    }
+
+    if (typeof appletObject?.setSelectedObject === "function") {
+      clearRuntimeFocus(appletObject);
+      for (const label of labels) {
+        appletObject.setSelectedObject(label, true);
+      }
+      return true;
+    }
+
+    return false;
+  },
+  clearFocusedObjects: () => {
+    suppressSceneCapture(FOCUS_SUPPRESS_MS);
+    clearRuntimeFocus(appletObject);
   }
 });
 

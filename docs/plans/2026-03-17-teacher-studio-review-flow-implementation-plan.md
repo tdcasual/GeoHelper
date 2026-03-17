@@ -1,5 +1,7 @@
 # GeoHelper Teacher Studio Review Flow Implementation Plan
 
+Status: Implemented on `main` through Task 4 on 2026-03-17
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** 把当前的 teacher studio 从“结构已经成立”推进到“老师能快速判断结果是否可信、能继续确认/补图/重试”的可用主链路。

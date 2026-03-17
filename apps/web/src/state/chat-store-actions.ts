@@ -24,6 +24,7 @@ import {
   normalizeSendInput,
   type PersistableChatState
 } from "./chat-store-helpers";
+import type { ChatStudioUncertaintyReviewStatus } from "./chat-result";
 import { sceneStore } from "./scene-store";
 import { settingsStore } from "./settings-store";
 
@@ -102,6 +103,86 @@ export const createChatStoreActions = ({
       saveState(next);
       return {
         reauthRequired: false
+      };
+    }),
+  updateUncertaintyReviewStatus: ({
+    messageId,
+    uncertaintyId,
+    reviewStatus
+  }: {
+    messageId: string;
+    uncertaintyId: string;
+    reviewStatus: ChatStudioUncertaintyReviewStatus;
+  }) =>
+    set((state) => {
+      let changed = false;
+      const now = Date.now();
+      const conversations = state.conversations.map((conversation) => {
+        let conversationChanged = false;
+        const messages = conversation.messages.map((message) => {
+          if (
+            message.id !== messageId ||
+            message.role !== "assistant" ||
+            !message.result
+          ) {
+            return message;
+          }
+
+          let messageChanged = false;
+          const uncertaintyItems = message.result.uncertaintyItems.map((item) => {
+            if (
+              item.id !== uncertaintyId ||
+              item.reviewStatus === reviewStatus
+            ) {
+              return item;
+            }
+
+            messageChanged = true;
+            return {
+              ...item,
+              reviewStatus
+            };
+          });
+
+          if (!messageChanged) {
+            return message;
+          }
+
+          changed = true;
+          conversationChanged = true;
+          return {
+            ...message,
+            result: {
+              ...message.result,
+              uncertaintyItems
+            }
+          };
+        });
+
+        if (!conversationChanged) {
+          return conversation;
+        }
+
+        return {
+          ...conversation,
+          updatedAt: now,
+          messages
+        };
+      });
+
+      if (!changed) {
+        return {};
+      }
+
+      const next = {
+        ...state,
+        conversations,
+        messages: getMessagesForConversation(conversations, state.activeConversationId)
+      };
+      saveState(next);
+      return {
+        conversations: next.conversations,
+        messages: next.messages
       };
     }),
   sendFollowUpPrompt: async (prompt: string) => {

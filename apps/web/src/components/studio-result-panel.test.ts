@@ -21,6 +21,12 @@ describe("studio-result-panel", () => {
             label: "点 D 在线段 BC 上",
             reviewStatus: "pending",
             followUpPrompt: "请确认点 D 是否在线段 BC 上。"
+          },
+          {
+            id: "unc_angle",
+            label: "AD 是否平分角 A",
+            reviewStatus: "confirmed",
+            followUpPrompt: "请确认 AD 是否平分角 A。"
           }
         ],
         canvasLinks: []
@@ -39,6 +45,11 @@ describe("studio-result-panel", () => {
     expect(viewModel.executionSteps).toHaveLength(2);
     expect(viewModel.executionSteps[0].label).toBe("intent");
     expect(viewModel.uncertainties[0]?.label).toBe("点 D 在线段 BC 上");
+    expect(viewModel.reviewSummary).toEqual({
+      pendingCount: 1,
+      confirmedCount: 1,
+      needsFixCount: 0
+    });
     expect(viewModel.nextActions.map((item) => item.id)).toEqual([
       "add_auxiliary",
       "generate_explanation",
@@ -70,6 +81,11 @@ describe("studio-result-panel", () => {
     expect(viewModel.executionSteps).toEqual([]);
     expect(viewModel.warningItems).toEqual([]);
     expect(viewModel.uncertainties).toEqual([]);
+    expect(viewModel.reviewSummary).toEqual({
+      pendingCount: 0,
+      confirmedCount: 0,
+      needsFixCount: 0
+    });
   });
 
   it("returns an empty placeholder when no assistant message is available", () => {
@@ -78,6 +94,11 @@ describe("studio-result-panel", () => {
     expect(viewModel.status).toBe("idle");
     expect(viewModel.summary.items).toEqual(["暂无生成结果"]);
     expect(viewModel.executionSteps).toEqual([]);
+    expect(viewModel.reviewSummary).toEqual({
+      pendingCount: 0,
+      confirmedCount: 0,
+      needsFixCount: 0
+    });
     expect(viewModel.nextActions).toHaveLength(3);
     expect(viewModel.nextActions.every((item) => item.disabled)).toBe(true);
   });
@@ -99,6 +120,11 @@ describe("studio-result-panel", () => {
     });
 
     expect(viewModel.status).toBe("error");
+    expect(viewModel.reviewSummary).toEqual({
+      pendingCount: 0,
+      confirmedCount: 0,
+      needsFixCount: 0
+    });
     expect(viewModel.nextActions.every((item) => item.disabled)).toBe(true);
   });
 });

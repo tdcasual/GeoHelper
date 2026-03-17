@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { registerGeoGebraAdapter } from "../geogebra/adapter";
+import { getGeoGebraAdapter, registerGeoGebraAdapter } from "../geogebra/adapter";
 import { toAppletPixelSize } from "../geogebra/applet-size";
 import { toGeoGebraRuntimeConfig } from "../geogebra/vendor-runtime";
+import { useSceneFocusStore } from "../state/scene-focus-store";
 import { sceneStore } from "../state/scene-store";
 import {
   type CanvasUiProfile,
@@ -11,14 +12,32 @@ import {
   getLiveAppletObject,
   loadGeoGebraManifest,
   resolveAppletObject,
-  toAppletConfig} from "./canvas-panel/runtime";
+  toAppletConfig
+} from "./canvas-panel/runtime";
 import { bindGeoGebraSceneListeners, createRuntimeAdapter, createSceneCaptureController } from "./canvas-panel/scene-sync";
 
-interface CanvasPanelProps { profile: CanvasUiProfile; visible: boolean }
+interface CanvasFocusNotice {
+  message: string;
+  tone?: "info" | "warning";
+}
 
-export const CanvasPanel = ({ profile, visible }: CanvasPanelProps) => {
+interface CanvasPanelProps {
+  profile: CanvasUiProfile;
+  visible: boolean;
+  focusNotice?: CanvasFocusNotice | null;
+}
+
+export const CanvasPanel = ({
+  profile,
+  visible,
+  focusNotice
+}: CanvasPanelProps) => {
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading"
+  );
+  const focusRequest = useSceneFocusStore((state) => state.focusRequest);
+  const consumeFocusRequest = useSceneFocusStore(
+    (state) => state.consumeFocusRequest
   );
   const [isFullscreen, setIsFullscreen] = useState(false);
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -256,6 +275,17 @@ export const CanvasPanel = ({ profile, visible }: CanvasPanelProps) => {
   };
 
   useEffect(() => {
+    if (status !== "ready" || !focusRequest) {
+      return;
+    }
+
+    const adapter = getGeoGebraAdapter();
+    adapter.clearFocusedObjects?.();
+    adapter.focusObjects?.(focusRequest.objectLabels);
+    consumeFocusRequest(focusRequest.requestId);
+  }, [consumeFocusRequest, focusRequest, status]);
+
+  useEffect(() => {
     let disposed = false;
 
     const bootstrap = async () => {
@@ -368,6 +398,18 @@ export const CanvasPanel = ({ profile, visible }: CanvasPanelProps) => {
     <section className="canvas-panel" data-panel="canvas" hidden={!visible}>
       <div ref={hostRef} className="geogebra-host" data-testid="geogebra-host">
         <div id="geogebra-container" className="geogebra-container" />
+        {focusNotice ? (
+          <div
+            className={`canvas-focus-notice${
+              focusNotice.tone === "warning"
+                ? " canvas-focus-notice-warning"
+                : ""
+            }`}
+            data-testid="canvas-focus-notice"
+          >
+            {focusNotice.message}
+          </div>
+        ) : null}
         <button
           type="button"
           className="canvas-fullscreen-button"

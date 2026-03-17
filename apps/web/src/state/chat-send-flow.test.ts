@@ -134,7 +134,27 @@ describe("chat-send-flow", () => {
               "请基于当前图形结果，重新检查并明确以下待确认条件：点 D 在线段 BC 上。如果条件不成立，也请直接指出。"
           }
         ],
-        canvasLinks: []
+        canvasLinks: expect.arrayContaining([
+          {
+            id: "summary_1",
+            scope: "summary",
+            text: "已创建三角形 ABC",
+            objectLabels: ["A", "B", "C"]
+          },
+          {
+            id: "summary_2",
+            scope: "summary",
+            text: "已作角平分线 AD",
+            objectLabels: ["A", "D"]
+          },
+          {
+            id: "uncertainty_unc_点_d_在线段_bc_上",
+            scope: "uncertainty",
+            text: "点 D 在线段 BC 上",
+            objectLabels: ["D", "B", "C"],
+            uncertaintyId: "unc_点_d_在线段_bc_上"
+          }
+        ])
       },
       agentSteps: [
         {

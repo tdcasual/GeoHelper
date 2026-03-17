@@ -51,6 +51,9 @@ test("right rail shows structured result sections after one send", async ({
   await expect(resultRail.getByRole("button", { name: "补辅助线" })).toBeVisible();
   await expect(resultRail.getByRole("button", { name: "生成讲解思路" })).toBeVisible();
   await expect(page.getByTestId("proof-assist-action-add_auxiliary")).toBeEnabled();
+  await expect(page.getByTestId("chat-structured-result-receipt")).toContainText(
+    "结构化结果已同步到结果面板"
+  );
 
   const resultPanelSurface = await resultPanel.evaluate((node) => {
     const styles = window.getComputedStyle(node);
