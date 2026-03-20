@@ -6,7 +6,6 @@ import { loadConfig } from "./config";
 import { registerAdminRoutes } from "./routes/admin";
 import { registerAgentRunsRoute } from "./routes/agent-runs";
 import { registerAuthRoutes } from "./routes/auth";
-import { registerCompileRoute } from "./routes/compile";
 import { registerHealthRoute } from "./routes/health";
 import { GatewayAlertEvent, sendAlert } from "./services/alerting";
 import {
@@ -184,7 +183,6 @@ export const buildServer = (
   registerAuthRoutes(app, config, {
     sessionStore: services.sessionStore
   });
-  registerCompileRoute(app, config, services);
   registerAgentRunsRoute(app, config, services);
 
   return app;
