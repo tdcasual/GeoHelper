@@ -38,21 +38,9 @@ export interface BuildCompileRuntimeOptionsResult
   didResolveByokKey: boolean;
 }
 
-const buildExtraHeaders = (
-  state: Pick<SettingsStoreState, "experimentFlags">
-): Record<string, string> => {
-  const headers: Record<string, string> = {};
-  if (state.experimentFlags.strictValidationEnabled) {
-    headers["x-client-strict-validation"] = "1";
-  }
-  if (state.experimentFlags.fallbackSingleAgentEnabled) {
-    headers["x-client-fallback-single-agent"] = "1";
-  }
-  if (state.experimentFlags.performanceSamplingEnabled) {
-    headers["x-client-performance-sampling"] = "1";
-  }
-  return headers;
-};
+const buildExtraHeaders = (): Record<string, string> =>
+  // Legacy compile-route client flags are no longer emitted on the active path.
+  ({});
 
 const getDefaultPreset = (
   mode: ChatMode,
@@ -165,7 +153,7 @@ export const buildCompileRuntimeOptions = async (
     retryAttempts: input.state.experimentFlags.autoRetryEnabled
       ? session.retryAttempts ?? input.state.requestDefaults.retryAttempts
       : 0,
-    extraHeaders: buildExtraHeaders(input.state),
+    extraHeaders: buildExtraHeaders(),
     resolvedByokPresetId,
     didResolveByokKey
   };

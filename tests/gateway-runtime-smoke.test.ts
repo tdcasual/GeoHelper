@@ -57,9 +57,9 @@ describe("gateway runtime smoke script", () => {
         path: "/api/v1/auth/token/revoke"
       },
       {
-        name: "POST /api/v1/chat/compile",
+        name: "POST /api/v2/agent/runs",
         method: "POST",
-        path: "/api/v1/chat/compile"
+        path: "/api/v2/agent/runs"
       },
       {
         name: "GET /admin/compile-events",

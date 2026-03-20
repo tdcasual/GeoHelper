@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+
 import { openWorkspace } from "./fullscreen-toggle.test-helpers";
 import { mockGeoGebraRuntime } from "./geogebra.test-helpers";
 

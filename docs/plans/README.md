@@ -9,6 +9,7 @@ Use this section when you know the problem domain first and only then want the r
 ### Strategy
 
 - Product boundary reset: [`2026-03-17-product-scope-reset-design.md`](./2026-03-17-product-scope-reset-design.md)
+- M4 release closure: [`2026-03-19-m4-release-closure-implementation-plan.md`](./2026-03-19-m4-release-closure-implementation-plan.md)
 
 ### Runtime
 

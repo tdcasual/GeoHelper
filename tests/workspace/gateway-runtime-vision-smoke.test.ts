@@ -46,9 +46,9 @@ describe("gateway runtime vision smoke", () => {
 
     const checks = buildGatewayRuntimeChecks(env);
     expect(checks).toContainEqual({
-      name: "POST /api/v1/chat/compile (attachment)",
+      name: "POST /api/v2/agent/runs (attachment)",
       method: "POST",
-      path: "/api/v1/chat/compile",
+      path: "/api/v2/agent/runs",
       capability: "attachments"
     });
 
@@ -79,14 +79,14 @@ describe("gateway runtime vision smoke", () => {
           path: "/admin/version"
         },
         {
-          name: "POST /api/v1/chat/compile",
+          name: "POST /api/v2/agent/runs",
           method: "POST",
-          path: "/api/v1/chat/compile"
+          path: "/api/v2/agent/runs"
         },
         {
-          name: "POST /api/v1/chat/compile (attachment)",
+          name: "POST /api/v2/agent/runs (attachment)",
           method: "POST",
-          path: "/api/v1/chat/compile",
+          path: "/api/v2/agent/runs",
           capability: "attachments"
         },
         {
@@ -133,23 +133,41 @@ describe("gateway runtime vision smoke", () => {
       if (url.endsWith("/api/v1/auth/token/revoke")) {
         return jsonResponse({ revoked: true });
       }
-      if (url.includes("/api/v1/chat/compile")) {
+      if (url.includes("/api/v2/agent/runs")) {
         const body = JSON.parse(String(options?.body ?? "{}")) as {
           attachments?: unknown[];
         };
-        const traceId = Array.isArray(body.attachments)
-          ? "tr_attachment"
-          : "tr_compile";
+        const attachmentCall = Array.isArray(body.attachments);
+        const traceId = attachmentCall ? "tr_attachment" : "tr_compile";
+        const runId = attachmentCall ? "run_attachment" : "run_compile";
         return jsonResponse(
           {
             trace_id: traceId,
-            batch: {
-              version: "1.0",
-              scene_id: "s1",
-              transaction_id: traceId,
-              commands: [],
-              post_checks: [],
-              explanations: []
+            agent_run: {
+              run: {
+                id: runId,
+                mode: "byok",
+                status: "success"
+              },
+              draft: {
+                commandBatchDraft: {
+                  version: "1.0",
+                  scene_id: "s1",
+                  transaction_id: `tx_${runId}`,
+                  commands: [{ name: "noop" }],
+                  post_checks: [],
+                  explanations: []
+                }
+              },
+              telemetry: {
+                stages: [
+                  {
+                    name: "author",
+                    status: "ok",
+                    durationMs: 8
+                  }
+                ]
+              }
             }
           },
           {
@@ -209,10 +227,21 @@ describe("gateway runtime vision smoke", () => {
           attachments_enabled: true
         }),
         expect.objectContaining({
-          name: "POST /api/v1/chat/compile (attachment)",
+          name: "POST /api/v2/agent/runs",
+          ok: true,
+          trace_id: "tr_compile",
+          run_id: "run_compile",
+          command_count: 1,
+          telemetry_stages: 1
+        }),
+        expect.objectContaining({
+          name: "POST /api/v2/agent/runs (attachment)",
           ok: true,
           attachments_count: 1,
-          trace_id: "tr_attachment"
+          trace_id: "tr_attachment",
+          run_id: "run_attachment",
+          command_count: 1,
+          telemetry_stages: 1
         }),
         expect.objectContaining({
           name: "GET /admin/metrics",

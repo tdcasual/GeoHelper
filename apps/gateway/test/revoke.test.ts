@@ -38,7 +38,7 @@ describe("POST /api/v1/auth/token/revoke", () => {
 
     const compileRes = await app.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
+      url: "/api/v2/agent/runs",
       headers: {
         authorization: `Bearer ${sessionToken}`
       },
@@ -96,7 +96,7 @@ describe("POST /api/v1/auth/token/revoke", () => {
 
     const compileRes = await secondApp.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
+      url: "/api/v2/agent/runs",
       headers: {
         authorization: `Bearer ${sessionToken}`
       },

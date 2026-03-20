@@ -7,9 +7,9 @@ import {
   type GeometryTeacherPacket
 } from "@geohelper/protocol";
 
-import { type CompileInput } from "./litellm-client";
 import { type GeometryReviewerInput } from "./geometry-reviewer";
 import { type GeometryReviserInput } from "./geometry-reviser";
+import { type CompileInput } from "./litellm-client";
 
 export interface AgentWorkflowDeps {
   author: (input: CompileInput) => Promise<GeometryDraftPackage>;

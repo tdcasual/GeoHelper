@@ -1,8 +1,7 @@
 import {
-  GeometryReviewReportSchema,
   type GeometryDraftPackage,
-  type GeometryReviewReport
-} from "@geohelper/protocol";
+  type GeometryReviewReport,
+  GeometryReviewReportSchema} from "@geohelper/protocol";
 
 import {
   buildGeometryContextSuffix,

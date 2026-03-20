@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { createAgentRunPayload } from "./agent-run.test-helpers";
 import {
   createBackupFile,
   openSettingsSection,
@@ -132,7 +133,7 @@ test("applies byok preset config to compile request", async ({ page }) => {
   let capturedEndpoint = "";
   let capturedByokKey = "";
 
-  await page.route("**/api/v1/chat/compile", async (route) => {
+  await page.route("**/api/v2/agent/runs", async (route) => {
     if (route.request().method() === "OPTIONS") {
       await route.fulfill({
         status: 204,
@@ -158,18 +159,13 @@ test("applies byok preset config to compile request", async ({ page }) => {
         "content-type": "application/json",
         "access-control-allow-origin": "*"
       },
-      body: JSON.stringify({
-        trace_id: "tr_settings_1",
-        batch: {
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        },
-        agent_steps: []
-      })
+      body: JSON.stringify(
+        createAgentRunPayload({
+          traceId: "tr_settings_1",
+          runId: "run_settings_1",
+          summary: ["已生成 0 条指令"]
+        })
+      )
     });
   });
 
@@ -186,7 +182,12 @@ test("applies byok preset config to compile request", async ({ page }) => {
 
   await page.getByPlaceholder("例如：过点A和B作垂直平分线").fill("画一个圆");
   await page.getByRole("button", { name: "发送" }).click();
-  await expect(page.getByTestId("studio-result-panel").getByText("已生成 0 条指令")).toBeVisible();
+  await expect(
+    page
+      .getByTestId("studio-result-panel")
+      .locator("text=已生成 0 条指令")
+      .first()
+  ).toBeVisible();
 
   await expect.poll(() => capturedModel).toBe("openai/gpt-4o-mini");
   await expect.poll(() => capturedEndpoint).toBe("https://openrouter.ai/api/v1");

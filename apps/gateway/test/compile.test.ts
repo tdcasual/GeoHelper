@@ -34,6 +34,8 @@ describe("POST /api/v1/chat/compile", () => {
     expect(payload.batch.version).toBe("1.0");
     expect(Array.isArray(payload.agent_steps)).toBe(true);
     expect(payload.agent_steps.length).toBeGreaterThanOrEqual(3);
+    expect(res.headers.deprecation).toBe("true");
+    expect(res.headers.link).toContain("/api/v2/agent/runs");
   });
 
 
@@ -73,6 +75,8 @@ describe("POST /api/v1/chat/compile", () => {
         message: "Gateway runtime does not support attachments yet"
       }
     });
+    expect(res.headers.deprecation).toBe("true");
+    expect(res.headers.link).toContain("/api/v2/agent/runs");
   });
 
   it("accepts image attachments when capability is enabled and records safe metadata", async () => {

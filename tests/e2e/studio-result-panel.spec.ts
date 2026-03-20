@@ -1,29 +1,41 @@
 import { expect, test } from "@playwright/test";
 
+import { createAgentRunPayload } from "./agent-run.test-helpers";
+
 const mockCompile = async (page: import("@playwright/test").Page) => {
-  await page.route("**/api/v1/chat/compile", async (route) => {
+  await page.route("**/api/v2/agent/runs", async (route) => {
     await route.fulfill({
       status: 200,
       headers: {
         "content-type": "application/json",
         "access-control-allow-origin": "*"
       },
-      body: JSON.stringify({
-        trace_id: "tr_e2e_result_panel",
-        batch: {
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: ["待确认：点 D 在线段 BC 上"],
-          explanations: ["已创建三角形 ABC", "已作角平分线 AD"]
-        },
-        agent_steps: [
-          { name: "intent", status: "ok", duration_ms: 5 },
-          { name: "planner", status: "ok", duration_ms: 8 },
-          { name: "command", status: "ok", duration_ms: 10 }
-        ]
-      })
+      body: JSON.stringify(
+        createAgentRunPayload({
+          traceId: "tr_e2e_result_panel",
+          runId: "run_e2e_result_panel",
+          summary: ["已创建三角形 ABC", "已作角平分线 AD"],
+          explanations: ["已创建三角形 ABC", "已作角平分线 AD"],
+          postChecks: ["待确认：点 D 在线段 BC 上"],
+          uncertainties: [
+            {
+              id: "unc_点_d_在线段_bc_上",
+              label: "点 D 在线段 BC 上",
+              followUpPrompt: "请确认点 D 是否在线段 BC 上，并说明原因。",
+              reviewStatus: "pending"
+            }
+          ],
+          canvasLinks: [
+            {
+              id: "link_unc_d",
+              scope: "uncertainty",
+              text: "点 D 在线段 BC 上",
+              objectLabels: ["D", "B", "C"],
+              uncertaintyId: "unc_点_d_在线段_bc_上"
+            }
+          ]
+        })
+      )
     });
   });
 };

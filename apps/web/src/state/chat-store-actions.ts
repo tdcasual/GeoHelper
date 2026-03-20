@@ -1,6 +1,7 @@
 import { getGeoGebraAdapter } from "../geogebra/adapter";
 import type { RuntimeCompileResponse } from "../runtime/types";
 import { buildCanvasEvidenceFromAgentRun } from "./canvas-evidence";
+import type { ChatStudioUncertaintyReviewStatus } from "./chat-result";
 import {
   buildAssistantMessageFromCompileResult,
   buildAssistantMessageFromError,
@@ -24,7 +25,6 @@ import {
   normalizeSendInput,
   type PersistableChatState
 } from "./chat-store-helpers";
-import type { ChatStudioUncertaintyReviewStatus } from "./chat-result";
 import { sceneStore } from "./scene-store";
 import { settingsStore } from "./settings-store";
 

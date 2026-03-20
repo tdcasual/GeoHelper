@@ -1,7 +1,6 @@
 import {
-  GeometryDraftPackageSchema,
-  type GeometryDraftPackage
-} from "@geohelper/protocol";
+  type GeometryDraftPackage,
+  GeometryDraftPackageSchema} from "@geohelper/protocol";
 
 import {
   buildGeometryContextSuffix,

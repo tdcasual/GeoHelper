@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { createAgentRunEnvelopeFixture } from "../test-utils/agent-run-fixture";
 import {
+  buildAssistantMessageFromCompileResult,
   buildAssistantMessageFromError,
   buildAssistantMessageFromGuard,
-  buildAssistantMessageFromCompileResult,
   buildCompileContext,
   resolveChatSendGuard
 } from "./chat-send-flow";

@@ -128,13 +128,102 @@ Retention model in gateway storage:
 - one bounded summary history for operator audit
 - Redis-backed when `REDIS_URL` is configured, in-memory fallback otherwise
 
-## POST /api/v1/chat/compile
+## POST /api/v2/agent/runs
 
 ### Headers
 
 - Official mode: `Authorization: Bearer <session_token>`
 - BYOK mode: optional `x-byok-endpoint`, `x-byok-key`
-- Optional runtime flags:
+
+No legacy `x-client-*` experiment headers are required on this route. During cutover, those compatibility flags remain supported only on `/api/v1/chat/compile`.
+
+### Request
+
+```json
+{
+  "message": "画一个半径为3的圆",
+  "mode": "byok",
+  "model": "gpt-4o-mini",
+  "attachments": [],
+  "context": {
+    "recentMessages": [
+      { "role": "user", "content": "先创建点A和点B" }
+    ],
+    "sceneTransactions": [
+      {
+        "sceneId": "s1",
+        "transactionId": "t1",
+        "commandCount": 2
+      }
+    ]
+  }
+}
+```
+
+The body is validated against the `AgentRun` schema. Gateway uses the provided message, mode, attachments, and context to orchestrate the `author -> reviewer -> optional reviser -> preflight` workflow, returning the fully resolved `agent_run` payload.
+
+### Response 200
+
+```json
+{
+  "trace_id": "tr_123",
+  "agent_run": {
+    "run": {
+      "status": "success",
+      "scene_id": "s1",
+      "transaction_id": "t1",
+      "command_batch": {
+        "version": "1.0",
+        "commands": []
+      }
+    },
+    "reviews": [
+      {
+        "name": "reviewer",
+        "verdict": "ok"
+      }
+    ],
+    "telemetry": {
+      "agent_name": "geometry",
+      "upstream_call_count": 1,
+      "degraded": false
+    }
+  },
+  "metadata": {
+    "attachments": {
+      "image": 0
+    }
+  }
+}
+```
+
+#### Response Headers
+
+- `x-ratelimit-limit`, `x-ratelimit-remaining`, `x-ratelimit-reset`
+- `x-trace-id` mirrors the `trace_id` in the body when present
+
+#### Errors
+
+- `400`: `INVALID_REQUEST` when the payload fails schema validation or attachments are unsupported
+- `401`: `MISSING_AUTH_HEADER` / `SESSION_EXPIRED` when official mode lacks/has an invalid session
+- `429`: `RATE_LIMITED` when rate limits are exhausted
+- `503`: `GATEWAY_BUSY` when the compile guard is saturated
+- `504`: `COMPILE_TIMEOUT` when the guard times out
+- `502`: `AGENT_WORKFLOW_FAILED` for upstream workflow failures
+
+This endpoint is the canonical contract for AgentRun orchestration in GeoHelper. Clients should prefer `/api/v2/agent/runs` for all new compile traffic.
+
+## POST /api/v1/chat/compile (legacy)
+
+### Compatibility note
+
+This route remains available only as a legacy shell. It calls into the same AgentRun workflow described above but should not be used for new development; `/api/v2/agent/runs` is now the primary compile contract and will eventually replace this endpoint.
+
+### Headers
+
+- Official mode: `Authorization: Bearer <session_token>`
+- BYOK mode: optional `x-byok-endpoint`, `x-byok-key`
+- Legacy client compatibility flags:
   - `x-client-strict-validation: 1`
   - `x-client-fallback-single-agent: 1`
   - `x-client-performance-sampling: 1`

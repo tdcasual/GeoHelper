@@ -1,7 +1,7 @@
 import type { AgentRunEnvelope } from "@geohelper/protocol";
 
-import type { ChatMessage } from "../state/chat-store";
 import type { ChatStudioUncertaintyItem } from "../state/chat-result";
+import type { ChatMessage } from "../state/chat-store";
 import { resolveProofAssistActions } from "./proof-assist-actions";
 
 export interface StudioResultAction {

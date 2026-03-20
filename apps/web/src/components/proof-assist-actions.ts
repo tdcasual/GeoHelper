@@ -3,11 +3,11 @@ import type {
   GeometryCanvasEvidence
 } from "@geohelper/protocol";
 
-import type { ChatMessage } from "../state/chat-store";
 import type {
   ChatStudioResult,
   ChatStudioUncertaintyItem
 } from "../state/chat-result";
+import type { ChatMessage } from "../state/chat-store";
 
 export type ProofAssistActionId =
   | "add_auxiliary"

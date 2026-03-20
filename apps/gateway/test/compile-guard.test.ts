@@ -78,14 +78,14 @@ describe("compile runtime guard", () => {
 
     const firstResponsePromise = app.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
+      url: "/api/v2/agent/runs",
       payload: { message: "画一个圆", mode: "byok" }
     });
     await firstCallStarted;
 
     const secondResponse = await app.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
+      url: "/api/v2/agent/runs",
       payload: { message: "再画一个圆", mode: "byok" }
     });
 
@@ -145,10 +145,7 @@ describe("compile runtime guard", () => {
 
     const response = await app.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
-      headers: {
-        "x-client-fallback-single-agent": "1"
-      },
+      url: "/api/v2/agent/runs",
       payload: { message: "画一个圆", mode: "byok" }
     });
 

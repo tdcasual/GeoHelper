@@ -28,13 +28,13 @@ describe("GET /admin/metrics", () => {
 
     await app.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
+      url: "/api/v2/agent/runs",
       payload: { message: "画一个圆", mode: "byok" }
     });
 
     await app.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
+      url: "/api/v2/agent/runs",
       payload: { message: "再画一个圆", mode: "byok" }
     });
 
@@ -83,7 +83,7 @@ describe("GET /admin/metrics", () => {
     expect(allowed.statusCode).toBe(200);
   });
 
-  it("records sampled performance stats", async () => {
+  it("ignores the legacy performance sampling header on v2", async () => {
     const metricsStore = createMemoryMetricsStore();
 
     const app = buildServer(
@@ -96,7 +96,7 @@ describe("GET /admin/metrics", () => {
 
     await app.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
+      url: "/api/v2/agent/runs",
       headers: {
         "x-client-performance-sampling": "1"
       },
@@ -110,9 +110,9 @@ describe("GET /admin/metrics", () => {
 
     expect(metrics.statusCode).toBe(200);
     const payload = JSON.parse(metrics.payload);
-    expect(payload.compile.perf_sample_count).toBe(1);
-    expect(payload.compile.perf_total_ms_avg).toBeGreaterThanOrEqual(0);
-    expect(payload.compile.perf_upstream_ms_avg).toBeGreaterThanOrEqual(0);
+    expect(payload.compile.total_requests).toBe(1);
+    expect(payload.compile.success).toBe(1);
+    expect(payload.compile.perf_sample_count).toBe(0);
   });
 
   it("keeps fallback count at zero for reviewer-based workflow runs", async () => {
@@ -158,7 +158,7 @@ describe("GET /admin/metrics", () => {
 
     await app.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
+      url: "/api/v2/agent/runs",
       payload: { message: "画一个圆", mode: "byok" }
     });
 
@@ -189,7 +189,7 @@ describe("GET /admin/metrics", () => {
 
     await app.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
+      url: "/api/v2/agent/runs",
       payload: { message: "画一个圆", mode: "byok" }
     });
 

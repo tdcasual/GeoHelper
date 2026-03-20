@@ -7,6 +7,8 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import { GatewayConfig } from "../config";
+import { createAgentWorkflow } from "../services/agent-workflow";
+import { type GatewayBuildInfo } from "../services/build-info";
 import {
   buildTraceId,
   type CompileEventSink
@@ -16,20 +18,33 @@ import {
   CompileGuardBusyError,
   CompileGuardTimeoutError
 } from "../services/compile-guard";
-import { createAgentWorkflow } from "../services/agent-workflow";
 import { createGeometryAuthor } from "../services/geometry-author";
 import { createGeometryBrowserRepair } from "../services/geometry-browser-repair";
 import { createGeometryPreflight } from "../services/geometry-preflight";
 import { createGeometryReviewer } from "../services/geometry-reviewer";
 import { createGeometryReviser } from "../services/geometry-reviser";
-import { type RequestCommandBatch } from "../services/litellm-client";
-import { recordAgentRunQualitySample } from "../services/metrics";
+import {
+  type CompileMode,
+  type RequestCommandBatch
+} from "../services/litellm-client";
+import {
+  recordAgentRunQualitySample,
+  recordCompileFailure,
+  recordCompileRateLimited,
+  recordCompileSuccess
+} from "../services/metrics";
 import { type GatewayMetricsStore } from "../services/metrics-store";
 import { consumeRateLimit } from "../services/rate-limit";
 import { type RateLimitStore } from "../services/rate-limit-store";
 import { verifySessionToken } from "../services/session";
 import { type SessionRevocationStore } from "../services/session-store";
 import {
+  buildCompileAlertUpstream,
+  toLegacyAgentSteps
+} from "./compile-route-agent-adapter";
+import { createCompileRouteAlerting } from "./compile-route-alerts";
+import {
+  mergeCompileMetadata,
   normalizeCompileContext,
   summarizeCompileAttachments,
   toCompileFinalStatusFromAgentRun
@@ -94,6 +109,7 @@ export interface AgentRunsRouteDeps {
   compileEventSink: CompileEventSink;
   compileGuard: CompileGuard;
   metricsStore: GatewayMetricsStore;
+  buildInfo: GatewayBuildInfo;
 }
 
 export const registerAgentRunsRoute = (
@@ -102,7 +118,31 @@ export const registerAgentRunsRoute = (
   deps: AgentRunsRouteDeps
 ): void => {
   app.post("/api/v2/agent/runs", async (request, reply) => {
+    const totalStartedAt = Date.now();
     const traceId = buildTraceId(request.id);
+    let eventMode: CompileMode | undefined;
+    const {
+      deferCompileOperatorAlert,
+      sendCompileOperatorAlert,
+      writeCompileEvent
+    } = createCompileRouteAlerting({
+      alertWebhookUrl: config.alertWebhookUrl,
+      buildInfo: deps.buildInfo,
+      compileEventSink: deps.compileEventSink,
+      getMode: () => eventMode,
+      method: request.method,
+      path: request.url,
+      reply,
+      requestId: request.id,
+      traceId
+    });
+    const writeCompileEventBestEffort = async (
+      ...args: Parameters<typeof writeCompileEvent>
+    ): Promise<void> => {
+      try {
+        await writeCompileEvent(...args);
+      } catch {}
+    };
     const rateKey = `${request.ip}:agent_runs`;
     const limit = await consumeRateLimit(
       rateKey,
@@ -115,6 +155,7 @@ export const registerAgentRunsRoute = (
     reply.header("x-ratelimit-remaining", String(limit.remaining));
     reply.header("x-ratelimit-reset", String(Math.floor(limit.resetAt / 1000)));
     if (!limit.allowed) {
+      recordCompileRateLimited(deps.metricsStore);
       return reply.status(429).send({
         error: {
           code: "RATE_LIMITED",
@@ -125,6 +166,14 @@ export const registerAgentRunsRoute = (
 
     const parsed = AgentRunBodySchema.safeParse(request.body);
     if (!parsed.success) {
+      await writeCompileEventBestEffort(
+        "compile_validation_failure",
+        "validation_failure",
+        400,
+        {
+        detail: "invalid_request"
+        }
+      );
       return reply.status(400).send({
         error: {
           code: "INVALID_REQUEST",
@@ -133,8 +182,20 @@ export const registerAgentRunsRoute = (
       });
     }
 
+    const mode = parsed.data.mode as CompileMode;
+    eventMode = mode;
+    const attachmentMetadata = summarizeCompileAttachments(parsed.data.attachments);
     const attachmentsPresent = (parsed.data.attachments?.length ?? 0) > 0;
     if (attachmentsPresent && !config.attachmentsEnabled) {
+      await writeCompileEventBestEffort(
+        "compile_validation_failure",
+        "validation_failure",
+        400,
+        {
+          detail: "attachments_unsupported",
+          metadata: attachmentMetadata
+        }
+      );
       return reply.status(400).send({
         error: {
           code: "ATTACHMENTS_UNSUPPORTED",
@@ -174,7 +235,7 @@ export const registerAgentRunsRoute = (
     const byokKey = request.headers["x-byok-key"];
     const compileInput = {
       message: parsed.data.message,
-      mode: parsed.data.mode,
+      mode,
       model: parsed.data.model,
       byokEndpoint:
         typeof byokEndpoint === "string" ? byokEndpoint : undefined,
@@ -182,6 +243,7 @@ export const registerAgentRunsRoute = (
       attachments: parsed.data.attachments,
       context: normalizeCompileContext(parsed.data.context)
     };
+    const alertUpstream = buildCompileAlertUpstream(config, compileInput);
 
     let upstreamCallCount = 0;
     const countedRequester: RequestCommandBatch = async (input) => {
@@ -210,6 +272,11 @@ export const registerAgentRunsRoute = (
 
     try {
       const agentRun = await deps.compileGuard.run(() => workflow(compileInput));
+      const totalMs = Math.max(0, Date.now() - totalStartedAt);
+      const legacyAgentSteps = toLegacyAgentSteps(agentRun.telemetry.stages);
+      const hadFallback = legacyAgentSteps.some(
+        (step) => step.status === "fallback"
+      );
       recordAgentRunQualitySample(
         {
           status:
@@ -222,31 +289,97 @@ export const registerAgentRunsRoute = (
         },
         deps.metricsStore
       );
-      await deps.compileEventSink.write({
-        event: "compile_success",
-        finalStatus: toCompileFinalStatusFromAgentRun(agentRun.run.status),
-        traceId,
-        requestId: request.id,
-        path: request.url,
-        method: request.method,
-        mode: parsed.data.mode,
-        statusCode: 200,
-        upstreamCallCount: agentRun.telemetry.upstreamCallCount,
-        metadata: {
-          ...summarizeCompileAttachments(parsed.data.attachments),
-          iterationCount: agentRun.run.iterationCount,
-          reviewerVerdict: agentRun.reviews.at(-1)?.verdict ?? null,
-          degraded: agentRun.telemetry.degraded
-        }
+      const repaired = legacyAgentSteps.some(
+        (step) => step.name === "repair" && step.status === "ok"
+      );
+      const estimatedCostUsd =
+        Math.max(0, config.costPerRequestUsd) *
+        Math.max(1, agentRun.telemetry.upstreamCallCount);
+      const finalStatus = repaired
+        ? "repair"
+        : toCompileFinalStatusFromAgentRun(agentRun.run.status);
+      const successMetadata = mergeCompileMetadata(attachmentMetadata, {
+        iterationCount: agentRun.run.iterationCount,
+        reviewerVerdict: agentRun.reviews.at(-1)?.verdict ?? null,
+        degraded: agentRun.telemetry.degraded
       });
+      if (agentRun.evidence.preflight.status === "failed") {
+        recordCompileFailure(totalMs, 0, deps.metricsStore);
+        await writeCompileEventBestEffort(
+          "compile_validation_failure",
+          "validation_failure",
+          200,
+          {
+            detail: "invalid_command_batch",
+            upstreamCallCount: agentRun.telemetry.upstreamCallCount,
+            metadata: mergeCompileMetadata(successMetadata, {
+              issues: agentRun.evidence.preflight.issues
+            })
+          }
+        );
+        return reply.send({
+          trace_id: traceId,
+          agent_run: agentRun,
+          metadata: attachmentMetadata
+        });
+      }
+      await writeCompileEventBestEffort("compile_success", finalStatus, 200, {
+        upstreamCallCount: agentRun.telemetry.upstreamCallCount,
+        metadata: successMetadata
+      });
+      recordCompileSuccess(
+        {
+          retryCount: agentRun.telemetry.retryCount,
+          latencyMs: totalMs,
+          hadFallback,
+          costUsd: estimatedCostUsd
+        },
+        deps.metricsStore
+      );
+
+      if (repaired) {
+        const repairMetadata = mergeCompileMetadata(successMetadata, {
+          repair: true
+        });
+        await writeCompileEventBestEffort("compile_repair", "repair", 200, {
+          detail: "repair agent produced a valid batch",
+          upstreamCallCount: agentRun.telemetry.upstreamCallCount,
+          metadata: repairMetadata
+        });
+        await sendCompileOperatorAlert("compile_repair", "repair", 200, {
+          detail: "repair agent produced a valid batch",
+          metadata: repairMetadata,
+          upstream: alertUpstream
+        });
+      }
 
       return reply.send({
         trace_id: traceId,
         agent_run: agentRun,
-        metadata: summarizeCompileAttachments(parsed.data.attachments)
+        metadata: attachmentMetadata
       });
     } catch (error) {
+      const totalMs = Math.max(0, Date.now() - totalStartedAt);
       if (error instanceof CompileGuardBusyError) {
+        recordCompileFailure(totalMs, 0, deps.metricsStore);
+        await writeCompileEventBestEffort(
+          "compile_runtime_rejected",
+          "runtime_rejected",
+          503,
+          {
+            detail: "max_in_flight_reached",
+            metadata: mergeCompileMetadata(attachmentMetadata, {
+              max_in_flight: config.compileMaxInFlight
+            })
+          }
+        );
+        deferCompileOperatorAlert("compile_runtime_rejected", "runtime_rejected", 503, {
+          detail: "max_in_flight_reached",
+          metadata: mergeCompileMetadata(attachmentMetadata, {
+            max_in_flight: config.compileMaxInFlight
+          }),
+          upstream: alertUpstream
+        });
         return reply.status(503).send({
           error: {
             code: error.code,
@@ -256,6 +389,20 @@ export const registerAgentRunsRoute = (
       }
 
       if (error instanceof CompileGuardTimeoutError) {
+        recordCompileFailure(totalMs, 0, deps.metricsStore);
+        await writeCompileEventBestEffort("compile_timeout", "timeout", 504, {
+          detail: "compile_timeout",
+          metadata: mergeCompileMetadata(attachmentMetadata, {
+            timeout_ms: config.compileTimeoutMs
+          })
+        });
+        deferCompileOperatorAlert("compile_timeout", "timeout", 504, {
+          detail: "compile_timeout",
+          metadata: mergeCompileMetadata(attachmentMetadata, {
+            timeout_ms: config.compileTimeoutMs
+          }),
+          upstream: alertUpstream
+        });
         return reply.status(504).send({
           error: {
             code: error.code,
@@ -263,6 +410,23 @@ export const registerAgentRunsRoute = (
           }
         });
       }
+
+      recordCompileFailure(totalMs, 0, deps.metricsStore);
+      const upstreamFailureDetail =
+        error instanceof Error ? error.message : "upstream_failure";
+      await writeCompileEventBestEffort(
+        "compile_upstream_failure",
+        "upstream_failure",
+        502,
+        {
+          detail: upstreamFailureDetail,
+          metadata: attachmentMetadata
+        }
+      );
+      deferCompileOperatorAlert("compile_upstream_failure", "upstream_failure", 502, {
+        detail: upstreamFailureDetail,
+        upstream: alertUpstream
+      });
 
       return reply.status(502).send({
         error: {

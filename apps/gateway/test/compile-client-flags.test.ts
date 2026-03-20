@@ -44,6 +44,8 @@ describe("POST /api/v1/chat/compile client flags", () => {
     expect(payload.agent_steps[0].name).toBe("author");
     expect(payload.agent_steps[0].status).toBe("ok");
     expect(callCount).toBe(2);
+    expect(res.headers.deprecation).toBe("true");
+    expect(res.headers.link).toContain("/api/v2/agent/runs");
   });
 
   it("returns perf headers when performance sampling is requested", async () => {
@@ -72,6 +74,8 @@ describe("POST /api/v1/chat/compile client flags", () => {
     expect(res.statusCode).toBe(200);
     expect(Number(res.headers["x-perf-total-ms"])).toBeGreaterThanOrEqual(0);
     expect(Number(res.headers["x-perf-upstream-ms"])).toBeGreaterThanOrEqual(0);
+    expect(res.headers.deprecation).toBe("true");
+    expect(res.headers.link).toContain("/api/v2/agent/runs");
   });
 
   it("forwards context payload in single-agent fallback mode", async () => {
@@ -131,6 +135,8 @@ describe("POST /api/v1/chat/compile client flags", () => {
     expect(capturedInput?.context?.sceneTransactions?.[0]?.transactionId).toBe(
       "tx1"
     );
+    expect(res.headers.deprecation).toBe("true");
+    expect(res.headers.link).toContain("/api/v2/agent/runs");
   });
 });
 

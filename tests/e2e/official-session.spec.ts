@@ -22,7 +22,7 @@ test("opens token dialog automatically when official session expires", async ({
 }) => {
   await page.addInitScript(setOfficialSnapshot);
 
-  await page.route("**/api/v1/chat/compile", async (route) => {
+  await page.route("**/api/v2/agent/runs", async (route) => {
     await route.fulfill({
       status: 401,
       headers: {

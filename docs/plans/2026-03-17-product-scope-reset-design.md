@@ -3,6 +3,8 @@
 Date: 2026-03-17  
 Status: Adopted as the current strategic boundary on 2026-03-17
 
+> 2026-03-19 M4 note: the next execution phase is release closure around this boundary, not a new feature-expansion cycle. The immediate ship path is release verification, staging evidence, and legacy compile observation handoff; demo/export/presentation work, compile-route hard deletion, and backend expansion stay out of the M4 critical path.
+
 ## 1. Why This Reset Exists
 
 GeoHelper 过去两周已经连续完成了几条重要路线：
@@ -184,6 +186,7 @@ GeoHelper 不做：
 
 1. Gateway 主链路已经切到 `AgentRun` 驱动的 `author -> reviewer -> optional reviser -> preflight` workflow。
 2. `/api/v1/chat/compile` 继续保留，但仅作为 legacy response shell，不再代表独立的旧 compile chain。
+3. `/api/v2/agent/runs` 现已成为文档与接口的主合同，计划文档、README 与 smoke-test 已标明它是推荐路径，`/api/v1/chat/compile` 被标记为 deprecated 直到 Task 5 的确认切换完成。
 
 Track A 与 Track B 的当前执行落地计划见 [`2026-03-17-teacher-studio-review-flow-implementation-plan.md`](./2026-03-17-teacher-studio-review-flow-implementation-plan.md)。
 

@@ -166,9 +166,7 @@ describe("chat-store", () => {
       byokKey: "sk-test",
       timeoutMs: 10_000,
       retryAttempts: 1,
-      extraHeaders: {
-        "x-client-strict-validation": "1"
-      }
+      extraHeaders: {}
     });
     const store = createChatStore({
       compile,

@@ -300,6 +300,28 @@
   justify-self: end;
 }
 
+.workspace-shell.short-viewport.compact-viewport.mobile-surface-chat .studio-continue-panel,
+.workspace-shell.short-viewport.compact-viewport.mobile-surface-chat .studio-result-panel {
+  min-height: 0;
+  max-height: min(20vh, 88px);
+  overflow: auto;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.workspace-shell.short-viewport.compact-viewport.mobile-surface-chat .studio-continue-grid,
+.workspace-shell.short-viewport.compact-viewport.mobile-surface-chat .studio-result-section,
+.workspace-shell.short-viewport.compact-viewport.mobile-surface-chat .studio-result-actions {
+  gap: 6px;
+}
+
+.workspace-shell.short-viewport.compact-viewport.mobile-surface-chat .studio-continue-primary button,
+.workspace-shell.short-viewport.compact-viewport.mobile-surface-chat .studio-continue-section > button,
+.workspace-shell.short-viewport.compact-viewport.mobile-surface-chat .studio-result-retry-button,
+.workspace-shell.short-viewport.compact-viewport.mobile-surface-chat .studio-result-actions button {
+  min-height: 30px;
+}
+
 .workspace-shell.short-viewport.compact-viewport.mobile-surface-chat .plus-menu-button {
   width: 28px;
   height: 28px;

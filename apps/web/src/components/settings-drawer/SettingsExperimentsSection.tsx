@@ -52,42 +52,12 @@ export const SettingsExperimentsSection = ({
     <label className="settings-checkbox">
       <input
         type="checkbox"
-        checked={experimentFlags.strictValidationEnabled}
-        onChange={(event) =>
-          onSetExperimentFlag("strictValidationEnabled", event.target.checked)
-        }
-      />
-      严格模式校验
-    </label>
-    <label className="settings-checkbox">
-      <input
-        type="checkbox"
-        checked={experimentFlags.fallbackSingleAgentEnabled}
-        onChange={(event) =>
-          onSetExperimentFlag("fallbackSingleAgentEnabled", event.target.checked)
-        }
-      />
-      失败回退单代理
-    </label>
-    <label className="settings-checkbox">
-      <input
-        type="checkbox"
         checked={experimentFlags.debugLogPanelEnabled}
         onChange={(event) =>
           onSetExperimentFlag("debugLogPanelEnabled", event.target.checked)
         }
       />
       调试日志面板
-    </label>
-    <label className="settings-checkbox">
-      <input
-        type="checkbox"
-        checked={experimentFlags.performanceSamplingEnabled}
-        onChange={(event) =>
-          onSetExperimentFlag("performanceSamplingEnabled", event.target.checked)
-        }
-      />
-      性能采样上报
     </label>
     <label>
       默认重试次数

@@ -56,7 +56,7 @@ if (args["dry-run"]) {
 
 const gatewayUrl =
   args["gateway-url"] ?? process.env.GATEWAY_URL ?? "http://127.0.0.1:8787";
-const endpoint = `${gatewayUrl.replace(/\/$/, "")}/api/v1/chat/compile`;
+const endpoint = `${gatewayUrl.replace(/\/$/, "")}/api/v2/agent/runs`;
 const mode = args.mode ?? process.env.BENCH_MODE ?? "byok";
 const model = args.model ?? process.env.BENCH_MODEL;
 const sessionToken = args["session-token"] ?? process.env.SESSION_TOKEN;
@@ -105,10 +105,12 @@ for (const testCase of cases) {
     const latencyMs = Date.now() - requestStartedAt;
     const responseBody = await response.json().catch(() => ({}));
 
+    const agentRun = responseBody?.agent_run;
+    const commandBatch = agentRun?.draft?.commandBatchDraft;
     const ok =
       response.ok &&
-      responseBody?.batch &&
-      Array.isArray(responseBody.batch.commands);
+      commandBatch &&
+      Array.isArray(commandBatch.commands);
 
     results.push({
       id: testCase.id,

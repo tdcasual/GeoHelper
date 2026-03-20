@@ -1,6 +1,6 @@
 import {
-  GeometryDraftPackageSchema,
   type GeometryDraftPackage,
+  GeometryDraftPackageSchema,
   type GeometryReviewReport
 } from "@geohelper/protocol";
 

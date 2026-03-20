@@ -3,6 +3,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import { GatewayConfig } from "../config";
+import { createAgentWorkflow } from "../services/agent-workflow";
 import { GatewayBuildInfo } from "../services/build-info";
 import {
   buildTraceId,
@@ -14,7 +15,6 @@ import {
   CompileGuardBusyError,
   CompileGuardTimeoutError
 } from "../services/compile-guard";
-import { createAgentWorkflow } from "../services/agent-workflow";
 import { createGeometryAuthor } from "../services/geometry-author";
 import { createGeometryPreflight } from "../services/geometry-preflight";
 import { createGeometryReviewer } from "../services/geometry-reviewer";
@@ -37,7 +37,6 @@ import { verifySessionToken } from "../services/session";
 import { SessionRevocationStore } from "../services/session-store";
 import {
   buildCompileAlertUpstream,
-  LegacyAgentStep,
   toLegacyAgentSteps
 } from "./compile-route-agent-adapter";
 import { createCompileRouteAlerting } from "./compile-route-alerts";
@@ -138,6 +137,11 @@ export const registerCompileRoute = (
     reply.header("x-ratelimit-limit", String(limit.limit));
     reply.header("x-ratelimit-remaining", String(limit.remaining));
     reply.header("x-ratelimit-reset", String(Math.floor(limit.resetAt / 1000)));
+    const addLegacyDeprecationHeaders = () => {
+      reply.header("deprecation", "true");
+      reply.header("link", "</api/v2/agent/runs>; rel=\"successor-version\"");
+    };
+    addLegacyDeprecationHeaders();
     if (!limit.allowed) {
       recordCompileRateLimited(deps.metricsStore);
       return reply.status(429).send({

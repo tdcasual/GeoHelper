@@ -1,31 +1,22 @@
 import { expect, test } from "@playwright/test";
 
+import { createAgentRunPayload } from "./agent-run.test-helpers";
+
 const mockCompile = async (page: import("@playwright/test").Page) => {
-  await page.route("**/api/v1/chat/compile", async (route) => {
+  await page.route("**/api/v2/agent/runs", async (route) => {
     await route.fulfill({
       status: 200,
       headers: {
         "content-type": "application/json",
         "access-control-allow-origin": "*"
       },
-      body: JSON.stringify({
-        trace_id: "tr_e2e_sidebar",
-        batch: {
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        },
-        agent_steps: [
-          { name: "intent", status: "ok", duration_ms: 5 },
-          { name: "planner", status: "ok", duration_ms: 8 },
-          { name: "command", status: "ok", duration_ms: 10 },
-          { name: "verifier", status: "ok", duration_ms: 1 },
-          { name: "repair", status: "skipped", duration_ms: 0 }
-        ]
-      })
+      body: JSON.stringify(
+        createAgentRunPayload({
+          traceId: "tr_e2e_sidebar",
+          runId: "run_e2e_sidebar",
+          summary: ["已生成 0 条指令"]
+        })
+      )
     });
   });
 };

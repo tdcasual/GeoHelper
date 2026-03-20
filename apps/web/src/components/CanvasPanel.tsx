@@ -5,9 +5,9 @@ import { toAppletPixelSize } from "../geogebra/applet-size";
 import { toGeoGebraRuntimeConfig } from "../geogebra/vendor-runtime";
 import { useSceneFocusStore } from "../state/scene-focus-store";
 import { sceneStore } from "../state/scene-store";
+import { type CanvasFocusNotice,CanvasPanelFrame } from "./canvas-panel/CanvasPanelFrame";
 import { type CanvasUiProfile, ensureGeoGebraScript, type GeoGebraAppletObject, getLiveAppletObject, loadGeoGebraManifest, resolveAppletObject, toAppletConfig } from "./canvas-panel/runtime";
 import { bindGeoGebraSceneListeners, createRuntimeAdapter, createSceneCaptureController } from "./canvas-panel/scene-sync";
-import { CanvasPanelFrame, type CanvasFocusNotice } from "./canvas-panel/CanvasPanelFrame";
 
 interface CanvasPanelProps {
   profile: CanvasUiProfile;

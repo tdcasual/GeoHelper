@@ -23,7 +23,7 @@ describe("rate limiting", () => {
 
     const first = await app.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
+      url: "/api/v2/agent/runs",
       payload: {
         message: "画一个圆",
         mode: "byok"
@@ -33,7 +33,7 @@ describe("rate limiting", () => {
 
     const second = await app.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
+      url: "/api/v2/agent/runs",
       payload: {
         message: "再画一个圆",
         mode: "byok"
@@ -70,7 +70,7 @@ describe("rate limiting", () => {
 
     const first = await firstApp.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
+      url: "/api/v2/agent/runs",
       payload: {
         message: "画一个圆",
         mode: "byok"
@@ -80,7 +80,7 @@ describe("rate limiting", () => {
 
     const second = await secondApp.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
+      url: "/api/v2/agent/runs",
       payload: {
         message: "再画一个圆",
         mode: "byok"

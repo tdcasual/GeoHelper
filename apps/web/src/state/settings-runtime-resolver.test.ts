@@ -71,6 +71,28 @@ describe("settings-runtime-resolver", () => {
     expect(result.byokKey).toBeUndefined();
   });
 
+  it("does not emit legacy compile client flags into active runtime headers", async () => {
+    const store = createSettingsStore();
+    store.getState().setExperimentFlag("strictValidationEnabled", true);
+    store.getState().setExperimentFlag("fallbackSingleAgentEnabled", true);
+    store.getState().setExperimentFlag("performanceSamplingEnabled", true);
+
+    const result = await buildCompileRuntimeOptions({
+      state: store.getState(),
+      conversationId: "conv_1",
+      mode: "byok",
+      resolveCapabilities: async () => ({
+        supportsOfficialAuth: true,
+        supportsVision: false,
+        supportsAgentSteps: true,
+        supportsServerMetrics: true,
+        supportsRateLimitHeaders: true
+      })
+    });
+
+    expect(result.extraHeaders).toEqual({});
+  });
+
   it("only appends debug events when debugLogPanelEnabled is on", () => {
     const store = createSettingsStore();
     const state = store.getState();

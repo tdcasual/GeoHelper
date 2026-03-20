@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import { useSceneStore } from "../state/scene-store";
 import { useSettingsStore } from "../state/settings-store";
@@ -8,8 +8,8 @@ import { SettingsDrawer } from "./SettingsDrawer";
 import { TokenGateDialog } from "./TokenGateDialog";
 import { buildWorkspaceLayoutProps } from "./workspace-shell/layout-props";
 import { useWorkspaceComposer } from "./workspace-shell/useWorkspaceComposer";
-import { useWorkspaceShellBehavior } from "./workspace-shell/useWorkspaceShellBehavior";
 import { useWorkspaceRuntimeSession } from "./workspace-shell/useWorkspaceRuntimeSession";
+import { useWorkspaceShellBehavior } from "./workspace-shell/useWorkspaceShellBehavior";
 import { WorkspaceCompactLayout } from "./workspace-shell/WorkspaceCompactLayout";
 import { WorkspaceDesktopLayout } from "./workspace-shell/WorkspaceDesktopLayout";
 import { WorkspaceTopBar } from "./workspace-shell/WorkspaceTopBar";
@@ -120,7 +120,6 @@ export const WorkspaceShell = ({
     ? compactHistorySheetVisible
     : historyDrawerVisible;
   const {
-    computedHistoryDrawerWidth,
     desktopHistoryOverlay,
     historyDrawerStyle,
     canvasVisible,

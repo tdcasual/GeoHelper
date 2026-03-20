@@ -18,7 +18,10 @@ describe("api contract doc", () => {
     const docPath = path.resolve(currentDir, "../../../docs/api/m0-m1-contract.md");
     const doc = fs.readFileSync(docPath, "utf8");
     expect(doc).toContain("POST /api/v1/auth/token/login");
-    expect(doc).toContain("POST /api/v1/chat/compile");
+    expect(doc).toContain("POST /api/v2/agent/runs");
+    expect(doc).toContain("POST /api/v1/chat/compile (legacy)");
+    expect(doc).toContain("agent_run");
+    expect(doc).toContain("legacy shell");
   });
 
   it("accepts an attachment compile request when gateway attachments are enabled", async () => {
@@ -54,10 +57,7 @@ describe("api contract doc", () => {
 
     const res = await app.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
-      headers: {
-        "x-client-fallback-single-agent": "1"
-      },
+      url: "/api/v2/agent/runs",
       payload: {
         message: "根据图片画出三角形",
         mode: "byok",
@@ -78,9 +78,13 @@ describe("api contract doc", () => {
     expect(attachmentCount).toBe(1);
     expect(JSON.parse(res.payload)).toMatchObject({
       trace_id: "tr_req-1",
-      batch: {
-        scene_id: "scene_contract_attachment",
-        transaction_id: "tx_contract_attachment"
+      agent_run: {
+        draft: {
+          commandBatchDraft: {
+            scene_id: "scene_contract_attachment",
+            transaction_id: "tx_contract_attachment"
+          }
+        }
       }
     });
   });
@@ -110,7 +114,7 @@ describe("api contract doc", () => {
 
     const res = await app.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
+      url: "/api/v2/agent/runs",
       payload: {
         message: "画一个圆",
         mode: "byok"
@@ -121,9 +125,13 @@ describe("api contract doc", () => {
     expect(res.headers["x-trace-id"]).toBe("tr_req-1");
     expect(JSON.parse(res.payload)).toMatchObject({
       trace_id: "tr_req-1",
-      batch: {
-        scene_id: "scene_contract",
-        transaction_id: "tx_contract"
+      agent_run: {
+        draft: {
+          commandBatchDraft: {
+            scene_id: "scene_contract",
+            transaction_id: "tx_contract"
+          }
+        }
       }
     });
   });

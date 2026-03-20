@@ -56,14 +56,19 @@ login_response="$(curl -fsS -X POST "http://localhost:${PORT}/api/v1/auth/token/
 session_token="$(node -e 'const r=JSON.parse(process.argv[1]); if(!r.session_token){process.exit(1)}; process.stdout.write(r.session_token)' "$login_response")"
 
 compile_payload='{"message":"创建点A=(0,0)，画一个半径为3的圆","mode":"official"}'
-compile_response="$(curl -fsS -X POST "http://localhost:${PORT}/api/v1/chat/compile" \
+compile_response="$(curl -fsS -X POST "http://localhost:${PORT}/api/v2/agent/runs" \
   -H 'content-type: application/json' \
   -H "authorization: Bearer ${session_token}" \
   -d "$compile_payload")"
 
 node -e '
 const r=JSON.parse(process.argv[1]);
-if(!r.batch || !Array.isArray(r.batch.commands)){ process.exit(1); }
-if(!Array.isArray(r.agent_steps) || r.agent_steps.length < 4){ process.exit(1); }
-console.log(`OK: commands=${r.batch.commands.length}, steps=${r.agent_steps.length}`);
+if(!r.agent_run || !r.agent_run.run || !r.agent_run.run.id){ process.exit(1); }
+const commands = r.agent_run.draft?.commandBatchDraft?.commands;
+if(!Array.isArray(commands)){ process.exit(1); }
+const stages = r.agent_run.telemetry?.stages;
+if(!Array.isArray(stages) || stages.length < 1){ process.exit(1); }
+console.log(
+  `OK: run=${r.agent_run.run.id}, commands=${commands.length}, stages=${stages.length}`
+);
 ' "$compile_response"

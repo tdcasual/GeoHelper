@@ -215,6 +215,12 @@
   text-align: left;
 }
 
+/* Short landscape compact chat prioritizes readable message space over secondary panels. */
+.workspace-shell.short-viewport.compact-viewport.mobile-surface-chat .studio-continue-panel,
+.workspace-shell.short-viewport.compact-viewport.mobile-surface-chat .studio-result-panel {
+  display: none;
+}
+
 .chat-structured-result-receipt {
   padding: 10px 12px;
   border: 1px solid rgba(183, 157, 121, 0.24);

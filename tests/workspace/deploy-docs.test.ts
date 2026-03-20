@@ -33,6 +33,7 @@ describe("deploy docs", () => {
     expect(txt).toContain("ordinary retained history and protected retained snapshots are bounded separately");
     expect(txt).toContain("new protect requests fail explicitly when protected capacity is full");
     expect(txt).toContain("/admin/backups/history/<snapshot-id>/protect");
+    expect(txt).toContain("legacy-compile-external-consumer-checklist.md");
     expect(readme).toContain("GitHub Actions auto-publishes the gateway image to GHCR");
     expect(readme).toContain("gateway runtime deployment remains manual");
   });

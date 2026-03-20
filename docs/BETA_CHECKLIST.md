@@ -1,7 +1,23 @@
 # GeoHelper Beta Checklist
 
 Status: Draft for M4 release gate
-Updated: 2026-03-12
+Updated: 2026-03-19
+
+## M4 Release Boundary
+
+- Internal callers have already migrated to `/api/v2/agent/runs`; `/api/v1/chat/compile` remains only as a deprecated compatibility shell during release closure.
+- M4 still requires external legacy-route observation and operator sign-off, but the final hard deletion of `/api/v1/chat/compile` is post-observation cleanup, not the ship blocker.
+- Demo/export/presentation work and any backend expansion beyond the current self-hosted gateway stay out of scope for this release gate.
+
+## Release Evidence
+
+### 2026-03-19 Local Verification
+
+- Local release gate commands passed on 2026-03-19: `pnpm lint`, `pnpm deps:check`, `pnpm verify:architecture`, `pnpm test`, `pnpm --filter @geohelper/gateway test`, `pnpm --filter @geohelper/web test`, `pnpm test:e2e`, `pnpm bench:quality -- --dry-run`, `pnpm typecheck`, `pnpm build:web`.
+- Dry-run staging evidence passed on 2026-03-19: `pnpm ops:gateway:verify -- --dry-run`, `pnpm ops:gateway:scheduled -- --dry-run`, `pnpm smoke:gateway-runtime -- --dry-run`, `pnpm smoke:gateway-backup-restore -- --dry-run`, `pnpm ops:legacy-compile-check -- --dry-run`.
+- Localhost staging candidate live evidence passed on 2026-03-19 against `http://127.0.0.1:8787`, with artifacts under `output/ops/2026-03-19T17-50-10-local-staging/`: live `pnpm smoke:gateway-runtime`, live `pnpm smoke:gateway-backup-restore`, live `pnpm ops:legacy-compile-check`, live `pnpm ops:gateway:scheduled`, `/api/v1/health`, `/api/v1/ready`, `/admin/version`, `/admin/metrics`, `/admin/compile-events?limit=20`, and one legacy repair alert drill captured by the local webhook sink.
+- Shared staging / external live evidence is still pending if release sign-off requires a non-localhost gateway target and real operator credentials. Required environment for that remaining pass: `GATEWAY_URL=https://<gateway-domain>` and `ADMIN_METRICS_TOKEN=<admin-token>`.
+- Legacy compile external-consumer observation is ready to start with the documented 7-day checklist in `docs/deploy/legacy-compile-external-consumer-checklist.md`; the local drill now proves the route, metrics, events, and alerts are observable, but the real 7-day external observation window has not started in this workspace because production-like gateway credentials are not available here.
 
 ## Environment Variables
 
@@ -87,28 +103,28 @@ Updated: 2026-03-12
 
 ## Pre-Release Gate
 
-- [ ] Lint passes (`pnpm lint`)
-- [ ] Dependency boundary check passes (`pnpm deps:check`)
-- [ ] Architecture verification passes (`pnpm verify:architecture`)
-- [ ] Workspace tests pass (`pnpm test`)
-- [ ] Gateway tests pass (`pnpm --filter @geohelper/gateway test`)
-- [ ] Web unit tests pass (`pnpm --filter @geohelper/web test`)
-- [ ] E2E tests pass (`pnpm test:e2e`)
-- [ ] Benchmark dry-run passes (`pnpm bench:quality -- --dry-run`)
-- [ ] Ops verify passes (`pnpm ops:gateway:verify -- --dry-run`, live runs persist JSON artifacts under `output/ops/`)
-- [ ] Scheduled ops wrapper checked (`pnpm ops:gateway:scheduled -- --dry-run`, optional publish stage returns artifact URLs when enabled and serves as the recurring scheduler entrypoint)
-- [ ] Scheduled notify heartbeat checked (`OPS_NOTIFY_WEBHOOK_URL` receives compact success/failure summaries with threshold reasons and artifact URLs when enabled)
-- [ ] Gateway runtime smoke checked (`pnpm smoke:gateway-runtime -- --dry-run`, plus optional live run verifying `/admin/version`, compile trace visibility, and metrics movement)
-- [ ] Gateway backup restore drill checked (`pnpm smoke:gateway-backup-restore -- --dry-run`, live restore drill failures block promotion)
-- [ ] Deploy runbook reviewed (`docs/deploy/edgeone.md`)
-- [ ] Alert webhook smoke-tested (trigger one fallback/repair compile and verify webhook receives event)
-- [ ] Liveness/readiness contract checked (`/api/v1/health` stays shallow, `/api/v1/ready` is green before traffic switch)
-- [ ] Metrics contract checked (`/admin/metrics` includes `fallback_rate`, `p95_latency_ms`, `cost_per_request_usd`)
-- [ ] Operator events contract checked (`/admin/compile-events?limit=20` returns recent traceable records)
-- [ ] Trace id contract checked (compile returns `trace_id` and `x-trace-id` header)
-- [ ] Attachments contract checked (gateway attachment support is explicit, `/admin/version` reflects `attachments_enabled`, and vision smoke failures block promotion when image input is intended)
+- [x] Lint passes (`pnpm lint`, verified 2026-03-19)
+- [x] Dependency boundary check passes (`pnpm deps:check`, verified 2026-03-19)
+- [x] Architecture verification passes (`pnpm verify:architecture`, verified 2026-03-19)
+- [x] Workspace tests pass (`pnpm test`, verified 2026-03-19)
+- [x] Gateway tests pass (`pnpm --filter @geohelper/gateway test`, verified 2026-03-19)
+- [x] Web unit tests pass (`pnpm --filter @geohelper/web test`, verified 2026-03-19)
+- [x] E2E tests pass (`pnpm test:e2e`, verified 2026-03-19)
+- [x] Benchmark dry-run passes (`pnpm bench:quality -- --dry-run`, verified 2026-03-19)
+- [x] Ops verify passes (`pnpm ops:gateway:verify -- --dry-run`, verified 2026-03-19; live runs persist JSON artifacts under `output/ops/`)
+- [x] Scheduled ops wrapper checked (`pnpm ops:gateway:scheduled -- --dry-run`, verified 2026-03-19; localhost live run also passed on 2026-03-19 with artifacts under `output/ops/2026-03-19T17-50-10-local-staging/`)
+- [x] Scheduled notify heartbeat checked (`OPS_NOTIFY_WEBHOOK_URL` receives compact success/failure summaries with threshold reasons and artifact URLs when enabled; verified 2026-03-19 on localhost staging via `output/ops/2026-03-19T17-50-10-local-staging/scheduled-live.json` and `output/ops/2026-03-19T17-50-10-local-staging/webhook-events.jsonl`)
+- [x] Gateway runtime smoke checked (`pnpm smoke:gateway-runtime -- --dry-run`, verified 2026-03-19; localhost live run also passed on 2026-03-19 via `output/ops/2026-03-19T17-50-10-local-staging/smoke.json`)
+- [x] Gateway backup restore drill checked (`pnpm smoke:gateway-backup-restore -- --dry-run`, verified 2026-03-19; localhost live restore drill also passed on 2026-03-19 via `output/ops/2026-03-19T17-50-10-local-staging/backup-restore-live.json`)
+- [x] Deploy runbook reviewed (`docs/deploy/edgeone.md`, reviewed 2026-03-19)
+- [x] Alert webhook smoke-tested (verified 2026-03-19 on localhost staging by triggering a legacy repair compile; `compile_repair` was captured in `output/ops/2026-03-19T17-50-10-local-staging/webhook-events.jsonl`)
+- [x] Liveness/readiness contract checked (`/api/v1/health` stays shallow, `/api/v1/ready` is green before traffic switch; verified 2026-03-19 on localhost staging via `output/ops/2026-03-19T17-50-10-local-staging/health.json` and `output/ops/2026-03-19T17-50-10-local-staging/ready.json`)
+- [x] Metrics contract checked (`/admin/metrics` includes `fallback_rate`, `p95_latency_ms`, `cost_per_request_usd`; verified 2026-03-19 on localhost staging via `output/ops/2026-03-19T17-50-10-local-staging/admin-metrics.json`)
+- [x] Operator events contract checked (`/admin/compile-events?limit=20` returns recent traceable records; verified 2026-03-19 on localhost staging via `output/ops/2026-03-19T17-50-10-local-staging/admin-compile-events.json`)
+- [x] Trace id contract checked (compile returns `trace_id` and `x-trace-id` header; verified 2026-03-19 because the live runtime smoke in `output/ops/2026-03-19T17-50-10-local-staging/smoke.json` would fail on header mismatch, and the legacy drill artifacts are stored in `legacy-repair-headers.txt` / `legacy-repair-body.json`)
+- [x] Attachments contract checked (gateway attachment support is explicit, `/admin/version` reflects `attachments_enabled`, and attachment smoke passed on 2026-03-19 via `output/ops/2026-03-19T17-50-10-local-staging/admin-version.json` and `output/ops/2026-03-19T17-50-10-local-staging/smoke.json`)
 - [ ] Redis shared-state verified when configured (`REDIS_URL` shares revoke + rate limit + backup retention)
 - [ ] Template backup recovery checked (export + import preserves `geohelper.templates.snapshot`)
-- [ ] Gateway backup admin routes checked (`PUT/GET /admin/backups/latest` returns metadata and latest envelope with valid admin token)
+- [x] Gateway backup admin routes checked (`PUT/GET /admin/backups/latest` returns metadata and latest envelope with valid admin token; verified 2026-03-19 on localhost staging via the seeded latest backup and `output/ops/2026-03-19T17-50-10-local-staging/backup-restore-live.json`)
 - [ ] Remote backup settings flow checked (gateway admin token saved, retained history is visible after `检查云端状态`, selected historical snapshots can be fetched by `snapshot_id`, blocked/conflict states point users to explicit pull/import or explicit overwrite, and `检查云端状态` / `上传最新快照` / `拉取最新快照` stay explicit and manual)
 - [ ] Protected snapshot policy checked (`BACKUP_MAX_HISTORY` / `BACKUP_MAX_PROTECTED` are configured intentionally, protected snapshots do not auto-expire, limit-full protect returns an explicit failure, and settings protection remains metadata-only)

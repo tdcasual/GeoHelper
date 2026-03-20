@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { createAgentRunPayload } from "./agent-run.test-helpers";
+
 const IMAGE_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF9sAAAAASUVORK5CYII=";
 
@@ -146,7 +148,7 @@ const createImageFile = (name = "triangle.png") => ({
 });
 
 const mockCompile = async (page: import("@playwright/test").Page) => {
-  await page.route("**/api/v1/chat/compile", async (route) => {
+  await page.route("**/api/v2/agent/runs", async (route) => {
     if (route.request().method() === "OPTIONS") {
       await route.fulfill({
         status: 204,
@@ -166,24 +168,13 @@ const mockCompile = async (page: import("@playwright/test").Page) => {
         "content-type": "application/json",
         "access-control-allow-origin": "*"
       },
-      body: JSON.stringify({
-        trace_id: "tr_e2e_1",
-        batch: {
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        },
-        agent_steps: [
-          { name: "intent", status: "ok", duration_ms: 5 },
-          { name: "planner", status: "ok", duration_ms: 7 },
-          { name: "command", status: "ok", duration_ms: 10 },
-          { name: "verifier", status: "ok", duration_ms: 1 },
-          { name: "repair", status: "skipped", duration_ms: 0 }
-        ]
-      })
+      body: JSON.stringify(
+        createAgentRunPayload({
+          traceId: "tr_e2e_1",
+          runId: "run_e2e_1",
+          summary: ["已生成 0 条指令"]
+        })
+      )
     });
   });
 };
@@ -341,7 +332,7 @@ test("gateway mode can upload and send images when capability is enabled", async
       })
     });
   });
-  await page.route("https://gateway.example.com/api/v1/chat/compile", async (route) => {
+  await page.route("https://gateway.example.com/api/v2/agent/runs", async (route) => {
     compilePayload = route.request().postDataJSON() as Record<string, unknown>;
     await route.fulfill({
       status: 200,
@@ -349,18 +340,13 @@ test("gateway mode can upload and send images when capability is enabled", async
         "content-type": "application/json",
         "access-control-allow-origin": "*"
       },
-      body: JSON.stringify({
-        trace_id: "tr_gateway_1",
-        batch: {
-          version: "1.0",
-          scene_id: "s1",
-          transaction_id: "t1",
-          commands: [],
-          post_checks: [],
-          explanations: []
-        },
-        agent_steps: []
-      })
+      body: JSON.stringify(
+        createAgentRunPayload({
+          traceId: "tr_gateway_1",
+          runId: "run_gateway_1",
+          summary: ["已生成 0 条指令"]
+        })
+      )
     });
   });
 
@@ -378,7 +364,10 @@ test("gateway mode can upload and send images when capability is enabled", async
   await page.getByRole("button", { name: "发送" }).click();
   await expect.poll(() => ((compilePayload?.attachments as unknown[]) ?? []).length).toBe(1);
   await expect(
-    page.locator(".chat-message-assistant").filter({ hasText: "已生成 0 条指令" })
+    page
+      .getByTestId("studio-result-panel")
+      .locator("text=已生成 0 条指令")
+      .first()
   ).toBeVisible();
 });
 

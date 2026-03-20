@@ -4,7 +4,7 @@ const DEFAULT_COMPILE_MESSAGE = "创建点A=(0,0)，画一个半径为3的圆";
 const DEFAULT_ATTACHMENT_COMPILE_MESSAGE = "根据图片给出几何作图步骤";
 const DEFAULT_ATTACHMENT_DATA_URL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF9sAAAAASUVORK5CYII=";
-const ATTACHMENT_CHECK_NAME = "POST /api/v1/chat/compile (attachment)";
+const ATTACHMENT_CHECK_NAME = "POST /api/v2/agent/runs (attachment)";
 
 export function parseArgs(argv) {
   const parsed = {};
@@ -59,7 +59,7 @@ const resolveAttachmentCapability = (runtimeIdentity, env = process.env) =>
 const buildAttachmentCheck = () => ({
   name: ATTACHMENT_CHECK_NAME,
   method: "POST",
-  path: "/api/v1/chat/compile",
+  path: "/api/v2/agent/runs",
   capability: "attachments"
 });
 
@@ -102,9 +102,9 @@ export function buildGatewayRuntimeChecks(
   }
 
   checks.push({
-    name: "POST /api/v1/chat/compile",
+    name: "POST /api/v2/agent/runs",
     method: "POST",
-    path: "/api/v1/chat/compile"
+    path: "/api/v2/agent/runs"
   });
 
   if (resolveAttachmentCapability(runtimeIdentity, env)) {
@@ -174,13 +174,35 @@ const buildAttachmentCompileRequestBody = (env) => ({
   ]
 });
 
-const validateCompileResponse = (label, response, body) => {
-  if (!Array.isArray(body?.batch?.commands) || !body?.trace_id) {
-    throw new Error(`${label} failed: missing batch.commands or trace_id`);
+const validateAgentRunResponse = (label, response, body) => {
+  const traceId = body?.trace_id;
+  const agentRun = body?.agent_run;
+  if (typeof traceId !== "string" || !agentRun) {
+    throw new Error(`${label} failed: missing trace_id or agent_run`);
   }
-  if (response.headers.get("x-trace-id") !== body.trace_id) {
+  const runId = agentRun.run?.id;
+  if (!runId) {
+    throw new Error(`${label} failed: missing agent_run.run.id`);
+  }
+  const commandBatch = agentRun.draft?.commandBatchDraft;
+  if (!commandBatch || !Array.isArray(commandBatch.commands)) {
+    throw new Error(
+      `${label} failed: missing agent_run.draft.commandBatchDraft.commands`
+    );
+  }
+  const stages = agentRun.telemetry?.stages;
+  if (!Array.isArray(stages) || stages.length === 0) {
+    throw new Error(`${label} failed: missing agent_run.telemetry.stages`);
+  }
+  if (response.headers.get("x-trace-id") !== traceId) {
     throw new Error(`${label} failed: trace header mismatch`);
   }
+  return {
+    traceId,
+    runId,
+    commandCount: commandBatch.commands.length,
+    telemetryStages: stages.length
+  };
 };
 
 const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
@@ -303,7 +325,7 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
 
   const { response: compileResponse, body: compileBody } = await fetchJson(
     fetchImpl,
-    `${gatewayUrl}/api/v1/chat/compile`,
+    `${gatewayUrl}/api/v2/agent/runs`,
     {
       method: "POST",
       headers: {
@@ -317,31 +339,35 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
     },
     "compile"
   );
-  validateCompileResponse("compile", compileResponse, compileBody);
+  const compileResult = validateAgentRunResponse("compile", compileResponse, compileBody);
   checks.push({
-    name: "POST /api/v1/chat/compile",
+    name: "POST /api/v2/agent/runs",
     ok: true,
-    trace_id: compileBody.trace_id
+    trace_id: compileResult.traceId,
+    run_id: compileResult.runId,
+    command_count: compileResult.commandCount,
+    telemetry_stages: compileResult.telemetryStages
   });
 
   const attachmentSmokeEnabled = resolveAttachmentCapability(runtimeIdentity, env);
   if (attachmentSmokeEnabled) {
+    const attachmentRequestBody = buildAttachmentCompileRequestBody(env);
     const {
       response: attachmentCompileResponse,
       body: attachmentCompileBody
     } = await fetchJson(
       fetchImpl,
-      `${gatewayUrl}/api/v1/chat/compile`,
+      `${gatewayUrl}/api/v2/agent/runs`,
       {
         method: "POST",
         headers: {
           "content-type": "application/json"
         },
-        body: JSON.stringify(buildAttachmentCompileRequestBody(env))
+        body: JSON.stringify(attachmentRequestBody)
       },
       "attachment compile"
     );
-    validateCompileResponse(
+    const attachmentResult = validateAgentRunResponse(
       "attachment compile",
       attachmentCompileResponse,
       attachmentCompileBody
@@ -349,8 +375,13 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
     checks.push({
       name: ATTACHMENT_CHECK_NAME,
       ok: true,
-      trace_id: attachmentCompileBody.trace_id,
-      attachments_count: 1
+      trace_id: attachmentResult.traceId,
+      run_id: attachmentResult.runId,
+      command_count: attachmentResult.commandCount,
+      telemetry_stages: attachmentResult.telemetryStages,
+      attachments_count: Array.isArray(attachmentRequestBody.attachments)
+        ? attachmentRequestBody.attachments.length
+        : 0
     });
   }
 
