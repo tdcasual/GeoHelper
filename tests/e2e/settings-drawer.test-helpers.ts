@@ -62,10 +62,7 @@ export const createGatewayRemoteBackupSettingsSnapshot = () => ({
     showAgentSteps: false,
     autoRetryEnabled: false,
     requestTimeoutEnabled: true,
-    strictValidationEnabled: false,
-    fallbackSingleAgentEnabled: false,
-    debugLogPanelEnabled: false,
-    performanceSamplingEnabled: false
+    debugLogPanelEnabled: false
   },
   requestDefaults: { retryAttempts: 1 },
   debugEvents: []

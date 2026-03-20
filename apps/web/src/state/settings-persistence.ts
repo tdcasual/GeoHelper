@@ -124,10 +124,7 @@ const defaultExperimentFlags = (): ExperimentFlags => ({
   showAgentSteps: true,
   autoRetryEnabled: false,
   requestTimeoutEnabled: true,
-  strictValidationEnabled: false,
-  fallbackSingleAgentEnabled: false,
-  debugLogPanelEnabled: false,
-  performanceSamplingEnabled: false
+  debugLogPanelEnabled: false
 });
 
 const canUseStorage = (): boolean =>

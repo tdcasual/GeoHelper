@@ -61,10 +61,7 @@ const seedVisionDirectSettings = async (
           showAgentSteps: false,
           autoRetryEnabled: false,
           requestTimeoutEnabled: true,
-          strictValidationEnabled: false,
-          fallbackSingleAgentEnabled: false,
-          debugLogPanelEnabled: false,
-          performanceSamplingEnabled: false
+          debugLogPanelEnabled: false
         },
         requestDefaults: { retryAttempts: 1 },
         debugEvents: []
@@ -129,10 +126,7 @@ const seedVisionGatewaySettings = async (
           showAgentSteps: false,
           autoRetryEnabled: false,
           requestTimeoutEnabled: true,
-          strictValidationEnabled: false,
-          fallbackSingleAgentEnabled: false,
-          debugLogPanelEnabled: false,
-          performanceSamplingEnabled: false
+          debugLogPanelEnabled: false
         },
         requestDefaults: { retryAttempts: 1 },
         debugEvents: []

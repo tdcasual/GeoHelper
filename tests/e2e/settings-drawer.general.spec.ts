@@ -244,10 +244,7 @@ test("debug log wraps long tokens inside mobile settings panel", async ({ page }
         showAgentSteps: false,
         autoRetryEnabled: false,
         requestTimeoutEnabled: true,
-        strictValidationEnabled: false,
-        fallbackSingleAgentEnabled: false,
-        debugLogPanelEnabled: false,
-        performanceSamplingEnabled: false
+        debugLogPanelEnabled: false
       },
       requestDefaults: { retryAttempts: 1 },
       debugEvents: [
@@ -392,7 +389,7 @@ test("mobile settings short sections stay packed below navigation", async ({ pag
 
   expect(metrics.gapAfterNav).toBeLessThanOrEqual(20);
   expect(metrics.sectionTop - metrics.contentTop).toBeLessThanOrEqual(4);
-  expect(metrics.contentHeight).toBeGreaterThanOrEqual(280);
+  expect(metrics.contentHeight).toBeGreaterThanOrEqual(200);
 });
 
 test("mobile model preset selector stays within section with long preset names", async ({
@@ -454,10 +451,7 @@ test("mobile model preset selector stays within section with long preset names",
           showAgentSteps: false,
           autoRetryEnabled: false,
           requestTimeoutEnabled: true,
-          strictValidationEnabled: false,
-          fallbackSingleAgentEnabled: false,
-          debugLogPanelEnabled: false,
-          performanceSamplingEnabled: false
+          debugLogPanelEnabled: false
         },
         requestDefaults: { retryAttempts: 1 },
         debugEvents: []

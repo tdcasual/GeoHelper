@@ -60,10 +60,7 @@ export interface ExperimentFlags {
   showAgentSteps: boolean;
   autoRetryEnabled: boolean;
   requestTimeoutEnabled: boolean;
-  strictValidationEnabled: boolean;
-  fallbackSingleAgentEnabled: boolean;
   debugLogPanelEnabled: boolean;
-  performanceSamplingEnabled: boolean;
 }
 
 export interface DebugEvent {
