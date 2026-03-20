@@ -16,7 +16,7 @@ const createEvent = (
   finalStatus: "success",
   traceId,
   requestId,
-  path: "/api/v1/chat/compile",
+  path: "/api/v2/agent/runs",
   method: "POST",
   mode: "byok",
   statusCode: 200,

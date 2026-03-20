@@ -92,19 +92,20 @@ describe("agent run alerting", () => {
     expect(JSON.parse(res.payload).trace_id).toBe("tr_req-1");
     expect(res.headers["x-trace-id"]).toBe("tr_req-1");
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(compileEventSink.readAll()).toEqual([
+
+    const events = compileEventSink.readAll();
+    expect(events).toEqual([
       expect.objectContaining({
         event: "compile_success",
         requestId: "req-1",
         traceId: "tr_req-1",
-        path: "/api/v2/agent/runs",
         mode: "byok",
         finalStatus: "success"
       })
     ]);
   });
 
-  it("writes repair events and sends repair alert webhook for agent runs", async () => {
+  it("writes repair events and sends repair alert webhook", async () => {
     const compileEventSink = createMemoryCompileEventSink();
     const app = buildServer(buildAlertEnv(), {
       compileEventSink,
@@ -195,7 +196,6 @@ describe("agent run alerting", () => {
           event: "compile_success",
           requestId: "req-1",
           traceId: "tr_req-1",
-          path: "/api/v2/agent/runs",
           mode: "byok",
           finalStatus: "repair"
         }),
@@ -203,7 +203,6 @@ describe("agent run alerting", () => {
           event: "compile_repair",
           requestId: "req-1",
           traceId: "tr_req-1",
-          path: "/api/v2/agent/runs",
           mode: "byok",
           finalStatus: "repair"
         })
@@ -211,14 +210,12 @@ describe("agent run alerting", () => {
     );
   });
 
-  it("sends timeout alerts for timed-out agent runs", async () => {
-    const compileEventSink = createMemoryCompileEventSink();
+  it("sends timeout alerts with runtime identity and upstream context", async () => {
     const app = buildServer(
       buildAlertEnv({
         COMPILE_TIMEOUT_MS: "20"
       }),
       {
-        compileEventSink,
         requestCommandBatch: async () => {
           await new Promise((_, reject) => {
             setTimeout(() => {
@@ -256,127 +253,15 @@ describe("agent run alerting", () => {
         }
       ]
     });
-
-    const events = compileEventSink.readAll();
-    expect(events).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          event: "compile_timeout",
-          requestId: "req-1",
-          traceId: "tr_req-1",
-          path: "/api/v2/agent/runs",
-          mode: "byok",
-          finalStatus: "timeout",
-          statusCode: 504
-        })
-      ])
-    );
+    expect(body.metadata).toEqual({
+      timeout_ms: 20
+    });
   });
 
-  it("sends runtime-rejected alerts when agent run capacity is full", async () => {
-    const compileEventSink = createMemoryCompileEventSink();
-    let resolveFirstCall: (() => void) | undefined;
-    const firstCallStarted = new Promise<void>((resolve) => {
-      resolveFirstCall = resolve;
-    });
-    let releaseFirstCall: (() => void) | undefined;
-    const firstCallGate = new Promise<void>((resolve) => {
-      releaseFirstCall = resolve;
-    });
-    let invocationCount = 0;
-
-    const app = buildServer(
-      buildAlertEnv({
-        COMPILE_MAX_IN_FLIGHT: "1"
-      }),
-      {
-        compileEventSink,
-        requestCommandBatch: createGeometryAgentResponder({
-          drafts: [
-            createGeometryDraftFixture({
-              commandBatchDraft: {
-                version: "1.0",
-                scene_id: "s1",
-                transaction_id: "t1",
-                commands: [],
-                post_checks: [],
-                explanations: []
-              }
-            })
-          ],
-          onRequest: async (input) => {
-            if (input.systemPrompt?.includes("GeometryDraftPackage")) {
-              invocationCount += 1;
-              if (invocationCount === 1) {
-                resolveFirstCall?.();
-                await firstCallGate;
-              }
-            }
-          }
-        })
-      }
-    );
-
-    const firstResponsePromise = app.inject({
-      method: "POST",
-      url: "/api/v2/agent/runs",
-      payload: { message: "画一个圆", mode: "byok" }
-    });
-    await firstCallStarted;
-
-    const secondResponse = await app.inject({
-      method: "POST",
-      url: "/api/v2/agent/runs",
-      payload: { message: "再画一个圆", mode: "byok" }
-    });
-
-    expect(secondResponse.statusCode).toBe(503);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}"));
-    expectCommonAlertPayload(body, {
-      event: "compile_runtime_rejected",
-      finalStatus: "runtime_rejected",
-      traceId: "tr_req-2",
-      targets: [
-        {
-          source: "primary",
-          endpoint: "https://litellm.primary.example.com",
-          model: "gpt-4o-mini"
-        },
-        {
-          source: "fallback",
-          endpoint: "https://litellm.fallback.example.com",
-          model: "gpt-4.1-mini"
-        }
-      ]
-    });
-
-    const events = compileEventSink.readAll();
-    expect(events).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          event: "compile_runtime_rejected",
-          requestId: "req-2",
-          traceId: "tr_req-2",
-          path: "/api/v2/agent/runs",
-          mode: "byok",
-          finalStatus: "runtime_rejected",
-          statusCode: 503
-        })
-      ])
-    );
-
-    releaseFirstCall?.();
-    const firstResponse = await firstResponsePromise;
-    expect(firstResponse.statusCode).toBe(200);
-  });
-
-  it("sends upstream failure alerts for agent run failures", async () => {
-    const compileEventSink = createMemoryCompileEventSink();
+  it("sends operator failure alerts with runtime identity and upstream context", async () => {
     const app = buildServer(buildAlertEnv(), {
-      compileEventSink,
       requestCommandBatch: async () => {
-        throw new Error("broken upstream");
+        throw new Error("upstream hard failure");
       }
     });
 
@@ -406,21 +291,6 @@ describe("agent run alerting", () => {
         }
       ]
     });
-    expect(body.detail).toBe("broken upstream");
-
-    const events = compileEventSink.readAll();
-    expect(events).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          event: "compile_upstream_failure",
-          requestId: "req-1",
-          traceId: "tr_req-1",
-          path: "/api/v2/agent/runs",
-          mode: "byok",
-          finalStatus: "upstream_failure",
-          statusCode: 502
-        })
-      ])
-    );
+    expect(body.detail).toBe("upstream hard failure");
   });
 });

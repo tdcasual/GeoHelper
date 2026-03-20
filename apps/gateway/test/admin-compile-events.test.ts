@@ -17,13 +17,13 @@ describe("GET /admin/compile-events", () => {
 
     await app.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
+      url: "/api/v2/agent/runs",
       payload: { message: "画一个圆", mode: "byok" }
     });
 
     await app.inject({
       method: "POST",
-      url: "/api/v1/chat/compile",
+      url: "/api/v2/agent/runs",
       payload: { message: "再画一个圆", mode: "byok" }
     });
 

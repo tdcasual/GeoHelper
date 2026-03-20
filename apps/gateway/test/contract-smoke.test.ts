@@ -14,14 +14,14 @@ import {
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
 describe("api contract doc", () => {
-  it("includes auth and compile endpoints", () => {
+  it("includes auth and v2-only compile endpoints", () => {
     const docPath = path.resolve(currentDir, "../../../docs/api/m0-m1-contract.md");
     const doc = fs.readFileSync(docPath, "utf8");
     expect(doc).toContain("POST /api/v1/auth/token/login");
     expect(doc).toContain("POST /api/v2/agent/runs");
-    expect(doc).toContain("POST /api/v1/chat/compile (legacy)");
     expect(doc).toContain("agent_run");
-    expect(doc).toContain("legacy shell");
+    expect(doc).not.toContain("POST /api/v1/chat/compile");
+    expect(doc).not.toContain("legacy shell");
   });
 
   it("accepts an attachment compile request when gateway attachments are enabled", async () => {

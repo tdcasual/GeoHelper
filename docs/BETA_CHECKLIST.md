@@ -5,8 +5,8 @@ Updated: 2026-03-19
 
 ## M4 Release Boundary
 
-- Internal callers have already migrated to `/api/v2/agent/runs`; `/api/v1/chat/compile` remains only as a deprecated compatibility shell during release closure.
-- M4 still requires external legacy-route observation and operator sign-off, but the final hard deletion of `/api/v1/chat/compile` is post-observation cleanup, not the ship blocker.
+- Internal callers use `/api/v2/agent/runs`, and the legacy `/api/v1/chat/compile` route has been removed from the active gateway runtime.
+- This workspace records a direct cleanup cut to v2-only runtime behavior; no external-consumer observation artifact is attached here.
 - Demo/export/presentation work and any backend expansion beyond the current self-hosted gateway stay out of scope for this release gate.
 
 ## Release Evidence
@@ -14,10 +14,10 @@ Updated: 2026-03-19
 ### 2026-03-19 Local Verification
 
 - Local release gate commands passed on 2026-03-19: `pnpm lint`, `pnpm deps:check`, `pnpm verify:architecture`, `pnpm test`, `pnpm --filter @geohelper/gateway test`, `pnpm --filter @geohelper/web test`, `pnpm test:e2e`, `pnpm bench:quality -- --dry-run`, `pnpm typecheck`, `pnpm build:web`.
-- Dry-run staging evidence passed on 2026-03-19: `pnpm ops:gateway:verify -- --dry-run`, `pnpm ops:gateway:scheduled -- --dry-run`, `pnpm smoke:gateway-runtime -- --dry-run`, `pnpm smoke:gateway-backup-restore -- --dry-run`, `pnpm ops:legacy-compile-check -- --dry-run`.
-- Localhost staging candidate live evidence passed on 2026-03-19 against `http://127.0.0.1:8787`, with artifacts under `output/ops/2026-03-19T17-50-10-local-staging/`: live `pnpm smoke:gateway-runtime`, live `pnpm smoke:gateway-backup-restore`, live `pnpm ops:legacy-compile-check`, live `pnpm ops:gateway:scheduled`, `/api/v1/health`, `/api/v1/ready`, `/admin/version`, `/admin/metrics`, `/admin/compile-events?limit=20`, and one legacy repair alert drill captured by the local webhook sink.
+- Dry-run staging evidence passed on 2026-03-19: `pnpm ops:gateway:verify -- --dry-run`, `pnpm ops:gateway:scheduled -- --dry-run`, `pnpm smoke:gateway-runtime -- --dry-run`, `pnpm smoke:gateway-backup-restore -- --dry-run`.
+- Localhost staging candidate live evidence passed on 2026-03-19 against `http://127.0.0.1:8787`, with artifacts under `output/ops/2026-03-19T17-50-10-local-staging/`: live `pnpm smoke:gateway-runtime`, live `pnpm smoke:gateway-backup-restore`, live `pnpm ops:gateway:scheduled`, `/api/v1/health`, `/api/v1/ready`, `/admin/version`, `/admin/metrics`, `/admin/compile-events?limit=20`, and one repair alert drill captured by the local webhook sink.
 - Shared staging / external live evidence is still pending if release sign-off requires a non-localhost gateway target and real operator credentials. Required environment for that remaining pass: `GATEWAY_URL=https://<gateway-domain>` and `ADMIN_METRICS_TOKEN=<admin-token>`.
-- Legacy compile external-consumer observation is ready to start with the documented 7-day checklist in `docs/deploy/legacy-compile-external-consumer-checklist.md`; the local drill now proves the route, metrics, events, and alerts are observable, but the real 7-day external observation window has not started in this workspace because production-like gateway credentials are not available here.
+- Historical legacy-route observation notes are archived in `docs/deploy/legacy-compile-external-consumer-checklist.md`; they are no longer part of the active release workflow.
 
 ## Environment Variables
 

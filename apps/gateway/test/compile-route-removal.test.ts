@@ -4,14 +4,29 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { buildServer } from "../src/server";
+
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
-describe("legacy multi-agent removal", () => {
-  it("does not import the legacy multi-agent implementation anywhere", async () => {
-    const content = await readFile(
-      path.resolve(currentDir, "../src/routes/compile.ts"),
+describe("legacy compile route removal", () => {
+  it("does not register the legacy compile route and returns 404 for v1", async () => {
+    const serverSource = await readFile(
+      path.resolve(currentDir, "../src/server.ts"),
       "utf8"
     );
-    expect(content.includes("multi-agent")).toBe(false);
+
+    expect(serverSource).not.toContain("registerCompileRoute");
+
+    const app = buildServer();
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/chat/compile",
+      payload: {
+        message: "画一个圆",
+        mode: "byok"
+      }
+    });
+
+    expect(res.statusCode).toBe(404);
   });
 });

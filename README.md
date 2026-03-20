@@ -24,7 +24,7 @@ pnpm --filter @geohelper/web dev
 
 ## API Contract
 
-Runtime compile traffic should call `POST /api/v2/agent/runs`, which is documented in [`docs/api/m0-m1-contract.md`](docs/api/m0-m1-contract.md) and describes the `AgentRun` workflow used by the gateway today. The older `POST /api/v1/chat/compile` route remains as a legacy shell for compatibility and is explicitly marked deprecated while migration tasks (see `docs/plans/2026-03-19-legacy-compile-route-migration-plan.md`) continue.
+Runtime compile traffic should call `POST /api/v2/agent/runs`, which is documented in [`docs/api/m0-m1-contract.md`](docs/api/m0-m1-contract.md) and describes the `AgentRun` workflow used by the gateway today. The legacy `POST /api/v1/chat/compile` route has been removed from the active runtime.
 
 ## Tests
 

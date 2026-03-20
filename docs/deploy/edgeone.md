@@ -185,9 +185,7 @@ curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
   "https://<gateway-domain>/admin/traces/<trace-id>"
 ```
 
-If you are preparing the final retirement of `POST /api/v1/chat/compile`, run the dedicated external-consumer checklist before removing the route:
-
-- `docs/deploy/legacy-compile-external-consumer-checklist.md`
+The legacy compile route has already been removed. `POST /api/v2/agent/runs` is the only active compile endpoint; historical cutover notes remain archived in `docs/deploy/legacy-compile-external-consumer-checklist.md`.
 
 Verify the running gateway build identity when investigating deploy drift:
 
