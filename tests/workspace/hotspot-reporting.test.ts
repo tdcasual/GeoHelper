@@ -12,7 +12,7 @@ describe("hotspot reporting", () => {
     expect(hotspotPaths).not.toContain(
       "apps/web/src/state/settings-store.test.ts"
     );
-    expect(hotspotPaths).not.toContain("apps/gateway/src/routes/compile.ts");
+    expect(hotspotPaths).not.toContain("apps/gateway/src/routes/agent-runs.ts");
     expect(hotspotPaths).not.toContain("apps/web/src/storage/backup-import.ts");
   });
 
@@ -25,7 +25,7 @@ describe("hotspot reporting", () => {
     expect(reportModule.classifyFile("apps/web/src/storage/backup-import.ts")).toBe(
       "module"
     );
-    expect(reportModule.classifyFile("apps/gateway/src/routes/compile.ts")).toBe(
+    expect(reportModule.classifyFile("apps/gateway/src/routes/agent-runs.ts")).toBe(
       "module"
     );
     expect(reportModule.classifyFile("apps/gateway/src/services/backup-store.ts")).toBe(
