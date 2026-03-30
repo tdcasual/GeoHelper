@@ -25,7 +25,7 @@ Status: Updated during Phase 7 module maintainability rollout
 - `backup.ts < 450`
 - `backup-import.ts < 450`
 - `gateway-client.ts < 500`
-- `compile.ts < 500`
+- `agent-runs.ts < 500`
 - `admin.ts < 500`
 - `remote-sync.ts < 320`
 - `settings-store.test.ts < 260`
@@ -59,7 +59,7 @@ Current include-tests hotspots:
 - `apps/web/src/state/settings-store.ts`: `341` lines
 - `apps/web/src/storage/backup-import.ts`: `158` lines
 - `apps/web/src/runtime/gateway-client.ts`: `482` lines
-- `apps/gateway/src/routes/compile.ts`: `440` lines
+- `apps/gateway/src/routes/agent-runs.ts`: `439` lines
 - `apps/gateway/src/routes/admin.ts`: `468` lines
 - `apps/gateway/src/services/redis-backup-store.ts`: `444` lines
 - `apps/gateway/src/services/backup-store.ts`: `428` lines
@@ -86,7 +86,7 @@ Current include-tests hotspots:
 
 `SettingsDrawer.tsx`, `SettingsDataSection.tsx`, `WorkspaceShell.tsx`, `CanvasPanel.tsx`, `chat-store.ts`, `useRemoteBackupControls.ts`, `settings-remote-backup.ts`, `settings-store.ts`, `styles.css`, `backup.ts`, and `remote-sync.ts` are now within their current guardrails.
 `settings-store.test.ts`, `backup.test.ts`, `gateway-client.test.ts`, `admin-backups.test.ts`, `redis-backup-store.test.ts`, `settings-drawer.spec.ts`, and `fullscreen-toggle.spec.ts` are now within the thin-suite test guardrails.
-`backup-import.ts`, `gateway-client.ts`, `compile.ts`, `admin.ts`, `redis-backup-store.ts`, `backup-store.ts`, and `migrate.ts` are currently below the new `module` budget but remain close enough to track as recovery candidates.
+`backup-import.ts`, `gateway-client.ts`, `agent-runs.ts`, `admin.ts`, `redis-backup-store.ts`, `backup-store.ts`, and `migrate.ts` are currently below the new `module` budget but remain close enough to track as recovery candidates.
 
 ## Current Actionable Build Warning
 

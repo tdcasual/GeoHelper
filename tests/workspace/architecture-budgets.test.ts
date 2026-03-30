@@ -29,7 +29,7 @@ describe("architecture budgets", () => {
     expect(reportModule.classifyFile("apps/web/src/storage/backup-import.ts")).toBe(
       "module"
     );
-    expect(reportModule.classifyFile("apps/gateway/src/routes/compile.ts")).toBe(
+    expect(reportModule.classifyFile("apps/gateway/src/routes/agent-runs.ts")).toBe(
       "module"
     );
     expect(reportModule.classifyFile("packages/protocol/src/schema.ts")).toBe("other");
@@ -76,7 +76,7 @@ describe("architecture budgets", () => {
       "apps/web/src/components/settings-remote-backup.test.ts"
     );
     expect(hotspotPaths).not.toContain("apps/web/src/state/settings-store.test.ts");
-    expect(hotspotPaths).not.toContain("apps/gateway/src/routes/compile.ts");
+    expect(hotspotPaths).not.toContain("apps/gateway/src/routes/agent-runs.ts");
     expect(hotspotPaths).not.toContain("apps/web/src/storage/backup-import.ts");
     const includeTestHotspots = reportModule.collectHotspots({
       cwd: process.cwd(),
@@ -155,7 +155,7 @@ describe("architecture budgets", () => {
     expect(countLines("apps/web/src/storage/backup-import.ts")).toBeLessThan(450);
     expect(countLines("apps/web/src/storage/remote-sync.ts")).toBeLessThan(320);
     expect(countLines("apps/web/src/runtime/gateway-client.ts")).toBeLessThan(500);
-    expect(countLines("apps/gateway/src/routes/compile.ts")).toBeLessThan(500);
+    expect(countLines("apps/gateway/src/routes/agent-runs.ts")).toBeLessThan(500);
     expect(countLines("apps/gateway/src/routes/admin.ts")).toBeLessThan(500);
     expect(countLines("apps/web/src/state/settings-store.test.ts")).toBeLessThan(260);
     expect(countLines("apps/web/src/storage/backup.test.ts")).toBeLessThan(260);
@@ -226,7 +226,7 @@ describe("architecture budgets", () => {
     expect(baseline).toContain("backup.ts < 450");
     expect(baseline).toContain("backup-import.ts < 450");
     expect(baseline).toContain("gateway-client.ts < 500");
-    expect(baseline).toContain("compile.ts < 500");
+    expect(baseline).toContain("agent-runs.ts < 500");
     expect(baseline).toContain("admin.ts < 500");
     expect(baseline).toContain("remote-sync.ts < 320");
     expect(baseline).toContain("settings-store.test.ts < 260");

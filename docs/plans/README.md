@@ -10,6 +10,7 @@ Use this section when you know the problem domain first and only then want the r
 
 - Product boundary reset: [`2026-03-17-product-scope-reset-design.md`](./2026-03-17-product-scope-reset-design.md)
 - M4 release closure: [`2026-03-19-m4-release-closure-implementation-plan.md`](./2026-03-19-m4-release-closure-implementation-plan.md)
+- Current branch closure execution: [`2026-03-31-project-phase-plan.md`](./2026-03-31-project-phase-plan.md)
 
 ### Runtime
 
@@ -85,14 +86,14 @@ The frontend documents split naturally into two layers:
 | Theme | Date | Design | Implementation | Status |
 | --- | --- | --- | --- | --- |
 | Product scope reset | 2026-03-17 | [`2026-03-17-product-scope-reset-design.md`](./2026-03-17-product-scope-reset-design.md) | — | Current strategic boundary |
-| Teacher studio review flow | 2026-03-17 | [`2026-03-17-product-scope-reset-design.md`](./2026-03-17-product-scope-reset-design.md) | [`2026-03-17-teacher-studio-review-flow-implementation-plan.md`](./2026-03-17-teacher-studio-review-flow-implementation-plan.md) | Planned |
+| Teacher studio review flow | 2026-03-17 | [`2026-03-17-product-scope-reset-design.md`](./2026-03-17-product-scope-reset-design.md) | [`2026-03-17-teacher-studio-review-flow-implementation-plan.md`](./2026-03-17-teacher-studio-review-flow-implementation-plan.md) | Implemented on main |
 | GeoHelper app baseline | 2026-03-04 | [`2026-03-04-geogebra-llm-app-design.md`](./2026-03-04-geogebra-llm-app-design.md) | [`2026-03-04-geogebra-llm-m0-m1-implementation-plan.md`](./2026-03-04-geogebra-llm-m0-m1-implementation-plan.md) | Baseline delivered |
 | Dual runtime architecture | 2026-03-05 | [`2026-03-05-dual-runtime-architecture-design.md`](./2026-03-05-dual-runtime-architecture-design.md) | — | Implemented in V1 baseline |
 | Settings center foundation | 2026-03-05 | [`2026-03-05-settings-center-design.md`](./2026-03-05-settings-center-design.md) | — | Validated + implemented via later UI work |
 | Composer vision + settings refresh | 2026-03-06 | [`2026-03-06-composer-vision-settings-center-design.md`](./2026-03-06-composer-vision-settings-center-design.md) | [`2026-03-06-composer-vision-settings-implementation-plan.md`](./2026-03-06-composer-vision-settings-implementation-plan.md) | Completed |
 | GeoGebra self-hosted latest vendor flow | 2026-03-06 | [`2026-03-06-geogebra-self-hosted-latest-design.md`](./2026-03-06-geogebra-self-hosted-latest-design.md) | [`2026-03-06-geogebra-self-hosted-latest-implementation-plan.md`](./2026-03-06-geogebra-self-hosted-latest-implementation-plan.md) | Completed |
 | Scene rehydrate + backup sync | 2026-03-07 | — | [`2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md`](./2026-03-07-scene-rehydrate-backup-sync-implementation-plan.md) | Completed |
-| VNext teacher diagram studio | 2026-03-14 | [`2026-03-14-vnext-teacher-diagram-studio-design.md`](./2026-03-14-vnext-teacher-diagram-studio-design.md) | [`2026-03-14-vnext-teacher-diagram-studio-implementation-plan.md`](./2026-03-14-vnext-teacher-diagram-studio-implementation-plan.md) | Implemented in branch / validated on 2026-03-15 |
+| VNext teacher diagram studio | 2026-03-14 | [`2026-03-14-vnext-teacher-diagram-studio-design.md`](./2026-03-14-vnext-teacher-diagram-studio-design.md) | [`2026-03-14-vnext-teacher-diagram-studio-implementation-plan.md`](./2026-03-14-vnext-teacher-diagram-studio-implementation-plan.md) | Merged to main / current homepage direction |
 
 ### UI & Responsive Stabilization
 

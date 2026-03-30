@@ -46,8 +46,8 @@ describe("state/storage boundaries", () => {
       "apps/web/src/storage/backup-import.ts",
       "utf8"
     );
-    const compileRoute = fs.readFileSync(
-      "apps/gateway/src/routes/compile.ts",
+    const agentRunsRoute = fs.readFileSync(
+      "apps/gateway/src/routes/agent-runs.ts",
       "utf8"
     );
 
@@ -56,8 +56,9 @@ describe("state/storage boundaries", () => {
     expect(backupImport).toContain("./backup-import-templates");
     expect(countLines("apps/web/src/storage/backup-import.ts")).toBeLessThan(450);
 
-    expect(compileRoute).toContain("./compile-route-helpers");
-    expect(compileRoute).toContain("./compile-route-alerts");
-    expect(countLines("apps/gateway/src/routes/compile.ts")).toBeLessThan(500);
+    expect(agentRunsRoute).toContain("./compile-route-helpers");
+    expect(agentRunsRoute).toContain("./compile-route-alerts");
+    expect(agentRunsRoute).toContain("./compile-route-agent-adapter");
+    expect(countLines("apps/gateway/src/routes/agent-runs.ts")).toBeLessThan(500);
   });
 });

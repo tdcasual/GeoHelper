@@ -1,6 +1,6 @@
 # GeoHelper
 
-GeoHelper is a static-deployable web app that uses LLMs to generate structured GeoGebra commands and render them in the browser.
+GeoHelper is a static-deployable, teacher-first diagram studio that uses LLMs to generate structured GeoGebra commands, review geometry drafts, and render them in the browser.
 
 ## Monorepo Structure
 

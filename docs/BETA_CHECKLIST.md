@@ -1,7 +1,7 @@
 # GeoHelper Beta Checklist
 
 Status: Draft for M4 release gate
-Updated: 2026-03-19
+Updated: 2026-03-31
 
 ## M4 Release Boundary
 
@@ -10,6 +10,15 @@ Updated: 2026-03-19
 - Demo/export/presentation work and any backend expansion beyond the current self-hosted gateway stay out of scope for this release gate.
 
 ## Release Evidence
+
+### 2026-03-31 Current Branch Re-Verification
+
+- Full release gate commands passed on 2026-03-31: `pnpm lint`, `pnpm deps:check`, `pnpm verify:architecture`, `pnpm test`, `pnpm typecheck`, `pnpm build:web`, `pnpm test:e2e`, `pnpm bench:quality -- --dry-run`, `pnpm ops:gateway:verify -- --dry-run`, `pnpm ops:gateway:scheduled -- --dry-run`, `pnpm smoke:gateway-runtime -- --dry-run`, `pnpm smoke:gateway-backup-restore -- --dry-run`.
+- Backup/recovery verification passed on 2026-03-31: `pnpm test -- --run apps/web/src/storage/backup.import.test.ts apps/web/src/storage/migrate.test.ts apps/gateway/test/redis-backup-store.protection.test.ts apps/web/src/components/settings-remote-backup-actions.test.ts apps/web/src/components/settings-remote-backup-history.test.ts apps/web/src/components/settings-remote-backup-import.test.ts apps/web/src/components/settings-remote-backup-sync.test.ts`.
+- Remote backup settings E2E verification passed on 2026-03-31: `pnpm test:e2e -- tests/e2e/settings-drawer.backup.spec.ts tests/e2e/settings-drawer.remote-sync.spec.ts tests/e2e/settings-drawer.remote-import.spec.ts tests/e2e/settings-drawer.remote-history.spec.ts tests/e2e/settings-drawer.remote-protection.spec.ts`.
+- Studio/teacher/vnext regression verification passed on 2026-03-31: `pnpm test:e2e -- tests/e2e/studio-review-flow.spec.ts tests/e2e/studio-result-panel.spec.ts tests/e2e/studio-canvas-link.spec.ts tests/e2e/studio-input-panel.spec.ts tests/e2e/teacher-template-library.spec.ts tests/e2e/vnext-homepage.spec.ts tests/e2e/vnext-workspace-layout.spec.ts`.
+- Redis-backed localhost live verification passed on 2026-03-31 against `http://127.0.0.1:8877`, `http://127.0.0.1:8878`, and `http://127.0.0.1:8879`, with evidence in `output/ops/manual-phase4/redis-shared-state.json`, `output/ops/manual-phase4/backup-seed-live.json`, `output/ops/manual-phase4/smoke-live.json`, `output/ops/manual-phase4/backup-restore-live.json`, `output/ops/manual-phase4/benchmark-live.json`, `output/ops/manual-phase4/scheduled-live.json`, and `output/ops/2026-03-31T08-50-00-phase6-redis-live/summary.json`.
+- Historical 2026-03-19 evidence remains valid background context, but the current branch now also has fresh local verification after the legacy compile-route cutover and maintainability guard sync.
 
 ### 2026-03-19 Local Verification
 
@@ -103,19 +112,19 @@ Updated: 2026-03-19
 
 ## Pre-Release Gate
 
-- [x] Lint passes (`pnpm lint`, verified 2026-03-19)
-- [x] Dependency boundary check passes (`pnpm deps:check`, verified 2026-03-19)
-- [x] Architecture verification passes (`pnpm verify:architecture`, verified 2026-03-19)
-- [x] Workspace tests pass (`pnpm test`, verified 2026-03-19)
-- [x] Gateway tests pass (`pnpm --filter @geohelper/gateway test`, verified 2026-03-19)
-- [x] Web unit tests pass (`pnpm --filter @geohelper/web test`, verified 2026-03-19)
-- [x] E2E tests pass (`pnpm test:e2e`, verified 2026-03-19)
-- [x] Benchmark dry-run passes (`pnpm bench:quality -- --dry-run`, verified 2026-03-19)
-- [x] Ops verify passes (`pnpm ops:gateway:verify -- --dry-run`, verified 2026-03-19; live runs persist JSON artifacts under `output/ops/`)
-- [x] Scheduled ops wrapper checked (`pnpm ops:gateway:scheduled -- --dry-run`, verified 2026-03-19; localhost live run also passed on 2026-03-19 with artifacts under `output/ops/2026-03-19T17-50-10-local-staging/`)
+- [x] Lint passes (`pnpm lint`, verified 2026-03-19 and reverified 2026-03-31)
+- [x] Dependency boundary check passes (`pnpm deps:check`, verified 2026-03-19 and reverified 2026-03-31)
+- [x] Architecture verification passes (`pnpm verify:architecture`, verified 2026-03-19 and reverified 2026-03-31)
+- [x] Workspace tests pass (`pnpm test`, verified 2026-03-19 and reverified 2026-03-31)
+- [x] Gateway tests pass (`pnpm --filter @geohelper/gateway test`, verified 2026-03-19; gateway coverage also re-executed inside `pnpm test` and `pnpm verify:architecture` on 2026-03-31)
+- [x] Web unit tests pass (`pnpm --filter @geohelper/web test`, verified 2026-03-19; web coverage also re-executed inside `pnpm test` and `pnpm verify:architecture` on 2026-03-31)
+- [x] E2E tests pass (`pnpm test:e2e`, verified 2026-03-19 and reverified 2026-03-31)
+- [x] Benchmark dry-run passes (`pnpm bench:quality -- --dry-run`, verified 2026-03-19 and reverified 2026-03-31)
+- [x] Ops verify passes (`pnpm ops:gateway:verify -- --dry-run`, verified 2026-03-19 and reverified 2026-03-31; Redis-backed live verify also passed on 2026-03-31 via `output/ops/2026-03-31T08-50-00-phase6-redis-live/summary.json`)
+- [x] Scheduled ops wrapper checked (`pnpm ops:gateway:scheduled -- --dry-run`, verified 2026-03-19 and reverified 2026-03-31; Redis-backed live run also passed on 2026-03-31 via `output/ops/manual-phase4/scheduled-live.json`)
 - [x] Scheduled notify heartbeat checked (`OPS_NOTIFY_WEBHOOK_URL` receives compact success/failure summaries with threshold reasons and artifact URLs when enabled; verified 2026-03-19 on localhost staging via `output/ops/2026-03-19T17-50-10-local-staging/scheduled-live.json` and `output/ops/2026-03-19T17-50-10-local-staging/webhook-events.jsonl`)
-- [x] Gateway runtime smoke checked (`pnpm smoke:gateway-runtime -- --dry-run`, verified 2026-03-19; localhost live run also passed on 2026-03-19 via `output/ops/2026-03-19T17-50-10-local-staging/smoke.json`)
-- [x] Gateway backup restore drill checked (`pnpm smoke:gateway-backup-restore -- --dry-run`, verified 2026-03-19; localhost live restore drill also passed on 2026-03-19 via `output/ops/2026-03-19T17-50-10-local-staging/backup-restore-live.json`)
+- [x] Gateway runtime smoke checked (`pnpm smoke:gateway-runtime -- --dry-run`, verified 2026-03-19 and reverified 2026-03-31; Redis-backed live run also passed on 2026-03-31 via `output/ops/manual-phase4/smoke-live.json`)
+- [x] Gateway backup restore drill checked (`pnpm smoke:gateway-backup-restore -- --dry-run`, verified 2026-03-19 and reverified 2026-03-31; Redis-backed live restore drill also passed on 2026-03-31 via `output/ops/manual-phase4/backup-restore-live.json`)
 - [x] Deploy runbook reviewed (`docs/deploy/edgeone.md`, reviewed 2026-03-19)
 - [x] Alert webhook smoke-tested (verified 2026-03-19 on localhost staging by triggering a legacy repair compile; `compile_repair` was captured in `output/ops/2026-03-19T17-50-10-local-staging/webhook-events.jsonl`)
 - [x] Liveness/readiness contract checked (`/api/v1/health` stays shallow, `/api/v1/ready` is green before traffic switch; verified 2026-03-19 on localhost staging via `output/ops/2026-03-19T17-50-10-local-staging/health.json` and `output/ops/2026-03-19T17-50-10-local-staging/ready.json`)
@@ -123,8 +132,8 @@ Updated: 2026-03-19
 - [x] Operator events contract checked (`/admin/compile-events?limit=20` returns recent traceable records; verified 2026-03-19 on localhost staging via `output/ops/2026-03-19T17-50-10-local-staging/admin-compile-events.json`)
 - [x] Trace id contract checked (compile returns `trace_id` and `x-trace-id` header; verified 2026-03-19 because the live runtime smoke in `output/ops/2026-03-19T17-50-10-local-staging/smoke.json` would fail on header mismatch, and the legacy drill artifacts are stored in `legacy-repair-headers.txt` / `legacy-repair-body.json`)
 - [x] Attachments contract checked (gateway attachment support is explicit, `/admin/version` reflects `attachments_enabled`, and attachment smoke passed on 2026-03-19 via `output/ops/2026-03-19T17-50-10-local-staging/admin-version.json` and `output/ops/2026-03-19T17-50-10-local-staging/smoke.json`)
-- [ ] Redis shared-state verified when configured (`REDIS_URL` shares revoke + rate limit + backup retention)
-- [ ] Template backup recovery checked (export + import preserves `geohelper.templates.snapshot`)
-- [x] Gateway backup admin routes checked (`PUT/GET /admin/backups/latest` returns metadata and latest envelope with valid admin token; verified 2026-03-19 on localhost staging via the seeded latest backup and `output/ops/2026-03-19T17-50-10-local-staging/backup-restore-live.json`)
-- [ ] Remote backup settings flow checked (gateway admin token saved, retained history is visible after `检查云端状态`, selected historical snapshots can be fetched by `snapshot_id`, blocked/conflict states point users to explicit pull/import or explicit overwrite, and `检查云端状态` / `上传最新快照` / `拉取最新快照` stay explicit and manual)
-- [ ] Protected snapshot policy checked (`BACKUP_MAX_HISTORY` / `BACKUP_MAX_PROTECTED` are configured intentionally, protected snapshots do not auto-expire, limit-full protect returns an explicit failure, and settings protection remains metadata-only)
+- [x] Redis shared-state verified when configured (`REDIS_URL` shares revoke + rate limit + backup retention; verified 2026-03-31 via `output/ops/manual-phase4/redis-shared-state.json`)
+- [x] Template backup recovery checked (export + import preserves `geohelper.templates.snapshot`; verified 2026-03-31 via `pnpm test -- --run apps/web/src/storage/backup.import.test.ts apps/web/src/storage/migrate.test.ts`)
+- [x] Gateway backup admin routes checked (`PUT/GET /admin/backups/latest` returns metadata and latest envelope with valid admin token; verified 2026-03-19 on localhost staging and reverified 2026-03-31 via `output/ops/manual-phase4/backup-seed-live.json` plus `output/ops/manual-phase4/backup-restore-live.json`)
+- [x] Remote backup settings flow checked (gateway admin token saved, retained history is visible after `检查云端状态`, selected historical snapshots can be fetched by `snapshot_id`, blocked/conflict states point users to explicit pull/import or explicit overwrite, and `检查云端状态` / `上传最新快照` / `拉取最新快照` stay explicit and manual; verified 2026-03-31 via `pnpm test:e2e -- tests/e2e/settings-drawer.backup.spec.ts tests/e2e/settings-drawer.remote-sync.spec.ts tests/e2e/settings-drawer.remote-import.spec.ts tests/e2e/settings-drawer.remote-history.spec.ts tests/e2e/settings-drawer.remote-protection.spec.ts`)
+- [x] Protected snapshot policy checked (`BACKUP_MAX_HISTORY` / `BACKUP_MAX_PROTECTED` are configured intentionally, protected snapshots do not auto-expire, limit-full protect returns an explicit failure, and settings protection remains metadata-only; verified 2026-03-31 via `pnpm test -- --run apps/gateway/test/redis-backup-store.protection.test.ts apps/web/src/components/settings-remote-backup-actions.test.ts apps/web/src/components/settings-remote-backup-history.test.ts apps/web/src/components/settings-remote-backup-import.test.ts apps/web/src/components/settings-remote-backup-sync.test.ts` and `pnpm test:e2e -- tests/e2e/settings-drawer.remote-protection.spec.ts`)
