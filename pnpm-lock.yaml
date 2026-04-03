@@ -131,7 +131,20 @@ importers:
         specifier: workspace:*
         version: link:../agent-protocol
 
-  packages/agent-domain-geometry: {}
+  packages/agent-domain-geometry:
+    dependencies:
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
+      '@geohelper/agent-tools':
+        specifier: workspace:*
+        version: link:../agent-tools
+      '@geohelper/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      zod:
+        specifier: ^4.1.8
+        version: 4.3.6
 
   packages/agent-evals: {}
 
