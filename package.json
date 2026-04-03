@@ -8,7 +8,7 @@
     "deps:check": "depcruise apps/web/src apps/gateway/src --config .dependency-cruiser.cjs",
     "verify:architecture": "bash scripts/quality/verify-architecture.sh",
     "test": "sh -c 'localstorage_file=$(mktemp \"${TMPDIR:-/tmp}/geohelper-vitest-localstorage.XXXXXX\"); if [ \"$1\" = \"--\" ]; then shift; fi; NODE_OPTIONS=\"--localstorage-file=$localstorage_file${NODE_OPTIONS:+ $NODE_OPTIONS}\" node ./node_modules/vitest/vitest.mjs \"$@\"; status=$?; rm -f \"$localstorage_file\"; exit $status' --",
-    "typecheck": "pnpm exec tsc -p apps/web/tsconfig.json --noEmit && pnpm exec tsc -p apps/gateway/tsconfig.json --noEmit && pnpm exec tsc -p packages/protocol/tsconfig.json --noEmit && pnpm exec tsc -p tests/tsconfig.json --noEmit",
+    "typecheck": "pnpm exec tsc -p apps/web/tsconfig.json --noEmit && pnpm exec tsc -p apps/gateway/tsconfig.json --noEmit && pnpm exec tsc -p apps/control-plane/tsconfig.json --noEmit && pnpm exec tsc -p apps/worker/tsconfig.json --noEmit && pnpm exec tsc -p packages/protocol/tsconfig.json --noEmit && pnpm exec tsc -p packages/browser-bridge/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-protocol/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-core/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-store/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-tools/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-memory/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-evals/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-domain-geometry/tsconfig.json --noEmit && pnpm exec tsc -p tests/tsconfig.json --noEmit",
     "test:e2e": "pnpm geogebra:sync && playwright test",
     "smoke:live-model": "bash scripts/smoke/live-model-chain.sh",
     "quality:hotspots": "node scripts/quality/report-hotspots.mjs",
@@ -25,6 +25,9 @@
     "smoke:gateway-backup-restore": "node scripts/smoke/gateway-backup-restore.mjs"
   },
   "devDependencies": {
+    "@geohelper/agent-core": "workspace:*",
+    "@geohelper/agent-protocol": "workspace:*",
+    "@geohelper/browser-bridge": "workspace:*",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.56.1",
     "@types/node": "^24.11.0",
