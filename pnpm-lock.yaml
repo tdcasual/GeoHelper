@@ -125,13 +125,24 @@ importers:
         specifier: ^24.3.1
         version: 24.11.0
 
-  packages/agent-core: {}
+  packages/agent-core:
+    dependencies:
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
 
   packages/agent-domain-geometry: {}
 
   packages/agent-evals: {}
 
-  packages/agent-memory: {}
+  packages/agent-memory:
+    dependencies:
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
+      '@geohelper/agent-store':
+        specifier: workspace:*
+        version: link:../agent-store
 
   packages/agent-protocol:
     dependencies:
@@ -139,9 +150,17 @@ importers:
         specifier: ^4.1.8
         version: 4.3.6
 
-  packages/agent-store: {}
+  packages/agent-store:
+    dependencies:
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
 
-  packages/agent-tools: {}
+  packages/agent-tools:
+    dependencies:
+      zod:
+        specifier: ^4.1.8
+        version: 4.3.6
 
   packages/browser-bridge: {}
 

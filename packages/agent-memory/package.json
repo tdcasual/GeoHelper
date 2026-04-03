@@ -6,5 +6,9 @@
   "main": "src/index.ts",
   "scripts": {
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@geohelper/agent-protocol": "workspace:*",
+    "@geohelper/agent-store": "workspace:*"
   }
 }

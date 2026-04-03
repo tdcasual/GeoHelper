@@ -10,7 +10,7 @@ import type {
 import type { ArtifactRepo } from "./repos/artifact-repo";
 import type { CheckpointRepo } from "./repos/checkpoint-repo";
 import type { EventRepo } from "./repos/event-repo";
-import type { MemoryRepo } from "./repos/memory-repo";
+import type { MemoryEntryFilter, MemoryRepo } from "./repos/memory-repo";
 import type { AgentStoreResult, RunRepo, RunSnapshot } from "./repos/run-repo";
 
 const bySequence = (left: RunEvent, right: RunEvent): number =>
@@ -18,6 +18,36 @@ const bySequence = (left: RunEvent, right: RunEvent): number =>
 
 const byCreatedAt = <T extends { createdAt: string }>(left: T, right: T): number =>
   left.createdAt.localeCompare(right.createdAt);
+
+const matchesMemoryFilter = (
+  entry: MemoryEntry,
+  filter: MemoryEntryFilter = {}
+): boolean => {
+  if (filter.scope && entry.scope !== filter.scope) {
+    return false;
+  }
+
+  if (filter.scopeId && entry.scopeId !== filter.scopeId) {
+    return false;
+  }
+
+  if (filter.key && entry.key !== filter.key) {
+    return false;
+  }
+
+  if (filter.sourceRunId && entry.sourceRunId !== filter.sourceRunId) {
+    return false;
+  }
+
+  if (
+    filter.sourceArtifactId &&
+    entry.sourceArtifactId !== filter.sourceArtifactId
+  ) {
+    return false;
+  }
+
+  return true;
+};
 
 export interface AgentStore {
   runs: RunRepo;
@@ -75,14 +105,17 @@ export const createMemoryAgentStore = (): AgentStore => {
       [...(artifactsByRun.get(runId)?.values() ?? [])].sort(byCreatedAt)
   };
 
+  const listMemoryEntries = (filter: MemoryEntryFilter = {}): MemoryEntry[] =>
+    [...memoryEntries.values()]
+      .filter((entry) => matchesMemoryFilter(entry, filter))
+      .sort(byCreatedAt);
+
   const memoryRepo: MemoryRepo = {
     writeMemoryEntry: (entry) => {
       memoryEntries.set(entry.id, entry);
     },
-    listMemoryEntriesForRun: (runId) =>
-      [...memoryEntries.values()]
-        .filter((entry) => entry.sourceRunId === runId)
-        .sort(byCreatedAt)
+    listMemoryEntries,
+    listMemoryEntriesForRun: (runId) => listMemoryEntries({ sourceRunId: runId })
   };
 
   return {
