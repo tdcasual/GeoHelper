@@ -54,9 +54,21 @@ importers:
 
   apps/control-plane:
     dependencies:
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../../packages/agent-protocol
+      '@geohelper/agent-store':
+        specifier: workspace:*
+        version: link:../../packages/agent-store
+      fastify:
+        specifier: ^5.6.1
+        version: 5.7.4
       tsx:
         specifier: ^4.20.5
         version: 4.21.0
+      zod:
+        specifier: ^4.1.8
+        version: 4.3.6
     devDependencies:
       '@types/node':
         specifier: ^24.3.1
