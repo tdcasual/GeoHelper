@@ -2,6 +2,10 @@ import type { Artifact, Checkpoint, MemoryEntry, Run, RunEvent } from "@geohelpe
 
 export type AgentStoreResult<T> = T | Promise<T>;
 
+export interface RunFilter {
+  status?: Run["status"];
+}
+
 export interface RunSnapshot {
   run: Run;
   events: RunEvent[];
@@ -13,4 +17,5 @@ export interface RunSnapshot {
 export interface RunRepo {
   createRun: (run: Run) => AgentStoreResult<void>;
   getRun: (runId: string) => AgentStoreResult<Run | null>;
+  listRuns: (filter?: RunFilter) => AgentStoreResult<Run[]>;
 }

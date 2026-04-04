@@ -11,13 +11,21 @@ import type { ArtifactRepo } from "./repos/artifact-repo";
 import type { CheckpointRepo } from "./repos/checkpoint-repo";
 import type { EventRepo } from "./repos/event-repo";
 import type { MemoryEntryFilter, MemoryRepo } from "./repos/memory-repo";
-import type { AgentStoreResult, RunRepo, RunSnapshot } from "./repos/run-repo";
+import type { AgentStoreResult, RunFilter, RunRepo, RunSnapshot } from "./repos/run-repo";
 
 const bySequence = (left: RunEvent, right: RunEvent): number =>
   left.sequence - right.sequence;
 
 const byCreatedAt = <T extends { createdAt: string }>(left: T, right: T): number =>
   left.createdAt.localeCompare(right.createdAt);
+
+const matchesRunFilter = (run: Run, filter: RunFilter = {}): boolean => {
+  if (filter.status && run.status !== filter.status) {
+    return false;
+  }
+
+  return true;
+};
 
 const matchesMemoryFilter = (
   entry: MemoryEntry,
@@ -69,7 +77,11 @@ export const createMemoryAgentStore = (): AgentStore => {
     createRun: (run) => {
       runs.set(run.id, run);
     },
-    getRun: (runId) => runs.get(runId) ?? null
+    getRun: (runId) => runs.get(runId) ?? null,
+    listRuns: (filter = {}) =>
+      [...runs.values()]
+        .filter((run) => matchesRunFilter(run, filter))
+        .sort(byCreatedAt)
   };
 
   const eventRepo: EventRepo = {
