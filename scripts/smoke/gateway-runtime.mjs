@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 
 const DEFAULT_THREAD_TITLE = "Gateway runtime smoke";
-const DEFAULT_AGENT_ID = "geometry_solver";
-const DEFAULT_WORKFLOW_ID = "wf_geometry_solver";
+const DEFAULT_PROFILE_ID = "platform_geometry_standard";
 
 export function parseArgs(argv) {
   const parsed = {};
@@ -324,8 +323,7 @@ const runLiveChecks = async ({
         "content-type": "application/json"
       },
       body: JSON.stringify({
-        agentId: env.SMOKE_AGENT_ID ?? DEFAULT_AGENT_ID,
-        workflowId: env.SMOKE_WORKFLOW_ID ?? DEFAULT_WORKFLOW_ID,
+        profileId: env.SMOKE_PROFILE_ID ?? DEFAULT_PROFILE_ID,
         inputArtifactIds: []
       })
     },

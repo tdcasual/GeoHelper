@@ -77,7 +77,7 @@ thread_id="$(node -e 'const r=JSON.parse(process.argv[1]); if(!r.thread || !r.th
 run_response="$(curl -fsS -X POST "http://localhost:${CONTROL_PLANE_PORT}/api/v3/threads/${thread_id}/runs" \
   -H 'content-type: application/json' \
   -H "authorization: Bearer ${session_token}" \
-  -d '{"agentId":"geometry_solver","workflowId":"wf_geometry_solver","inputArtifactIds":[]}')"
+  -d '{"profileId":"platform_geometry_standard","inputArtifactIds":[]}')"
 
 run_id="$(node -e 'const r=JSON.parse(process.argv[1]); if(!r.run || !r.run.id){process.exit(1)}; process.stdout.write(r.run.id)' "$run_response")"
 

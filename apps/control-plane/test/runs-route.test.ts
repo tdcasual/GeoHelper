@@ -3,6 +3,34 @@ import { describe, expect, it } from "vitest";
 import { buildServer } from "../src/server";
 
 describe("control-plane runs routes", () => {
+  it("lists registered run profiles", async () => {
+    const app = buildServer();
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v3/run-profiles"
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual({
+      runProfiles: expect.arrayContaining([
+        expect.objectContaining({
+          id: "platform_geometry_standard",
+          agentId: "geometry_solver",
+          workflowId: "wf_geometry_solver"
+        }),
+        expect.objectContaining({
+          id: "platform_geometry_quick_draft",
+          defaultBudget: {
+            maxModelCalls: 3,
+            maxToolCalls: 4,
+            maxDurationMs: 60000
+          }
+        })
+      ])
+    });
+  });
+
   it("creates a thread", async () => {
     const app = buildServer({
       now: () => "2026-04-04T00:00:00.000Z"
@@ -43,8 +71,7 @@ describe("control-plane runs routes", () => {
       method: "POST",
       url: "/api/v3/threads/thread_1/runs",
       payload: {
-        agentId: "geometry_solver",
-        workflowId: "wf_geometry_solver",
+        profileId: "platform_geometry_quick_draft",
         inputArtifactIds: ["artifact_input_1"]
       }
     });
@@ -60,9 +87,9 @@ describe("control-plane runs routes", () => {
         inputArtifactIds: ["artifact_input_1"],
         outputArtifactIds: [],
         budget: {
-          maxModelCalls: 6,
-          maxToolCalls: 8,
-          maxDurationMs: 120000
+          maxModelCalls: 3,
+          maxToolCalls: 4,
+          maxDurationMs: 60000
         },
         createdAt: "2026-04-04T00:00:00.000Z",
         updatedAt: "2026-04-04T00:00:00.000Z"
@@ -79,5 +106,34 @@ describe("control-plane runs routes", () => {
     expect(streamRes.payload).toContain("event: run.snapshot");
     expect(streamRes.payload).toContain("\"id\":\"run_1\"");
     expect(streamRes.payload).toContain("\"type\":\"run.created\"");
+  });
+
+  it("rejects unknown run profiles", async () => {
+    const app = buildServer({
+      now: () => "2026-04-04T00:00:00.000Z"
+    });
+
+    await app.inject({
+      method: "POST",
+      url: "/api/v3/threads",
+      payload: {
+        title: "Unknown profile"
+      }
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v3/threads/thread_1/runs",
+      payload: {
+        profileId: "missing_profile",
+        inputArtifactIds: []
+      }
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.payload)).toEqual({
+      error: "unknown_run_profile",
+      profileId: "missing_profile"
+    });
   });
 });

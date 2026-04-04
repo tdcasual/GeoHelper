@@ -4,8 +4,7 @@ import path from "node:path";
 
 const DEFAULT_CASES_PATH = "benchmarks/command-quality-cases.json";
 const DEFAULT_CONTROL_PLANE_URL = "http://127.0.0.1:4310";
-const DEFAULT_AGENT_ID = "geometry_solver";
-const DEFAULT_WORKFLOW_ID = "wf_geometry_solver";
+const DEFAULT_PROFILE_ID = "platform_geometry_standard";
 const DOMAIN_LIST = ["2d", "3d", "cas", "probability"];
 const CAPABILITY_GATES = {
   platform_runs: "control_plane_v3",
@@ -92,8 +91,10 @@ for (const testCase of cases) {
           "content-type": "application/json"
         },
         body: JSON.stringify({
-          agentId: DEFAULT_AGENT_ID,
-          workflowId: DEFAULT_WORKFLOW_ID,
+          profileId:
+            args["profile-id"] ??
+            process.env.BENCH_PROFILE_ID ??
+            DEFAULT_PROFILE_ID,
           inputArtifactIds: []
         })
       }
@@ -204,6 +205,7 @@ function printHelp() {
       "  --dry-run                   Validate case file and print counts only",
       "  --cases <path>              Benchmark case file (default: benchmarks/command-quality-cases.json)",
       "  --control-plane-url <url>   Control plane base URL",
+      "  --profile-id <id>           Run profile id (default: platform_geometry_standard)",
       "  --output <path>             Write JSON result to a file",
       "  --help                      Show this help"
     ].join("\n")

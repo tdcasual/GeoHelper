@@ -234,8 +234,7 @@ describe("quality benchmark runner", () => {
           method: "POST",
           url: "/api/v3/threads/thread_bench_1/runs",
           body: {
-            agentId: "geometry_solver",
-            workflowId: "wf_geometry_solver",
+            profileId: "platform_geometry_standard",
             inputArtifactIds: []
           }
         },

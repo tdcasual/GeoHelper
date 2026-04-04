@@ -11,8 +11,11 @@ describe("live model chain smoke script", () => {
     expect(script).toContain("r.run_snapshot.run.id");
     expect(script).toContain("r.run_snapshot.artifacts");
     expect(script).toContain("r.run_snapshot.events");
+    expect(script).toContain('"profileId":"platform_geometry_standard"');
     expect(script).not.toContain("/api/v2/agent/runs");
     expect(script).not.toContain("r.agent_run");
+    expect(script).not.toContain('"agentId":"geometry_solver"');
+    expect(script).not.toContain('"workflowId":"wf_geometry_solver"');
   });
 
   it("removes the legacy compile stack from the workspace entrypoints", () => {

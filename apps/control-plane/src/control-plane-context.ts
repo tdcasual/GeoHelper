@@ -1,9 +1,12 @@
 import type {
   Checkpoint,
   CheckpointStatus,
+  PlatformRunProfile,
   RunBudget,
   RunEvent} from "@geohelper/agent-protocol";
 import { type AgentStore,createMemoryAgentStore } from "@geohelper/agent-store";
+
+import { createDefaultControlPlaneRunProfiles } from "./platform-run-profiles";
 
 export interface ControlPlaneThread {
   id: string;
@@ -22,6 +25,7 @@ export interface ControlPlaneServices {
   store: AgentStore;
   threads: Map<string, ControlPlaneThread>;
   browserSessions: Map<string, BrowserSession>;
+  runProfiles: Map<string, PlatformRunProfile>;
   now: () => string;
   buildThreadId: () => string;
   buildRunId: () => string;
@@ -50,6 +54,7 @@ export const createControlPlaneServices = (
   store: overrides.store ?? createMemoryAgentStore(),
   threads: overrides.threads ?? new Map(),
   browserSessions: overrides.browserSessions ?? new Map(),
+  runProfiles: overrides.runProfiles ?? createDefaultControlPlaneRunProfiles(),
   now: overrides.now ?? (() => new Date().toISOString()),
   buildThreadId: overrides.buildThreadId ?? createIdFactory("thread"),
   buildRunId: overrides.buildRunId ?? createIdFactory("run"),

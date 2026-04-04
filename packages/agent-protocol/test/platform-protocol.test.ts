@@ -4,6 +4,7 @@ import {
   ArtifactSchema,
   CheckpointSchema,
   MemoryEntrySchema,
+  PlatformRunProfileSchema,
   RunEventSchema,
   RunSchema,
   WorkflowDefinitionSchema,
@@ -114,6 +115,21 @@ describe("platform agent protocol", () => {
         sourceRunId: "run_1",
         sourceArtifactId: "artifact_input_1",
         createdAt: "2026-04-04T00:00:00.000Z"
+      })
+    ).not.toThrow();
+
+    expect(() =>
+      PlatformRunProfileSchema.parse({
+        id: "platform_geometry_standard",
+        name: "几何解题",
+        description: "标准几何解题链路",
+        agentId: "geometry_solver",
+        workflowId: "wf_geometry_solver",
+        defaultBudget: {
+          maxModelCalls: 6,
+          maxToolCalls: 8,
+          maxDurationMs: 120000
+        }
       })
     ).not.toThrow();
   });

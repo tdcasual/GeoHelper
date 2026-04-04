@@ -1,8 +1,8 @@
+import type { PlatformRunProfile } from "@geohelper/agent-protocol";
 import type { RunSnapshot } from "@geohelper/agent-store";
 import type { RuntimeAttachment } from "@geohelper/protocol";
 
 import type { BackupEnvelope } from "../storage/backup";
-import type { PlatformRunProfile } from "./platform-run-profiles";
 
 export type ChatMode = "byok" | "official";
 export type RuntimeTarget = "gateway" | "direct";
@@ -23,7 +23,7 @@ export interface RuntimeCapabilities {
 }
 
 export type { RuntimeAttachment };
-export type { PlatformRunProfile } from "./platform-run-profiles";
+export type { PlatformRunProfile } from "@geohelper/agent-protocol";
 
 export const runtimeCapabilitiesByTarget: Record<
   RuntimeTarget,

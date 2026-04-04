@@ -1,4 +1,4 @@
-import { RunBudgetSchema, RunSchema } from "@geohelper/agent-protocol";
+import { RunSchema } from "@geohelper/agent-protocol";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
@@ -8,10 +8,8 @@ import {
   DEFAULT_RUN_BUDGET} from "../control-plane-context";
 
 const StartRunBodySchema = z.object({
-  agentId: z.string().min(1),
-  workflowId: z.string().min(1),
-  inputArtifactIds: z.array(z.string().min(1)).default([]),
-  budget: RunBudgetSchema.optional()
+  profileId: z.string().min(1),
+  inputArtifactIds: z.array(z.string().min(1)).default([])
 });
 
 export const registerRunsRoutes = (
@@ -32,16 +30,23 @@ export const registerRunsRoutes = (
     }
 
     const body = StartRunBodySchema.parse(request.body);
+    const runProfile = services.runProfiles.get(body.profileId);
+    if (!runProfile) {
+      return reply.code(400).send({
+        error: "unknown_run_profile",
+        profileId: body.profileId
+      });
+    }
     const timestamp = services.now();
     const run = RunSchema.parse({
       id: services.buildRunId(),
       threadId: params.threadId,
-      workflowId: body.workflowId,
-      agentId: body.agentId,
+      workflowId: runProfile.workflowId,
+      agentId: runProfile.agentId,
       status: "queued",
       inputArtifactIds: body.inputArtifactIds,
       outputArtifactIds: [],
-      budget: body.budget ?? DEFAULT_RUN_BUDGET,
+      budget: runProfile.defaultBudget ?? DEFAULT_RUN_BUDGET,
       createdAt: timestamp,
       updatedAt: timestamp
     });
@@ -49,7 +54,8 @@ export const registerRunsRoutes = (
     await services.store.runs.createRun(run);
     await appendRunEvent(services, run.id, "run.created", {
       status: run.status,
-      threadId: run.threadId
+      threadId: run.threadId,
+      profileId: runProfile.id
     });
 
     return reply.code(202).send({

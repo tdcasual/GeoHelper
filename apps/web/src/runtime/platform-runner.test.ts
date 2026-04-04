@@ -70,14 +70,8 @@ describe("platform-runner", () => {
     const startRunRequest = fetchMock.mock.calls[1];
     expect(startRunRequest?.[0]).toContain("/api/v3/threads/thread_1/runs");
     expect(JSON.parse(String(startRunRequest?.[1]?.body))).toEqual({
-      agentId: "geometry_solver",
-      workflowId: "wf_geometry_solver",
+      profileId: "platform_geometry_quick_draft",
       inputArtifactIds: [],
-      budget: {
-        maxModelCalls: 3,
-        maxToolCalls: 4,
-        maxDurationMs: 60_000
-      }
     });
   });
 });

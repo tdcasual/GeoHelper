@@ -1,4 +1,4 @@
-import type { Checkpoint, RunBudget } from "@geohelper/agent-protocol";
+import type { Checkpoint } from "@geohelper/agent-protocol";
 import type { RunSnapshot } from "@geohelper/agent-store";
 
 import type { PlatformThread } from "../state/thread-store";
@@ -8,10 +8,8 @@ export interface ControlPlaneClient {
   createThread: (input: { title: string }) => Promise<PlatformThread>;
   startRun: (input: {
     threadId: string;
-    agentId: string;
-    workflowId: string;
+    profileId: string;
     inputArtifactIds?: string[];
-    budget?: RunBudget;
   }) => Promise<RunSnapshot["run"]>;
   streamRun: (runId: string) => Promise<RunSnapshot>;
   resolveCheckpoint: (
@@ -131,10 +129,8 @@ export const createControlPlaneClient = ({
     },
     startRun: async ({
       threadId,
-      agentId,
-      workflowId,
-      inputArtifactIds = [],
-      budget
+      profileId,
+      inputArtifactIds = []
     }) => {
       const payload = await requestJson<{
         run: RunSnapshot["run"];
@@ -147,10 +143,8 @@ export const createControlPlaneClient = ({
             "content-type": "application/json"
           },
           body: JSON.stringify({
-            agentId,
-            workflowId,
-            inputArtifactIds,
-            budget
+            profileId,
+            inputArtifactIds
           })
         }
       );

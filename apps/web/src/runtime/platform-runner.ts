@@ -42,9 +42,7 @@ export const submitPromptToPlatform = async (
 
   const run = await client.startRun({
     threadId,
-    agentId: request.platformRunProfile.agentId,
-    workflowId: request.platformRunProfile.workflowId,
-    budget: request.platformRunProfile.defaultBudget
+    profileId: request.platformRunProfile.id
   });
   const snapshot = await client.streamRun(run.id);
 

@@ -86,8 +86,7 @@ describe("control-plane checkpoint routes", () => {
       method: "POST",
       url: "/api/v3/threads/thread_1/runs",
       payload: {
-        agentId: "geometry_solver",
-        workflowId: "wf_geometry_solver",
+        profileId: "platform_geometry_standard",
         inputArtifactIds: []
       }
     });

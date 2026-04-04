@@ -132,6 +132,29 @@ Gateway 仍负责单租户备份与恢复，备份信封格式如下：
 
 ## Control Plane
 
+### GET /api/v3/run-profiles
+
+响应：
+
+```json
+{
+  "runProfiles": [
+    {
+      "id": "platform_geometry_standard",
+      "name": "几何解题",
+      "description": "标准几何解题链路，保留完整的规划、工具和课堂就绪预算。",
+      "agentId": "geometry_solver",
+      "workflowId": "wf_geometry_solver",
+      "defaultBudget": {
+        "maxModelCalls": 6,
+        "maxToolCalls": 8,
+        "maxDurationMs": 120000
+      }
+    }
+  ]
+}
+```
+
 ### POST /api/v3/threads
 
 请求：
@@ -160,8 +183,7 @@ Gateway 仍负责单租户备份与恢复，备份信封格式如下：
 
 ```json
 {
-  "agentId": "geometry_solver",
-  "workflowId": "wf_geometry_solver",
+  "profileId": "platform_geometry_standard",
   "inputArtifactIds": []
 }
 ```
