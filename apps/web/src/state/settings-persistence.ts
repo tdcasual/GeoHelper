@@ -1,6 +1,5 @@
 import {
-  DEFAULT_PLATFORM_RUN_PROFILE_ID,
-  getPlatformRunProfile
+  DEFAULT_PLATFORM_RUN_PROFILE_ID
 } from "../runtime/platform-run-profiles";
 import type { EncryptedSecret } from "../services/secure-secret";
 import { persistSettingsSnapshotToIndexedDb } from "../storage/indexed-sync";
@@ -235,8 +234,9 @@ const normalizeSettingsSnapshot = (
       ? fallback.defaultRuntimeProfileId
       : runtimeProfiles[0].id;
   const defaultPlatformAgentProfileId =
-    typeof raw?.defaultPlatformAgentProfileId === "string"
-      ? getPlatformRunProfile(raw.defaultPlatformAgentProfileId).id
+    typeof raw?.defaultPlatformAgentProfileId === "string" &&
+    raw.defaultPlatformAgentProfileId.trim().length > 0
+      ? raw.defaultPlatformAgentProfileId.trim()
       : fallback.defaultPlatformAgentProfileId;
 
   return {
