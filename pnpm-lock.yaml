@@ -98,6 +98,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../../packages/agent-protocol
+      '@geohelper/agent-store':
+        specifier: workspace:*
+        version: link:../../packages/agent-store
       '@geohelper/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol

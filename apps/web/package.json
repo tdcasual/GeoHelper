@@ -10,6 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@geohelper/agent-protocol": "workspace:*",
+    "@geohelper/agent-store": "workspace:*",
     "@geohelper/protocol": "workspace:*",
     "dexie": "^4.2.1",
     "react": "^19.2.0",

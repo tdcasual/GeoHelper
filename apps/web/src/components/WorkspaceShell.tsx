@@ -1,9 +1,13 @@
 import { useRef, useState } from "react";
 
+import { useArtifactStore } from "../state/artifact-store";
+import { useCheckpointStore } from "../state/checkpoint-store";
+import { useRunStore } from "../state/run-store";
 import { useSceneStore } from "../state/scene-store";
 import { useSettingsStore } from "../state/settings-store";
 import { type StudioStartMode } from "../state/studio-start";
 import { useUIStore } from "../state/ui-store";
+import { RunConsole } from "./RunConsole";
 import { SettingsDrawer } from "./SettingsDrawer";
 import { TokenGateDialog } from "./TokenGateDialog";
 import { buildWorkspaceLayoutProps } from "./workspace-shell/layout-props";
@@ -55,6 +59,19 @@ export const WorkspaceShell = ({
   const setSettingsOpen = useSettingsStore((state) => state.setDrawerOpen);
   const showAgentSteps = useSettingsStore(
     (state) => state.experimentFlags.showAgentSteps
+  );
+  const latestPlatformRunId = useRunStore((state) => state.latestRunId);
+  const latestPlatformRun = useRunStore((state) =>
+    state.latestRunId ? state.runsById[state.latestRunId] ?? null : null
+  );
+  const latestPlatformEvents = useRunStore((state) =>
+    state.latestRunId ? state.eventsByRunId[state.latestRunId] ?? [] : []
+  );
+  const latestPlatformCheckpoints = useCheckpointStore((state) =>
+    latestPlatformRunId ? state.checkpointsByRunId[latestPlatformRunId] ?? [] : []
+  );
+  const latestPlatformArtifacts = useArtifactStore((state) =>
+    latestPlatformRunId ? state.artifactsByRunId[latestPlatformRunId] ?? [] : []
   );
 
   const chatShellRef = useRef<HTMLDivElement | null>(null);
@@ -317,6 +334,16 @@ export const WorkspaceShell = ({
           />
         )}
       </div>
+      {showAgentSteps || latestPlatformRun ? (
+        <section className="workspace-platform-console">
+          <RunConsole
+            run={latestPlatformRun}
+            events={latestPlatformEvents}
+            checkpoints={latestPlatformCheckpoints}
+            artifacts={latestPlatformArtifacts}
+          />
+        </section>
+      ) : null}
       <TokenGateDialog
         open={runtimeSession.tokenDialogOpen && runtimeSession.runtimeSupportsOfficial}
         onClose={runtimeSession.closeTokenDialog}
