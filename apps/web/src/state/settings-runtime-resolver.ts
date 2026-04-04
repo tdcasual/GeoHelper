@@ -1,3 +1,6 @@
+import type { PlatformRunProfile } from "@geohelper/agent-protocol";
+
+import { createControlPlaneClient } from "../runtime/control-plane-client";
 import { getPlatformRunProfile } from "../runtime/platform-run-profiles";
 import { resolveRuntimeCapabilities } from "../runtime/runtime-service";
 import {
@@ -26,6 +29,7 @@ interface BuildCompileRuntimeOptionsInput {
   conversationId: string;
   mode: ChatMode;
   secretService?: SecretService;
+  listRunProfiles?: () => Promise<PlatformRunProfile[]>;
   resolveCapabilities?: (params: {
     target: "gateway" | "direct";
     baseUrl?: string;
@@ -74,6 +78,43 @@ const getDefaultRuntimeProfile = (
     (item) => item.id === state.defaultRuntimeProfileId
   ) ?? state.runtimeProfiles[0];
 
+const resolvePlatformRunProfile = async ({
+  runtimeTarget,
+  runtimeBaseUrl,
+  selectedProfileId,
+  listRunProfiles
+}: {
+  runtimeTarget: "gateway" | "direct";
+  runtimeBaseUrl?: string;
+  selectedProfileId: string;
+  listRunProfiles?: () => Promise<PlatformRunProfile[]>;
+}): Promise<PlatformRunProfile> => {
+  const localProfile = getPlatformRunProfile(selectedProfileId);
+  const resolveRemoteProfiles =
+    listRunProfiles ??
+    (runtimeBaseUrl
+      ? createControlPlaneClient({
+          baseUrl: runtimeBaseUrl
+        }).listRunProfiles
+      : undefined);
+
+  if (runtimeTarget !== "gateway" || !resolveRemoteProfiles) {
+    return localProfile;
+  }
+
+  try {
+    const remoteProfiles = await resolveRemoteProfiles();
+
+    return (
+      remoteProfiles.find((profile) => profile.id === selectedProfileId) ??
+      remoteProfiles[0] ??
+      localProfile
+    );
+  } catch {
+    return localProfile;
+  }
+};
+
 export const resolveRuntimeProfileSelection = (
   state: SettingsStoreState,
   mode: ChatMode = state.defaultMode
@@ -96,20 +137,25 @@ export const buildCompileRuntimeOptions = async (
   input: BuildCompileRuntimeOptionsInput
 ): Promise<BuildCompileRuntimeOptionsResult> => {
   const runtimeProfile = getDefaultRuntimeProfile(input.state);
-  const platformRunProfile = getPlatformRunProfile(
-    input.state.defaultPlatformAgentProfileId
-  );
   const runtimeBaseUrl = runtimeProfile.baseUrl || undefined;
   const preset = getDefaultPreset(input.mode, input.state);
   const session = input.state.sessionOverrides[input.conversationId] ?? {};
   const activeModel = session.model ?? preset.model;
   const resolveCapabilities =
     input.resolveCapabilities ?? resolveRuntimeCapabilities;
-  const runtimeCapabilities = await resolveCapabilities({
-    target: runtimeProfile.target,
-    baseUrl: runtimeBaseUrl,
-    model: activeModel
-  });
+  const [runtimeCapabilities, platformRunProfile] = await Promise.all([
+    resolveCapabilities({
+      target: runtimeProfile.target,
+      baseUrl: runtimeBaseUrl,
+      model: activeModel
+    }),
+    resolvePlatformRunProfile({
+      runtimeTarget: runtimeProfile.target,
+      runtimeBaseUrl,
+      selectedProfileId: input.state.defaultPlatformAgentProfileId,
+      listRunProfiles: input.listRunProfiles
+    })
+  ]);
 
   let byokEndpoint: string | undefined;
   let byokKey: string | undefined;

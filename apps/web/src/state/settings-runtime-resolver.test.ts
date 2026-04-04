@@ -119,6 +119,135 @@ describe("settings-runtime-resolver", () => {
     });
   });
 
+  it("prefers the remote control-plane run profile catalog for gateway runtimes", async () => {
+    const store = createSettingsStore();
+    store.getState().setDefaultRuntimeProfile("runtime_gateway");
+    store
+      .getState()
+      .setDefaultPlatformAgentProfile("platform_geometry_quick_draft");
+
+    const result = await buildCompileRuntimeOptions({
+      state: store.getState(),
+      conversationId: "conv_1",
+      mode: "official",
+      resolveCapabilities: async () => ({
+        supportsOfficialAuth: true,
+        supportsVision: false,
+        supportsAgentSteps: true,
+        supportsServerMetrics: true,
+        supportsRateLimitHeaders: true
+      }),
+      listRunProfiles: async () => [
+        {
+          id: "platform_geometry_standard",
+          name: "远端标准",
+          description: "远端标准描述",
+          agentId: "geometry_solver",
+          workflowId: "wf_geometry_solver",
+          defaultBudget: {
+            maxModelCalls: 6,
+            maxToolCalls: 8,
+            maxDurationMs: 120000
+          }
+        },
+        {
+          id: "platform_geometry_quick_draft",
+          name: "远端快速草稿",
+          description: "来自 control-plane",
+          agentId: "geometry_solver",
+          workflowId: "wf_geometry_solver",
+          defaultBudget: {
+            maxModelCalls: 2,
+            maxToolCalls: 3,
+            maxDurationMs: 45000
+          }
+        }
+      ]
+    });
+
+    expect(result.platformRunProfile).toEqual(
+      expect.objectContaining({
+        id: "platform_geometry_quick_draft",
+        name: "远端快速草稿",
+        defaultBudget: {
+          maxModelCalls: 2,
+          maxToolCalls: 3,
+          maxDurationMs: 45000
+        }
+      })
+    );
+  });
+
+  it("falls back to the local run profile when the remote catalog lookup fails", async () => {
+    const store = createSettingsStore();
+    store.getState().setDefaultRuntimeProfile("runtime_gateway");
+    store
+      .getState()
+      .setDefaultPlatformAgentProfile("platform_geometry_quick_draft");
+
+    const result = await buildCompileRuntimeOptions({
+      state: store.getState(),
+      conversationId: "conv_1",
+      mode: "official",
+      resolveCapabilities: async () => ({
+        supportsOfficialAuth: true,
+        supportsVision: false,
+        supportsAgentSteps: true,
+        supportsServerMetrics: true,
+        supportsRateLimitHeaders: true
+      }),
+      listRunProfiles: async () => {
+        throw new Error("catalog offline");
+      }
+    });
+
+    expect(result.platformRunProfile).toEqual(
+      getPlatformRunProfile("platform_geometry_quick_draft")
+    );
+  });
+
+  it("falls back to the first remote run profile when the selected id is unavailable", async () => {
+    const store = createSettingsStore();
+    store.getState().setDefaultRuntimeProfile("runtime_gateway");
+    store
+      .getState()
+      .setDefaultPlatformAgentProfile("platform_geometry_quick_draft");
+
+    const result = await buildCompileRuntimeOptions({
+      state: store.getState(),
+      conversationId: "conv_1",
+      mode: "official",
+      resolveCapabilities: async () => ({
+        supportsOfficialAuth: true,
+        supportsVision: false,
+        supportsAgentSteps: true,
+        supportsServerMetrics: true,
+        supportsRateLimitHeaders: true
+      }),
+      listRunProfiles: async () => [
+        {
+          id: "platform_geometry_standard",
+          name: "远端标准",
+          description: "远端标准描述",
+          agentId: "geometry_solver",
+          workflowId: "wf_geometry_solver",
+          defaultBudget: {
+            maxModelCalls: 6,
+            maxToolCalls: 8,
+            maxDurationMs: 120000
+          }
+        }
+      ]
+    });
+
+    expect(result.platformRunProfile).toEqual(
+      expect.objectContaining({
+        id: "platform_geometry_standard",
+        name: "远端标准"
+      })
+    );
+  });
+
   it("only appends debug events when debugLogPanelEnabled is on", () => {
     const store = createSettingsStore();
     const state = store.getState();
