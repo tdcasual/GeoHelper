@@ -6,6 +6,10 @@ import {
   createControlPlaneServices,
   type ControlPlaneServices
 } from "./control-plane-context";
+import { registerAdminCheckpointsRoutes } from "./routes/admin-checkpoints";
+import { registerAdminMemoryRoutes } from "./routes/admin-memory";
+import { registerAdminRunsRoutes } from "./routes/admin-runs";
+import { registerAdminToolsRoutes } from "./routes/admin-tools";
 import { registerBrowserSessionsRoutes } from "./routes/browser-sessions";
 import { registerCheckpointsRoutes } from "./routes/checkpoints";
 import { registerRunsRoutes } from "./routes/runs";
@@ -20,6 +24,10 @@ export const buildServer = (
   });
   const services = createControlPlaneServices(overrides);
 
+  registerAdminRunsRoutes(app, services);
+  registerAdminToolsRoutes(app, services);
+  registerAdminMemoryRoutes(app, services);
+  registerAdminCheckpointsRoutes(app, services);
   registerThreadsRoutes(app, services);
   registerRunsRoutes(app, services);
   registerCheckpointsRoutes(app, services);
