@@ -104,6 +104,9 @@ importers:
       '@geohelper/agent-store':
         specifier: workspace:*
         version: link:../../packages/agent-store
+      '@geohelper/browser-bridge':
+        specifier: workspace:*
+        version: link:../../packages/browser-bridge
       '@geohelper/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -202,7 +205,14 @@ importers:
         specifier: ^4.1.8
         version: 4.3.6
 
-  packages/browser-bridge: {}
+  packages/browser-bridge:
+    dependencies:
+      '@geohelper/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      zod:
+        specifier: ^4.1.8
+        version: 4.3.6
 
   packages/protocol:
     dependencies:

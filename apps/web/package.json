@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@geohelper/browser-bridge": "workspace:*",
     "@geohelper/agent-protocol": "workspace:*",
     "@geohelper/agent-store": "workspace:*",
     "@geohelper/protocol": "workspace:*",
