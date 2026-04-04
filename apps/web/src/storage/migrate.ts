@@ -243,6 +243,10 @@ const migrateSettingsSnapshot = (
     defaultMode: raw.defaultMode === "official" ? "official" : "byok",
     runtimeProfiles,
     defaultRuntimeProfileId,
+    defaultPlatformAgentProfileId:
+      typeof raw.defaultPlatformAgentProfileId === "string"
+        ? raw.defaultPlatformAgentProfileId
+        : "platform_geometry_standard",
     byokPresets,
     officialPresets,
     defaultByokPresetId,

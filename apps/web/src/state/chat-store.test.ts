@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { getPlatformRunProfile } from "../runtime/platform-run-profiles";
 import { RuntimeApiError } from "../runtime/runtime-service";
 import { createRuntimeRunResponseFixture } from "../test-utils/platform-run-fixture";
 import { createChatStore } from "./chat-store";
@@ -161,6 +162,38 @@ describe("chat-store", () => {
       .messages.find((message) => message.role === "user");
     expect(userMessage?.attachments).toEqual(attachments);
     expect(compile.mock.calls[0]?.[0]?.attachments).toEqual(attachments);
+  });
+
+  it("forwards the resolved platform run profile into compile calls", async () => {
+    const compile = vi.fn().mockResolvedValue(createCompileResponse());
+    const resolveCompileOptions = vi.fn().mockResolvedValue({
+      runtimeTarget: "gateway",
+      runtimeBaseUrl: "https://gateway.example.com",
+      runtimeCapabilities: {
+        supportsOfficialAuth: true,
+        supportsVision: false,
+        supportsAgentSteps: true,
+        supportsServerMetrics: true,
+        supportsRateLimitHeaders: true
+      },
+      retryAttempts: 0,
+      extraHeaders: {},
+      platformRunProfile: getPlatformRunProfile("platform_geometry_quick_draft")
+    });
+    const store = createChatStore({
+      compile,
+      resolveCompileOptions
+    });
+
+    await store.getState().send("先出一个快速草稿");
+
+    expect(compile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platformRunProfile: getPlatformRunProfile(
+          "platform_geometry_quick_draft"
+        )
+      })
+    );
   });
 
   it("retries compile when runtime options enable retries", async () => {

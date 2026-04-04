@@ -1,3 +1,4 @@
+import { getPlatformRunProfile } from "../../runtime/platform-run-profiles";
 import type { ChatMode, RuntimeTarget } from "../../runtime/types";
 import type { SecretService } from "../../services/secure-secret";
 import type {
@@ -120,6 +121,22 @@ export const createRuntimeAndPresetActions = (
       deps.saveState(next);
       return {
         defaultRuntimeProfileId: id
+      };
+    }),
+  setDefaultPlatformAgentProfile: (id: string) =>
+    deps.set((state) => {
+      const resolvedProfileId = getPlatformRunProfile(id).id;
+      if (state.defaultPlatformAgentProfileId === resolvedProfileId) {
+        return {};
+      }
+
+      const next = {
+        ...state,
+        defaultPlatformAgentProfileId: resolvedProfileId
+      };
+      deps.saveState(next);
+      return {
+        defaultPlatformAgentProfileId: resolvedProfileId
       };
     }),
   setDefaultMode: (mode: ChatMode) =>

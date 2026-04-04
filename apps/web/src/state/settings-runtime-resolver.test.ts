@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { getPlatformRunProfile } from "../runtime/platform-run-profiles";
 import {
   buildCompileRuntimeOptions,
   maybeAppendDebugEvent
@@ -87,6 +88,35 @@ describe("settings-runtime-resolver", () => {
     });
 
     expect(result.extraHeaders).toEqual({});
+  });
+
+  it("resolves the selected platform run profile into compile options", async () => {
+    const store = createSettingsStore();
+    store
+      .getState()
+      .setDefaultPlatformAgentProfile("platform_geometry_quick_draft");
+
+    const result = await buildCompileRuntimeOptions({
+      state: store.getState(),
+      conversationId: "conv_1",
+      mode: "official",
+      resolveCapabilities: async () => ({
+        supportsOfficialAuth: true,
+        supportsVision: false,
+        supportsAgentSteps: true,
+        supportsServerMetrics: true,
+        supportsRateLimitHeaders: true
+      })
+    });
+
+    expect(result.platformRunProfile).toEqual(
+      getPlatformRunProfile("platform_geometry_quick_draft")
+    );
+    expect(result.platformRunProfile.defaultBudget).toEqual({
+      maxModelCalls: 3,
+      maxToolCalls: 4,
+      maxDurationMs: 60_000
+    });
   });
 
   it("only appends debug events when debugLogPanelEnabled is on", () => {

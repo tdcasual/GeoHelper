@@ -3,6 +3,7 @@ import { createStore } from "zustand/vanilla";
 
 import {
   ChatMode,
+  PlatformRunProfile,
   RemoteBackupSyncStatus,
   RuntimeBackupCompareResponse,
   RuntimeBackupMetadata,
@@ -128,6 +129,7 @@ export interface SettingsStoreState extends PersistedSettingsSnapshot {
     baseUrl: string;
   }) => string;
   setDefaultRuntimeProfile: (id: string) => void;
+  setDefaultPlatformAgentProfile: (id: string) => void;
   setDefaultMode: (mode: ChatMode) => void;
   setRemoteBackupAdminToken: (token: string) => Promise<void>;
   readRemoteBackupAdminToken: () => Promise<string | null>;
@@ -170,6 +172,7 @@ export interface CompileRuntimeOptions {
   runtimeTarget: RuntimeTarget;
   runtimeBaseUrl?: string;
   runtimeCapabilities: RuntimeCapabilities;
+  platformRunProfile: PlatformRunProfile;
   model?: string;
   byokEndpoint?: string;
   byokKey?: string;
@@ -202,6 +205,7 @@ export const createSettingsStore = (
       defaultMode: state.defaultMode,
       runtimeProfiles: state.runtimeProfiles,
       defaultRuntimeProfileId: state.defaultRuntimeProfileId,
+      defaultPlatformAgentProfileId: state.defaultPlatformAgentProfileId,
       byokPresets: state.byokPresets,
       officialPresets: state.officialPresets,
       defaultByokPresetId: state.defaultByokPresetId,
@@ -256,6 +260,7 @@ const applySettingsSnapshotToStore = (
     defaultMode: snapshot.defaultMode,
     runtimeProfiles: snapshot.runtimeProfiles,
     defaultRuntimeProfileId: snapshot.defaultRuntimeProfileId,
+    defaultPlatformAgentProfileId: snapshot.defaultPlatformAgentProfileId,
     byokPresets: snapshot.byokPresets,
     officialPresets: snapshot.officialPresets,
     defaultByokPresetId: snapshot.defaultByokPresetId,

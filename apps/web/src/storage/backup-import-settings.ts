@@ -137,12 +137,19 @@ export const mergeSettingsSnapshot = (
     (candidate) =>
       candidate && runtimeProfiles.some((item) => item.id === candidate)
   );
+  const defaultPlatformAgentProfileId =
+    typeof incoming.defaultPlatformAgentProfileId === "string"
+      ? incoming.defaultPlatformAgentProfileId
+      : typeof current.defaultPlatformAgentProfileId === "string"
+        ? current.defaultPlatformAgentProfileId
+        : "platform_geometry_standard";
 
   return {
     ...current,
     ...incoming,
     runtimeProfiles,
     defaultRuntimeProfileId: defaultRuntimeProfileId ?? runtimeProfiles[0]?.id,
+    defaultPlatformAgentProfileId,
     byokPresets,
     officialPresets,
     defaultByokPresetId: defaultByokPresetId ?? byokPresets[0]?.id,

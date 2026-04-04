@@ -5,6 +5,7 @@ import { createStore } from "zustand/vanilla";
 import { submitPromptToPlatform } from "../runtime/platform-runner";
 import type {
   ChatMode,
+  PlatformRunProfile,
   RuntimeAttachment,
   RuntimeRunRequest,
   RuntimeRunResponse,
@@ -88,6 +89,7 @@ export interface ChatStoreDeps {
   compile: (input: {
     conversationId: string;
     message: string;
+    platformRunProfile: PlatformRunProfile;
     attachments?: ChatAttachment[];
     mode: ChatMode;
     runtimeTarget?: RuntimeTarget;
@@ -134,12 +136,14 @@ const defaultDeps: ChatStoreDeps = {
     extraHeaders,
     attachments,
     context,
+    platformRunProfile,
     mode
   }) =>
     submitPromptToPlatform({
       baseUrl: runtimeBaseUrl,
       conversationId,
       message,
+      platformRunProfile,
       mode,
       model,
       byokEndpoint,

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { getPlatformRunProfile } from "../runtime/platform-run-profiles";
 import { createRuntimeRunResponseFixture } from "../test-utils/platform-run-fixture";
 import type { ChatStoreDeps, ChatStoreState } from "./chat-store";
 import { createChatStoreActions } from "./chat-store-actions";
@@ -98,6 +99,7 @@ describe("chat-store actions", () => {
             supportsServerMetrics: false,
             supportsRateLimitHeaders: false
           },
+          platformRunProfile: getPlatformRunProfile(),
           retryAttempts: 0,
           extraHeaders: {}
         })),

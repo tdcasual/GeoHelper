@@ -296,6 +296,7 @@ export const createChatStoreActions = ({
           const response = await deps.compile({
             conversationId: targetConversationId,
             message: normalizedInput.content,
+            platformRunProfile: runtime.platformRunProfile,
             attachments: normalizedInput.attachments,
             mode: get().mode,
             runtimeTarget: runtime.runtimeTarget,

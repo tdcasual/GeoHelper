@@ -1,3 +1,7 @@
+import {
+  DEFAULT_PLATFORM_RUN_PROFILE_ID,
+  getPlatformRunProfile
+} from "../runtime/platform-run-profiles";
 import type { EncryptedSecret } from "../services/secure-secret";
 import { persistSettingsSnapshotToIndexedDb } from "../storage/indexed-sync";
 import type {
@@ -15,6 +19,7 @@ export interface PersistedSettingsSnapshot {
   defaultMode: "byok" | "official";
   runtimeProfiles: RuntimeProfile[];
   defaultRuntimeProfileId: string;
+  defaultPlatformAgentProfileId: string;
   byokPresets: ByokPreset[];
   officialPresets: OfficialPreset[];
   defaultByokPresetId: string;
@@ -164,6 +169,7 @@ const createDefaultSettingsSnapshot = (): PersistedSettingsSnapshot => {
     defaultMode: "byok",
     runtimeProfiles: runtime.runtimeProfiles,
     defaultRuntimeProfileId: runtime.defaultRuntimeProfileId,
+    defaultPlatformAgentProfileId: DEFAULT_PLATFORM_RUN_PROFILE_ID,
     byokPresets: [byok],
     officialPresets: [official],
     defaultByokPresetId: byok.id,
@@ -228,12 +234,17 @@ const normalizeSettingsSnapshot = (
     : runtimeProfiles.some((item) => item.id === fallback.defaultRuntimeProfileId)
       ? fallback.defaultRuntimeProfileId
       : runtimeProfiles[0].id;
+  const defaultPlatformAgentProfileId =
+    typeof raw?.defaultPlatformAgentProfileId === "string"
+      ? getPlatformRunProfile(raw.defaultPlatformAgentProfileId).id
+      : fallback.defaultPlatformAgentProfileId;
 
   return {
     schemaVersion: 3,
     defaultMode: raw?.defaultMode === "official" ? "official" : "byok",
     runtimeProfiles,
     defaultRuntimeProfileId,
+    defaultPlatformAgentProfileId,
     byokPresets,
     officialPresets,
     defaultByokPresetId,

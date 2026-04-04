@@ -4,9 +4,6 @@ import { threadStore } from "../state/thread-store";
 import { createControlPlaneClient } from "./control-plane-client";
 import type { RuntimeRunRequest, RuntimeRunResponse } from "./types";
 
-const DEFAULT_AGENT_ID = "geometry_solver";
-const DEFAULT_WORKFLOW_ID = "wf_geometry_solver";
-
 const buildThreadTitle = (message: string): string => {
   const normalized = message.replace(/\s+/g, " ").trim();
   if (!normalized) {
@@ -45,8 +42,9 @@ export const submitPromptToPlatform = async (
 
   const run = await client.startRun({
     threadId,
-    agentId: DEFAULT_AGENT_ID,
-    workflowId: DEFAULT_WORKFLOW_ID
+    agentId: request.platformRunProfile.agentId,
+    workflowId: request.platformRunProfile.workflowId,
+    budget: request.platformRunProfile.defaultBudget
   });
   const snapshot = await client.streamRun(run.id);
 

@@ -1,3 +1,4 @@
+import { getPlatformRunProfile } from "../runtime/platform-run-profiles";
 import { resolveRuntimeCapabilities } from "../runtime/runtime-service";
 import {
   type ChatMode,
@@ -95,6 +96,9 @@ export const buildCompileRuntimeOptions = async (
   input: BuildCompileRuntimeOptionsInput
 ): Promise<BuildCompileRuntimeOptionsResult> => {
   const runtimeProfile = getDefaultRuntimeProfile(input.state);
+  const platformRunProfile = getPlatformRunProfile(
+    input.state.defaultPlatformAgentProfileId
+  );
   const runtimeBaseUrl = runtimeProfile.baseUrl || undefined;
   const preset = getDefaultPreset(input.mode, input.state);
   const session = input.state.sessionOverrides[input.conversationId] ?? {};
@@ -143,6 +147,7 @@ export const buildCompileRuntimeOptions = async (
     runtimeTarget: runtimeProfile.target,
     runtimeBaseUrl,
     runtimeCapabilities,
+    platformRunProfile,
     model: activeModel,
     byokEndpoint,
     byokKey,

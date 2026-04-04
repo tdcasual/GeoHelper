@@ -2,6 +2,7 @@ import type { RunSnapshot } from "@geohelper/agent-store";
 import type { RuntimeAttachment } from "@geohelper/protocol";
 
 import type { BackupEnvelope } from "../storage/backup";
+import type { PlatformRunProfile } from "./platform-run-profiles";
 
 export type ChatMode = "byok" | "official";
 export type RuntimeTarget = "gateway" | "direct";
@@ -22,6 +23,7 @@ export interface RuntimeCapabilities {
 }
 
 export type { RuntimeAttachment };
+export type { PlatformRunProfile } from "./platform-run-profiles";
 
 export const runtimeCapabilitiesByTarget: Record<
   RuntimeTarget,
@@ -86,6 +88,7 @@ export interface RuntimeRunRequest {
   message: string;
   mode: ChatMode;
   conversationId: string;
+  platformRunProfile: PlatformRunProfile;
   model?: string;
   sessionToken?: string;
   byokEndpoint?: string;
