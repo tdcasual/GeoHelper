@@ -1,6 +1,5 @@
-import { describe, expect, it } from "vitest";
-
 import { createMemoryAgentStore } from "@geohelper/agent-store";
+import { describe, expect, it } from "vitest";
 
 import { buildServer } from "../src/server";
 

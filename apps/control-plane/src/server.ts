@@ -3,9 +3,8 @@ import { fileURLToPath } from "node:url";
 import Fastify, { type FastifyInstance } from "fastify";
 
 import {
-  createControlPlaneServices,
-  type ControlPlaneServices
-} from "./control-plane-context";
+  type ControlPlaneServices,
+  createControlPlaneServices} from "./control-plane-context";
 import { registerAdminCheckpointsRoutes } from "./routes/admin-checkpoints";
 import { registerAdminMemoryRoutes } from "./routes/admin-memory";
 import { registerAdminRunsRoutes } from "./routes/admin-runs";

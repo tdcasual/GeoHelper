@@ -1,5 +1,5 @@
-import type { CommandBatch } from "@geohelper/protocol";
 import { createBrowserBridgeSession } from "@geohelper/browser-bridge";
+import type { CommandBatch } from "@geohelper/protocol";
 import { describe, expect, it, vi } from "vitest";
 
 import { createBrowserBridgeRuntime } from "./browser-bridge";

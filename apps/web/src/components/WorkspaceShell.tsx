@@ -11,6 +11,12 @@ import { RunConsole } from "./RunConsole";
 import { SettingsDrawer } from "./SettingsDrawer";
 import { TokenGateDialog } from "./TokenGateDialog";
 import { buildWorkspaceLayoutProps } from "./workspace-shell/layout-props";
+import {
+  selectArtifactsForRun,
+  selectCheckpointsForRun,
+  selectLatestRun,
+  selectLatestRunEvents
+} from "./workspace-shell/platform-run-selectors";
 import { useWorkspaceComposer } from "./workspace-shell/useWorkspaceComposer";
 import { useWorkspaceRuntimeSession } from "./workspace-shell/useWorkspaceRuntimeSession";
 import { useWorkspaceShellBehavior } from "./workspace-shell/useWorkspaceShellBehavior";
@@ -61,17 +67,13 @@ export const WorkspaceShell = ({
     (state) => state.experimentFlags.showAgentSteps
   );
   const latestPlatformRunId = useRunStore((state) => state.latestRunId);
-  const latestPlatformRun = useRunStore((state) =>
-    state.latestRunId ? state.runsById[state.latestRunId] ?? null : null
-  );
-  const latestPlatformEvents = useRunStore((state) =>
-    state.latestRunId ? state.eventsByRunId[state.latestRunId] ?? [] : []
-  );
+  const latestPlatformRun = useRunStore(selectLatestRun);
+  const latestPlatformEvents = useRunStore(selectLatestRunEvents);
   const latestPlatformCheckpoints = useCheckpointStore((state) =>
-    latestPlatformRunId ? state.checkpointsByRunId[latestPlatformRunId] ?? [] : []
+    selectCheckpointsForRun(state, latestPlatformRunId)
   );
   const latestPlatformArtifacts = useArtifactStore((state) =>
-    latestPlatformRunId ? state.artifactsByRunId[latestPlatformRunId] ?? [] : []
+    selectArtifactsForRun(state, latestPlatformRunId)
   );
 
   const chatShellRef = useRef<HTMLDivElement | null>(null);

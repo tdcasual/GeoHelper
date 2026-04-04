@@ -2,6 +2,11 @@
 
 This directory stores dated design and implementation documents.
 
+Current active execution track:
+
+- Platform agent rewrite: design + implementation docs dated `2026-04-03`
+- Release-cutover validation: use the platform rewrite docs together with [`../BETA_CHECKLIST.md`](../BETA_CHECKLIST.md)
+
 ## Topic Navigation
 
 Use this section when you know the problem domain first and only then want the right design/plan documents.

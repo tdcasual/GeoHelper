@@ -2,13 +2,13 @@ import type { WorkflowDefinition } from "@geohelper/agent-protocol";
 import type { AnyToolDefinition } from "@geohelper/agent-tools";
 
 import {
-  createTeacherReadinessEvaluator,
-  type GeometryEvaluator
-} from "./evals/teacher-readiness";
-import {
   createGeometrySolverAgentDefinition,
   type GeometryAgentDefinition
 } from "./agents/geometry-solver";
+import {
+  createTeacherReadinessEvaluator,
+  type GeometryEvaluator
+} from "./evals/teacher-readiness";
 import { createSceneApplyCommandBatchTool } from "./tools/scene-apply-command-batch";
 import { createSceneReadStateTool } from "./tools/scene-read-state";
 import { createGeometrySolverWorkflow } from "./workflows/geometry-solver-workflow";

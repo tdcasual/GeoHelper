@@ -1,6 +1,6 @@
 import type { NodeHandlerMap } from "@geohelper/agent-core";
-import type { AgentStore } from "@geohelper/agent-store";
 import type { WorkflowDefinition } from "@geohelper/agent-protocol";
+import type { AgentStore } from "@geohelper/agent-store";
 
 import { createBrowserToolDispatch } from "./browser-tool-dispatch";
 import { createRunLoop } from "./run-loop";

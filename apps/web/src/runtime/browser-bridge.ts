@@ -1,8 +1,7 @@
 import {
-  BrowserToolResultSchema,
   type BrowserBridgeSession,
-  type BrowserToolResult
-} from "@geohelper/browser-bridge";
+  type BrowserToolResult,
+  BrowserToolResultSchema} from "@geohelper/browser-bridge";
 import type { CommandBatch } from "@geohelper/protocol";
 
 import { executeBatch as executeGeoGebraCommandBatch } from "../geogebra/command-executor";

@@ -4,7 +4,6 @@ import Fastify, { FastifyInstance, FastifyReply } from "fastify";
 
 import { loadConfig } from "./config";
 import { registerAdminRoutes } from "./routes/admin";
-import { registerAgentRunsRoute } from "./routes/agent-runs";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerHealthRoute } from "./routes/health";
 import { GatewayAlertEvent, sendAlert } from "./services/alerting";
@@ -13,32 +12,16 @@ import {
   GatewayBackupStore
 } from "./services/backup-store";
 import { createGatewayBuildInfo, GatewayBuildInfo } from "./services/build-info";
-import {
-  buildTraceId,
-  CompileEventSink,
-  createFanoutCompileEventSink,
-  createLogCompileEventSink,
-  createMemoryCompileEventSink
-} from "./services/compile-events";
-import { CompileGuard,createCompileGuard } from "./services/compile-guard";
+import { buildTraceId } from "./services/compile-events";
 import {
   createRedisKvClient,
   KvClient
 } from "./services/kv-client";
 import {
-  RequestCommandBatch,
-  requestCommandBatch as defaultRequestCommandBatch} from "./services/litellm-client";
-import {
   getDefaultMetricsStore,
 } from "./services/metrics";
 import { GatewayMetricsStore } from "./services/metrics-store";
-import {
-  getDefaultRateLimitStore,
-} from "./services/rate-limit";
-import { RateLimitStore } from "./services/rate-limit-store";
 import { createRedisBackupStore } from "./services/redis-backup-store";
-import { createRedisCompileEventSink } from "./services/redis-compile-event-sink";
-import { createRedisRateLimitStore } from "./services/redis-rate-limit-store";
 import { createRedisSessionRevocationStore } from "./services/redis-session-store";
 import {
   createRedisRuntimeDependencyCheck,
@@ -55,13 +38,9 @@ interface GatewayReplyWithAlert extends FastifyReply {
 }
 
 export interface GatewayServices {
-  requestCommandBatch: RequestCommandBatch;
   sessionStore: SessionRevocationStore;
-  rateLimitStore: RateLimitStore;
   metricsStore: GatewayMetricsStore;
-  compileEventSink: CompileEventSink;
   runtimeReadinessService: RuntimeReadinessService;
-  compileGuard: CompileGuard;
   buildInfo: GatewayBuildInfo;
   backupStore: GatewayBackupStore;
   kvClient?: KvClient;
@@ -96,39 +75,16 @@ export const buildServer = (
     config.redisUrl && kvClient
       ? [createRedisRuntimeDependencyCheck(kvClient)]
       : [];
-  const operatorCompileEventSink =
-    config.redisUrl && kvClient
-      ? createRedisCompileEventSink(kvClient)
-      : createMemoryCompileEventSink();
-  const defaultCompileEventSink = createFanoutCompileEventSink(
-    createLogCompileEventSink(app.log),
-    operatorCompileEventSink
-  );
   const services: GatewayServices = {
-    requestCommandBatch:
-      serviceOverrides.requestCommandBatch ?? defaultRequestCommandBatch,
     sessionStore:
       serviceOverrides.sessionStore ??
       (kvClient
         ? createRedisSessionRevocationStore(kvClient)
         : getDefaultSessionRevocationStore()),
-    rateLimitStore:
-      serviceOverrides.rateLimitStore ??
-      (kvClient
-        ? createRedisRateLimitStore(kvClient)
-        : getDefaultRateLimitStore()),
     metricsStore: serviceOverrides.metricsStore ?? getDefaultMetricsStore(),
-    compileEventSink:
-      serviceOverrides.compileEventSink ?? defaultCompileEventSink,
     runtimeReadinessService:
       serviceOverrides.runtimeReadinessService ??
       createRuntimeReadinessService(runtimeReadinessChecks),
-    compileGuard:
-      serviceOverrides.compileGuard ??
-      createCompileGuard({
-        maxInFlight: config.compileMaxInFlight,
-        timeoutMs: config.compileTimeoutMs
-      }),
     buildInfo: serviceOverrides.buildInfo ?? buildInfo,
     backupStore:
       serviceOverrides.backupStore ??
@@ -176,14 +132,12 @@ export const buildServer = (
   });
   registerAdminRoutes(app, config, {
     metricsStore: services.metricsStore,
-    compileEventSink: services.compileEventSink,
     buildInfo: services.buildInfo,
     backupStore: services.backupStore
   });
   registerAuthRoutes(app, config, {
     sessionStore: services.sessionStore
   });
-  registerAgentRunsRoute(app, config, services);
 
   return app;
 };

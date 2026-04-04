@@ -1,6 +1,6 @@
 import { CommandBatch, CommandBatchSchema } from "@geohelper/protocol";
 
-import { RuntimeApiError } from "./orchestrator";
+import { RuntimeApiError } from "./runtime-service";
 
 export const parseJsonFromLlmContent = (value: unknown): unknown => {
   if (typeof value !== "string") {

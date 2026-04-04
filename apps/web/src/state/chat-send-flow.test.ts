@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { createAgentRunEnvelopeFixture } from "../test-utils/agent-run-fixture";
+import { createRunSnapshotFixture } from "../test-utils/platform-run-fixture";
 import {
-  buildAssistantMessageFromCompileResult,
   buildAssistantMessageFromError,
   buildAssistantMessageFromGuard,
+  buildAssistantMessageFromRunResult,
   buildCompileContext,
   resolveChatSendGuard
 } from "./chat-send-flow";
@@ -81,98 +81,87 @@ describe("chat-send-flow", () => {
     ).toBe("official_unsupported");
   });
 
-  it("builds assistant messages from compile results", () => {
+  it("builds assistant messages from platform run snapshots", () => {
     expect(
-      buildAssistantMessageFromCompileResult({
+      buildAssistantMessageFromRunResult({
         id: "msg_assistant",
-        agentRun: createAgentRunEnvelopeFixture({
+        snapshot: createRunSnapshotFixture({
           run: {
             id: "run_1"
           },
-          draft: {
-            commandBatchDraft: {
-              version: "1.0",
-              scene_id: "scene_1",
-              transaction_id: "tx_1",
-              commands: [
-                {
-                  id: "cmd_circle",
-                  op: "create_conic",
-                  args: {
-                    kind: "Circle",
-                    points: ["A", "B"]
-                  },
-                  depends_on: [],
-                  idempotency_key: "cmd_circle_1"
-                }
-              ],
-              post_checks: [
-                "待确认：点 D 在线段 BC 上",
-                "注意：请检查角平分线是否穿过顶点 A"
-              ],
-              explanations: ["已创建三角形 ABC", "已作角平分线 AD"]
+          checkpoints: [
+            {
+              id: "unc_点_d_在线段_bc_上",
+              runId: "run_1",
+              nodeId: "node_teacher_checkpoint",
+              kind: "human_input",
+              status: "pending",
+              title: "点 D 在线段 BC 上",
+              prompt:
+                "请基于当前图形结果，重新检查并明确以下待确认条件：点 D 在线段 BC 上。如果条件不成立，也请直接指出。",
+              createdAt: "2026-04-04T00:00:03.000Z"
             }
-          },
-          teacherPacket: {
-            summary: ["已创建三角形 ABC", "已作角平分线 AD"],
-            warnings: ["注意：请检查角平分线是否穿过顶点 A"],
-            uncertainties: [
-              {
-                id: "unc_点_d_在线段_bc_上",
-                label: "点 D 在线段 BC 上",
-                reviewStatus: "pending",
-                followUpPrompt:
-                  "请基于当前图形结果，重新检查并明确以下待确认条件：点 D 在线段 BC 上。如果条件不成立，也请直接指出。"
-              }
-            ],
-            canvasLinks: [
-              {
-                id: "summary_1",
-                scope: "summary",
-                text: "已创建三角形 ABC",
-                objectLabels: ["A", "B", "C"]
+          ],
+          artifacts: [
+            {
+              id: "artifact_response_1",
+              runId: "run_1",
+              kind: "response",
+              contentType: "application/json",
+              storage: "inline",
+              metadata: {},
+              inlineData: {
+                summary: ["已创建三角形 ABC", "已作角平分线 AD"]
               },
-              {
-                id: "summary_2",
-                scope: "summary",
-                text: "已作角平分线 AD",
-                objectLabels: ["A", "D"]
+              createdAt: "2026-04-04T00:00:03.000Z"
+            },
+            {
+              id: "artifact_tool_1",
+              runId: "run_1",
+              kind: "tool_result",
+              contentType: "application/json",
+              storage: "inline",
+              metadata: {
+                commandCount: 1
               },
-              {
-                id: "uncertainty_unc_点_d_在线段_bc_上",
-                scope: "uncertainty",
-                text: "点 D 在线段 BC 上",
-                objectLabels: ["D", "B", "C"],
-                uncertaintyId: "unc_点_d_在线段_bc_上"
-              }
-            ]
-          },
-          telemetry: {
-            upstreamCallCount: 2,
-            degraded: false,
-            retryCount: 0,
-            stages: [
-              {
-                name: "author",
-                status: "ok",
+              inlineData: {
+                commandBatch: {
+                  commands: [{ id: "cmd_circle" }]
+                }
+              },
+              createdAt: "2026-04-04T00:00:02.000Z"
+            }
+          ],
+          events: [
+            {
+              id: "event_1",
+              runId: "run_1",
+              sequence: 1,
+              type: "node.completed",
+              payload: {
+                nodeId: "node_plan_geometry",
+                resultType: "continue",
                 durationMs: 12
-              }
-            ]
-          }
+              },
+              createdAt: "2026-04-04T00:00:01.000Z"
+            }
+          ]
         }),
-        traceId: "trace_1",
+        traceId: "trace_1"
       })
     ).toMatchObject({
       role: "assistant",
       content: "已创建三角形 ABC\n已作角平分线 AD",
       traceId: "trace_1",
-      agentRunId: "run_1",
+      platformRunId: "run_1",
       result: {
         status: "success",
         commandCount: 1,
         summaryItems: ["已创建三角形 ABC", "已作角平分线 AD"],
         explanationLines: ["已创建三角形 ABC", "已作角平分线 AD"],
-        warningItems: ["注意：请检查角平分线是否穿过顶点 A"],
+        warningItems: [
+          "请基于当前图形结果，重新检查并明确以下待确认条件：点 D 在线段 BC 上。如果条件不成立，也请直接指出。"
+        ],
         uncertaintyItems: [
           {
             id: "unc_点_d_在线段_bc_上",
@@ -206,7 +195,7 @@ describe("chat-send-flow", () => {
       },
       agentSteps: [
         {
-          name: "author",
+          name: "node_plan_geometry",
           status: "ok",
           duration_ms: 12
         }
@@ -214,45 +203,25 @@ describe("chat-send-flow", () => {
     });
   });
 
-  it("falls back to command-count content when compile result lacks explanations", () => {
+  it("falls back to run status content when snapshot lacks response artifacts", () => {
     expect(
-      buildAssistantMessageFromCompileResult({
+      buildAssistantMessageFromRunResult({
         id: "msg_assistant_fallback",
-        agentRun: createAgentRunEnvelopeFixture({
+        snapshot: createRunSnapshotFixture({
           run: {
-            id: "run_fallback"
+            id: "run_fallback",
+            status: "queued"
           },
-          draft: {
-            commandBatchDraft: {
-              version: "1.0",
-              scene_id: "scene_1",
-              transaction_id: "tx_1",
-              commands: [],
-              post_checks: [],
-              explanations: []
-            }
-          },
-          teacherPacket: {
-            summary: ["已生成 0 条指令"],
-            warnings: [],
-            uncertainties: [],
-            canvasLinks: [],
-            nextActions: []
-          },
-          telemetry: {
-            upstreamCallCount: 1,
-            degraded: false,
-            retryCount: 0,
-            stages: []
-          }
+          artifacts: [],
+          checkpoints: []
         })
       })
     ).toMatchObject({
-      content: "已生成 0 条指令",
+      content: "Run 状态：queued",
       result: {
-        status: "success",
+        status: "guard",
         commandCount: 0,
-        summaryItems: ["已生成 0 条指令"],
+        summaryItems: ["Run 状态：queued"],
         canvasLinks: []
       }
     });

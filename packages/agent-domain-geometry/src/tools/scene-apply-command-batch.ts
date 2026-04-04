@@ -1,4 +1,4 @@
-import { ArtifactSchema, type Artifact } from "@geohelper/agent-protocol";
+import { type Artifact,ArtifactSchema } from "@geohelper/agent-protocol";
 import type { ToolDefinition } from "@geohelper/agent-tools";
 import { CommandBatchSchema } from "@geohelper/protocol";
 import { z } from "zod";

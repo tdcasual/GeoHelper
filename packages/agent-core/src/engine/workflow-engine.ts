@@ -12,8 +12,8 @@ import {
   type WorkflowBudgetUsage
 } from "./budget";
 import {
-  runNode,
   type NodeHandlerMap,
+  runNode,
   type WorkflowCheckpointResolution
 } from "./node-runner";
 import type { WorkflowEngineStatus } from "./status-machine";

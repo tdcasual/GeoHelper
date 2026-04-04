@@ -41,13 +41,21 @@ describe("state/storage boundaries", () => {
     expect(countLines("apps/web/src/state/chat-store.ts")).toBeLessThan(500);
   });
 
-  it("keeps import orchestration and compile routes delegating to focused helper modules", () => {
+  it("keeps import orchestration and platform run entrypoints focused", () => {
     const backupImport = fs.readFileSync(
       "apps/web/src/storage/backup-import.ts",
       "utf8"
     );
-    const agentRunsRoute = fs.readFileSync(
-      "apps/gateway/src/routes/agent-runs.ts",
+    const platformRunner = fs.readFileSync(
+      "apps/web/src/runtime/platform-runner.ts",
+      "utf8"
+    );
+    const controlPlaneClient = fs.readFileSync(
+      "apps/web/src/runtime/control-plane-client.ts",
+      "utf8"
+    );
+    const runsRoute = fs.readFileSync(
+      "apps/control-plane/src/routes/runs.ts",
       "utf8"
     );
 
@@ -56,9 +64,20 @@ describe("state/storage boundaries", () => {
     expect(backupImport).toContain("./backup-import-templates");
     expect(countLines("apps/web/src/storage/backup-import.ts")).toBeLessThan(450);
 
-    expect(agentRunsRoute).toContain("./compile-route-helpers");
-    expect(agentRunsRoute).toContain("./compile-route-alerts");
-    expect(agentRunsRoute).toContain("./compile-route-agent-adapter");
-    expect(countLines("apps/gateway/src/routes/agent-runs.ts")).toBeLessThan(500);
+    expect(platformRunner).toContain("createControlPlaneClient");
+    expect(platformRunner).toContain("threadStore");
+    expect(platformRunner).not.toContain("/api/v2/agent/runs");
+    expect(countLines("apps/web/src/runtime/platform-runner.ts")).toBeLessThan(200);
+
+    expect(controlPlaneClient).toContain("/api/v3/threads");
+    expect(controlPlaneClient).toContain("/api/v3/runs/");
+    expect(countLines("apps/web/src/runtime/control-plane-client.ts")).toBeLessThan(
+      200
+    );
+
+    expect(runsRoute).toContain("DEFAULT_RUN_BUDGET");
+    expect(runsRoute).toContain("appendRunEvent");
+    expect(runsRoute).toContain("services.store.runs.createRun");
+    expect(countLines("apps/control-plane/src/routes/runs.ts")).toBeLessThan(200);
   });
 });

@@ -5,9 +5,9 @@ Updated: 2026-03-31
 
 ## M4 Release Boundary
 
-- Internal callers use `/api/v2/agent/runs`, and the legacy `/api/v1/chat/compile` route has been removed from the active gateway runtime.
-- This workspace records a direct cleanup cut to v2-only runtime behavior; no external-consumer observation artifact is attached here.
-- Demo/export/presentation work and any backend expansion beyond the current self-hosted gateway stay out of scope for this release gate.
+- Internal callers now use the platform control plane surfaces: `POST /api/v3/threads`, `POST /api/v3/threads/:threadId/runs`, and `GET /api/v3/runs/:runId/stream`.
+- Gateway remains active for health, Official token, backup, metrics, and version endpoints; legacy compile routes are no longer part of the active runtime boundary.
+- Demo/export/presentation work and any backend expansion beyond the current self-hosted gateway + control plane + worker stack stay out of scope for this release gate.
 
 ## Release Evidence
 
@@ -18,7 +18,7 @@ Updated: 2026-03-31
 - Remote backup settings E2E verification passed on 2026-03-31: `pnpm test:e2e -- tests/e2e/settings-drawer.backup.spec.ts tests/e2e/settings-drawer.remote-sync.spec.ts tests/e2e/settings-drawer.remote-import.spec.ts tests/e2e/settings-drawer.remote-history.spec.ts tests/e2e/settings-drawer.remote-protection.spec.ts`.
 - Studio/teacher/vnext regression verification passed on 2026-03-31: `pnpm test:e2e -- tests/e2e/studio-review-flow.spec.ts tests/e2e/studio-result-panel.spec.ts tests/e2e/studio-canvas-link.spec.ts tests/e2e/studio-input-panel.spec.ts tests/e2e/teacher-template-library.spec.ts tests/e2e/vnext-homepage.spec.ts tests/e2e/vnext-workspace-layout.spec.ts`.
 - Redis-backed localhost live verification passed on 2026-03-31 against `http://127.0.0.1:8877`, `http://127.0.0.1:8878`, and `http://127.0.0.1:8879`, with evidence in `output/ops/manual-phase4/redis-shared-state.json`, `output/ops/manual-phase4/backup-seed-live.json`, `output/ops/manual-phase4/smoke-live.json`, `output/ops/manual-phase4/backup-restore-live.json`, `output/ops/manual-phase4/benchmark-live.json`, `output/ops/manual-phase4/scheduled-live.json`, and `output/ops/2026-03-31T08-50-00-phase6-redis-live/summary.json`.
-- Historical 2026-03-19 evidence remains valid background context, but the current branch now also has fresh local verification after the legacy compile-route cutover and maintainability guard sync.
+- Historical 2026-03-19 evidence remains valid background context, but the current branch now also has fresh local verification after the platform run cutover and maintainability guard sync.
 
 ### 2026-03-19 Local Verification
 

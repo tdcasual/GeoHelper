@@ -1,7 +1,6 @@
-import { describe, expect, it } from "vitest";
-
 import type { Run } from "@geohelper/agent-protocol";
 import { createMemoryAgentStore } from "@geohelper/agent-store";
+import { describe, expect, it } from "vitest";
 
 import { createRunLoop } from "../src/run-loop";
 

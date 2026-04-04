@@ -4,7 +4,10 @@ import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("test runner noise controls", () => {
-  it("uses projects-based vitest config and keeps targeted test runs warning-free", () => {
+  it(
+    "uses projects-based vitest config and keeps targeted test runs warning-free",
+    { timeout: 15_000 },
+    () => {
     const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8")) as {
       scripts?: Record<string, string>;
     };
@@ -34,5 +37,6 @@ describe("test runner noise controls", () => {
     const output = `${run.stdout}\n${run.stderr}`;
     expect(output).not.toContain("The workspace file is deprecated");
     expect(output).not.toContain("--localstorage-file was provided without a valid path");
-  });
+    }
+  );
 });

@@ -4,7 +4,7 @@ test("studio input rail exposes image, text, and continue modes without regressi
   page
 }) => {
   await page.setViewportSize({ width: 1600, height: 960 });
-  await page.goto("http://localhost:5173");
+  await page.goto("/");
   await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
   const inputRail = page.getByTestId("studio-input-rail");

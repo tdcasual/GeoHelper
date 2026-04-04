@@ -1,7 +1,8 @@
+import type { RunEvent } from "@geohelper/agent-protocol";
+import type { RunSnapshot } from "@geohelper/agent-store";
+
 import { RuntimeApiError } from "../runtime/runtime-service";
-import type { RuntimeCompileResponse } from "../runtime/types";
 import type { ChatMode } from "../runtime/types";
-import { buildUncertaintyFollowUpPrompt } from "./chat-result";
 import { buildStudioCanvasLinks } from "./chat-result-linking";
 import type {
   ChatAttachment,
@@ -108,9 +109,6 @@ export const buildAssistantMessageFromGuard = (input: {
   }
 });
 
-const normalizeLines = (items: string[]): string[] =>
-  items.map((item) => item.trim()).filter(Boolean);
-
 const toUncertaintyId = (label: string, index: number): string =>
   `unc_${label
     .trim()
@@ -118,122 +116,158 @@ const toUncertaintyId = (label: string, index: number): string =>
     .replace(/[^\p{L}\p{N}]+/gu, "_")
     .replace(/^_+|_+$/g, "") || index + 1}`;
 
-const classifyReviewLines = (
-  items: string[],
-  mode: "summary" | "warning"
-): {
-  summaryItems: string[];
-  warningItems: string[];
-  uncertaintyItems: Array<{
-    id: string;
-    label: string;
-    followUpPrompt: string;
-    reviewStatus: "pending";
-  }>;
-} =>
-  normalizeLines(items).reduce<{
-    summaryItems: string[];
-    warningItems: string[];
-    uncertaintyItems: Array<{
-      id: string;
-      label: string;
-      followUpPrompt: string;
-      reviewStatus: "pending";
-    }>;
-  }>(
-    (acc, line) => {
-      if (line.startsWith("待确认：")) {
-        const label = line.replace("待确认：", "").trim();
-        if (label) {
-          acc.uncertaintyItems.push({
-            id: toUncertaintyId(label, acc.uncertaintyItems.length),
-            label,
-            followUpPrompt: buildUncertaintyFollowUpPrompt(label),
-            reviewStatus: "pending"
-          });
-        }
-        return acc;
-      }
+const getLatestArtifact = (
+  snapshot: RunSnapshot,
+  kind: "response" | "draft" | "tool_result" | "canvas_evidence"
+) =>
+  [...snapshot.artifacts]
+    .filter((artifact) => artifact.kind === kind)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+    .at(-1);
 
-      if (
-        mode === "warning" ||
-        line.startsWith("注意：") ||
-        line.startsWith("警告：")
-      ) {
-        acc.warningItems.push(line);
-        return acc;
-      }
+const getCommandCount = (snapshot: RunSnapshot): number => {
+  const toolResult = getLatestArtifact(snapshot, "tool_result");
+  const inlineData =
+    toolResult?.inlineData && typeof toolResult.inlineData === "object"
+      ? (toolResult.inlineData as Record<string, unknown>)
+      : null;
+  const commandBatch =
+    inlineData?.commandBatch && typeof inlineData.commandBatch === "object"
+      ? (inlineData.commandBatch as {
+          commands?: unknown[];
+        })
+      : null;
+  const metadataCommandCount =
+    typeof toolResult?.metadata.commandCount === "number"
+      ? toolResult.metadata.commandCount
+      : undefined;
 
-      acc.summaryItems.push(line);
-      return acc;
-    },
-    {
-      summaryItems: [],
-      warningItems: [],
-      uncertaintyItems: []
-    }
-  );
+  if (typeof metadataCommandCount === "number") {
+    return metadataCommandCount;
+  }
 
-export const buildAssistantMessageFromCompileResult = (input: {
-  id: string;
-  agentRun: RuntimeCompileResponse["agent_run"];
-  traceId?: RuntimeCompileResponse["trace_id"];
-}): ChatMessage => {
-  const batch = input.agentRun.draft.commandBatchDraft;
-  const teacherSummary = normalizeLines(input.agentRun.teacherPacket.summary);
-  const explanationReview = classifyReviewLines(batch.explanations, "summary");
-  const postCheckReview = classifyReviewLines(batch.post_checks, "warning");
-  const fallbackSummary = `已生成 ${batch.commands.length} 条指令`;
+  return Array.isArray(commandBatch?.commands) ? commandBatch.commands.length : 0;
+};
+
+const buildSummaryFromSnapshot = (snapshot: RunSnapshot) => {
+  const responseArtifact = getLatestArtifact(snapshot, "response");
+  const draftArtifact = getLatestArtifact(snapshot, "draft");
+  const responseData =
+    responseArtifact?.inlineData && typeof responseArtifact.inlineData === "object"
+      ? (responseArtifact.inlineData as Record<string, unknown>)
+      : null;
+  const draftData =
+    draftArtifact?.inlineData && typeof draftArtifact.inlineData === "object"
+      ? (draftArtifact.inlineData as Record<string, unknown>)
+      : null;
+
+  const responseSummary = Array.isArray(responseData?.summary)
+    ? responseData.summary.filter((item): item is string => typeof item === "string")
+    : [];
+  const draftSummary = Array.isArray(draftData?.summary)
+    ? draftData.summary.filter((item): item is string => typeof item === "string")
+    : [];
+  const title =
+    typeof responseData?.title === "string"
+      ? responseData.title
+      : typeof draftData?.title === "string"
+        ? draftData.title
+        : "";
+  const checkpointSummaries = snapshot.checkpoints
+    .filter((checkpoint) => checkpoint.status === "pending")
+    .map((checkpoint) => `等待处理：${checkpoint.title}`);
   const summaryItems =
-    teacherSummary.length > 0
-      ? teacherSummary
-      : explanationReview.summaryItems.length > 0
-        ? explanationReview.summaryItems
-      : [fallbackSummary];
-  const warningItems =
-    input.agentRun.teacherPacket.warnings.length > 0
-      ? normalizeLines(input.agentRun.teacherPacket.warnings)
-      : [
-          ...explanationReview.warningItems,
-          ...postCheckReview.warningItems
-        ];
-  const uncertaintyItems =
-    input.agentRun.teacherPacket.uncertainties.length > 0
-      ? input.agentRun.teacherPacket.uncertainties
-      : [
-          ...explanationReview.uncertaintyItems,
-          ...postCheckReview.uncertaintyItems
-        ];
-  const canvasLinks =
-    input.agentRun.teacherPacket.canvasLinks.length > 0
-      ? input.agentRun.teacherPacket.canvasLinks
-      : buildStudioCanvasLinks({
-          summaryItems,
-          warningItems,
-          uncertaintyItems
-        });
+    responseSummary.length > 0
+      ? responseSummary
+      : draftSummary.length > 0
+        ? draftSummary
+        : title
+          ? [title]
+          : checkpointSummaries.length > 0
+            ? checkpointSummaries
+            : [`Run 状态：${snapshot.run.status}`];
+
+  return {
+    summaryItems,
+    explanationLines: draftSummary.length > 0 ? draftSummary : responseSummary
+  };
+};
+
+const buildUncertaintyItems = (snapshot: RunSnapshot) =>
+  snapshot.checkpoints
+    .filter((checkpoint) => checkpoint.status === "pending")
+    .map((checkpoint, index) => ({
+      id: checkpoint.id || toUncertaintyId(checkpoint.title, index),
+      label: checkpoint.title,
+      followUpPrompt: checkpoint.prompt,
+      reviewStatus: "pending" as const
+    }));
+
+const buildWarningItems = (snapshot: RunSnapshot): string[] =>
+  snapshot.checkpoints
+    .filter((checkpoint) => checkpoint.status === "pending")
+    .map((checkpoint) => checkpoint.prompt);
+
+type AgentStep = NonNullable<ChatMessage["agentSteps"]>[number];
+
+const mapEventToAgentStep = (
+  event: RunEvent
+): AgentStep | null => {
+  if (event.type !== "node.completed" || typeof event.payload.nodeId !== "string") {
+    return null;
+  }
+
+  return {
+    name: event.payload.nodeId,
+    status: "ok",
+    duration_ms:
+      typeof event.payload.durationMs === "number" ? event.payload.durationMs : 0,
+    detail:
+      typeof event.payload.resultType === "string" ? event.payload.resultType : undefined
+  };
+};
+
+export const buildAssistantMessageFromRunResult = (input: {
+  id: string;
+  snapshot: RunSnapshot;
+  traceId?: string;
+}): ChatMessage => {
+  const summary = buildSummaryFromSnapshot(input.snapshot);
+  const uncertaintyItems = buildUncertaintyItems(input.snapshot);
+  const warningItems = buildWarningItems(input.snapshot);
+  const canvasLinks = buildStudioCanvasLinks({
+    summaryItems: summary.summaryItems,
+    warningItems,
+    uncertaintyItems
+  });
+  const commandCount = getCommandCount(input.snapshot);
+  const isError = input.snapshot.run.status === "failed";
+  const isGuard =
+    input.snapshot.run.status === "queued" ||
+    input.snapshot.run.status === "running" ||
+    input.snapshot.run.status === "waiting_for_checkpoint";
 
   return {
     id: input.id,
     role: "assistant",
-    content: summaryItems.join("\n"),
+    content: summary.summaryItems.join("\n"),
     result: {
-      status: input.agentRun.run.status === "failed" ? "error" : "success",
-      commandCount: batch.commands.length,
-      summaryItems,
-      explanationLines: normalizeLines(batch.explanations),
+      status: isError ? "error" : isGuard ? "guard" : "success",
+      commandCount,
+      summaryItems: summary.summaryItems,
+      explanationLines: summary.explanationLines,
       warningItems,
       uncertaintyItems,
       canvasLinks
     },
-    agentRunId: input.agentRun.run.id,
+    platformRunId: input.snapshot.run.id,
     traceId: input.traceId,
-    agentSteps: input.agentRun.telemetry.stages.map((stage) => ({
-      name: stage.name,
-      status: stage.status,
-      duration_ms: stage.durationMs,
-      detail: stage.detail
-    }))
+    agentSteps: input.snapshot.events
+      .map(mapEventToAgentStep)
+      .filter(
+        (step): step is NonNullable<ReturnType<typeof mapEventToAgentStep>> =>
+          step !== null
+      )
   };
 };
 

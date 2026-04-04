@@ -33,23 +33,101 @@ const jsonResponse = (
     }
   });
 
-describe("gateway runtime vision smoke", () => {
-  it("describes optional attachment checks in dry-run mode when identity enables attachments", async () => {
+const runSnapshotPayload = {
+  run: {
+    id: "run_platform_1",
+    threadId: "thread_platform_1",
+    workflowId: "wf_geometry_solver",
+    agentId: "geometry_solver",
+    status: "completed",
+    inputArtifactIds: [],
+    outputArtifactIds: ["artifact_response_1"],
+    budget: {
+      maxModelCalls: 6,
+      maxToolCalls: 8,
+      maxDurationMs: 120000
+    },
+    createdAt: "2026-04-04T00:00:00.000Z",
+    updatedAt: "2026-04-04T00:00:05.000Z"
+  },
+  events: [
+    {
+      id: "event_1",
+      runId: "run_platform_1",
+      sequence: 1,
+      type: "run.created",
+      payload: {},
+      createdAt: "2026-04-04T00:00:00.000Z"
+    },
+    {
+      id: "event_2",
+      runId: "run_platform_1",
+      sequence: 2,
+      type: "run.completed",
+      payload: {},
+      createdAt: "2026-04-04T00:00:05.000Z"
+    }
+  ],
+  checkpoints: [],
+  artifacts: [
+    {
+      id: "artifact_draft_1",
+      runId: "run_platform_1",
+      kind: "draft",
+      contentType: "application/json",
+      storage: "inline",
+      metadata: {},
+      inlineData: {
+        title: "几何草案"
+      },
+      createdAt: "2026-04-04T00:00:03.000Z"
+    },
+    {
+      id: "artifact_response_1",
+      runId: "run_platform_1",
+      kind: "response",
+      contentType: "application/json",
+      storage: "inline",
+      metadata: {},
+      inlineData: {
+        title: "几何结果"
+      },
+      createdAt: "2026-04-04T00:00:04.000Z"
+    },
+    {
+      id: "artifact_tool_1",
+      runId: "run_platform_1",
+      kind: "tool_result",
+      contentType: "application/json",
+      storage: "inline",
+      metadata: {
+        commandCount: 1
+      },
+      inlineData: {
+        commandBatch: {
+          commands: [{ name: "noop" }]
+        }
+      },
+      createdAt: "2026-04-04T00:00:02.000Z"
+    }
+  ],
+  memoryEntries: []
+};
+
+describe("gateway runtime platform smoke", () => {
+  it("describes platform run checks in dry-run mode", async () => {
     const buffer = createStdoutBuffer();
     const env = {
       ...process.env,
       ADMIN_METRICS_TOKEN: "admin-token",
-      SMOKE_GATEWAY_IDENTITY_JSON: JSON.stringify({
-        attachments_enabled: true
-      })
+      PRESET_TOKEN: "preset-token"
     };
 
     const checks = buildGatewayRuntimeChecks(env);
     expect(checks).toContainEqual({
-      name: "POST /api/v2/agent/runs (attachment)",
+      name: "POST /api/v3/threads",
       method: "POST",
-      path: "/api/v2/agent/runs",
-      capability: "attachments"
+      path: "/api/v3/threads"
     });
 
     const code = await runGatewayRuntimeSmoke({
@@ -62,6 +140,7 @@ describe("gateway runtime vision smoke", () => {
     expect(JSON.parse(buffer.read())).toEqual({
       dry_run: true,
       gateway_url: null,
+      control_plane_url: null,
       checks: [
         {
           name: "GET /api/v1/health",
@@ -79,34 +158,37 @@ describe("gateway runtime vision smoke", () => {
           path: "/admin/version"
         },
         {
-          name: "POST /api/v2/agent/runs",
+          name: "POST /api/v1/auth/token/login",
           method: "POST",
-          path: "/api/v2/agent/runs"
+          path: "/api/v1/auth/token/login"
         },
         {
-          name: "POST /api/v2/agent/runs (attachment)",
+          name: "POST /api/v1/auth/token/revoke",
           method: "POST",
-          path: "/api/v2/agent/runs",
-          capability: "attachments"
+          path: "/api/v1/auth/token/revoke"
         },
         {
-          name: "GET /admin/compile-events",
-          method: "GET",
-          path: "/admin/compile-events?limit=10"
+          name: "POST /api/v3/threads",
+          method: "POST",
+          path: "/api/v3/threads"
         },
         {
-          name: "GET /admin/metrics",
+          name: "POST /api/v3/threads/:threadId/runs",
+          method: "POST",
+          path: "/api/v3/threads/:threadId/runs"
+        },
+        {
+          name: "GET /api/v3/runs/:runId/stream",
           method: "GET",
-          path: "/admin/metrics"
+          path: "/api/v3/runs/:runId/stream"
         }
       ]
     });
   });
 
-  it("emits deterministic attachment smoke metadata when runtime identity advertises support", async () => {
+  it("emits deterministic platform run metadata for a completed snapshot", async () => {
     const buffer = createStdoutBuffer();
-    let metricsReadCount = 0;
-    const fetchImpl = vi.fn(async (input: URL | RequestInfo, options?: RequestInit) => {
+    const fetchImpl = vi.fn(async (input: URL | RequestInfo) => {
       const url = String(input);
       if (url.endsWith("/api/v1/health")) {
         return jsonResponse({ status: "ok" });
@@ -120,7 +202,7 @@ describe("gateway runtime vision smoke", () => {
           build_time: "2026-03-12T10:00:00.000Z",
           node_env: "production",
           redis_enabled: true,
-          attachments_enabled: true
+          attachments_enabled: false
         });
       }
       if (url.endsWith("/api/v1/auth/token/login")) {
@@ -133,67 +215,34 @@ describe("gateway runtime vision smoke", () => {
       if (url.endsWith("/api/v1/auth/token/revoke")) {
         return jsonResponse({ revoked: true });
       }
-      if (url.includes("/api/v2/agent/runs")) {
-        const body = JSON.parse(String(options?.body ?? "{}")) as {
-          attachments?: unknown[];
-        };
-        const attachmentCall = Array.isArray(body.attachments);
-        const traceId = attachmentCall ? "tr_attachment" : "tr_compile";
-        const runId = attachmentCall ? "run_attachment" : "run_compile";
-        return jsonResponse(
+      if (url.endsWith("/api/v3/threads")) {
+        return jsonResponse({
+          thread: {
+            id: "thread_platform_1",
+            title: "smoke thread",
+            createdAt: "2026-04-04T00:00:00.000Z"
+          }
+        });
+      }
+      if (url.endsWith("/api/v3/threads/thread_platform_1/runs")) {
+        return jsonResponse({
+          run: runSnapshotPayload.run
+        });
+      }
+      if (url.endsWith("/api/v3/runs/run_platform_1/stream")) {
+        return new Response(
+          [
+            "event: run.snapshot",
+            `data: ${JSON.stringify(runSnapshotPayload)}`,
+            ""
+          ].join("\n"),
           {
-            trace_id: traceId,
-            agent_run: {
-              run: {
-                id: runId,
-                mode: "byok",
-                status: "success"
-              },
-              draft: {
-                commandBatchDraft: {
-                  version: "1.0",
-                  scene_id: "s1",
-                  transaction_id: `tx_${runId}`,
-                  commands: [{ name: "noop" }],
-                  post_checks: [],
-                  explanations: []
-                }
-              },
-              telemetry: {
-                stages: [
-                  {
-                    name: "author",
-                    status: "ok",
-                    durationMs: 8
-                  }
-                ]
-              }
-            }
-          },
-          {
+            status: 200,
             headers: {
-              "x-trace-id": traceId
+              "content-type": "text/event-stream"
             }
           }
         );
-      }
-      if (url.includes("/admin/compile-events")) {
-        return jsonResponse({
-          events: [
-            {
-              traceId: "tr_compile",
-              finalStatus: "success"
-            }
-          ]
-        });
-      }
-      if (url.endsWith("/admin/metrics")) {
-        metricsReadCount += 1;
-        return jsonResponse({
-          compile: {
-            total_requests: metricsReadCount === 1 ? 5 : 7
-          }
-        });
       }
 
       throw new Error(`unexpected url: ${url}`);
@@ -214,41 +263,39 @@ describe("gateway runtime vision smoke", () => {
     const payload = JSON.parse(buffer.read()) as {
       dry_run: boolean;
       gateway_url: string;
+      control_plane_url: string;
       checks: Array<Record<string, unknown>>;
     };
 
     expect(payload.dry_run).toBe(false);
     expect(payload.gateway_url).toBe("https://gateway.example.com");
+    expect(payload.control_plane_url).toBe("https://gateway.example.com");
     expect(payload.checks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           name: "GET /admin/version",
           ok: true,
-          attachments_enabled: true
+          attachments_enabled: false
         }),
         expect.objectContaining({
-          name: "POST /api/v2/agent/runs",
+          name: "POST /api/v3/threads",
           ok: true,
-          trace_id: "tr_compile",
-          run_id: "run_compile",
+          thread_id: "thread_platform_1"
+        }),
+        expect.objectContaining({
+          name: "POST /api/v3/threads/:threadId/runs",
+          ok: true,
+          run_id: "run_platform_1",
+          run_status: "completed"
+        }),
+        expect.objectContaining({
+          name: "GET /api/v3/runs/:runId/stream",
+          ok: true,
+          run_id: "run_platform_1",
+          final_status: "completed",
           command_count: 1,
-          telemetry_stages: 1
-        }),
-        expect.objectContaining({
-          name: "POST /api/v2/agent/runs (attachment)",
-          ok: true,
-          attachments_count: 1,
-          trace_id: "tr_attachment",
-          run_id: "run_attachment",
-          command_count: 1,
-          telemetry_stages: 1
-        }),
-        expect.objectContaining({
-          name: "GET /admin/metrics",
-          ok: true,
-          total_requests_before: 5,
-          total_requests_after: 7,
-          total_requests_expected_min: 7
+          artifact_count: 3,
+          event_count: 2
         })
       ])
     );

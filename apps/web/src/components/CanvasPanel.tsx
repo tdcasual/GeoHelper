@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getGeoGebraAdapter, registerGeoGebraAdapter } from "../geogebra/adapter";
-import { executeBatch as executeGeoGebraCommandBatch } from "../geogebra/command-executor";
 import { toAppletPixelSize } from "../geogebra/applet-size";
+import { executeBatch as executeGeoGebraCommandBatch } from "../geogebra/command-executor";
 import { toGeoGebraRuntimeConfig } from "../geogebra/vendor-runtime";
 import { registerCanvasBridgeBindings } from "../runtime/browser-bridge";
 import { useSceneFocusStore } from "../state/scene-focus-store";

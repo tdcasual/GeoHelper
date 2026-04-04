@@ -1,5 +1,5 @@
-import type { ToolRegistry } from "./tool-registry";
 import { ensureToolPermissions, type ToolRunnerPolicy } from "./tool-policy";
+import type { ToolRegistry } from "./tool-registry";
 
 const redactValue = (value: unknown, redactPaths: string[]): unknown => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {

@@ -3,10 +3,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 const DEFAULT_CASES_PATH = "benchmarks/command-quality-cases.json";
+const DEFAULT_CONTROL_PLANE_URL = "http://127.0.0.1:4310";
+const DEFAULT_AGENT_ID = "geometry_solver";
+const DEFAULT_WORKFLOW_ID = "wf_geometry_solver";
 const DOMAIN_LIST = ["2d", "3d", "cas", "probability"];
 const CAPABILITY_GATES = {
-  gateway_attachments: "explicit_flag",
-  vision_smoke_required_when_enabled: true
+  platform_runs: "control_plane_v3",
+  run_snapshot_required: true
 };
 
 const args = parseArgs(process.argv.slice(2));
@@ -43,83 +46,81 @@ const cases = payload.cases.map((item, index) => {
 const byDomain = countByDomain(cases);
 
 if (args["dry-run"]) {
-  const dryRunPayload = {
-    dry_run: true,
-    case_file: path.relative(process.cwd(), absoluteCasesPath),
-    total_cases: cases.length,
-    by_domain: byDomain,
-    capability_gates: CAPABILITY_GATES
-  };
-  writeResult(dryRunPayload, args.output);
+  writeResult(
+    {
+      dry_run: true,
+      case_file: path.relative(process.cwd(), absoluteCasesPath),
+      total_cases: cases.length,
+      by_domain: byDomain,
+      capability_gates: CAPABILITY_GATES
+    },
+    args.output
+  );
   process.exit(0);
 }
 
-const gatewayUrl =
-  args["gateway-url"] ?? process.env.GATEWAY_URL ?? "http://127.0.0.1:8787";
-const endpoint = `${gatewayUrl.replace(/\/$/, "")}/api/v2/agent/runs`;
-const mode = args.mode ?? process.env.BENCH_MODE ?? "byok";
-const model = args.model ?? process.env.BENCH_MODEL;
-const sessionToken = args["session-token"] ?? process.env.SESSION_TOKEN;
-
-if (mode !== "byok" && mode !== "official") {
-  throw new Error(`Unsupported mode: ${mode}`);
-}
-
-if (mode === "official" && !sessionToken) {
-  throw new Error("official mode requires --session-token or SESSION_TOKEN");
-}
+const controlPlaneUrl = normalizeBaseUrl(
+  args["control-plane-url"] ?? process.env.CONTROL_PLANE_URL ?? DEFAULT_CONTROL_PLANE_URL
+);
 
 const startedAt = Date.now();
 const results = [];
 
 for (const testCase of cases) {
   const requestStartedAt = Date.now();
-  const headers = {
-    "content-type": "application/json"
-  };
-
-  if (mode === "official") {
-    headers.authorization = `Bearer ${sessionToken}`;
-  }
-
-  if (mode === "byok") {
-    if (process.env.BYOK_ENDPOINT) {
-      headers["x-byok-endpoint"] = process.env.BYOK_ENDPOINT;
-    }
-    if (process.env.BYOK_KEY) {
-      headers["x-byok-key"] = process.env.BYOK_KEY;
-    }
-  }
 
   try {
-    const response = await fetch(endpoint, {
+    const thread = await fetchJson(`${controlPlaneUrl}/api/v3/threads`, {
       method: "POST",
-      headers,
+      headers: {
+        "content-type": "application/json"
+      },
       body: JSON.stringify({
-        message: testCase.prompt,
-        mode,
-        ...(model ? { model } : {})
+        title: testCase.id
       })
     });
+    const threadId = String(thread?.thread?.id ?? "");
+    if (!threadId) {
+      throw new Error("missing_thread_id");
+    }
 
-    const latencyMs = Date.now() - requestStartedAt;
-    const responseBody = await response.json().catch(() => ({}));
+    const run = await fetchJson(
+      `${controlPlaneUrl}/api/v3/threads/${encodeURIComponent(threadId)}/runs`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          agentId: DEFAULT_AGENT_ID,
+          workflowId: DEFAULT_WORKFLOW_ID,
+          inputArtifactIds: []
+        })
+      }
+    );
+    const runId = String(run?.run?.id ?? "");
+    if (!runId) {
+      throw new Error("missing_run_id");
+    }
 
-    const agentRun = responseBody?.agent_run;
-    const commandBatch = agentRun?.draft?.commandBatchDraft;
+    const streamBody = await fetchText(
+      `${controlPlaneUrl}/api/v3/runs/${encodeURIComponent(runId)}/stream`
+    );
+    const snapshot = parseRunSnapshotStream(streamBody);
+    const commandCount = getCommandCount(snapshot);
     const ok =
-      response.ok &&
-      commandBatch &&
-      Array.isArray(commandBatch.commands);
+      snapshot?.run?.status !== "failed" &&
+      Array.isArray(snapshot?.artifacts) &&
+      commandCount > 0;
 
     results.push({
       id: testCase.id,
       domain: testCase.domain,
-      latency_ms: latencyMs,
+      latency_ms: Date.now() - requestStartedAt,
       ok,
-      status: response.status,
-      error_code: ok ? null : responseBody?.error?.code ?? null,
-      error_message: ok ? null : responseBody?.error?.message ?? null
+      status: snapshot?.run?.status ?? null,
+      error_code: ok ? null : "RUN_SNAPSHOT_INVALID",
+      error_message: ok ? null : "Run snapshot did not expose a command batch"
     });
   } catch (error) {
     results.push({
@@ -138,23 +139,22 @@ const completedAt = Date.now();
 
 const successCount = results.filter((item) => item.ok).length;
 const failedResults = results.filter((item) => !item.ok);
-const summary = {
-  dry_run: false,
-  gateway_url: gatewayUrl,
-  mode,
-  model: model ?? null,
-  case_file: path.relative(process.cwd(), absoluteCasesPath),
-  total_cases: results.length,
-  success_cases: successCount,
-  failed_cases: failedResults.length,
-  success_rate: toFixedNumber(successCount / Math.max(results.length, 1)),
-  elapsed_ms: completedAt - startedAt,
-  by_domain: buildDomainSummary(results),
-  failures: failedResults,
-  capability_gates: CAPABILITY_GATES
-};
-
-writeResult(summary, args.output);
+writeResult(
+  {
+    dry_run: false,
+    control_plane_url: controlPlaneUrl,
+    case_file: path.relative(process.cwd(), absoluteCasesPath),
+    total_cases: results.length,
+    success_cases: successCount,
+    failed_cases: failedResults.length,
+    success_rate: toFixedNumber(successCount / Math.max(results.length, 1)),
+    elapsed_ms: completedAt - startedAt,
+    by_domain: buildDomainSummary(results),
+    failures: failedResults,
+    capability_gates: CAPABILITY_GATES
+  },
+  args.output
+);
 
 if (failedResults.length > 0) {
   process.exitCode = 1;
@@ -196,20 +196,72 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  const lines = [
-    "Usage: node scripts/bench/run-quality-benchmark.mjs [options]",
-    "",
-    "Options:",
-    "  --dry-run                 Validate case file and print counts only",
-    "  --cases <path>            Benchmark case file (default: benchmarks/command-quality-cases.json)",
-    "  --gateway-url <url>       Gateway base URL (default: http://127.0.0.1:8787)",
-    "  --mode <byok|official>    Compile mode (default: byok)",
-    "  --model <model>           Optional model name override",
-    "  --session-token <token>   Required for official mode",
-    "  --output <path>           Write JSON result to a file",
-    "  --help                    Show this help"
-  ];
-  console.log(lines.join("\n"));
+  console.log(
+    [
+      "Usage: node scripts/bench/run-quality-benchmark.mjs [options]",
+      "",
+      "Options:",
+      "  --dry-run                   Validate case file and print counts only",
+      "  --cases <path>              Benchmark case file (default: benchmarks/command-quality-cases.json)",
+      "  --control-plane-url <url>   Control plane base URL",
+      "  --output <path>             Write JSON result to a file",
+      "  --help                      Show this help"
+    ].join("\n")
+  );
+}
+
+function normalizeBaseUrl(value) {
+  return String(value ?? "").replace(/\/+$/, "");
+}
+
+async function fetchJson(url, options) {
+  const response = await fetch(url, options);
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(
+      `request_failed:${response.status}:${JSON.stringify(body ?? null)}`
+    );
+  }
+
+  return body;
+}
+
+async function fetchText(url, options) {
+  const response = await fetch(url, options);
+  const body = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`request_failed:${response.status}:${body}`);
+  }
+
+  return body;
+}
+
+function parseRunSnapshotStream(payload) {
+  const dataLine = payload
+    .split("\n")
+    .find((line) => line.startsWith("data: "));
+
+  if (!dataLine) {
+    throw new Error("missing_run_snapshot");
+  }
+
+  return JSON.parse(dataLine.slice(6));
+}
+
+function getCommandCount(snapshot) {
+  const latestToolResult = [...(snapshot?.artifacts ?? [])]
+    .filter((artifact) => artifact?.kind === "tool_result")
+    .sort((left, right) => String(left?.createdAt).localeCompare(String(right?.createdAt)))
+    .at(-1);
+
+  if (typeof latestToolResult?.metadata?.commandCount === "number") {
+    return latestToolResult.metadata.commandCount;
+  }
+
+  const commands = latestToolResult?.inlineData?.commandBatch?.commands;
+  return Array.isArray(commands) ? commands.length : 0;
 }
 
 function countByDomain(items) {
@@ -267,34 +319,37 @@ function buildDomainSummary(results) {
   return summary;
 }
 
-function percentile(values, p) {
-  if (values.length === 0) {
+function average(values) {
+  if (!values.length) {
     return 0;
   }
 
-  const sorted = [...values].sort((a, b) => a - b);
-  const rank = Math.ceil(sorted.length * p) - 1;
-  const safeRank = Math.min(Math.max(rank, 0), sorted.length - 1);
-  return sorted[safeRank];
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function average(values) {
-  if (values.length === 0) {
+function percentile(values, ratio) {
+  if (!values.length) {
     return 0;
   }
 
-  const total = values.reduce((sum, value) => sum + value, 0);
-  return total / values.length;
+  const sorted = [...values].sort((left, right) => left - right);
+  const index = Math.min(
+    sorted.length - 1,
+    Math.max(0, Math.ceil(sorted.length * ratio) - 1)
+  );
+  return sorted[index] ?? 0;
 }
 
 function toFixedNumber(value) {
-  return Number(value.toFixed(4));
+  return Number((value || 0).toFixed(4));
 }
 
 function writeResult(payload, outputPath) {
-  const text = JSON.stringify(payload, null, 2);
+  const json = JSON.stringify(payload, null, 2);
   if (outputPath) {
-    fs.writeFileSync(path.resolve(process.cwd(), outputPath), text);
+    fs.writeFileSync(path.resolve(process.cwd(), outputPath), `${json}\n`, "utf8");
+    return;
   }
-  console.log(text);
+
+  process.stdout.write(`${json}\n`);
 }

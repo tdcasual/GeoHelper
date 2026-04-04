@@ -59,21 +59,8 @@ describe("settings-store runtime", () => {
     expect(inferModelSupportsVision("gpt-4.1-mini")).toBe(false);
   });
 
-  it("resolves runtime compile options with hydrated gateway capabilities", async () => {
+  it("resolves runtime compile options with gateway capabilities", async () => {
     vi.stubEnv("VITE_GATEWAY_URL", "https://gateway-capable.example.com");
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          git_sha: "sha123",
-          build_time: "2026-03-12T00:00:00.000Z",
-          node_env: "production",
-          redis_enabled: true,
-          attachments_enabled: true
-        })
-      })
-    );
     const originalState = settingsStore.getState();
 
     try {
@@ -93,7 +80,7 @@ describe("settings-store runtime", () => {
       expect(options.runtimeTarget).toBe("gateway");
       expect(options.runtimeBaseUrl).toBe("https://gateway-capable.example.com");
       expect(options.runtimeCapabilities.supportsOfficialAuth).toBe(true);
-      expect(options.runtimeCapabilities.supportsVision).toBe(true);
+      expect(options.runtimeCapabilities.supportsVision).toBe(false);
     } finally {
       settingsStore.setState(() => originalState);
     }

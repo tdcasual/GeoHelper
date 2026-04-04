@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("gateway runtime smoke script", () => {
-  it("exposes a dry-run plan with ordered gateway checks", () => {
+  it("exposes a dry-run plan with ordered gateway and platform checks", () => {
     const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8")) as {
       scripts?: Record<string, string>;
     };
@@ -57,19 +57,19 @@ describe("gateway runtime smoke script", () => {
         path: "/api/v1/auth/token/revoke"
       },
       {
-        name: "POST /api/v2/agent/runs",
+        name: "POST /api/v3/threads",
         method: "POST",
-        path: "/api/v2/agent/runs"
+        path: "/api/v3/threads"
       },
       {
-        name: "GET /admin/compile-events",
-        method: "GET",
-        path: "/admin/compile-events?limit=10"
+        name: "POST /api/v3/threads/:threadId/runs",
+        method: "POST",
+        path: "/api/v3/threads/:threadId/runs"
       },
       {
-        name: "GET /admin/metrics",
+        name: "GET /api/v3/runs/:runId/stream",
         method: "GET",
-        path: "/admin/metrics"
+        path: "/api/v3/runs/:runId/stream"
       }
     ]);
   });

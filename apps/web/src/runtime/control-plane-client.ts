@@ -2,6 +2,7 @@ import type { Checkpoint } from "@geohelper/agent-protocol";
 import type { RunSnapshot } from "@geohelper/agent-store";
 
 import type { PlatformThread } from "../state/thread-store";
+import { RuntimeApiError } from "./runtime-service";
 
 export interface ControlPlaneClient {
   createThread: (input: { title: string }) => Promise<PlatformThread>;
@@ -25,6 +26,74 @@ export interface ControlPlaneClientOptions {
 
 const normalizeBaseUrl = (baseUrl = ""): string => baseUrl.replace(/\/+$/, "");
 
+const parseErrorPayload = async (response: Response): Promise<RuntimeApiError> => {
+  try {
+    const payload = (await response.json()) as {
+      error?:
+        | {
+            code?: string;
+            message?: string;
+          }
+        | string;
+      message?: string;
+    };
+
+    if (typeof payload.error === "string") {
+      return new RuntimeApiError(payload.error, payload.error, response.status);
+    }
+
+    if (payload.error?.code || payload.error?.message) {
+      return new RuntimeApiError(
+        payload.error.code ?? "RUNTIME_REQUEST_FAILED",
+        payload.error.message ?? "Runtime request failed",
+        response.status
+      );
+    }
+
+    if (payload.message) {
+      return new RuntimeApiError(
+        "RUNTIME_REQUEST_FAILED",
+        payload.message,
+        response.status
+      );
+    }
+  } catch {
+    // Ignore parse failures and fall back to the status text.
+  }
+
+  return new RuntimeApiError(
+    "RUNTIME_REQUEST_FAILED",
+    response.statusText || "Runtime request failed",
+    response.status
+  );
+};
+
+const requestJson = async <T>(
+  fetchImpl: typeof fetch,
+  input: string,
+  init: RequestInit = {}
+): Promise<T> => {
+  const response = await fetchImpl(input, init);
+  if (!response.ok) {
+    throw await parseErrorPayload(response);
+  }
+
+  return (await response.json()) as T;
+};
+
+const requestText = async (
+  fetchImpl: typeof fetch,
+  input: string,
+  init: RequestInit = {}
+): Promise<string> => {
+  const response = await fetchImpl(input, init);
+  if (!response.ok) {
+    throw await parseErrorPayload(response);
+  }
+
+  return await response.text();
+};
+
 const parseSseSnapshot = (payload: string): RunSnapshot => {
   const dataLine = payload
     .split("\n")
@@ -45,7 +114,9 @@ export const createControlPlaneClient = ({
 
   return {
     createThread: async ({ title }) => {
-      const response = await fetchImpl(`${resolvedBaseUrl}/api/v3/threads`, {
+      const payload = await requestJson<{
+        thread: PlatformThread;
+      }>(fetchImpl, `${resolvedBaseUrl}/api/v3/threads`, {
         method: "POST",
         headers: {
           "content-type": "application/json"
@@ -54,14 +125,14 @@ export const createControlPlaneClient = ({
           title
         })
       });
-      const payload = (await response.json()) as {
-        thread: PlatformThread;
-      };
 
       return payload.thread;
     },
     startRun: async ({ threadId, agentId, workflowId, inputArtifactIds = [] }) => {
-      const response = await fetchImpl(
+      const payload = await requestJson<{
+        run: RunSnapshot["run"];
+      }>(
+        fetchImpl,
         `${resolvedBaseUrl}/api/v3/threads/${encodeURIComponent(threadId)}/runs`,
         {
           method: "POST",
@@ -75,22 +146,21 @@ export const createControlPlaneClient = ({
           })
         }
       );
-      const payload = (await response.json()) as {
-        run: RunSnapshot["run"];
-      };
 
       return payload.run;
     },
-    streamRun: async (runId) => {
-      const response = await fetchImpl(
+    streamRun: async (runId) =>
+      parseSseSnapshot(
+        await requestText(
+          fetchImpl,
         `${resolvedBaseUrl}/api/v3/runs/${encodeURIComponent(runId)}/stream`
-      );
-      const payload = await response.text();
-
-      return parseSseSnapshot(payload);
-    },
+        )
+      ),
     resolveCheckpoint: async (checkpointId, responsePayload) => {
-      const response = await fetchImpl(
+      const payload = await requestJson<{
+        checkpoint: Checkpoint;
+      }>(
+        fetchImpl,
         `${resolvedBaseUrl}/api/v3/checkpoints/${encodeURIComponent(
           checkpointId
         )}/resolve`,
@@ -104,9 +174,6 @@ export const createControlPlaneClient = ({
           })
         }
       );
-      const payload = (await response.json()) as {
-        checkpoint: Checkpoint;
-      };
 
       return payload.checkpoint;
     }

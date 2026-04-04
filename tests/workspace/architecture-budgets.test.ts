@@ -23,13 +23,16 @@ describe("architecture budgets", () => {
       "store"
     );
     expect(reportModule.classifyFile("apps/web/src/styles.css")).toBe("style");
-    expect(reportModule.classifyFile("apps/web/src/runtime/gateway-client.ts")).toBe(
+    expect(
+      reportModule.classifyFile("apps/web/src/runtime/control-plane-client.ts")
+    ).toBe("module");
+    expect(reportModule.classifyFile("apps/web/src/runtime/platform-runner.ts")).toBe(
       "module"
     );
     expect(reportModule.classifyFile("apps/web/src/storage/backup-import.ts")).toBe(
       "module"
     );
-    expect(reportModule.classifyFile("apps/gateway/src/routes/agent-runs.ts")).toBe(
+    expect(reportModule.classifyFile("apps/control-plane/src/routes/runs.ts")).toBe(
       "module"
     );
     expect(reportModule.classifyFile("packages/protocol/src/schema.ts")).toBe("other");
@@ -47,7 +50,7 @@ describe("architecture budgets", () => {
     ).toBe("test");
     expect(
       reportModule.resolveBudgetCategory(
-        "apps/web/src/runtime/gateway-client.test.ts",
+        "apps/web/src/runtime/browser-bridge.test.ts",
         "test"
       )
     ).toBe("test");
@@ -76,7 +79,10 @@ describe("architecture budgets", () => {
       "apps/web/src/components/settings-remote-backup.test.ts"
     );
     expect(hotspotPaths).not.toContain("apps/web/src/state/settings-store.test.ts");
-    expect(hotspotPaths).not.toContain("apps/gateway/src/routes/agent-runs.ts");
+    expect(hotspotPaths).not.toContain("apps/web/src/runtime/control-plane-client.ts");
+    expect(hotspotPaths).not.toContain("apps/web/src/runtime/platform-runner.ts");
+    expect(hotspotPaths).not.toContain("apps/control-plane/src/routes/runs.ts");
+    expect(hotspotPaths).not.toContain("apps/control-plane/src/routes/admin-runs.ts");
     expect(hotspotPaths).not.toContain("apps/web/src/storage/backup-import.ts");
     const includeTestHotspots = reportModule.collectHotspots({
       cwd: process.cwd(),
@@ -87,7 +93,6 @@ describe("architecture budgets", () => {
       (item: { filePath: string }) => item.filePath
     );
     expect(includeTestHotspotPaths).not.toContain("tests/e2e/settings-drawer.spec.ts");
-    expect(includeTestHotspotPaths).not.toContain("tests/e2e/settings-drawer.general.spec.ts");
     expect(includeTestHotspotPaths).not.toContain("tests/e2e/settings-drawer.backup.spec.ts");
     expect(includeTestHotspotPaths).not.toContain("tests/e2e/settings-drawer.rollback.spec.ts");
     expect(includeTestHotspotPaths).not.toContain(
@@ -119,12 +124,7 @@ describe("architecture budgets", () => {
     expect(includeTestHotspotPaths).not.toContain(
       "apps/web/src/storage/backup.import.test.ts"
     );
-    expect(includeTestHotspotPaths).not.toContain(
-      "apps/web/src/runtime/gateway-client.test.ts"
-    );
-    expect(includeTestHotspotPaths).not.toContain(
-      "apps/web/src/runtime/gateway-client.history.test.ts"
-    );
+    expect(includeTestHotspotPaths).not.toContain("apps/web/src/runtime/browser-bridge.test.ts");
     expect(includeTestHotspotPaths).not.toContain(
       "apps/gateway/test/redis-backup-store.test.ts"
     );
@@ -154,12 +154,18 @@ describe("architecture budgets", () => {
     expect(countLines("apps/web/src/storage/backup.ts")).toBeLessThan(450);
     expect(countLines("apps/web/src/storage/backup-import.ts")).toBeLessThan(450);
     expect(countLines("apps/web/src/storage/remote-sync.ts")).toBeLessThan(320);
-    expect(countLines("apps/web/src/runtime/gateway-client.ts")).toBeLessThan(500);
-    expect(countLines("apps/gateway/src/routes/agent-runs.ts")).toBeLessThan(500);
+    expect(countLines("apps/web/src/runtime/control-plane-client.ts")).toBeLessThan(
+      200
+    );
+    expect(countLines("apps/web/src/runtime/platform-runner.ts")).toBeLessThan(200);
+    expect(countLines("apps/control-plane/src/routes/runs.ts")).toBeLessThan(200);
+    expect(countLines("apps/control-plane/src/routes/admin-runs.ts")).toBeLessThan(
+      200
+    );
     expect(countLines("apps/gateway/src/routes/admin.ts")).toBeLessThan(500);
     expect(countLines("apps/web/src/state/settings-store.test.ts")).toBeLessThan(260);
     expect(countLines("apps/web/src/storage/backup.test.ts")).toBeLessThan(260);
-    expect(countLines("apps/web/src/runtime/gateway-client.test.ts")).toBeLessThan(
+    expect(countLines("apps/web/src/runtime/browser-bridge.test.ts")).toBeLessThan(
       260
     );
     expect(countLines("apps/gateway/test/admin-backups.test.ts")).toBeLessThan(260);
@@ -167,7 +173,6 @@ describe("architecture budgets", () => {
       260
     );
     expect(countLines("tests/e2e/settings-drawer.spec.ts")).toBeLessThan(260);
-    expect(countLines("tests/e2e/settings-drawer.general.spec.ts")).toBeLessThan(600);
     expect(countLines("tests/e2e/settings-drawer.backup.spec.ts")).toBeLessThan(600);
     expect(countLines("tests/e2e/settings-drawer.rollback.spec.ts")).toBeLessThan(600);
     expect(countLines("tests/e2e/settings-drawer.remote-sync.spec.ts")).toBeLessThan(600);
@@ -225,13 +230,15 @@ describe("architecture budgets", () => {
     expect(baseline).toContain("chat-store.ts < 500");
     expect(baseline).toContain("backup.ts < 450");
     expect(baseline).toContain("backup-import.ts < 450");
-    expect(baseline).toContain("gateway-client.ts < 500");
-    expect(baseline).toContain("agent-runs.ts < 500");
+    expect(baseline).toContain("control-plane-client.ts < 200");
+    expect(baseline).toContain("platform-runner.ts < 200");
+    expect(baseline).toContain("runs.ts < 200");
+    expect(baseline).toContain("admin-runs.ts < 200");
     expect(baseline).toContain("admin.ts < 500");
     expect(baseline).toContain("remote-sync.ts < 320");
     expect(baseline).toContain("settings-store.test.ts < 260");
     expect(baseline).toContain("backup.test.ts < 260");
-    expect(baseline).toContain("gateway-client.test.ts < 260");
+    expect(baseline).toContain("browser-bridge.test.ts < 260");
     expect(baseline).toContain("admin-backups.test.ts < 260");
     expect(baseline).toContain("redis-backup-store.test.ts < 260");
     expect(baseline).toContain("settings-drawer.spec.ts < 260");

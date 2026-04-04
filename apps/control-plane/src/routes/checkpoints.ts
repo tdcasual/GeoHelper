@@ -4,9 +4,8 @@ import { z } from "zod";
 
 import {
   appendRunEvent,
-  findCheckpointById,
-  type ControlPlaneServices
-} from "../control-plane-context";
+  type ControlPlaneServices,
+  findCheckpointById} from "../control-plane-context";
 
 const ResolveCheckpointBodySchema = z.object({
   response: z.unknown()

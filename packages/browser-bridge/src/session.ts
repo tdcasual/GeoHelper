@@ -1,7 +1,6 @@
 import {
-  BrowserToolRequestSchema,
-  type BrowserToolRequest
-} from "./commands";
+  type BrowserToolRequest,
+  BrowserToolRequestSchema} from "./commands";
 
 export interface BrowserBridgeSession {
   id: string;
