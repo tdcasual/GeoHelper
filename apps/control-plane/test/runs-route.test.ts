@@ -81,8 +81,7 @@ describe("control-plane runs routes", () => {
       run: {
         id: "run_1",
         threadId: "thread_1",
-        workflowId: "wf_geometry_solver",
-        agentId: "geometry_solver",
+        profileId: "platform_geometry_quick_draft",
         status: "queued",
         inputArtifactIds: ["artifact_input_1"],
         outputArtifactIds: [],
@@ -105,6 +104,7 @@ describe("control-plane runs routes", () => {
     expect(streamRes.headers["content-type"]).toContain("text/event-stream");
     expect(streamRes.payload).toContain("event: run.snapshot");
     expect(streamRes.payload).toContain("\"id\":\"run_1\"");
+    expect(streamRes.payload).toContain("\"profileId\":\"platform_geometry_quick_draft\"");
     expect(streamRes.payload).toContain("\"type\":\"run.created\"");
   });
 

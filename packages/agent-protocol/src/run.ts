@@ -25,8 +25,7 @@ export const RunBudgetSchema = z.object({
 export const RunSchema = z.object({
   id: z.string().min(1),
   threadId: z.string().min(1),
-  workflowId: z.string().min(1),
-  agentId: z.string().min(1),
+  profileId: z.string().min(1),
   status: RunStatusSchema,
   parentRunId: z.string().min(1).optional(),
   inputArtifactIds: z.array(z.string().min(1)),

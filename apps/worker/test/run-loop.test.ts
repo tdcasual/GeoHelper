@@ -7,8 +7,7 @@ import { createRunLoop } from "../src/run-loop";
 const createRun = (overrides: Partial<Run> = {}) => ({
   id: "run_1",
   threadId: "thread_1",
-  workflowId: "wf_basic",
-  agentId: "geometry_solver",
+  profileId: "profile_basic",
   status: "queued" as const,
   inputArtifactIds: [],
   outputArtifactIds: [],
@@ -26,7 +25,8 @@ describe("worker run loop", () => {
   it("claims queued runs in FIFO order", () => {
     const loop = createRunLoop({
       store: createMemoryAgentStore(),
-      workflows: {}
+      workflows: {},
+      runProfiles: {}
     });
 
     loop.enqueue("run_1");
@@ -44,6 +44,20 @@ describe("worker run loop", () => {
 
     const loop = createRunLoop({
       store,
+      runProfiles: {
+        profile_basic: {
+          id: "profile_basic",
+          name: "Basic workflow",
+          description: "Basic run profile",
+          agentId: "geometry_solver",
+          workflowId: "wf_basic",
+          defaultBudget: {
+            maxModelCalls: 6,
+            maxToolCalls: 8,
+            maxDurationMs: 120000
+          }
+        }
+      },
       workflows: {
         wf_basic: {
           id: "wf_basic",
@@ -84,11 +98,25 @@ describe("worker run loop", () => {
     const store = createMemoryAgentStore();
 
     await store.runs.createRun(createRun({
-      workflowId: "wf_browser_tool"
+      profileId: "profile_browser_tool"
     }));
 
     const loop = createRunLoop({
       store,
+      runProfiles: {
+        profile_browser_tool: {
+          id: "profile_browser_tool",
+          name: "Browser tool workflow",
+          description: "Browser tool run profile",
+          agentId: "geometry_solver",
+          workflowId: "wf_browser_tool",
+          defaultBudget: {
+            maxModelCalls: 6,
+            maxToolCalls: 8,
+            maxDurationMs: 120000
+          }
+        }
+      },
       workflows: {
         wf_browser_tool: {
           id: "wf_browser_tool",
@@ -132,11 +160,25 @@ describe("worker run loop", () => {
     const store = createMemoryAgentStore();
 
     await store.runs.createRun(createRun({
-      workflowId: "wf_browser_tool"
+      profileId: "profile_browser_tool"
     }));
 
     const loop = createRunLoop({
       store,
+      runProfiles: {
+        profile_browser_tool: {
+          id: "profile_browser_tool",
+          name: "Browser tool workflow",
+          description: "Browser tool run profile",
+          agentId: "geometry_solver",
+          workflowId: "wf_browser_tool",
+          defaultBudget: {
+            maxModelCalls: 6,
+            maxToolCalls: 8,
+            maxDurationMs: 120000
+          }
+        }
+      },
       workflows: {
         wf_browser_tool: {
           id: "wf_browser_tool",
@@ -190,5 +232,27 @@ describe("worker run loop", () => {
     expect(resolved.map((checkpoint) => checkpoint.id)).toEqual([
       pendingCheckpoint!.id
     ]);
+  });
+
+  it("fails runs whose selected profile is missing from the worker catalog", async () => {
+    const store = createMemoryAgentStore();
+
+    await store.runs.createRun(createRun({
+      profileId: "profile_missing"
+    }));
+
+    const loop = createRunLoop({
+      store,
+      runProfiles: {},
+      workflows: {}
+    });
+
+    loop.enqueue("run_1");
+
+    const result = await loop.tick();
+    const run = await store.runs.getRun("run_1");
+
+    expect(result?.status).toBe("failed");
+    expect(run?.status).toBe("failed");
   });
 });

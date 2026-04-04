@@ -61,8 +61,7 @@ describe("platform run selectors", () => {
     const run: Run = {
       id: "run_1",
       threadId: "thread_1",
-      workflowId: "wf_geometry_solver",
-      agentId: "geometry_solver",
+      profileId: "platform_geometry_standard",
       status: "completed",
       inputArtifactIds: [],
       outputArtifactIds: [],

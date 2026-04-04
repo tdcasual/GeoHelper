@@ -31,7 +31,7 @@ export const RunConsole = ({
         <h2>Run Console</h2>
         <p>{run.id}</p>
         <p>
-          {run.agentId} · {run.status}
+          {run.profileId} · {run.status}
         </p>
         <p>事件数：{events.length}</p>
       </section>

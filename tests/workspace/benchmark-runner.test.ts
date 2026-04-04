@@ -133,8 +133,7 @@ describe("quality benchmark runner", () => {
               run: {
                 id: "run_bench_1",
                 threadId: "thread_bench_1",
-                workflowId: "wf_geometry_solver",
-                agentId: "geometry_solver",
+                profileId: "platform_geometry_standard",
                 status: "completed",
                 inputArtifactIds: [],
                 outputArtifactIds: ["artifact_response_1"],
@@ -162,8 +161,7 @@ describe("quality benchmark runner", () => {
                 run: {
                   id: "run_bench_1",
                   threadId: "thread_bench_1",
-                  workflowId: "wf_geometry_solver",
-                  agentId: "geometry_solver",
+                  profileId: "platform_geometry_standard",
                   status: "completed",
                   inputArtifactIds: [],
                   outputArtifactIds: ["artifact_response_1"],

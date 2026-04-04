@@ -5,8 +5,7 @@ import { createWorkflowEngine } from "../src";
 const createRun = () => ({
   id: "run_1",
   threadId: "thread_1",
-  workflowId: "wf_geometry_solver",
-  agentId: "geometry_solver",
+  profileId: "platform_geometry_standard",
   status: "queued" as const,
   inputArtifactIds: [],
   outputArtifactIds: [],

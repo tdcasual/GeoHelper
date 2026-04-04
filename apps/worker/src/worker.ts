@@ -1,5 +1,8 @@
 import type { NodeHandlerMap } from "@geohelper/agent-core";
-import type { WorkflowDefinition } from "@geohelper/agent-protocol";
+import type {
+  PlatformRunProfile,
+  WorkflowDefinition
+} from "@geohelper/agent-protocol";
 import type { AgentStore } from "@geohelper/agent-store";
 
 import { createBrowserToolDispatch } from "./browser-tool-dispatch";
@@ -8,6 +11,7 @@ import { createRunLoop } from "./run-loop";
 export interface WorkerRuntimeOptions {
   store: AgentStore;
   workflows: Record<string, WorkflowDefinition>;
+  runProfiles: Record<string, PlatformRunProfile>;
   handlers?: NodeHandlerMap;
   now?: () => string;
 }
@@ -15,6 +19,7 @@ export interface WorkerRuntimeOptions {
 export const createWorkerRuntime = ({
   store,
   workflows,
+  runProfiles,
   handlers,
   now
 }: WorkerRuntimeOptions) => {
@@ -22,6 +27,7 @@ export const createWorkerRuntime = ({
   const runLoop = createRunLoop({
     store,
     workflows,
+    runProfiles,
     handlers,
     now,
     browserToolDispatch

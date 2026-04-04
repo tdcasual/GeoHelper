@@ -12,8 +12,7 @@ import { RunConsole } from "./RunConsole";
 const run: Run = {
   id: "run_1",
   threadId: "thread_1",
-  workflowId: "wf_geometry_solver",
-  agentId: "geometry_solver",
+  profileId: "platform_geometry_standard",
   status: "waiting_for_checkpoint",
   inputArtifactIds: ["artifact_input_1"],
   outputArtifactIds: [],
@@ -129,6 +128,7 @@ describe("RunConsole", () => {
     );
 
     expect(pendingMarkup).toContain("Confirm geometry draft");
+    expect(pendingMarkup).toContain("platform_geometry_standard");
     expect(resolvedMarkup).toContain("暂无待处理 checkpoint");
     expect(resolvedMarkup).toContain("修正版草案");
     expect(resolvedMarkup).toContain("scene_1");

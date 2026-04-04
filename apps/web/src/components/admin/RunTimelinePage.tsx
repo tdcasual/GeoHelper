@@ -30,7 +30,7 @@ export const RunTimelinePage = ({
     <header>
       <h2>{run.id}</h2>
       <p>
-        {run.agentId} · {run.status}
+        {run.profileId} · {run.status}
       </p>
     </header>
 

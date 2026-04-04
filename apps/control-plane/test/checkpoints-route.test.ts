@@ -10,8 +10,7 @@ describe("control-plane checkpoint routes", () => {
     await store.runs.createRun({
       id: "run_1",
       threadId: "thread_1",
-      workflowId: "wf_geometry_solver",
-      agentId: "geometry_solver",
+      profileId: "platform_geometry_standard",
       status: "waiting_for_checkpoint",
       inputArtifactIds: [],
       outputArtifactIds: [],

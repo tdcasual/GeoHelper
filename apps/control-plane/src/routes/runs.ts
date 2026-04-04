@@ -41,8 +41,7 @@ export const registerRunsRoutes = (
     const run = RunSchema.parse({
       id: services.buildRunId(),
       threadId: params.threadId,
-      workflowId: runProfile.workflowId,
-      agentId: runProfile.agentId,
+      profileId: runProfile.id,
       status: "queued",
       inputArtifactIds: body.inputArtifactIds,
       outputArtifactIds: [],

@@ -10,8 +10,7 @@ describe("control-plane admin routes", () => {
     await store.runs.createRun({
       id: "run_completed",
       threadId: "thread_1",
-      workflowId: "wf_geometry_solver",
-      agentId: "geometry_solver",
+      profileId: "platform_geometry_standard",
       status: "completed",
       inputArtifactIds: [],
       outputArtifactIds: [],
@@ -27,8 +26,7 @@ describe("control-plane admin routes", () => {
     await store.runs.createRun({
       id: "run_waiting",
       threadId: "thread_2",
-      workflowId: "wf_geometry_solver",
-      agentId: "geometry_solver",
+      profileId: "platform_geometry_standard",
       status: "waiting_for_checkpoint",
       inputArtifactIds: [],
       outputArtifactIds: [],
@@ -67,8 +65,7 @@ describe("control-plane admin routes", () => {
     await store.runs.createRun({
       id: "run_1",
       threadId: "thread_1",
-      workflowId: "wf_geometry_solver",
-      agentId: "geometry_solver",
+      profileId: "platform_geometry_standard",
       status: "completed",
       inputArtifactIds: [],
       outputArtifactIds: [],
@@ -115,7 +112,8 @@ describe("control-plane admin routes", () => {
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.payload)).toEqual({
       run: expect.objectContaining({
-        id: "run_1"
+        id: "run_1",
+        profileId: "platform_geometry_standard"
       }),
       events: [
         expect.objectContaining({

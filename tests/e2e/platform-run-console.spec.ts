@@ -37,8 +37,7 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
         run: {
           id: "run_platform_1",
           threadId: "thread_platform_1",
-          workflowId: "wf_geometry_solver",
-          agentId: "geometry_solver",
+          profileId: "platform_geometry_standard",
           status: "waiting_for_checkpoint",
           inputArtifactIds: [],
           outputArtifactIds: [],
@@ -67,8 +66,7 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
           run: {
             id: "run_platform_1",
             threadId: "thread_platform_1",
-            workflowId: "wf_geometry_solver",
-            agentId: "geometry_solver",
+            profileId: "platform_geometry_standard",
             status: "waiting_for_checkpoint",
             inputArtifactIds: [],
             outputArtifactIds: [],
@@ -151,6 +149,9 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
 
   await expect(page.getByTestId("run-console")).toBeVisible();
   await expect(page.getByTestId("run-console")).toContainText("run_platform_1");
+  await expect(page.getByTestId("run-console")).toContainText(
+    "platform_geometry_standard"
+  );
   await expect(page.getByTestId("run-console")).toContainText("waiting_for_checkpoint");
   await expect(page.getByTestId("run-console")).toContainText("checkpoint.waiting");
 

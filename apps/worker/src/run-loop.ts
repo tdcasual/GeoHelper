@@ -5,7 +5,12 @@ import {
   type WorkflowEngineState,
   type WorkflowExecutionResult
 } from "@geohelper/agent-core";
-import type { Run, RunEvent, WorkflowDefinition } from "@geohelper/agent-protocol";
+import type {
+  PlatformRunProfile,
+  Run,
+  RunEvent,
+  WorkflowDefinition
+} from "@geohelper/agent-protocol";
 import { CheckpointSchema } from "@geohelper/agent-protocol";
 import type { AgentStore } from "@geohelper/agent-store";
 
@@ -18,6 +23,7 @@ import { createModelDispatch } from "./model-dispatch";
 export interface RunLoopOptions {
   store: AgentStore;
   workflows: Record<string, WorkflowDefinition>;
+  runProfiles: Record<string, PlatformRunProfile>;
   handlers?: NodeHandlerMap;
   browserToolDispatch?: BrowserToolDispatch;
   now?: () => string;
@@ -82,6 +88,7 @@ const mapExecutionStatusToRunStatus = (
 export const createRunLoop = ({
   store,
   workflows,
+  runProfiles,
   handlers = {},
   browserToolDispatch = createBrowserToolDispatch(),
   now = defaultNow,
@@ -139,6 +146,35 @@ export const createRunLoop = ({
     return updatedRun;
   };
 
+  const failRun = async (
+    run: Run,
+    reason: WorkflowExecutionResult["failureReason"]
+  ): Promise<WorkflowExecutionResult> => {
+    const storedEvents = await store.events.listRunEvents(run.id);
+    const failureEvent: RunEvent = {
+      id: `event_${storedEvents.length + 1}`,
+      runId: run.id,
+      sequence: storedEvents.length + 1,
+      type: "run.failed",
+      payload: {
+        reason,
+        profileId: run.profileId
+      },
+      createdAt: now()
+    };
+
+    await store.events.appendRunEvent(failureEvent);
+    await persistRunStatus(run, "failed");
+
+    return {
+      status: "failed",
+      visitedNodeIds: [],
+      events: [...storedEvents, failureEvent],
+      spawnedRunIds: [],
+      failureReason: reason
+    };
+  };
+
   const resolvePendingBrowserCheckpoint = async (
     result: BrowserToolResult
   ): Promise<void> => {
@@ -177,16 +213,14 @@ export const createRunLoop = ({
         return null;
       }
 
-      const workflow = workflows[run.workflowId];
+      const runProfile = runProfiles[run.profileId];
+      if (!runProfile) {
+        return failRun(run, "missing_profile");
+      }
+
+      const workflow = workflows[runProfile.workflowId];
       if (!workflow) {
-        await persistRunStatus(run, "failed");
-        return {
-          status: "failed",
-          visitedNodeIds: [],
-          events: [],
-          spawnedRunIds: [],
-          failureReason: "missing_node"
-        };
+        return failRun(run, "missing_workflow");
       }
 
       if (run.status === "waiting_for_checkpoint") {

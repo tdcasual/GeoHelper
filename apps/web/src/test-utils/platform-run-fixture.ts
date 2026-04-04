@@ -16,8 +16,7 @@ export const createRunSnapshotFixture = (
   run: {
     id: "run_fixture",
     threadId: "thread_fixture",
-    workflowId: "wf_geometry_solver",
-    agentId: "geometry_solver",
+    profileId: "platform_geometry_standard",
     status: "completed",
     inputArtifactIds: [],
     outputArtifactIds: ["artifact_response_fixture"],

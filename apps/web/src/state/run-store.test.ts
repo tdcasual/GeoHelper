@@ -7,8 +7,7 @@ const createSnapshot = (status: "queued" | "completed", eventCount: number): Run
   run: {
     id: "run_1",
     threadId: "thread_1",
-    workflowId: "wf_geometry_solver",
-    agentId: "geometry_solver",
+    profileId: "platform_geometry_standard",
     status,
     inputArtifactIds: ["artifact_input_1"],
     outputArtifactIds: [],

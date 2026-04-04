@@ -12,8 +12,7 @@ import { RunTimelinePage } from "./RunTimelinePage";
 const run: Run = {
   id: "run_1",
   threadId: "thread_1",
-  workflowId: "wf_geometry_solver",
-  agentId: "geometry_solver",
+  profileId: "platform_geometry_standard",
   status: "waiting_for_checkpoint",
   inputArtifactIds: [],
   outputArtifactIds: [],
@@ -79,6 +78,7 @@ describe("RunTimelinePage", () => {
     );
 
     expect(markup).toContain("run_1");
+    expect(markup).toContain("platform_geometry_standard");
     expect(markup).toContain("node.started");
     expect(markup).toContain("Confirm geometry draft");
     expect(markup).toContain("teacher_preference");

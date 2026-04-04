@@ -71,7 +71,12 @@ export interface WorkflowExecutionResult {
   events: RunEvent[];
   spawnedRunIds: string[];
   pendingCheckpoint?: Checkpoint;
-  failureReason?: "model_budget_exhausted" | "tool_budget_exhausted" | "missing_node";
+  failureReason?:
+    | "model_budget_exhausted"
+    | "tool_budget_exhausted"
+    | "missing_node"
+    | "missing_profile"
+    | "missing_workflow";
   state?: WorkflowEngineState;
 }
 

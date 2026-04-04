@@ -9,8 +9,7 @@ describe("agent store", () => {
     await store.runs.createRun({
       id: "run_1",
       threadId: "thread_1",
-      workflowId: "wf_geometry_solver",
-      agentId: "geometry_solver",
+      profileId: "platform_geometry_standard",
       status: "queued",
       inputArtifactIds: ["artifact_input_1"],
       outputArtifactIds: [],
@@ -74,6 +73,7 @@ describe("agent store", () => {
     const snapshot = await store.loadRunSnapshot("run_1");
 
     expect(snapshot?.run.id).toBe("run_1");
+    expect(snapshot?.run.profileId).toBe("platform_geometry_standard");
     expect(snapshot?.events).toHaveLength(1);
     expect(snapshot?.checkpoints).toHaveLength(1);
     expect(snapshot?.artifacts).toHaveLength(1);
