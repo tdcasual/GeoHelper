@@ -1,6 +1,7 @@
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 
+import { createControlPlaneClient } from "../runtime/control-plane-client";
 import {
   ChatMode,
   PlatformRunProfile,
@@ -15,6 +16,10 @@ import {
   EncryptedSecret,
   SecretService
 } from "../services/secure-secret";
+import {
+  createPlatformRunProfileCatalogState,
+  type PlatformRunProfileCatalogState,
+  resolvePlatformRunProfileCatalogGateway} from "./platform-run-profile-catalog";
 import type { PersistedSettingsSnapshot } from "./settings-persistence";
 import {
   loadSettingsSnapshot,
@@ -110,6 +115,7 @@ export interface RuntimeProfile {
 }
 
 export interface SettingsStoreState extends PersistedSettingsSnapshot {
+  platformRunProfileCatalog: PlatformRunProfileCatalogState;
   drawerOpen: boolean;
   byokRuntimeIssue: ByokRuntimeIssue | null;
   remoteBackupSyncPreferences: RemoteBackupSyncPreferences;
@@ -130,6 +136,7 @@ export interface SettingsStoreState extends PersistedSettingsSnapshot {
   }) => string;
   setDefaultRuntimeProfile: (id: string) => void;
   setDefaultPlatformAgentProfile: (id: string) => void;
+  refreshPlatformRunProfiles: () => Promise<void>;
   setDefaultMode: (mode: ChatMode) => void;
   setRemoteBackupAdminToken: (token: string) => Promise<void>;
   readRemoteBackupAdminToken: () => Promise<string | null>;
@@ -221,6 +228,7 @@ export const createSettingsStore = (
 
   return createStore<SettingsStoreState>((set, get) => ({
     ...initial,
+    platformRunProfileCatalog: createPlatformRunProfileCatalogState(),
     drawerOpen: false,
     byokRuntimeIssue: null,
     remoteBackupSync: createInitialRemoteBackupSyncState(),
@@ -242,6 +250,79 @@ export const createSettingsStore = (
       saveState,
       secretService: deps.secretService
     }),
+    refreshPlatformRunProfiles: async () => {
+      set((state) => ({
+        platformRunProfileCatalog: {
+          ...state.platformRunProfileCatalog,
+          status: "loading",
+          error: null
+        }
+      }));
+
+      const refreshedAt = new Date().toISOString();
+      const gateway = resolvePlatformRunProfileCatalogGateway({
+        runtimeProfiles: get().runtimeProfiles,
+        defaultRuntimeProfileId: get().defaultRuntimeProfileId
+      });
+
+      if (!gateway) {
+        set(() => ({
+          platformRunProfileCatalog: createPlatformRunProfileCatalogState({
+            status: "ready",
+            lastFetchedAt: refreshedAt
+          })
+        }));
+        return;
+      }
+
+      try {
+        const profiles = await createControlPlaneClient({
+          baseUrl: gateway.baseUrl
+        }).listRunProfiles();
+
+        if (profiles.length === 0) {
+          throw new Error("control-plane 未返回可用的平台链路");
+        }
+
+        set((state) => {
+          const healedProfileId =
+            profiles.find(
+              (profile) => profile.id === state.defaultPlatformAgentProfileId
+            )?.id ??
+            profiles[0]?.id ??
+            state.defaultPlatformAgentProfileId;
+
+          if (healedProfileId !== state.defaultPlatformAgentProfileId) {
+            saveState({
+              ...state,
+              defaultPlatformAgentProfileId: healedProfileId
+            });
+          }
+
+          return {
+            defaultPlatformAgentProfileId: healedProfileId,
+            platformRunProfileCatalog: createPlatformRunProfileCatalogState({
+              profiles,
+              source: "control_plane",
+              status: "ready",
+              error: null,
+              lastFetchedAt: refreshedAt
+            })
+          };
+        });
+      } catch (error) {
+        set(() => ({
+          platformRunProfileCatalog: createPlatformRunProfileCatalogState({
+            status: "error",
+            error:
+              error instanceof Error
+                ? error.message
+                : "platform run profile catalog refresh failed",
+            lastFetchedAt: refreshedAt
+          })
+        }));
+      }
+    },
     ...createSessionAndDebugActions({
       set,
       saveState
@@ -261,6 +342,7 @@ const applySettingsSnapshotToStore = (
     runtimeProfiles: snapshot.runtimeProfiles,
     defaultRuntimeProfileId: snapshot.defaultRuntimeProfileId,
     defaultPlatformAgentProfileId: snapshot.defaultPlatformAgentProfileId,
+    platformRunProfileCatalog: state.platformRunProfileCatalog,
     byokPresets: snapshot.byokPresets,
     officialPresets: snapshot.officialPresets,
     defaultByokPresetId: snapshot.defaultByokPresetId,

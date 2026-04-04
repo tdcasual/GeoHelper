@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { openWorkspace } from "./settings-drawer.test-helpers";
+import {
+  openWorkspace,
+  seedGatewayRemoteBackupSettings
+} from "./settings-drawer.test-helpers";
 
 test("opens settings as centered modal with section navigation", async ({ page }) => {
   await openWorkspace(page);
@@ -60,4 +63,51 @@ test("opening settings preserves desktop history preference", async ({ page }) =
   await expect(page.getByTestId("settings-modal")).toBeHidden();
   await expect(page.getByTestId("conversation-sidebar")).toBeVisible();
   await expect(page.getByTestId("history-toggle-button")).toHaveText("收起历史");
+});
+
+test("settings drawer platform run profiles loads and refreshes control-plane catalog", async ({
+  page
+}) => {
+  let runProfileRequests = 0;
+
+  await seedGatewayRemoteBackupSettings(page);
+  await page.route("https://gateway.example.com/api/v3/run-profiles", async (route) => {
+    runProfileRequests += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        runProfiles: [
+          {
+            id: "platform_remote_geometry_pro",
+            name: "远端几何增强",
+            description: "control-plane 下发的增强版本",
+            agentId: "geometry_solver",
+            workflowId: "wf_geometry_solver",
+            defaultBudget: {
+              maxModelCalls: 9,
+              maxToolCalls: 12,
+              maxDurationMs: 180000
+            }
+          }
+        ]
+      })
+    });
+  });
+
+  await openWorkspace(page);
+  await page.getByRole("button", { name: "设置" }).click();
+
+  await expect(page.getByTestId("platform-run-profile-select")).toBeVisible();
+  await expect(page.getByTestId("platform-run-profile-select")).toContainText(
+    "远端几何增强"
+  );
+  await expect(page.getByText("目录来源：Control Plane")).toBeVisible();
+  await expect.poll(() => runProfileRequests).toBe(1);
+
+  await page.getByTestId("platform-run-profile-refresh").click();
+  await expect.poll(() => runProfileRequests).toBe(2);
+  await expect(page.getByTestId("platform-run-profile-select")).toContainText(
+    "远端几何增强"
+  );
 });
