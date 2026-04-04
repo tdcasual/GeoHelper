@@ -9,6 +9,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@geohelper/agent-core": "workspace:*",
+    "@geohelper/agent-protocol": "workspace:*",
+    "@geohelper/agent-store": "workspace:*",
     "tsx": "^4.20.5"
   },
   "devDependencies": {

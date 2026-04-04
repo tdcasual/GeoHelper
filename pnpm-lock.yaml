@@ -129,6 +129,15 @@ importers:
 
   apps/worker:
     dependencies:
+      '@geohelper/agent-core':
+        specifier: workspace:*
+        version: link:../../packages/agent-core
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../../packages/agent-protocol
+      '@geohelper/agent-store':
+        specifier: workspace:*
+        version: link:../../packages/agent-store
       tsx:
         specifier: ^4.20.5
         version: 4.21.0
