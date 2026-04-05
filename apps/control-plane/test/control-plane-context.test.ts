@@ -2,13 +2,102 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import {
+  createPlatformRuntimeContext,
+  type PlatformRuntimeContext
+} from "@geohelper/agent-core";
 import { createGeometryDomainPackage } from "@geohelper/agent-domain-geometry";
+import type { PlatformAgentDefinition } from "@geohelper/agent-protocol";
 import { describe, expect, it } from "vitest";
 
 import {
   createControlPlaneServices,
   createControlPlaneStoreFromEnv
 } from "../src/control-plane-context";
+
+const createTestPlatformRuntime = () =>
+  createPlatformRuntimeContext({
+    agents: {
+      geometry_solver: {
+        id: "geometry_solver",
+        name: "Geometry Solver",
+        description: "Test agent",
+        workflowId: "wf_basic",
+        toolNames: [],
+        evaluatorNames: [],
+        defaultBudget: {
+          maxModelCalls: 6,
+          maxToolCalls: 8,
+          maxDurationMs: 120000
+        }
+      }
+    },
+    runProfiles: {
+      profile_basic: {
+        id: "profile_basic",
+        name: "Test workflow",
+        description: "Test run profile",
+        agentId: "geometry_solver",
+        workflowId: "wf_basic",
+        defaultBudget: {
+          maxModelCalls: 6,
+          maxToolCalls: 8,
+          maxDurationMs: 120000
+        }
+      }
+    },
+    runProfileMap: new Map([
+      [
+        "profile_basic",
+        {
+          id: "profile_basic",
+          name: "Test workflow",
+          description: "Test run profile",
+          agentId: "geometry_solver",
+          workflowId: "wf_basic",
+          defaultBudget: {
+            maxModelCalls: 6,
+            maxToolCalls: 8,
+            maxDurationMs: 120000
+          }
+        }
+      ]
+    ]),
+    workflows: {
+      wf_basic: {
+        id: "wf_basic",
+        version: 1,
+        entryNodeId: "node_plan",
+        nodes: [
+          {
+            id: "node_plan",
+            kind: "planner",
+            name: "Plan",
+            config: {},
+            next: ["node_finish"]
+          },
+          {
+            id: "node_finish",
+            kind: "synthesizer",
+            name: "Finish",
+            config: {},
+            next: []
+          }
+        ]
+      }
+    },
+    tools: {},
+    evaluators: {}
+  }) as PlatformRuntimeContext<
+    PlatformAgentDefinition,
+    {
+      name: string;
+      kind: string;
+      permissions?: string[];
+      retryable?: boolean;
+    },
+    unknown
+  >;
 
 describe("control-plane context", () => {
   it("seeds default run profiles from the shared geometry domain registry", () => {
@@ -98,5 +187,43 @@ describe("control-plane context", () => {
     const secondStore = createControlPlaneStoreFromEnv({});
 
     expect(await secondStore.runs.getRun("run_memory_default")).toBeNull();
+  });
+
+  it("drives the inline worker through durable dispatch records", async () => {
+    const store = createControlPlaneStoreFromEnv({});
+    const services = createControlPlaneServices({
+      store,
+      platformRuntime: createTestPlatformRuntime()
+    });
+
+    await store.runs.createRun({
+      id: "run_inline_dispatch",
+      threadId: "thread_inline_dispatch",
+      profileId: "profile_basic",
+      status: "queued",
+      inputArtifactIds: [],
+      outputArtifactIds: [],
+      budget: {
+        maxModelCalls: 6,
+        maxToolCalls: 8,
+        maxDurationMs: 120000
+      },
+      createdAt: "2026-04-05T00:00:00.000Z",
+      updatedAt: "2026-04-05T00:00:00.000Z"
+    });
+
+    await services.processRun("run_inline_dispatch");
+
+    const run = await store.runs.getRun("run_inline_dispatch");
+    const events = await store.events.listRunEvents("run_inline_dispatch");
+
+    expect(run?.status).toBe("completed");
+    expect(events.map((event) => event.type)).toContain("run.completed");
+    expect(
+      await store.dispatches.claimNextDispatch({
+        workerId: "worker_observer",
+        claimedAt: "2026-04-05T00:01:00.000Z"
+      })
+    ).toBeNull();
   });
 });

@@ -59,6 +59,28 @@ create table if not exists memory_entries (
   created_at text not null
 );
 
+create table if not exists run_dispatches (
+  id text primary key,
+  run_id text not null,
+  worker_id text,
+  created_at text not null,
+  claimed_at text,
+  foreign key (run_id) references runs(id) on delete cascade
+);
+
+create table if not exists workflow_engine_states (
+  run_id text primary key,
+  next_node_id text,
+  visited_node_ids_json text not null,
+  emitted_event_count integer not null,
+  spawned_run_ids_json text not null,
+  budget_usage_json text not null,
+  pending_checkpoint_id text not null,
+  updated_at text not null,
+  foreign key (run_id) references runs(id) on delete cascade,
+  foreign key (pending_checkpoint_id) references checkpoints(id) on delete cascade
+);
+
 create index if not exists idx_runs_status_created_at
   on runs(status, created_at);
 
@@ -76,3 +98,9 @@ create index if not exists idx_artifacts_run_id_created_at
 
 create index if not exists idx_memory_entries_source_run_id_created_at
   on memory_entries(source_run_id, created_at);
+
+create index if not exists idx_run_dispatches_created_at
+  on run_dispatches(created_at);
+
+create index if not exists idx_run_dispatches_worker_id_claimed_at
+  on run_dispatches(worker_id, claimed_at);

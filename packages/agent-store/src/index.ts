@@ -9,6 +9,15 @@ import type {
 
 import type { ArtifactRepo } from "./repos/artifact-repo";
 import type { CheckpointRepo } from "./repos/checkpoint-repo";
+import type {
+  ClaimNextDispatchInput,
+  DispatchRepo,
+  RunDispatch
+} from "./repos/dispatch-repo";
+import type {
+  EngineStateRepo,
+  WorkflowEngineStateRecord
+} from "./repos/engine-state-repo";
 import type { EventRepo } from "./repos/event-repo";
 import type { MemoryEntryFilter, MemoryRepo } from "./repos/memory-repo";
 import type { AgentStoreResult, RunFilter, RunRepo, RunSnapshot } from "./repos/run-repo";
@@ -64,6 +73,8 @@ export interface AgentStore {
   checkpoints: CheckpointRepo;
   artifacts: ArtifactRepo;
   memory: MemoryRepo;
+  dispatches: DispatchRepo;
+  engineStates: EngineStateRepo;
   loadRunSnapshot: (runId: string) => AgentStoreResult<RunSnapshot | null>;
 }
 
@@ -73,6 +84,9 @@ export const createMemoryAgentStore = (): AgentStore => {
   const checkpointsByRun = new Map<string, Map<string, Checkpoint>>();
   const artifactsByRun = new Map<string, Map<string, Artifact>>();
   const memoryEntries = new Map<string, MemoryEntry>();
+  const runDispatches: RunDispatch[] = [];
+  const engineStates = new Map<string, WorkflowEngineStateRecord>();
+  let dispatchCount = 0;
 
   const runRepo: RunRepo = {
     createRun: (run) => {
@@ -99,6 +113,10 @@ export const createMemoryAgentStore = (): AgentStore => {
       next.set(checkpoint.id, checkpoint);
       checkpointsByRun.set(checkpoint.runId, next);
     },
+    getCheckpoint: (checkpointId) =>
+      [...checkpointsByRun.values()]
+        .flatMap((items) => [...items.values()])
+        .find((item) => item.id === checkpointId) ?? null,
     listRunCheckpoints: (runId) =>
       [...(checkpointsByRun.get(runId)?.values() ?? [])].sort(byCreatedAt),
     listCheckpointsByStatus: (status: CheckpointStatus) =>
@@ -131,12 +149,67 @@ export const createMemoryAgentStore = (): AgentStore => {
     listMemoryEntriesForRun: (runId) => listMemoryEntries({ sourceRunId: runId })
   };
 
+  const dispatchRepo: DispatchRepo = {
+    enqueueRun: (runId, createdAt = new Date().toISOString()) => {
+      dispatchCount += 1;
+      const dispatch: RunDispatch = {
+        id: `dispatch_${dispatchCount}`,
+        runId,
+        createdAt
+      };
+
+      runDispatches.push(dispatch);
+
+      return dispatch;
+    },
+    claimNextDispatch: ({
+      workerId,
+      claimedAt
+    }: ClaimNextDispatchInput) => {
+      const nextDispatch = runDispatches.find(
+        (dispatch) => dispatch.workerId === undefined
+      );
+
+      if (!nextDispatch) {
+        return null;
+      }
+
+      nextDispatch.workerId = workerId;
+      nextDispatch.claimedAt = claimedAt;
+
+      return {
+        ...nextDispatch
+      };
+    },
+    completeDispatch: (dispatchId) => {
+      const dispatchIndex = runDispatches.findIndex(
+        (dispatch) => dispatch.id === dispatchId
+      );
+
+      if (dispatchIndex >= 0) {
+        runDispatches.splice(dispatchIndex, 1);
+      }
+    }
+  };
+
+  const engineStateRepo: EngineStateRepo = {
+    upsertState: (state) => {
+      engineStates.set(state.runId, state);
+    },
+    getState: (runId) => engineStates.get(runId) ?? null,
+    deleteState: (runId) => {
+      engineStates.delete(runId);
+    }
+  };
+
   return {
     runs: runRepo,
     events: eventRepo,
     checkpoints: checkpointRepo,
     artifacts: artifactRepo,
     memory: memoryRepo,
+    dispatches: dispatchRepo,
+    engineStates: engineStateRepo,
     loadRunSnapshot: async (runId) => {
       const run = await runRepo.getRun(runId);
       if (!run) {
@@ -156,6 +229,8 @@ export const createMemoryAgentStore = (): AgentStore => {
 
 export type * from "./repos/artifact-repo";
 export type * from "./repos/checkpoint-repo";
+export type * from "./repos/dispatch-repo";
+export type * from "./repos/engine-state-repo";
 export type * from "./repos/event-repo";
 export type * from "./repos/memory-repo";
 export type * from "./repos/run-repo";

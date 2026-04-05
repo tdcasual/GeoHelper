@@ -9,7 +9,10 @@ import {
   type GeometryEvaluator
 } from "@geohelper/agent-domain-geometry";
 import type { PlatformAgentDefinition } from "@geohelper/agent-protocol";
-import type { AgentStore } from "@geohelper/agent-store";
+import {
+  type AgentStore,
+  createMemoryAgentStore,
+  createSqliteAgentStore} from "@geohelper/agent-store";
 
 import { createBrowserToolDispatch } from "./browser-tool-dispatch";
 import {
@@ -28,6 +31,20 @@ export interface WorkerRuntimeOptions {
   now?: () => string;
 }
 
+export const createWorkerStoreFromEnv = (
+  env: NodeJS.ProcessEnv = process.env
+): AgentStore => {
+  const sqlitePath = env.GEOHELPER_AGENT_STORE_SQLITE_PATH?.trim();
+
+  if (sqlitePath) {
+    return createSqliteAgentStore({
+      path: sqlitePath
+    });
+  }
+
+  return createMemoryAgentStore();
+};
+
 export const createWorkerRuntime = ({
   store,
   platformRuntime,
@@ -39,8 +56,7 @@ export const createWorkerRuntime = ({
     store,
     platformRuntime,
     handlers,
-    now,
-    browserToolDispatch
+    now
   });
 
   return {

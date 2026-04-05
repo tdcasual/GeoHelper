@@ -307,4 +307,58 @@ describe("agent store", () => {
       });
     }
   });
+
+  it("persists queued dispatches across sqlite store reopen", async () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "geohelper-agent-store-"));
+    const databasePath = path.join(tempDir, "agent-store.sqlite");
+
+    try {
+      const store = createSqliteAgentStore({
+        path: databasePath
+      });
+
+      await store.runs.createRun({
+        id: "run_sqlite_pending",
+        threadId: "thread_sqlite_pending",
+        profileId: "platform_geometry_standard",
+        status: "queued",
+        inputArtifactIds: [],
+        outputArtifactIds: [],
+        budget: {
+          maxModelCalls: 4,
+          maxToolCalls: 8,
+          maxDurationMs: 60_000
+        },
+        createdAt: "2026-04-05T00:00:00.000Z",
+        updatedAt: "2026-04-05T00:00:00.000Z"
+      });
+      await store.dispatches.enqueueRun("run_sqlite_pending");
+
+      const reopened = createSqliteAgentStore({
+        path: databasePath
+      });
+      const claimed = await reopened.dispatches.claimNextDispatch({
+        workerId: "worker_1",
+        claimedAt: "2026-04-05T00:03:00.000Z"
+      });
+
+      expect(claimed).toEqual(
+        expect.objectContaining({
+          runId: "run_sqlite_pending",
+          workerId: "worker_1"
+        })
+      );
+      expect(
+        await reopened.dispatches.claimNextDispatch({
+          workerId: "worker_2",
+          claimedAt: "2026-04-05T00:04:00.000Z"
+        })
+      ).toBeNull();
+    } finally {
+      rmSync(tempDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
 });

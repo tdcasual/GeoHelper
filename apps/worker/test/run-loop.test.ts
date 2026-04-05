@@ -1,7 +1,14 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
 import { createPlatformRuntimeContext } from "@geohelper/agent-core";
 import { createGeometryDomainPackage } from "@geohelper/agent-domain-geometry";
 import type { Run } from "@geohelper/agent-protocol";
-import { createMemoryAgentStore } from "@geohelper/agent-store";
+import {
+  createMemoryAgentStore,
+  createSqliteAgentStore
+} from "@geohelper/agent-store";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -305,6 +312,130 @@ describe("worker run loop", () => {
     expect(resolved.map((checkpoint) => checkpoint.id)).toEqual([
       pendingCheckpoint!.id
     ]);
+  });
+
+  it("resumes a checkpointed run after sqlite store reopen", async () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "geohelper-worker-loop-"));
+    const databasePath = path.join(tempDir, "agent-store.sqlite");
+
+    try {
+      const store = createSqliteAgentStore({
+        path: databasePath
+      });
+
+      await store.runs.createRun(createRun({
+        profileId: "profile_browser_tool"
+      }));
+      await store.dispatches.enqueueRun("run_1");
+
+      const firstLoop = createRunLoop({
+        store,
+        workerId: "worker_1",
+        platformRuntime: createTestPlatformRuntime({
+          profileId: "profile_browser_tool",
+          workflowId: "wf_browser_tool",
+          workflow: {
+            id: "wf_browser_tool",
+            version: 1,
+            entryNodeId: "node_browser_tool",
+            nodes: [
+              {
+                id: "node_browser_tool",
+                kind: "tool",
+                name: "Apply command batch",
+                config: {
+                  toolName: "scene.apply_command_batch"
+                },
+                next: ["node_finish"]
+              },
+              {
+                id: "node_finish",
+                kind: "synthesizer",
+                name: "Finish",
+                config: {},
+                next: []
+              }
+            ]
+          },
+          tools: {
+            "scene.apply_command_batch": createTestTool(
+              "scene.apply_command_batch",
+              "browser_tool"
+            )
+          }
+        })
+      });
+
+      const firstResult = await firstLoop.tick();
+      const pendingCheckpoint = (
+        await store.checkpoints.listCheckpointsByStatus("pending")
+      )[0];
+
+      expect(firstResult?.status).toBe("waiting_for_checkpoint");
+      expect(pendingCheckpoint?.id).toBeDefined();
+
+      const reopened = createSqliteAgentStore({
+        path: databasePath
+      });
+      await reopened.checkpoints.upsertCheckpoint({
+        ...pendingCheckpoint!,
+        status: "resolved",
+        response: {
+          artifactId: "artifact_tool_1"
+        },
+        resolvedAt: "2026-04-05T00:01:00.000Z"
+      });
+      await reopened.dispatches.enqueueRun("run_1");
+
+      const resumedLoop = createRunLoop({
+        store: reopened,
+        workerId: "worker_2",
+        platformRuntime: createTestPlatformRuntime({
+          profileId: "profile_browser_tool",
+          workflowId: "wf_browser_tool",
+          workflow: {
+            id: "wf_browser_tool",
+            version: 1,
+            entryNodeId: "node_browser_tool",
+            nodes: [
+              {
+                id: "node_browser_tool",
+                kind: "tool",
+                name: "Apply command batch",
+                config: {
+                  toolName: "scene.apply_command_batch"
+                },
+                next: ["node_finish"]
+              },
+              {
+                id: "node_finish",
+                kind: "synthesizer",
+                name: "Finish",
+                config: {},
+                next: []
+              }
+            ]
+          },
+          tools: {
+            "scene.apply_command_batch": createTestTool(
+              "scene.apply_command_batch",
+              "browser_tool"
+            )
+          }
+        })
+      });
+
+      const resumed = await resumedLoop.tick();
+      const run = await reopened.runs.getRun("run_1");
+
+      expect(resumed?.status).toBe("completed");
+      expect(run?.status).toBe("completed");
+    } finally {
+      rmSync(tempDir, {
+        recursive: true,
+        force: true
+      });
+    }
   });
 
   it("fails runs whose selected profile is missing from the worker catalog", async () => {

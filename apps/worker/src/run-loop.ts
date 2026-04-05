@@ -16,9 +16,8 @@ import { type CheckpointKind,CheckpointSchema } from "@geohelper/agent-protocol"
 import type { AgentStore } from "@geohelper/agent-store";
 
 import {
-  type BrowserToolDispatch,
-  type BrowserToolResult,
-  createBrowserToolDispatch} from "./browser-tool-dispatch";
+  type BrowserToolResult
+} from "./browser-tool-dispatch";
 import { createModelDispatch } from "./model-dispatch";
 
 export interface WorkerToolRegistration {
@@ -40,9 +39,9 @@ export interface RunLoopOptions {
     unknown
   >;
   handlers?: NodeHandlerMap;
-  browserToolDispatch?: BrowserToolDispatch;
   now?: () => string;
   buildCheckpointId?: () => string;
+  workerId?: string;
 }
 
 const defaultNow = (): string => new Date().toISOString();
@@ -124,18 +123,16 @@ const mapExecutionStatusToRunStatus = (
   return "waiting_for_checkpoint";
 };
 
+const readSync = <T>(value: T | Promise<T>): T => value as T;
+
 export const createRunLoop = ({
   store,
   platformRuntime,
   handlers = {},
-  browserToolDispatch = createBrowserToolDispatch(),
   now = defaultNow,
-  buildCheckpointId = createCheckpointIdFactory()
+  buildCheckpointId = createCheckpointIdFactory(),
+  workerId = "worker_local"
 }: RunLoopOptions) => {
-  const queue: string[] = [];
-  const pausedStates = new Map<string, WorkflowEngineState>();
-  const persistedEngineEventCounts = new Map<string, number>();
-  const checkpointResolutions = new Map<string, CheckpointResolution>();
   const engine = createWorkflowEngine({
     now,
     handlers: createModelDispatch({
@@ -151,9 +148,9 @@ export const createRunLoop = ({
 
   const persistExecutionEvents = async (
     runId: string,
-    events: RunEvent[]
+    events: RunEvent[],
+    alreadyPersisted = 0
   ): Promise<void> => {
-    const alreadyPersisted = persistedEngineEventCounts.get(runId) ?? 0;
     const nextEvents = events.slice(alreadyPersisted);
 
     if (nextEvents.length === 0) {
@@ -171,8 +168,6 @@ export const createRunLoop = ({
       });
       nextSequence += 1;
     }
-
-    persistedEngineEventCounts.set(runId, events.length);
   };
 
   const persistRunStatus = async (
@@ -213,6 +208,7 @@ export const createRunLoop = ({
 
     await store.events.appendRunEvent(failureEvent);
     await persistRunStatus(run, "failed");
+    await store.engineStates.deleteState(run.id);
 
     return {
       status: "failed",
@@ -223,123 +219,186 @@ export const createRunLoop = ({
     };
   };
 
-  const resolvePendingBrowserCheckpoint = async (
-    resolution: CheckpointResolution
+  const persistWaitingState = async (
+    runId: string,
+    state: WorkflowEngineState,
+    pendingCheckpointId: string
   ): Promise<void> => {
-    const pendingCheckpoint = (
-      await store.checkpoints.listCheckpointsByStatus("pending")
-    ).find((checkpoint) => checkpoint.id === resolution.checkpointId);
+    await store.engineStates.upsertState({
+      runId,
+      nextNodeId: state.nextNodeId,
+      visitedNodeIds: state.visitedNodeIds,
+      emittedEventCount: state.events.length,
+      spawnedRunIds: state.spawnedRunIds,
+      budgetUsage: state.budgetUsage,
+      pendingCheckpointId,
+      updatedAt: now()
+    });
+  };
 
-    if (!pendingCheckpoint) {
+  const resolvePendingBrowserCheckpoint = (result: BrowserToolResult): void => {
+    const pendingCheckpoint = readSync(
+      store.checkpoints.getCheckpoint(result.checkpointId)
+    );
+
+    if (!pendingCheckpoint || pendingCheckpoint.status !== "pending") {
       return;
     }
 
-    await store.checkpoints.upsertCheckpoint({
+    void readSync(
+      store.checkpoints.upsertCheckpoint({
       ...pendingCheckpoint,
       status: "resolved",
-      response: resolution.response,
+      response: result.output,
       resolvedAt: now()
-    });
+      })
+    );
+  };
+
+  const rehydrateWaitingState = async (
+    run: Run,
+    workflow: WorkflowEngineState["workflow"]
+  ): Promise<{
+    state: WorkflowEngineState;
+    resolution: CheckpointResolution;
+    emittedEventCount: number;
+  } | null> => {
+    const storedState = await store.engineStates.getState(run.id);
+
+    if (!storedState) {
+      return null;
+    }
+
+    const pendingCheckpoint = await store.checkpoints.getCheckpoint(
+      storedState.pendingCheckpointId
+    );
+
+    if (!pendingCheckpoint || pendingCheckpoint.status !== "resolved") {
+      return null;
+    }
+
+    return {
+      state: {
+        run,
+        workflow,
+        nextNodeId: storedState.nextNodeId,
+        visitedNodeIds: storedState.visitedNodeIds,
+        events: await store.events.listRunEvents(run.id),
+        spawnedRunIds: storedState.spawnedRunIds,
+        budgetUsage: storedState.budgetUsage,
+        pendingCheckpoint
+      },
+      resolution: {
+        runId: run.id,
+        checkpointId: pendingCheckpoint.id,
+        response: pendingCheckpoint.response
+      },
+      emittedEventCount: storedState.emittedEventCount
+    };
   };
 
   return {
     enqueue: (runId: string): void => {
-      queue.push(runId);
+      void store.dispatches.enqueueRun(runId, now());
     },
-    claimNextRun: (): string | null => queue.shift() ?? null,
-    submitCheckpointResolution: (resolution: CheckpointResolution): void => {
-      checkpointResolutions.set(resolution.runId, resolution);
-    },
+    claimNextRun: (): string | null =>
+      readSync(
+        store.dispatches.claimNextDispatch({
+        workerId,
+        claimedAt: now()
+        })
+      )?.runId ?? null,
+    submitCheckpointResolution: (_resolution: CheckpointResolution): void => {},
     submitBrowserToolResult: (result: BrowserToolResult): void => {
-      browserToolDispatch.submitResult(result);
+      resolvePendingBrowserCheckpoint(result);
     },
     tick: async (): Promise<WorkflowExecutionResult | null> => {
-      const runId = queue.shift();
-      if (!runId) {
+      const dispatch = await store.dispatches.claimNextDispatch({
+        workerId,
+        claimedAt: now()
+      });
+
+      if (!dispatch) {
         return null;
       }
 
-      const run = await store.runs.getRun(runId);
-      if (!run) {
-        return null;
-      }
-
-      const resolution = platformRuntime.resolveRun(run);
-      if (!resolution.ok) {
-        return failRun(run, resolution.reason, resolution.missingName);
-      }
-
-      if (run.status === "waiting_for_checkpoint") {
-        const pausedState = pausedStates.get(runId);
-        let checkpointResolution = checkpointResolutions.get(runId) ?? null;
-
-        if (!pausedState) {
+      try {
+        const run = await store.runs.getRun(dispatch.runId);
+        if (!run) {
           return null;
         }
 
-        if (checkpointResolution) {
-          checkpointResolutions.delete(runId);
-        } else {
-          const browserResult = browserToolDispatch.consumeResult(runId);
-
-          checkpointResolution = browserResult
-            ? {
-                runId: browserResult.runId,
-                checkpointId: browserResult.checkpointId,
-                response: browserResult.output
-              }
-            : null;
+        const resolution = platformRuntime.resolveRun(run);
+        if (!resolution.ok) {
+          return failRun(run, resolution.reason, resolution.missingName);
         }
 
-        if (!checkpointResolution) {
-          return null;
-        }
+        if (run.status === "waiting_for_checkpoint") {
+          const resumedState = await rehydrateWaitingState(
+            run,
+            resolution.value.workflow
+          );
 
-        await resolvePendingBrowserCheckpoint(checkpointResolution);
-
-        const result = await engine.resume({
-          state: pausedState,
-          resolution: {
-            checkpointId: checkpointResolution.checkpointId,
-            response: checkpointResolution.response
+          if (!resumedState) {
+            return null;
           }
+
+          const result = await engine.resume({
+            state: resumedState.state,
+            resolution: {
+              checkpointId: resumedState.resolution.checkpointId,
+              response: resumedState.resolution.response
+            }
+          });
+
+          await persistExecutionEvents(
+            run.id,
+            result.events,
+            resumedState.emittedEventCount
+          );
+          await persistRunStatus(run, mapExecutionStatusToRunStatus(result.status));
+
+          if (result.status === "waiting_for_checkpoint" && result.state) {
+            if (result.pendingCheckpoint) {
+              await store.checkpoints.upsertCheckpoint(result.pendingCheckpoint);
+              await persistWaitingState(
+                run.id,
+                result.state,
+                result.pendingCheckpoint.id
+              );
+            }
+          } else {
+            await store.engineStates.deleteState(run.id);
+          }
+
+          return result;
+        }
+
+        const result = await engine.execute({
+          run,
+          workflow: resolution.value.workflow
         });
 
-        await persistExecutionEvents(runId, result.events);
+        await persistExecutionEvents(run.id, result.events);
         await persistRunStatus(run, mapExecutionStatusToRunStatus(result.status));
 
         if (result.status === "waiting_for_checkpoint" && result.state) {
-          pausedStates.set(runId, result.state);
           if (result.pendingCheckpoint) {
             await store.checkpoints.upsertCheckpoint(result.pendingCheckpoint);
+            await persistWaitingState(
+              run.id,
+              result.state,
+              result.pendingCheckpoint.id
+            );
           }
         } else {
-          pausedStates.delete(runId);
-          persistedEngineEventCounts.delete(runId);
+          await store.engineStates.deleteState(run.id);
         }
 
         return result;
+      } finally {
+        await store.dispatches.completeDispatch(dispatch.id);
       }
-
-      const result = await engine.execute({
-        run,
-        workflow: resolution.value.workflow
-      });
-
-      await persistExecutionEvents(runId, result.events);
-      await persistRunStatus(run, mapExecutionStatusToRunStatus(result.status));
-
-      if (result.status === "waiting_for_checkpoint" && result.state) {
-        pausedStates.set(runId, result.state);
-        if (result.pendingCheckpoint) {
-          await store.checkpoints.upsertCheckpoint(result.pendingCheckpoint);
-        }
-      } else {
-        pausedStates.delete(runId);
-        persistedEngineEventCounts.delete(runId);
-      }
-
-      return result;
     }
   };
 };

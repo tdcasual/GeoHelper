@@ -4,6 +4,7 @@ import type { AgentStoreResult } from "./run-repo";
 
 export interface CheckpointRepo {
   upsertCheckpoint: (checkpoint: Checkpoint) => AgentStoreResult<void>;
+  getCheckpoint: (checkpointId: string) => AgentStoreResult<Checkpoint | null>;
   listRunCheckpoints: (runId: string) => AgentStoreResult<Checkpoint[]>;
   listCheckpointsByStatus: (
     status: CheckpointStatus

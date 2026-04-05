@@ -5,8 +5,8 @@
   "type": "module",
   "main": "src/worker.ts",
   "scripts": {
-    "dev": "tsx watch src/worker.ts",
-    "start": "tsx src/worker.ts",
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
     "test": "vitest run"
   },
   "dependencies": {

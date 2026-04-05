@@ -16,6 +16,15 @@ import {
 
 import type { ArtifactRepo } from "./repos/artifact-repo";
 import type { CheckpointRepo } from "./repos/checkpoint-repo";
+import type {
+  ClaimNextDispatchInput,
+  DispatchRepo
+} from "./repos/dispatch-repo";
+import type {
+  EngineStateRepo,
+  WorkflowBudgetUsageState,
+  WorkflowEngineStateRecord
+} from "./repos/engine-state-repo";
 import type { EventRepo } from "./repos/event-repo";
 import type { MemoryEntryFilter, MemoryRepo } from "./repos/memory-repo";
 import type {
@@ -36,6 +45,8 @@ interface SqliteAgentStore {
   checkpoints: CheckpointRepo;
   artifacts: ArtifactRepo;
   memory: MemoryRepo;
+  dispatches: DispatchRepo;
+  engineStates: EngineStateRepo;
   loadRunSnapshot: (runId: string) => AgentStoreResult<RunSnapshot | null>;
 }
 
@@ -95,6 +106,25 @@ interface MemoryEntryRow {
   source_run_id: string | null;
   source_artifact_id: string | null;
   created_at: string;
+}
+
+interface RunDispatchRow {
+  id: string;
+  run_id: string;
+  worker_id: string | null;
+  created_at: string;
+  claimed_at: string | null;
+}
+
+interface WorkflowEngineStateRow {
+  run_id: string;
+  next_node_id: string | null;
+  visited_node_ids_json: string;
+  emitted_event_count: number;
+  spawned_run_ids_json: string;
+  budget_usage_json: string;
+  pending_checkpoint_id: string;
+  updated_at: string;
 }
 
 const parseJson = <T>(value: string | null | undefined, fallback: T): T => {
@@ -169,6 +199,30 @@ const mapMemoryEntryRow = (row: MemoryEntryRow): MemoryEntry =>
     sourceArtifactId: row.source_artifact_id ?? undefined,
     createdAt: row.created_at
   });
+
+const mapRunDispatchRow = (row: RunDispatchRow) => ({
+  id: row.id,
+  runId: row.run_id,
+  workerId: row.worker_id ?? undefined,
+  createdAt: row.created_at,
+  claimedAt: row.claimed_at ?? undefined
+});
+
+const mapWorkflowEngineStateRow = (
+  row: WorkflowEngineStateRow
+): WorkflowEngineStateRecord => ({
+  runId: row.run_id,
+  nextNodeId: row.next_node_id,
+  visitedNodeIds: parseJson(row.visited_node_ids_json, []),
+  emittedEventCount: row.emitted_event_count,
+  spawnedRunIds: parseJson(row.spawned_run_ids_json, []),
+  budgetUsage: parseJson<WorkflowBudgetUsageState>(row.budget_usage_json, {
+    modelCalls: 0,
+    toolCalls: 0
+  }),
+  pendingCheckpointId: row.pending_checkpoint_id,
+  updatedAt: row.updated_at
+});
 
 const matchesMemoryFilter = (
   entry: MemoryEntry,
@@ -363,6 +417,21 @@ export const createSqliteAgentStore = ({
     where status = ?
     order by created_at asc
   `);
+  const getCheckpointStatement = database.prepare(`
+    select
+      id,
+      run_id,
+      node_id,
+      kind,
+      status,
+      title,
+      prompt,
+      response_json,
+      created_at,
+      resolved_at
+    from checkpoints
+    where id = ?
+  `);
 
   const writeArtifactStatement = database.prepare(`
     insert into artifacts (
@@ -435,6 +504,73 @@ export const createSqliteAgentStore = ({
     from memory_entries
     order by created_at asc
   `);
+  const insertRunDispatchStatement = database.prepare(`
+    insert into run_dispatches (
+      id,
+      run_id,
+      worker_id,
+      created_at,
+      claimed_at
+    ) values (?, ?, ?, ?, ?)
+  `);
+  const claimNextRunDispatchStatement = database.prepare(`
+    select
+      id,
+      run_id,
+      worker_id,
+      created_at,
+      claimed_at
+    from run_dispatches
+    where worker_id is null
+    order by created_at asc, id asc
+    limit 1
+  `);
+  const markRunDispatchClaimedStatement = database.prepare(`
+    update run_dispatches
+    set worker_id = ?, claimed_at = ?
+    where id = ?
+  `);
+  const deleteRunDispatchStatement = database.prepare(`
+    delete from run_dispatches
+    where id = ?
+  `);
+  const upsertWorkflowEngineStateStatement = database.prepare(`
+    insert into workflow_engine_states (
+      run_id,
+      next_node_id,
+      visited_node_ids_json,
+      emitted_event_count,
+      spawned_run_ids_json,
+      budget_usage_json,
+      pending_checkpoint_id,
+      updated_at
+    ) values (?, ?, ?, ?, ?, ?, ?, ?)
+    on conflict(run_id) do update set
+      next_node_id = excluded.next_node_id,
+      visited_node_ids_json = excluded.visited_node_ids_json,
+      emitted_event_count = excluded.emitted_event_count,
+      spawned_run_ids_json = excluded.spawned_run_ids_json,
+      budget_usage_json = excluded.budget_usage_json,
+      pending_checkpoint_id = excluded.pending_checkpoint_id,
+      updated_at = excluded.updated_at
+  `);
+  const getWorkflowEngineStateStatement = database.prepare(`
+    select
+      run_id,
+      next_node_id,
+      visited_node_ids_json,
+      emitted_event_count,
+      spawned_run_ids_json,
+      budget_usage_json,
+      pending_checkpoint_id,
+      updated_at
+    from workflow_engine_states
+    where run_id = ?
+  `);
+  const deleteWorkflowEngineStateStatement = database.prepare(`
+    delete from workflow_engine_states
+    where run_id = ?
+  `);
 
   const runRepo: RunRepo = {
     createRun: (run) => {
@@ -499,6 +635,11 @@ export const createSqliteAgentStore = ({
         checkpoint.resolvedAt ?? null
       );
     },
+    getCheckpoint: (checkpointId) => {
+      const row = getCheckpointStatement.get(checkpointId) as CheckpointRow | undefined;
+
+      return row ? mapCheckpointRow(row) : null;
+    },
     listRunCheckpoints: (runId) =>
       readRows<CheckpointRow>(listRunCheckpointsStatement.all(runId)).map(
         mapCheckpointRow
@@ -555,12 +696,82 @@ export const createSqliteAgentStore = ({
     listMemoryEntriesForRun: (runId) => listMemoryEntries({ sourceRunId: runId })
   };
 
+  const dispatchRepo: DispatchRepo = {
+    enqueueRun: (runId, createdAt = new Date().toISOString()) => {
+      const row = {
+        id: `dispatch_${Math.random().toString(36).slice(2, 10)}`,
+        run_id: runId,
+        worker_id: null,
+        created_at: createdAt,
+        claimed_at: null
+      };
+
+      insertRunDispatchStatement.run(
+        row.id,
+        row.run_id,
+        row.worker_id,
+        row.created_at,
+        row.claimed_at
+      );
+
+      return mapRunDispatchRow(row);
+    },
+    claimNextDispatch: ({
+      workerId,
+      claimedAt
+    }: ClaimNextDispatchInput) => {
+      const row = claimNextRunDispatchStatement.get() as RunDispatchRow | undefined;
+
+      if (!row) {
+        return null;
+      }
+
+      markRunDispatchClaimedStatement.run(workerId, claimedAt, row.id);
+
+      return mapRunDispatchRow({
+        ...row,
+        worker_id: workerId,
+        claimed_at: claimedAt
+      });
+    },
+    completeDispatch: (dispatchId) => {
+      deleteRunDispatchStatement.run(dispatchId);
+    }
+  };
+
+  const engineStateRepo: EngineStateRepo = {
+    upsertState: (state) => {
+      upsertWorkflowEngineStateStatement.run(
+        state.runId,
+        state.nextNodeId,
+        JSON.stringify(state.visitedNodeIds),
+        state.emittedEventCount,
+        JSON.stringify(state.spawnedRunIds),
+        JSON.stringify(state.budgetUsage),
+        state.pendingCheckpointId,
+        state.updatedAt
+      );
+    },
+    getState: (runId) => {
+      const row = getWorkflowEngineStateStatement.get(runId) as
+        | WorkflowEngineStateRow
+        | undefined;
+
+      return row ? mapWorkflowEngineStateRow(row) : null;
+    },
+    deleteState: (runId) => {
+      deleteWorkflowEngineStateStatement.run(runId);
+    }
+  };
+
   return {
     runs: runRepo,
     events: eventRepo,
     checkpoints: checkpointRepo,
     artifacts: artifactRepo,
     memory: memoryRepo,
+    dispatches: dispatchRepo,
+    engineStates: engineStateRepo,
     loadRunSnapshot: async (runId): Promise<RunSnapshot | null> => {
       const run = await runRepo.getRun(runId);
 
