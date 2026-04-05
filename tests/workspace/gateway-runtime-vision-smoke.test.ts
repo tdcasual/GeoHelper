@@ -182,6 +182,16 @@ describe("gateway runtime platform smoke", () => {
           path: "/api/v3/threads/:threadId/runs"
         },
         {
+          name: "GET /api/v3/runs/:runId",
+          method: "GET",
+          path: "/api/v3/runs/:runId"
+        },
+        {
+          name: "GET /api/v3/runs/:runId/events",
+          method: "GET",
+          path: "/api/v3/runs/:runId/events"
+        },
+        {
           name: "POST /api/v3/browser-sessions",
           method: "POST",
           path: "/api/v3/browser-sessions"
@@ -266,6 +276,16 @@ describe("gateway runtime platform smoke", () => {
             status: 201
           }
         );
+      }
+      if (url.endsWith("/api/v3/runs/run_platform_1")) {
+        return jsonResponse({
+          run: runSnapshotPayload.run
+        });
+      }
+      if (url.endsWith("/api/v3/runs/run_platform_1/events")) {
+        return jsonResponse({
+          events: runSnapshotPayload.events
+        });
       }
       if (url.endsWith("/api/v3/artifacts/artifact_response_1")) {
         return jsonResponse({
@@ -363,22 +383,28 @@ describe("gateway runtime platform smoke", () => {
           title: "smoke thread"
         }),
         expect.objectContaining({
-          name: "POST /api/v3/browser-sessions",
-          ok: true,
-          session_id: "browser_session_1",
-          run_id: "run_platform_1"
-        }),
-        expect.objectContaining({
-          name: "GET /api/v3/artifacts/:artifactId",
-          ok: true,
-          artifact_id: "artifact_response_1",
-          kind: "response"
-        }),
-        expect.objectContaining({
           name: "POST /api/v3/threads/:threadId/runs",
           ok: true,
           run_id: "run_platform_1",
           run_status: "completed"
+        }),
+        expect.objectContaining({
+          name: "GET /api/v3/runs/:runId",
+          ok: true,
+          run_id: "run_platform_1",
+          run_status: "completed"
+        }),
+        expect.objectContaining({
+          name: "GET /api/v3/runs/:runId/events",
+          ok: true,
+          run_id: "run_platform_1",
+          event_count: 2
+        }),
+        expect.objectContaining({
+          name: "POST /api/v3/browser-sessions",
+          ok: true,
+          session_id: "browser_session_1",
+          run_id: "run_platform_1"
         }),
         expect.objectContaining({
           name: "GET /api/v3/runs/:runId/stream",
@@ -388,6 +414,12 @@ describe("gateway runtime platform smoke", () => {
           command_count: 1,
           artifact_count: 3,
           event_count: 2
+        }),
+        expect.objectContaining({
+          name: "GET /api/v3/artifacts/:artifactId",
+          ok: true,
+          artifact_id: "artifact_response_1",
+          kind: "response"
         }),
         expect.objectContaining({
           name: "POST /api/v3/browser-sessions/:sessionId/canvas-evidence",

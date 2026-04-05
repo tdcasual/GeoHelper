@@ -223,6 +223,106 @@ describe("control-plane runs routes", () => {
     expect(streamedEvents.map((event) => event.type)).not.toContain("run.created");
   });
 
+  it("gets an existing run and its event log", async () => {
+    const store = createMemoryAgentStore();
+
+    await store.runs.createRun({
+      id: "run_1",
+      threadId: "thread_1",
+      profileId: "platform_geometry_standard",
+      status: "waiting_for_checkpoint",
+      inputArtifactIds: ["artifact_input_1"],
+      outputArtifactIds: [],
+      budget: {
+        maxModelCalls: 6,
+        maxToolCalls: 8,
+        maxDurationMs: 120000
+      },
+      createdAt: "2026-04-04T00:00:00.000Z",
+      updatedAt: "2026-04-04T00:00:05.000Z"
+    });
+    await store.events.appendRunEvent({
+      id: "event_1",
+      runId: "run_1",
+      sequence: 1,
+      type: "run.created",
+      payload: {
+        profileId: "platform_geometry_standard"
+      },
+      createdAt: "2026-04-04T00:00:00.000Z"
+    });
+    await store.events.appendRunEvent({
+      id: "event_2",
+      runId: "run_1",
+      sequence: 2,
+      type: "checkpoint.waiting",
+      payload: {
+        checkpointId: "checkpoint_1"
+      },
+      createdAt: "2026-04-04T00:00:05.000Z"
+    });
+
+    const app = buildServer({
+      store
+    });
+
+    const runRes = await app.inject({
+      method: "GET",
+      url: "/api/v3/runs/run_1"
+    });
+    const eventsRes = await app.inject({
+      method: "GET",
+      url: "/api/v3/runs/run_1/events"
+    });
+
+    expect(runRes.statusCode).toBe(200);
+    expect(JSON.parse(runRes.payload)).toEqual({
+      run: expect.objectContaining({
+        id: "run_1",
+        threadId: "thread_1",
+        profileId: "platform_geometry_standard",
+        status: "waiting_for_checkpoint"
+      })
+    });
+    expect(eventsRes.statusCode).toBe(200);
+    expect(JSON.parse(eventsRes.payload)).toEqual({
+      events: [
+        expect.objectContaining({
+          id: "event_1",
+          sequence: 1,
+          type: "run.created"
+        }),
+        expect.objectContaining({
+          id: "event_2",
+          sequence: 2,
+          type: "checkpoint.waiting"
+        })
+      ]
+    });
+  });
+
+  it("returns 404 for missing run detail and events routes", async () => {
+    const app = buildServer();
+
+    const runRes = await app.inject({
+      method: "GET",
+      url: "/api/v3/runs/run_missing"
+    });
+    const eventsRes = await app.inject({
+      method: "GET",
+      url: "/api/v3/runs/run_missing/events"
+    });
+
+    expect(runRes.statusCode).toBe(404);
+    expect(JSON.parse(runRes.payload)).toEqual({
+      error: "run_not_found"
+    });
+    expect(eventsRes.statusCode).toBe(404);
+    expect(JSON.parse(eventsRes.payload)).toEqual({
+      error: "run_not_found"
+    });
+  });
+
   it("includes direct child runs inside streamed run snapshots", async () => {
     const store = createMemoryAgentStore();
 

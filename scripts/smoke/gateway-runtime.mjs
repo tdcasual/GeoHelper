@@ -89,6 +89,16 @@ export function buildGatewayRuntimeChecks(env = process.env) {
     path: "/api/v3/threads/:threadId/runs"
   });
   checks.push({
+    name: "GET /api/v3/runs/:runId",
+    method: "GET",
+    path: "/api/v3/runs/:runId"
+  });
+  checks.push({
+    name: "GET /api/v3/runs/:runId/events",
+    method: "GET",
+    path: "/api/v3/runs/:runId/events"
+  });
+  checks.push({
     name: "POST /api/v3/browser-sessions",
     method: "POST",
     path: "/api/v3/browser-sessions"
@@ -376,6 +386,38 @@ const runLiveChecks = async ({
     ok: true,
     run_id: runBody.run.id,
     run_status: runBody.run.status ?? null
+  });
+
+  const { body: fetchedRunBody } = await fetchJson(
+    fetchImpl,
+    `${controlPlaneUrl}/api/v3/runs/${encodeURIComponent(runBody.run.id)}`,
+    undefined,
+    "get run"
+  );
+  if (fetchedRunBody?.run?.id !== runBody.run.id) {
+    throw new Error("get run failed: unexpected run payload");
+  }
+  checks.push({
+    name: "GET /api/v3/runs/:runId",
+    ok: true,
+    run_id: fetchedRunBody.run.id,
+    run_status: fetchedRunBody.run.status ?? null
+  });
+
+  const { body: runEventsBody } = await fetchJson(
+    fetchImpl,
+    `${controlPlaneUrl}/api/v3/runs/${encodeURIComponent(runBody.run.id)}/events`,
+    undefined,
+    "get run events"
+  );
+  if (!Array.isArray(runEventsBody?.events)) {
+    throw new Error("get run events failed: missing events payload");
+  }
+  checks.push({
+    name: "GET /api/v3/runs/:runId/events",
+    ok: true,
+    run_id: runBody.run.id,
+    event_count: runEventsBody.events.length
   });
 
   const { body: sessionBody } = await fetchJson(

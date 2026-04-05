@@ -16,6 +16,44 @@ export const registerRunsRoutes = (
   app: FastifyInstance,
   services: ControlPlaneServices
 ): void => {
+  app.get("/api/v3/runs/:runId", async (request, reply) => {
+    const params = z
+      .object({
+        runId: z.string().min(1)
+      })
+      .parse(request.params);
+    const run = await services.store.runs.getRun(params.runId);
+
+    if (!run) {
+      return reply.code(404).send({
+        error: "run_not_found"
+      });
+    }
+
+    return reply.send({
+      run
+    });
+  });
+
+  app.get("/api/v3/runs/:runId/events", async (request, reply) => {
+    const params = z
+      .object({
+        runId: z.string().min(1)
+      })
+      .parse(request.params);
+    const run = await services.store.runs.getRun(params.runId);
+
+    if (!run) {
+      return reply.code(404).send({
+        error: "run_not_found"
+      });
+    }
+
+    return reply.send({
+      events: await services.store.events.listRunEvents(params.runId)
+    });
+  });
+
   app.post("/api/v3/threads/:threadId/runs", async (request, reply) => {
     const params = z
       .object({
