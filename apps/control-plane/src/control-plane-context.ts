@@ -22,23 +22,8 @@ interface PlatformToolCatalogRegistration extends WorkerToolRegistration {
   retryable?: boolean;
 }
 
-export interface ControlPlaneThread {
-  id: string;
-  title: string;
-  createdAt: string;
-}
-
-export interface BrowserSession {
-  id: string;
-  runId: string;
-  allowedToolNames: string[];
-  createdAt: string;
-}
-
 export interface ControlPlaneServices {
   store: AgentStore;
-  threads: Map<string, ControlPlaneThread>;
-  browserSessions: Map<string, BrowserSession>;
   platformRuntime: PlatformRuntimeContext<
     PlatformAgentDefinition,
     PlatformToolCatalogRegistration,
@@ -48,7 +33,6 @@ export interface ControlPlaneServices {
   now: () => string;
   buildThreadId: () => string;
   buildRunId: () => string;
-  buildEventId: () => string;
   buildBrowserSessionId: () => string;
   processRun: (runId: string) => Promise<void>;
   resumeRunFromCheckpoint: (input: {
@@ -153,14 +137,11 @@ export const createControlPlaneServices = (
 
   return {
     store,
-    threads: overrides.threads ?? new Map(),
-    browserSessions: overrides.browserSessions ?? new Map(),
     platformRuntime,
     runProfiles: overrides.runProfiles ?? platformRuntime.runProfiles,
     now: overrides.now ?? (() => new Date().toISOString()),
     buildThreadId: overrides.buildThreadId ?? createIdFactory("thread"),
     buildRunId: overrides.buildRunId ?? createIdFactory("run"),
-    buildEventId: overrides.buildEventId ?? createIdFactory("event"),
     buildBrowserSessionId:
       overrides.buildBrowserSessionId ?? createIdFactory("browser_session"),
     processRun,
@@ -176,10 +157,11 @@ export const appendRunEvent = async (
   payload: Record<string, unknown>
 ): Promise<RunEvent> => {
   const existingEvents = await services.store.events.listRunEvents(runId);
+  const nextSequence = existingEvents.length + 1;
   const event: RunEvent = {
-    id: services.buildEventId(),
+    id: `event_${runId}_${nextSequence}`,
     runId,
-    sequence: existingEvents.length + 1,
+    sequence: nextSequence,
     type,
     payload,
     createdAt: services.now()

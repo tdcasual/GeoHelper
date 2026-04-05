@@ -8,6 +8,10 @@ import type {
 } from "@geohelper/agent-protocol";
 
 import type { ArtifactRepo } from "./repos/artifact-repo";
+import type {
+  BrowserSessionRecord,
+  BrowserSessionRepo
+} from "./repos/browser-session-repo";
 import type { CheckpointRepo } from "./repos/checkpoint-repo";
 import type {
   ClaimNextDispatchInput,
@@ -21,6 +25,7 @@ import type {
 import type { EventRepo } from "./repos/event-repo";
 import type { MemoryEntryFilter, MemoryRepo } from "./repos/memory-repo";
 import type { AgentStoreResult, RunFilter, RunRepo, RunSnapshot } from "./repos/run-repo";
+import type { AgentThread, ThreadRepo } from "./repos/thread-repo";
 export { createSqliteAgentStore } from "./sqlite-store";
 
 const bySequence = (left: RunEvent, right: RunEvent): number =>
@@ -75,6 +80,8 @@ export interface AgentStore {
   memory: MemoryRepo;
   dispatches: DispatchRepo;
   engineStates: EngineStateRepo;
+  threads: ThreadRepo;
+  browserSessions: BrowserSessionRepo;
   loadRunSnapshot: (runId: string) => AgentStoreResult<RunSnapshot | null>;
 }
 
@@ -86,6 +93,8 @@ export const createMemoryAgentStore = (): AgentStore => {
   const memoryEntries = new Map<string, MemoryEntry>();
   const runDispatches: RunDispatch[] = [];
   const engineStates = new Map<string, WorkflowEngineStateRecord>();
+  const threads = new Map<string, AgentThread>();
+  const browserSessions = new Map<string, BrowserSessionRecord>();
   let dispatchCount = 0;
 
   const runRepo: RunRepo = {
@@ -202,6 +211,24 @@ export const createMemoryAgentStore = (): AgentStore => {
     }
   };
 
+  const threadRepo: ThreadRepo = {
+    createThread: (thread) => {
+      threads.set(thread.id, thread);
+    },
+    getThread: (threadId) => threads.get(threadId) ?? null,
+    listThreads: () => [...threads.values()].sort(byCreatedAt)
+  };
+
+  const browserSessionRepo: BrowserSessionRepo = {
+    createSession: (session) => {
+      browserSessions.set(session.id, session);
+    },
+    getSession: (sessionId) => browserSessions.get(sessionId) ?? null,
+    deleteSession: (sessionId) => {
+      browserSessions.delete(sessionId);
+    }
+  };
+
   return {
     runs: runRepo,
     events: eventRepo,
@@ -210,6 +237,8 @@ export const createMemoryAgentStore = (): AgentStore => {
     memory: memoryRepo,
     dispatches: dispatchRepo,
     engineStates: engineStateRepo,
+    threads: threadRepo,
+    browserSessions: browserSessionRepo,
     loadRunSnapshot: async (runId) => {
       const run = await runRepo.getRun(runId);
       if (!run) {
@@ -228,11 +257,13 @@ export const createMemoryAgentStore = (): AgentStore => {
 };
 
 export type * from "./repos/artifact-repo";
+export type * from "./repos/browser-session-repo";
 export type * from "./repos/checkpoint-repo";
 export type * from "./repos/dispatch-repo";
 export type * from "./repos/engine-state-repo";
 export type * from "./repos/event-repo";
 export type * from "./repos/memory-repo";
 export type * from "./repos/run-repo";
+export type * from "./repos/thread-repo";
 
 export const packageName = "@geohelper/agent-store";

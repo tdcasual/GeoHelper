@@ -15,6 +15,10 @@ import {
   RunSchema} from "@geohelper/agent-protocol";
 
 import type { ArtifactRepo } from "./repos/artifact-repo";
+import type {
+  BrowserSessionRecord,
+  BrowserSessionRepo
+} from "./repos/browser-session-repo";
 import type { CheckpointRepo } from "./repos/checkpoint-repo";
 import type {
   ClaimNextDispatchInput,
@@ -32,6 +36,7 @@ import type {
   RunRepo,
   RunSnapshot
 } from "./repos/run-repo";
+import type { AgentThread, ThreadRepo } from "./repos/thread-repo";
 
 const SCHEMA_SQL = readFileSync(new URL("./schema.sql", import.meta.url), "utf8");
 
@@ -47,6 +52,8 @@ interface SqliteAgentStore {
   memory: MemoryRepo;
   dispatches: DispatchRepo;
   engineStates: EngineStateRepo;
+  threads: ThreadRepo;
+  browserSessions: BrowserSessionRepo;
   loadRunSnapshot: (runId: string) => AgentStoreResult<RunSnapshot | null>;
 }
 
@@ -125,6 +132,19 @@ interface WorkflowEngineStateRow {
   budget_usage_json: string;
   pending_checkpoint_id: string;
   updated_at: string;
+}
+
+interface ThreadRow {
+  id: string;
+  title: string;
+  created_at: string;
+}
+
+interface BrowserSessionRow {
+  id: string;
+  run_id: string;
+  allowed_tool_names_json: string;
+  created_at: string;
 }
 
 const parseJson = <T>(value: string | null | undefined, fallback: T): T => {
@@ -222,6 +242,21 @@ const mapWorkflowEngineStateRow = (
   }),
   pendingCheckpointId: row.pending_checkpoint_id,
   updatedAt: row.updated_at
+});
+
+const mapThreadRow = (row: ThreadRow): AgentThread => ({
+  id: row.id,
+  title: row.title,
+  createdAt: row.created_at
+});
+
+const mapBrowserSessionRow = (
+  row: BrowserSessionRow
+): BrowserSessionRecord => ({
+  id: row.id,
+  runId: row.run_id,
+  allowedToolNames: parseJson(row.allowed_tool_names_json, []),
+  createdAt: row.created_at
 });
 
 const matchesMemoryFilter = (
@@ -329,6 +364,32 @@ export const createSqliteAgentStore = ({
       updated_at
     from runs
     where status = ?
+    order by created_at asc
+  `);
+  const upsertThreadStatement = database.prepare(`
+    insert into threads (
+      id,
+      title,
+      created_at
+    ) values (?, ?, ?)
+    on conflict(id) do update set
+      title = excluded.title,
+      created_at = excluded.created_at
+  `);
+  const getThreadStatement = database.prepare(`
+    select
+      id,
+      title,
+      created_at
+    from threads
+    where id = ?
+  `);
+  const listThreadsStatement = database.prepare(`
+    select
+      id,
+      title,
+      created_at
+    from threads
     order by created_at asc
   `);
 
@@ -571,6 +632,31 @@ export const createSqliteAgentStore = ({
     delete from workflow_engine_states
     where run_id = ?
   `);
+  const upsertBrowserSessionStatement = database.prepare(`
+    insert into browser_sessions (
+      id,
+      run_id,
+      allowed_tool_names_json,
+      created_at
+    ) values (?, ?, ?, ?)
+    on conflict(id) do update set
+      run_id = excluded.run_id,
+      allowed_tool_names_json = excluded.allowed_tool_names_json,
+      created_at = excluded.created_at
+  `);
+  const getBrowserSessionStatement = database.prepare(`
+    select
+      id,
+      run_id,
+      allowed_tool_names_json,
+      created_at
+    from browser_sessions
+    where id = ?
+  `);
+  const deleteBrowserSessionStatement = database.prepare(`
+    delete from browser_sessions
+    where id = ?
+  `);
 
   const runRepo: RunRepo = {
     createRun: (run) => {
@@ -764,6 +850,39 @@ export const createSqliteAgentStore = ({
     }
   };
 
+  const threadRepo: ThreadRepo = {
+    createThread: (thread) => {
+      upsertThreadStatement.run(thread.id, thread.title, thread.createdAt);
+    },
+    getThread: (threadId) => {
+      const row = getThreadStatement.get(threadId) as ThreadRow | undefined;
+
+      return row ? mapThreadRow(row) : null;
+    },
+    listThreads: () => readRows<ThreadRow>(listThreadsStatement.all()).map(mapThreadRow)
+  };
+
+  const browserSessionRepo: BrowserSessionRepo = {
+    createSession: (session) => {
+      upsertBrowserSessionStatement.run(
+        session.id,
+        session.runId,
+        JSON.stringify(session.allowedToolNames),
+        session.createdAt
+      );
+    },
+    getSession: (sessionId) => {
+      const row = getBrowserSessionStatement.get(sessionId) as
+        | BrowserSessionRow
+        | undefined;
+
+      return row ? mapBrowserSessionRow(row) : null;
+    },
+    deleteSession: (sessionId) => {
+      deleteBrowserSessionStatement.run(sessionId);
+    }
+  };
+
   return {
     runs: runRepo,
     events: eventRepo,
@@ -772,6 +891,8 @@ export const createSqliteAgentStore = ({
     memory: memoryRepo,
     dispatches: dispatchRepo,
     engineStates: engineStateRepo,
+    threads: threadRepo,
+    browserSessions: browserSessionRepo,
     loadRunSnapshot: async (runId): Promise<RunSnapshot | null> => {
       const run = await runRepo.getRun(runId);
 

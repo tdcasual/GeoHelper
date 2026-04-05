@@ -19,7 +19,7 @@ export const registerThreadsRoutes = (
       createdAt: services.now()
     };
 
-    services.threads.set(thread.id, thread);
+    await services.store.threads.createThread(thread);
 
     return reply.code(201).send({
       thread

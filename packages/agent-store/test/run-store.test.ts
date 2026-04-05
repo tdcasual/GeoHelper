@@ -361,4 +361,66 @@ describe("agent store", () => {
       });
     }
   });
+
+  it("persists threads and browser sessions across sqlite store reopen", async () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "geohelper-agent-store-"));
+    const databasePath = path.join(tempDir, "agent-store.sqlite");
+
+    try {
+      const store = createSqliteAgentStore({
+        path: databasePath
+      });
+
+      await store.threads.createThread({
+        id: "thread_sqlite_1",
+        title: "Triangle lesson",
+        createdAt: "2026-04-05T00:00:00.000Z"
+      });
+      await store.runs.createRun({
+        id: "run_sqlite_session",
+        threadId: "thread_sqlite_1",
+        profileId: "platform_geometry_standard",
+        status: "waiting_for_checkpoint",
+        inputArtifactIds: [],
+        outputArtifactIds: [],
+        budget: {
+          maxModelCalls: 4,
+          maxToolCalls: 8,
+          maxDurationMs: 60_000
+        },
+        createdAt: "2026-04-05T00:00:00.000Z",
+        updatedAt: "2026-04-05T00:00:00.000Z"
+      });
+      await store.browserSessions.createSession({
+        id: "browser_session_sqlite_1",
+        runId: "run_sqlite_session",
+        allowedToolNames: ["scene.read_state", "scene.apply_command_batch"],
+        createdAt: "2026-04-05T00:00:05.000Z"
+      });
+
+      const reopened = createSqliteAgentStore({
+        path: databasePath
+      });
+
+      expect(await reopened.threads.getThread("thread_sqlite_1")).toEqual(
+        expect.objectContaining({
+          id: "thread_sqlite_1",
+          title: "Triangle lesson"
+        })
+      );
+      expect(
+        await reopened.browserSessions.getSession("browser_session_sqlite_1")
+      ).toEqual(
+        expect.objectContaining({
+          runId: "run_sqlite_session",
+          allowedToolNames: ["scene.read_state", "scene.apply_command_batch"]
+        })
+      );
+    } finally {
+      rmSync(tempDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
 });

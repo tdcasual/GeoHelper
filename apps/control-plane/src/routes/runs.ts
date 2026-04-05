@@ -23,7 +23,9 @@ export const registerRunsRoutes = (
       })
       .parse(request.params);
 
-    if (!services.threads.has(params.threadId)) {
+    const thread = await services.store.threads.getThread(params.threadId);
+
+    if (!thread) {
       return reply.code(404).send({
         error: "thread_not_found"
       });

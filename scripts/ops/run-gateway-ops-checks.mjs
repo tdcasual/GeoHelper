@@ -82,6 +82,21 @@ const parseJsonMaybe = (value) => {
   }
 };
 
+const buildDryRunPayload = (step) => {
+  if (step.artifactName === "smoke") {
+    return {
+      dry_run: true,
+      checks: []
+    };
+  }
+
+  return {
+    dry_run: true,
+    success_rate: 1,
+    by_domain: {}
+  };
+};
+
 const runStep = ({ step, env, useDryRunSubcommands, useMockResults }) => {
   if (useMockResults) {
     return {
@@ -90,9 +105,16 @@ const runStep = ({ step, env, useDryRunSubcommands, useMockResults }) => {
     };
   }
 
+  if (useDryRunSubcommands) {
+    return {
+      status: 0,
+      payload: buildDryRunPayload(step)
+    };
+  }
+
   const run = spawnSync(
     "pnpm",
-    [step.script, ...(useDryRunSubcommands ? step.dryRunArgs : [])],
+    [step.script],
     {
       encoding: "utf8",
       env,

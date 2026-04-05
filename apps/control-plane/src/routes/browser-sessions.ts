@@ -39,7 +39,7 @@ export const registerBrowserSessionsRoutes = (
       createdAt: services.now()
     };
 
-    services.browserSessions.set(session.id, session);
+    await services.store.browserSessions.createSession(session);
 
     return reply.code(201).send({
       session
@@ -55,7 +55,9 @@ export const registerBrowserSessionsRoutes = (
         })
         .parse(request.params);
       const body = BrowserToolResultBodySchema.parse(request.body);
-      const session = services.browserSessions.get(params.sessionId);
+      const session = await services.store.browserSessions.getSession(
+        params.sessionId
+      );
 
       if (
         !session ||

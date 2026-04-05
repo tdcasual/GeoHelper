@@ -1,5 +1,12 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
 import { createPlatformRuntimeContext } from "@geohelper/agent-core";
-import { createMemoryAgentStore } from "@geohelper/agent-store";
+import {
+  createMemoryAgentStore,
+  createSqliteAgentStore
+} from "@geohelper/agent-store";
 import { describe, expect, it } from "vitest";
 
 import { buildServer } from "../src/server";
@@ -207,6 +214,77 @@ describe("control-plane checkpoint routes", () => {
     expect(JSON.parse(invalidRes.payload)).toEqual({
       error: "invalid_browser_tool_result"
     });
+  });
+
+  it("accepts browser tool results from a persisted session after control-plane restart", async () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "geohelper-control-plane-"));
+    const databasePath = path.join(tempDir, "agent-store.sqlite");
+
+    try {
+      const store = createSqliteAgentStore({
+        path: databasePath
+      });
+      const firstApp = buildServer({
+        store,
+        now: () => "2026-04-04T00:00:00.000Z"
+      });
+
+      await firstApp.inject({
+        method: "POST",
+        url: "/api/v3/threads",
+        payload: {
+          title: "Restart browser session"
+        }
+      });
+
+      await firstApp.inject({
+        method: "POST",
+        url: "/api/v3/threads/thread_1/runs",
+        payload: {
+          profileId: "platform_geometry_standard",
+          inputArtifactIds: []
+        }
+      });
+
+      const sessionRes = await firstApp.inject({
+        method: "POST",
+        url: "/api/v3/browser-sessions",
+        payload: {
+          runId: "run_1",
+          allowedToolNames: ["scene.read_state"]
+        }
+      });
+
+      expect(sessionRes.statusCode).toBe(201);
+
+      const reopenedStore = createSqliteAgentStore({
+        path: databasePath
+      });
+      const secondApp = buildServer({
+        store: reopenedStore,
+        now: () => "2026-04-04T00:01:00.000Z"
+      });
+
+      const res = await secondApp.inject({
+        method: "POST",
+        url: "/api/v3/browser-sessions/browser_session_1/tool-results",
+        payload: {
+          runId: "run_1",
+          toolName: "scene.read_state",
+          status: "completed",
+          output: {
+            ok: true
+          }
+        }
+      });
+
+      expect(res.statusCode).toBe(202);
+    } finally {
+      rmSync(tempDir, {
+        recursive: true,
+        force: true
+      });
+    }
   });
 
   it("resumes a waiting run after resolving a human checkpoint", async () => {

@@ -2,16 +2,38 @@ import { describe, expect, it } from "vitest";
 
 import { buildServer } from "../src/server";
 
-const parseStreamSnapshot = (payload: string) => {
-  const dataLine = payload
-    .split("\n")
-    .find((line) => line.startsWith("data: "));
+const parseStreamFrames = (payload: string) =>
+  payload
+    .trim()
+    .split("\n\n")
+    .map((block) => {
+      const eventLine = block
+        .split("\n")
+        .find((line) => line.startsWith("event: "));
+      const dataLine = block
+        .split("\n")
+        .find((line) => line.startsWith("data: "));
 
-  if (!dataLine) {
+      if (!eventLine || !dataLine) {
+        throw new Error("missing stream frame payload");
+      }
+
+      return {
+        event: eventLine.slice(7),
+        data: JSON.parse(dataLine.slice(6)) as unknown
+      };
+    });
+
+const parseStreamSnapshot = (payload: string) => {
+  const snapshotFrame = parseStreamFrames(payload).find(
+    (frame) => frame.event === "run.snapshot"
+  );
+
+  if (!snapshotFrame) {
     throw new Error("missing run snapshot event payload");
   }
 
-  return JSON.parse(dataLine.slice(6)) as {
+  return snapshotFrame.data as {
     run: {
       id: string;
       profileId: string;
@@ -115,14 +137,19 @@ describe("control-plane runs routes", () => {
 
     const streamRes = await app.inject({
       method: "GET",
-      url: "/api/v3/runs/run_1/stream"
+      url: "/api/v3/runs/run_1/stream?afterSequence=1"
     });
 
     expect(streamRes.statusCode).toBe(200);
     expect(streamRes.headers["content-type"]).toContain("text/event-stream");
     expect(streamRes.payload).toContain("event: run.snapshot");
+    expect(streamRes.payload).toContain("event: run.event");
 
+    const frames = parseStreamFrames(streamRes.payload);
     const snapshot = parseStreamSnapshot(streamRes.payload);
+    const streamedEvents = frames
+      .filter((frame) => frame.event === "run.event")
+      .map((frame) => frame.data as { sequence: number; type: string });
 
     expect(snapshot.run).toEqual(
       expect.objectContaining({
@@ -142,6 +169,9 @@ describe("control-plane runs routes", () => {
         })
       ])
     );
+    expect(streamedEvents.length).toBeGreaterThan(0);
+    expect(streamedEvents.every((event) => event.sequence > 1)).toBe(true);
+    expect(streamedEvents.map((event) => event.type)).not.toContain("run.created");
   });
 
   it("rejects unknown run profiles", async () => {

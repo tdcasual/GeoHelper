@@ -11,6 +11,12 @@ create table if not exists runs (
   updated_at text not null
 );
 
+create table if not exists threads (
+  id text primary key,
+  title text not null,
+  created_at text not null
+);
+
 create table if not exists run_events (
   id text primary key,
   run_id text not null,
@@ -81,8 +87,19 @@ create table if not exists workflow_engine_states (
   foreign key (pending_checkpoint_id) references checkpoints(id) on delete cascade
 );
 
+create table if not exists browser_sessions (
+  id text primary key,
+  run_id text not null,
+  allowed_tool_names_json text not null,
+  created_at text not null,
+  foreign key (run_id) references runs(id) on delete cascade
+);
+
 create index if not exists idx_runs_status_created_at
   on runs(status, created_at);
+
+create index if not exists idx_threads_created_at
+  on threads(created_at);
 
 create unique index if not exists idx_run_events_run_id_sequence
   on run_events(run_id, sequence);
@@ -104,3 +121,6 @@ create index if not exists idx_run_dispatches_created_at
 
 create index if not exists idx_run_dispatches_worker_id_claimed_at
   on run_dispatches(worker_id, claimed_at);
+
+create index if not exists idx_browser_sessions_run_id_created_at
+  on browser_sessions(run_id, created_at);

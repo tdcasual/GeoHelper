@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import {
   createWorkflowEngine,
   type NodeHandler,
@@ -47,13 +49,11 @@ export interface RunLoopOptions {
 const defaultNow = (): string => new Date().toISOString();
 
 const createCheckpointIdFactory = (): (() => string) => {
-  let count = 0;
-
-  return () => {
-    count += 1;
-    return `checkpoint_${count}`;
-  };
+  return () => `checkpoint_${randomUUID()}`;
 };
+
+const buildRunEventId = (runId: string, sequence: number): string =>
+  `event_${runId}_${sequence}`;
 
 const createToolHandler = (
   tools: Record<string, WorkerToolRegistration>,
@@ -163,7 +163,7 @@ export const createRunLoop = ({
     for (const event of nextEvents) {
       await store.events.appendRunEvent({
         ...event,
-        id: `event_${nextSequence}`,
+        id: buildRunEventId(runId, nextSequence),
         sequence: nextSequence
       });
       nextSequence += 1;
@@ -193,10 +193,11 @@ export const createRunLoop = ({
     missingName?: string
   ): Promise<WorkflowExecutionResult> => {
     const storedEvents = await store.events.listRunEvents(run.id);
+    const nextSequence = storedEvents.length + 1;
     const failureEvent: RunEvent = {
-      id: `event_${storedEvents.length + 1}`,
+      id: buildRunEventId(run.id, nextSequence),
       runId: run.id,
-      sequence: storedEvents.length + 1,
+      sequence: nextSequence,
       type: "run.failed",
       payload: {
         reason,

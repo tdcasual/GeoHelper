@@ -3,8 +3,11 @@ import type {
   PlatformRunProfile
 } from "@geohelper/agent-protocol";
 import type { RunSnapshot } from "@geohelper/agent-store";
-
 import type { PlatformThread } from "../state/thread-store";
+import {
+  buildRunStreamUrl,
+  parseRunStreamPayload
+} from "./control-plane-stream";
 import { RuntimeApiError } from "./runtime-service";
 
 export interface ControlPlaneClient {
@@ -15,7 +18,12 @@ export interface ControlPlaneClient {
     profileId: string;
     inputArtifactIds?: string[];
   }) => Promise<RunSnapshot["run"]>;
-  streamRun: (runId: string) => Promise<RunSnapshot>;
+  streamRun: (
+    runId: string,
+    options?: {
+      afterSequence?: number;
+    }
+  ) => Promise<RunSnapshot>;
   resolveCheckpoint: (
     checkpointId: string,
     response: unknown
@@ -26,9 +34,7 @@ export interface ControlPlaneClientOptions {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
 }
-
 const normalizeBaseUrl = (baseUrl = ""): string => baseUrl.replace(/\/+$/, "");
-
 const parseErrorPayload = async (response: Response): Promise<RuntimeApiError> => {
   try {
     const payload = (await response.json()) as {
@@ -70,7 +76,6 @@ const parseErrorPayload = async (response: Response): Promise<RuntimeApiError> =
     response.status
   );
 };
-
 const requestJson = async <T>(
   fetchImpl: typeof fetch,
   input: string,
@@ -83,7 +88,6 @@ const requestJson = async <T>(
 
   return (await response.json()) as T;
 };
-
 const requestText = async (
   fetchImpl: typeof fetch,
   input: string,
@@ -96,25 +100,11 @@ const requestText = async (
 
   return await response.text();
 };
-
-const parseSseSnapshot = (payload: string): RunSnapshot => {
-  const dataLine = payload
-    .split("\n")
-    .find((line) => line.startsWith("data: "));
-
-  if (!dataLine) {
-    throw new Error("invalid_run_stream_payload");
-  }
-
-  return JSON.parse(dataLine.slice(6)) as RunSnapshot;
-};
-
 export const createControlPlaneClient = ({
   baseUrl = "",
   fetchImpl = fetch
 }: ControlPlaneClientOptions = {}): ControlPlaneClient => {
   const resolvedBaseUrl = normalizeBaseUrl(baseUrl);
-
   return {
     createThread: async ({ title }) => {
       const payload = await requestJson<{
@@ -128,7 +118,6 @@ export const createControlPlaneClient = ({
           title
         })
       });
-
       return payload.thread;
     },
     listRunProfiles: async () => {
@@ -137,7 +126,6 @@ export const createControlPlaneClient = ({
           runProfiles: PlatformRunProfile[];
         };
       }>(fetchImpl, `${resolvedBaseUrl}/api/v3/platform/catalog`);
-
       return payload.catalog.runProfiles;
     },
     startRun: async ({
@@ -161,16 +149,21 @@ export const createControlPlaneClient = ({
           })
         }
       );
-
       return payload.run;
     },
-    streamRun: async (runId) =>
-      parseSseSnapshot(
+    streamRun: async (runId, options = {}) => {
+      const runStreamPath = `/api/v3/runs/${encodeURIComponent(runId)}/stream`;
+      return parseRunStreamPayload(
         await requestText(
           fetchImpl,
-        `${resolvedBaseUrl}/api/v3/runs/${encodeURIComponent(runId)}/stream`
+          buildRunStreamUrl({
+            baseUrl: resolvedBaseUrl,
+            path: runStreamPath,
+            afterSequence: options.afterSequence
+          })
         )
-      ),
+      );
+    },
     resolveCheckpoint: async (checkpointId, responsePayload) => {
       const payload = await requestJson<{
         checkpoint: Checkpoint;
@@ -189,7 +182,6 @@ export const createControlPlaneClient = ({
           })
         }
       );
-
       return payload.checkpoint;
     }
   };
