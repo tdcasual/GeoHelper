@@ -98,32 +98,34 @@ describe("settings-store runtime", () => {
   it("refreshes platform run profiles from control plane and heals a missing selection", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
       createJsonResponse({
-        runProfiles: [
-          {
-            id: "platform_remote_geometry_pro",
-            name: "远端几何增强",
-            description: "control-plane 下发的增强版本",
-            agentId: "geometry_solver",
-            workflowId: "wf_geometry_solver",
-            defaultBudget: {
-              maxModelCalls: 9,
-              maxToolCalls: 12,
-              maxDurationMs: 180000
+        catalog: {
+          runProfiles: [
+            {
+              id: "platform_remote_geometry_pro",
+              name: "远端几何增强",
+              description: "control-plane 下发的增强版本",
+              agentId: "geometry_solver",
+              workflowId: "wf_geometry_solver",
+              defaultBudget: {
+                maxModelCalls: 9,
+                maxToolCalls: 12,
+                maxDurationMs: 180000
+              }
+            },
+            {
+              id: "platform_remote_geometry_fast",
+              name: "远端快速版",
+              description: "control-plane 下发的快速版本",
+              agentId: "geometry_solver",
+              workflowId: "wf_geometry_solver",
+              defaultBudget: {
+                maxModelCalls: 4,
+                maxToolCalls: 5,
+                maxDurationMs: 90000
+              }
             }
-          },
-          {
-            id: "platform_remote_geometry_fast",
-            name: "远端快速版",
-            description: "control-plane 下发的快速版本",
-            agentId: "geometry_solver",
-            workflowId: "wf_geometry_solver",
-            defaultBudget: {
-              maxModelCalls: 4,
-              maxToolCalls: 5,
-              maxDurationMs: 90000
-            }
-          }
-        ]
+          ]
+        }
       })
     );
     vi.stubGlobal("fetch", fetchMock);
@@ -143,7 +145,7 @@ describe("settings-store runtime", () => {
     await store.getState().refreshPlatformRunProfiles();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://control-plane.example.com/api/v3/run-profiles",
+      "https://control-plane.example.com/api/v3/platform/catalog",
       undefined
     );
     expect(store.getState().platformRunProfileCatalog).toEqual(

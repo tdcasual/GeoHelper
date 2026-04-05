@@ -133,10 +133,12 @@ export const createControlPlaneClient = ({
     },
     listRunProfiles: async () => {
       const payload = await requestJson<{
-        runProfiles: PlatformRunProfile[];
-      }>(fetchImpl, `${resolvedBaseUrl}/api/v3/run-profiles`);
+        catalog: {
+          runProfiles: PlatformRunProfile[];
+        };
+      }>(fetchImpl, `${resolvedBaseUrl}/api/v3/platform/catalog`);
 
-      return payload.runProfiles;
+      return payload.catalog.runProfiles;
     },
     startRun: async ({
       threadId,

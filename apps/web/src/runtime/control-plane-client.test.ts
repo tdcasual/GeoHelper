@@ -14,20 +14,22 @@ describe("control-plane-client", () => {
   it("lists platform run profiles from the control plane catalog", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
       createJsonResponse({
-        runProfiles: [
-          {
-            id: "platform_geometry_standard",
-            name: "几何解题",
-            description: "标准几何解题链路",
-            agentId: "geometry_solver",
-            workflowId: "wf_geometry_solver",
-            defaultBudget: {
-              maxModelCalls: 6,
-              maxToolCalls: 8,
-              maxDurationMs: 120000
+        catalog: {
+          runProfiles: [
+            {
+              id: "platform_geometry_standard",
+              name: "几何解题",
+              description: "标准几何解题链路",
+              agentId: "geometry_solver",
+              workflowId: "wf_geometry_solver",
+              defaultBudget: {
+                maxModelCalls: 6,
+                maxToolCalls: 8,
+                maxDurationMs: 120000
+              }
             }
-          }
-        ]
+          ]
+        }
       })
     );
 
@@ -39,7 +41,7 @@ describe("control-plane-client", () => {
     const result = await client.listRunProfiles();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://control-plane.example.com/api/v3/run-profiles",
+      "https://control-plane.example.com/api/v3/platform/catalog",
       undefined
     );
     expect(result).toEqual([

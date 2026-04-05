@@ -71,26 +71,28 @@ test("settings drawer platform run profiles loads and refreshes control-plane ca
   let runProfileRequests = 0;
 
   await seedGatewayRemoteBackupSettings(page);
-  await page.route("https://gateway.example.com/api/v3/run-profiles", async (route) => {
+  await page.route("https://gateway.example.com/api/v3/platform/catalog", async (route) => {
     runProfileRequests += 1;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        runProfiles: [
-          {
-            id: "platform_remote_geometry_pro",
-            name: "远端几何增强",
-            description: "control-plane 下发的增强版本",
-            agentId: "geometry_solver",
-            workflowId: "wf_geometry_solver",
-            defaultBudget: {
-              maxModelCalls: 9,
-              maxToolCalls: 12,
-              maxDurationMs: 180000
+        catalog: {
+          runProfiles: [
+            {
+              id: "platform_remote_geometry_pro",
+              name: "远端几何增强",
+              description: "control-plane 下发的增强版本",
+              agentId: "geometry_solver",
+              workflowId: "wf_geometry_solver",
+              defaultBudget: {
+                maxModelCalls: 9,
+                maxToolCalls: 12,
+                maxDurationMs: 180000
+              }
             }
-          }
-        ]
+          ]
+        }
       })
     });
   });
