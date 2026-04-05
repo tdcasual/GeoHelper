@@ -1,16 +1,22 @@
 import { createPlatformRuntimeContext, type PlatformRuntimeContext } from "@geohelper/agent-core";
-import {
-  createGeometryPlatformBootstrap,
-  type GeometryAgentDefinition,
-  type GeometryEvaluator
-} from "@geohelper/agent-domain-geometry";
+import { createGeometryPlatformBootstrap } from "@geohelper/agent-domain-geometry";
 import type {
   Checkpoint,
   CheckpointStatus,
+  PlatformAgentDefinition,
   PlatformRunProfile,
   RunBudget,
   RunEvent} from "@geohelper/agent-protocol";
 import { type AgentStore,createMemoryAgentStore } from "@geohelper/agent-store";
+import {
+  createWorkerRuntime,
+  type WorkerToolRegistration
+} from "@geohelper/worker";
+
+interface PlatformToolCatalogRegistration extends WorkerToolRegistration {
+  permissions?: string[];
+  retryable?: boolean;
+}
 
 export interface ControlPlaneThread {
   id: string;
@@ -30,9 +36,9 @@ export interface ControlPlaneServices {
   threads: Map<string, ControlPlaneThread>;
   browserSessions: Map<string, BrowserSession>;
   platformRuntime: PlatformRuntimeContext<
-    GeometryAgentDefinition,
-    unknown,
-    GeometryEvaluator<any, any>
+    PlatformAgentDefinition,
+    PlatformToolCatalogRegistration,
+    unknown
   >;
   runProfiles: Map<string, PlatformRunProfile>;
   now: () => string;
@@ -40,6 +46,17 @@ export interface ControlPlaneServices {
   buildRunId: () => string;
   buildEventId: () => string;
   buildBrowserSessionId: () => string;
+  processRun: (runId: string) => Promise<void>;
+  resumeRunFromCheckpoint: (input: {
+    runId: string;
+    checkpointId: string;
+    response: unknown;
+  }) => Promise<void>;
+  resumeRunFromBrowserTool: (input: {
+    runId: string;
+    checkpointId: string;
+    output: unknown;
+  }) => Promise<void>;
 }
 
 export const DEFAULT_RUN_BUDGET: RunBudget = {
@@ -60,12 +77,64 @@ const createIdFactory = (prefix: string): (() => string) => {
 export const createControlPlaneServices = (
   overrides: Partial<ControlPlaneServices> = {}
 ): ControlPlaneServices => {
+  const store = overrides.store ?? createMemoryAgentStore();
   const platformRuntime =
     overrides.platformRuntime ??
     createPlatformRuntimeContext(createGeometryPlatformBootstrap());
+  const workerRuntime = createWorkerRuntime({
+    store,
+    platformRuntime
+  });
+
+  const processRun =
+    overrides.processRun ??
+    (async (runId: string): Promise<void> => {
+      workerRuntime.runLoop.enqueue(runId);
+      await workerRuntime.runLoop.tick();
+    });
+
+  const resumeRunFromCheckpoint =
+    overrides.resumeRunFromCheckpoint ??
+    (async ({
+      runId,
+      checkpointId,
+      response
+    }: {
+      runId: string;
+      checkpointId: string;
+      response: unknown;
+    }): Promise<void> => {
+      workerRuntime.runLoop.submitCheckpointResolution({
+        runId,
+        checkpointId,
+        response
+      });
+      workerRuntime.runLoop.enqueue(runId);
+      await workerRuntime.runLoop.tick();
+    });
+
+  const resumeRunFromBrowserTool =
+    overrides.resumeRunFromBrowserTool ??
+    (async ({
+      runId,
+      checkpointId,
+      output
+    }: {
+      runId: string;
+      checkpointId: string;
+      output: unknown;
+    }): Promise<void> => {
+      workerRuntime.runLoop.submitBrowserToolResult({
+        runId,
+        checkpointId,
+        output
+      });
+      workerRuntime.runLoop.enqueue(runId);
+      await workerRuntime.runLoop.tick();
+    });
 
   return {
-    store: overrides.store ?? createMemoryAgentStore(),
+    store,
     threads: overrides.threads ?? new Map(),
     browserSessions: overrides.browserSessions ?? new Map(),
     platformRuntime,
@@ -75,7 +144,10 @@ export const createControlPlaneServices = (
     buildRunId: overrides.buildRunId ?? createIdFactory("run"),
     buildEventId: overrides.buildEventId ?? createIdFactory("event"),
     buildBrowserSessionId:
-      overrides.buildBrowserSessionId ?? createIdFactory("browser_session")
+      overrides.buildBrowserSessionId ?? createIdFactory("browser_session"),
+    processRun,
+    resumeRunFromCheckpoint,
+    resumeRunFromBrowserTool
   };
 };
 

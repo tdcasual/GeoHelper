@@ -3,7 +3,6 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import {
-  appendRunEvent,
   type ControlPlaneServices,
   findCheckpointById} from "../control-plane-context";
 
@@ -38,8 +37,10 @@ export const registerCheckpointsRoutes = (
     });
 
     await services.store.checkpoints.upsertCheckpoint(resolvedCheckpoint);
-    await appendRunEvent(services, checkpoint.runId, "checkpoint.resolved", {
-      checkpointId: checkpoint.id
+    await services.resumeRunFromCheckpoint({
+      runId: checkpoint.runId,
+      checkpointId: checkpoint.id,
+      response: body.response
     });
 
     return reply.send({

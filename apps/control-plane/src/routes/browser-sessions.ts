@@ -72,6 +72,24 @@ export const registerBrowserSessionsRoutes = (
         toolName: body.toolName,
         status: body.status
       });
+      const pendingCheckpoint = (
+        await services.store.checkpoints.listRunCheckpoints(body.runId)
+      ).find(
+        (checkpoint) =>
+          checkpoint.status === "pending" && checkpoint.kind === "tool_result"
+      );
+
+      if (!pendingCheckpoint) {
+        return reply.code(409).send({
+          error: "browser_tool_checkpoint_not_found"
+        });
+      }
+
+      await services.resumeRunFromBrowserTool({
+        runId: body.runId,
+        checkpointId: pendingCheckpoint.id,
+        output: body.output
+      });
 
       return reply.code(202).send({
         accepted: true

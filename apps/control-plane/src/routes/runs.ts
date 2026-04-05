@@ -56,6 +56,7 @@ export const registerRunsRoutes = (
       threadId: run.threadId,
       profileId: runProfile.id
     });
+    await services.processRun(run.id);
 
     return reply.code(202).send({
       run

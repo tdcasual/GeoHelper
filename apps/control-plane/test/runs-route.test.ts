@@ -2,6 +2,31 @@ import { describe, expect, it } from "vitest";
 
 import { buildServer } from "../src/server";
 
+const parseStreamSnapshot = (payload: string) => {
+  const dataLine = payload
+    .split("\n")
+    .find((line) => line.startsWith("data: "));
+
+  if (!dataLine) {
+    throw new Error("missing run snapshot event payload");
+  }
+
+  return JSON.parse(dataLine.slice(6)) as {
+    run: {
+      id: string;
+      profileId: string;
+      status: string;
+    };
+    events: Array<{
+      type: string;
+    }>;
+    checkpoints: Array<{
+      kind: string;
+      status: string;
+    }>;
+  };
+};
+
 describe("control-plane runs routes", () => {
   it("lists registered run profiles", async () => {
     const app = buildServer();
@@ -47,7 +72,7 @@ describe("control-plane runs routes", () => {
     });
   });
 
-  it("starts a run and streams the current run snapshot as server-sent events", async () => {
+  it("starts a run and streams the worker-progressed snapshot as server-sent events", async () => {
     const app = buildServer({
       now: () => "2026-04-04T00:00:00.000Z"
     });
@@ -96,9 +121,27 @@ describe("control-plane runs routes", () => {
     expect(streamRes.statusCode).toBe(200);
     expect(streamRes.headers["content-type"]).toContain("text/event-stream");
     expect(streamRes.payload).toContain("event: run.snapshot");
-    expect(streamRes.payload).toContain("\"id\":\"run_1\"");
-    expect(streamRes.payload).toContain("\"profileId\":\"platform_geometry_quick_draft\"");
-    expect(streamRes.payload).toContain("\"type\":\"run.created\"");
+
+    const snapshot = parseStreamSnapshot(streamRes.payload);
+
+    expect(snapshot.run).toEqual(
+      expect.objectContaining({
+        id: "run_1",
+        profileId: "platform_geometry_quick_draft",
+        status: "waiting_for_checkpoint"
+      })
+    );
+    expect(snapshot.events.map((event) => event.type)).toEqual(
+      expect.arrayContaining(["run.created", "checkpoint.waiting"])
+    );
+    expect(snapshot.checkpoints).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "tool_result",
+          status: "pending"
+        })
+      ])
+    );
   });
 
   it("rejects unknown run profiles", async () => {

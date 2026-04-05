@@ -54,6 +54,9 @@ importers:
 
   apps/control-plane:
     dependencies:
+      '@geohelper/agent-core':
+        specifier: workspace:*
+        version: link:../../packages/agent-core
       '@geohelper/agent-domain-geometry':
         specifier: workspace:*
         version: link:../../packages/agent-domain-geometry
@@ -63,6 +66,9 @@ importers:
       '@geohelper/agent-store':
         specifier: workspace:*
         version: link:../../packages/agent-store
+      '@geohelper/worker':
+        specifier: workspace:*
+        version: link:../worker
       fastify:
         specifier: ^5.6.1
         version: 5.7.4

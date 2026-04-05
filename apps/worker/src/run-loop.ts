@@ -12,7 +12,7 @@ import type {
   Run,
   RunEvent
 } from "@geohelper/agent-protocol";
-import { CheckpointSchema } from "@geohelper/agent-protocol";
+import { type CheckpointKind,CheckpointSchema } from "@geohelper/agent-protocol";
 import type { AgentStore } from "@geohelper/agent-store";
 
 import {
@@ -24,6 +24,12 @@ import { createModelDispatch } from "./model-dispatch";
 export interface WorkerToolRegistration {
   name: string;
   kind: string;
+}
+
+export interface CheckpointResolution {
+  runId: string;
+  checkpointId: string;
+  response: unknown;
 }
 
 export interface RunLoopOptions {
@@ -80,6 +86,30 @@ const createToolHandler = (
   };
 };
 
+const createCheckpointHandler = (
+  now: () => string,
+  buildCheckpointId: () => string
+): NodeHandler => async ({ run, node }) => {
+  const checkpointKind =
+    typeof node.config.checkpointKind === "string"
+      ? (node.config.checkpointKind as CheckpointKind)
+      : "human_input";
+
+  return {
+    type: "checkpoint",
+    checkpoint: CheckpointSchema.parse({
+      id: buildCheckpointId(),
+      runId: run.id,
+      nodeId: node.id,
+      kind: checkpointKind,
+      status: "pending",
+      title: node.name,
+      prompt: `Resolve checkpoint "${node.name}" to continue the run.`,
+      createdAt: now()
+    })
+  };
+};
+
 const mapExecutionStatusToRunStatus = (
   status: WorkflowExecutionResult["status"]
 ): Run["status"] => {
@@ -105,6 +135,7 @@ export const createRunLoop = ({
   const queue: string[] = [];
   const pausedStates = new Map<string, WorkflowEngineState>();
   const persistedEngineEventCounts = new Map<string, number>();
+  const checkpointResolutions = new Map<string, CheckpointResolution>();
   const engine = createWorkflowEngine({
     now,
     handlers: createModelDispatch({
@@ -113,6 +144,7 @@ export const createRunLoop = ({
         now,
         buildCheckpointId
       ),
+      checkpoint: createCheckpointHandler(now, buildCheckpointId),
       ...handlers
     })
   });
@@ -192,11 +224,11 @@ export const createRunLoop = ({
   };
 
   const resolvePendingBrowserCheckpoint = async (
-    result: BrowserToolResult
+    resolution: CheckpointResolution
   ): Promise<void> => {
     const pendingCheckpoint = (
       await store.checkpoints.listCheckpointsByStatus("pending")
-    ).find((checkpoint) => checkpoint.id === result.checkpointId);
+    ).find((checkpoint) => checkpoint.id === resolution.checkpointId);
 
     if (!pendingCheckpoint) {
       return;
@@ -205,7 +237,7 @@ export const createRunLoop = ({
     await store.checkpoints.upsertCheckpoint({
       ...pendingCheckpoint,
       status: "resolved",
-      response: result.output,
+      response: resolution.response,
       resolvedAt: now()
     });
   };
@@ -215,6 +247,9 @@ export const createRunLoop = ({
       queue.push(runId);
     },
     claimNextRun: (): string | null => queue.shift() ?? null,
+    submitCheckpointResolution: (resolution: CheckpointResolution): void => {
+      checkpointResolutions.set(resolution.runId, resolution);
+    },
     submitBrowserToolResult: (result: BrowserToolResult): void => {
       browserToolDispatch.submitResult(result);
     },
@@ -236,19 +271,37 @@ export const createRunLoop = ({
 
       if (run.status === "waiting_for_checkpoint") {
         const pausedState = pausedStates.get(runId);
-        const browserResult = browserToolDispatch.consumeResult(runId);
+        let checkpointResolution = checkpointResolutions.get(runId) ?? null;
 
-        if (!pausedState || !browserResult) {
+        if (!pausedState) {
           return null;
         }
 
-        await resolvePendingBrowserCheckpoint(browserResult);
+        if (checkpointResolution) {
+          checkpointResolutions.delete(runId);
+        } else {
+          const browserResult = browserToolDispatch.consumeResult(runId);
+
+          checkpointResolution = browserResult
+            ? {
+                runId: browserResult.runId,
+                checkpointId: browserResult.checkpointId,
+                response: browserResult.output
+              }
+            : null;
+        }
+
+        if (!checkpointResolution) {
+          return null;
+        }
+
+        await resolvePendingBrowserCheckpoint(checkpointResolution);
 
         const result = await engine.resume({
           state: pausedState,
           resolution: {
-            checkpointId: browserResult.checkpointId,
-            response: browserResult.output
+            checkpointId: checkpointResolution.checkpointId,
+            response: checkpointResolution.response
           }
         });
 
