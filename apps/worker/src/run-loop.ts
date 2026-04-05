@@ -21,11 +21,16 @@ import {
   createBrowserToolDispatch} from "./browser-tool-dispatch";
 import { createModelDispatch } from "./model-dispatch";
 
+export interface WorkerToolRegistration {
+  name: string;
+  kind: string;
+}
+
 export interface RunLoopOptions {
   store: AgentStore;
   platformRuntime: PlatformRuntimeContext<
     PlatformAgentDefinition,
-    unknown,
+    WorkerToolRegistration,
     unknown
   >;
   handlers?: NodeHandlerMap;
@@ -46,15 +51,15 @@ const createCheckpointIdFactory = (): (() => string) => {
 };
 
 const createToolHandler = (
+  tools: Record<string, WorkerToolRegistration>,
   now: () => string,
   buildCheckpointId: () => string
 ): NodeHandler => async ({ run, node }) => {
-  const toolKind =
-    typeof node.config.toolKind === "string" ? node.config.toolKind : null;
   const toolName =
     typeof node.config.toolName === "string" ? node.config.toolName : node.id;
+  const tool = tools[toolName];
 
-  if (toolKind === "browser_tool") {
+  if (tool?.kind === "browser_tool") {
     return {
       type: "checkpoint",
       checkpoint: CheckpointSchema.parse({
@@ -103,7 +108,11 @@ export const createRunLoop = ({
   const engine = createWorkflowEngine({
     now,
     handlers: createModelDispatch({
-      tool: createToolHandler(now, buildCheckpointId),
+      tool: createToolHandler(
+        platformRuntime.tools,
+        now,
+        buildCheckpointId
+      ),
       ...handlers
     })
   });

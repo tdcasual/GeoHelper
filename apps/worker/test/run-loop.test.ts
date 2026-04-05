@@ -4,7 +4,10 @@ import type { Run } from "@geohelper/agent-protocol";
 import { createMemoryAgentStore } from "@geohelper/agent-store";
 import { describe, expect, it } from "vitest";
 
-import { createRunLoop } from "../src/run-loop";
+import {
+  createRunLoop,
+  type WorkerToolRegistration
+} from "../src/run-loop";
 
 const createRun = (overrides: Partial<Run> = {}) => ({
   id: "run_1",
@@ -46,7 +49,7 @@ const createTestPlatformRuntime = (input: {
       next: string[];
     }>;
   };
-  tools?: Record<string, unknown>;
+  tools?: Record<string, WorkerToolRegistration>;
   evaluators?: Record<string, unknown>;
 }) =>
   createPlatformRuntimeContext({
@@ -102,6 +105,14 @@ const createTestPlatformRuntime = (input: {
     tools: input.tools ?? {},
     evaluators: input.evaluators ?? {}
   });
+
+const createTestTool = (
+  name: string,
+  kind: WorkerToolRegistration["kind"]
+): WorkerToolRegistration => ({
+  name,
+  kind
+});
 
 describe("worker run loop", () => {
   it("claims queued runs in FIFO order", () => {
@@ -192,8 +203,7 @@ describe("worker run loop", () => {
               kind: "tool",
               name: "Read scene state",
               config: {
-                toolName: "scene.read_state",
-                toolKind: "browser_tool"
+                toolName: "scene.read_state"
               },
               next: ["node_finish"]
             },
@@ -207,7 +217,10 @@ describe("worker run loop", () => {
           ]
         },
         tools: {
-          "scene.read_state": {}
+          "scene.read_state": createTestTool(
+            "scene.read_state",
+            "browser_tool"
+          )
         }
       })
     });
@@ -245,8 +258,7 @@ describe("worker run loop", () => {
               kind: "tool",
               name: "Apply command batch",
               config: {
-                toolName: "scene.apply_command_batch",
-                toolKind: "browser_tool"
+                toolName: "scene.apply_command_batch"
               },
               next: ["node_finish"]
             },
@@ -260,7 +272,10 @@ describe("worker run loop", () => {
           ]
         },
         tools: {
-          "scene.apply_command_batch": {}
+          "scene.apply_command_batch": createTestTool(
+            "scene.apply_command_batch",
+            "browser_tool"
+          )
         }
       })
     });

@@ -8,19 +8,20 @@ import {
   type GeometryAgentDefinition,
   type GeometryEvaluator
 } from "@geohelper/agent-domain-geometry";
-import type {
-  PlatformAgentDefinition
-} from "@geohelper/agent-protocol";
+import type { PlatformAgentDefinition } from "@geohelper/agent-protocol";
 import type { AgentStore } from "@geohelper/agent-store";
 
 import { createBrowserToolDispatch } from "./browser-tool-dispatch";
-import { createRunLoop } from "./run-loop";
+import {
+  createRunLoop,
+  type WorkerToolRegistration
+} from "./run-loop";
 
 export interface WorkerRuntimeOptions {
   store: AgentStore;
   platformRuntime: PlatformRuntimeContext<
     PlatformAgentDefinition,
-    unknown,
+    WorkerToolRegistration,
     unknown
   >;
   handlers?: NodeHandlerMap;
@@ -81,7 +82,7 @@ export interface GeometryWorkerRuntime {
   runLoop: ReturnType<typeof createRunLoop>;
   platformRuntime: PlatformRuntimeContext<
     GeometryAgentDefinition,
-    unknown,
+    WorkerToolRegistration,
     GeometryEvaluator<any, any>
   >;
 }
