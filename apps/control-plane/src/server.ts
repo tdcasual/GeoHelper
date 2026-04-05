@@ -11,6 +11,7 @@ import { registerAdminRunsRoutes } from "./routes/admin-runs";
 import { registerAdminToolsRoutes } from "./routes/admin-tools";
 import { registerBrowserSessionsRoutes } from "./routes/browser-sessions";
 import { registerCheckpointsRoutes } from "./routes/checkpoints";
+import { registerPlatformCatalogRoutes } from "./routes/platform-catalog";
 import { registerRunProfilesRoutes } from "./routes/run-profiles";
 import { registerRunsRoutes } from "./routes/runs";
 import { registerStreamRoutes } from "./routes/stream";
@@ -28,6 +29,7 @@ export const buildServer = (
   registerAdminToolsRoutes(app, services);
   registerAdminMemoryRoutes(app, services);
   registerAdminCheckpointsRoutes(app, services);
+  registerPlatformCatalogRoutes(app, services);
   registerThreadsRoutes(app, services);
   registerRunProfilesRoutes(app, services);
   registerRunsRoutes(app, services);

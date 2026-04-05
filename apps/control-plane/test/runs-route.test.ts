@@ -6,28 +6,21 @@ describe("control-plane runs routes", () => {
   it("lists registered run profiles", async () => {
     const app = buildServer();
 
+    const catalogRes = await app.inject({
+      method: "GET",
+      url: "/api/v3/platform/catalog"
+    });
     const res = await app.inject({
       method: "GET",
       url: "/api/v3/run-profiles"
     });
 
+    expect(catalogRes.statusCode).toBe(200);
     expect(res.statusCode).toBe(200);
+    const catalog = JSON.parse(catalogRes.payload);
+
     expect(JSON.parse(res.payload)).toEqual({
-      runProfiles: expect.arrayContaining([
-        expect.objectContaining({
-          id: "platform_geometry_standard",
-          agentId: "geometry_solver",
-          workflowId: "wf_geometry_solver"
-        }),
-        expect.objectContaining({
-          id: "platform_geometry_quick_draft",
-          defaultBudget: {
-            maxModelCalls: 3,
-            maxToolCalls: 4,
-            maxDurationMs: 60000
-          }
-        })
-      ])
+      runProfiles: catalog.catalog.runProfiles
     });
   });
 
