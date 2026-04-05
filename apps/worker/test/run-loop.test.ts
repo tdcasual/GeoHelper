@@ -1,3 +1,4 @@
+import { createGeometryDomainPackage } from "@geohelper/agent-domain-geometry";
 import type { Run } from "@geohelper/agent-protocol";
 import { createMemoryAgentStore } from "@geohelper/agent-store";
 import { describe, expect, it } from "vitest";
@@ -254,5 +255,38 @@ describe("worker run loop", () => {
 
     expect(result?.status).toBe("failed");
     expect(run?.status).toBe("failed");
+  });
+
+  it("executes runs from the shared geometry platform registry", async () => {
+    const store = createMemoryAgentStore();
+    const geometryDomain = createGeometryDomainPackage();
+
+    await store.runs.createRun(createRun({
+      profileId: "platform_geometry_standard"
+    }));
+
+    const loop = createRunLoop({
+      store,
+      runProfiles: geometryDomain.runProfiles,
+      workflows: geometryDomain.workflows,
+      handlers: {
+        planner: async () => ({ type: "continue" }),
+        tool: async () => ({ type: "continue" }),
+        evaluator: async () => ({ type: "continue" }),
+        router: async () => ({
+          type: "route",
+          nextNodeId: "node_finish_response"
+        }),
+        synthesizer: async () => ({ type: "complete" })
+      }
+    });
+
+    loop.enqueue("run_1");
+
+    const result = await loop.tick();
+    const run = await store.runs.getRun("run_1");
+
+    expect(result?.status).toBe("completed");
+    expect(run?.status).toBe("completed");
   });
 });

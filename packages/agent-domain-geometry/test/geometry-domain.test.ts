@@ -34,6 +34,25 @@ describe("geometry domain package", () => {
       .toEqual(["node_teacher_checkpoint", "node_finish_response"]);
   });
 
+  it("publishes platform run profiles that resolve to registered workflows", () => {
+    const domain = createGeometryDomainPackage();
+    const standardProfile = domain.runProfiles.platform_geometry_standard;
+    const quickDraftProfile = domain.runProfiles.platform_geometry_quick_draft;
+
+    expect(standardProfile).toBeDefined();
+    expect(quickDraftProfile).toBeDefined();
+    expect(standardProfile.defaultBudget).toEqual(
+      domain.agents.geometry_solver.defaultBudget
+    );
+    expect(domain.workflows[standardProfile.workflowId]?.id).toBe(
+      "wf_geometry_solver"
+    );
+    expect(quickDraftProfile.workflowId).toBe(standardProfile.workflowId);
+    expect(quickDraftProfile.defaultBudget.maxModelCalls).toBeLessThan(
+      standardProfile.defaultBudget.maxModelCalls
+    );
+  });
+
   it("creates a tool_result artifact when applying a geometry command batch", async () => {
     const domain = createGeometryDomainPackage();
     const tool = domain.tools["scene.apply_command_batch"];

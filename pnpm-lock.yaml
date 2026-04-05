@@ -54,6 +54,9 @@ importers:
 
   apps/control-plane:
     dependencies:
+      '@geohelper/agent-domain-geometry':
+        specifier: workspace:*
+        version: link:../../packages/agent-domain-geometry
       '@geohelper/agent-protocol':
         specifier: workspace:*
         version: link:../../packages/agent-protocol
@@ -141,6 +144,9 @@ importers:
       '@geohelper/agent-core':
         specifier: workspace:*
         version: link:../../packages/agent-core
+      '@geohelper/agent-domain-geometry':
+        specifier: workspace:*
+        version: link:../../packages/agent-domain-geometry
       '@geohelper/agent-protocol':
         specifier: workspace:*
         version: link:../../packages/agent-protocol
