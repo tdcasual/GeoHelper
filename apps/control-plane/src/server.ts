@@ -6,6 +6,7 @@ import {
   type ControlPlaneServices,
   createControlPlaneServices} from "./control-plane-context";
 import { registerAdminCheckpointsRoutes } from "./routes/admin-checkpoints";
+import { registerAdminEvalsRoutes } from "./routes/admin-evals";
 import { registerAdminMemoryRoutes } from "./routes/admin-memory";
 import { registerAdminRunsRoutes } from "./routes/admin-runs";
 import { registerAdminToolsRoutes } from "./routes/admin-tools";
@@ -17,6 +18,7 @@ import { registerRunProfilesRoutes } from "./routes/run-profiles";
 import { registerRunsRoutes } from "./routes/runs";
 import { registerStreamRoutes } from "./routes/stream";
 import { registerThreadsRoutes } from "./routes/threads";
+import { registerWorkspacesRoutes } from "./routes/workspaces";
 
 export const buildServer = (
   overrides: Partial<ControlPlaneServices> = {}
@@ -30,8 +32,10 @@ export const buildServer = (
   registerAdminToolsRoutes(app, services);
   registerAdminMemoryRoutes(app, services);
   registerAdminCheckpointsRoutes(app, services);
+  registerAdminEvalsRoutes(app, services);
   registerPlatformCatalogRoutes(app, services);
   registerThreadsRoutes(app, services);
+  registerWorkspacesRoutes(app, services);
   registerArtifactsRoutes(app, services);
   registerRunProfilesRoutes(app, services);
   registerRunsRoutes(app, services);
