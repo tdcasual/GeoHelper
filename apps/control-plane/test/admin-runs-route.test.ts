@@ -59,6 +59,61 @@ describe("control-plane admin routes", () => {
     });
   });
 
+  it("lists child runs with a parentRunId filter", async () => {
+    const store = createMemoryAgentStore();
+
+    await store.runs.createRun({
+      id: "run_parent",
+      threadId: "thread_1",
+      profileId: "platform_geometry_standard",
+      status: "completed",
+      inputArtifactIds: [],
+      outputArtifactIds: [],
+      budget: {
+        maxModelCalls: 6,
+        maxToolCalls: 8,
+        maxDurationMs: 120000
+      },
+      createdAt: "2026-04-04T00:00:00.000Z",
+      updatedAt: "2026-04-04T00:00:00.000Z"
+    });
+    await store.runs.createRun({
+      id: "run_child",
+      threadId: "thread_1",
+      profileId: "platform_geometry_quick_draft",
+      status: "queued",
+      parentRunId: "run_parent",
+      inputArtifactIds: [],
+      outputArtifactIds: [],
+      budget: {
+        maxModelCalls: 3,
+        maxToolCalls: 4,
+        maxDurationMs: 60000
+      },
+      createdAt: "2026-04-04T00:01:00.000Z",
+      updatedAt: "2026-04-04T00:01:00.000Z"
+    });
+
+    const app = buildServer({
+      store
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/admin/runs?parentRunId=run_parent"
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual({
+      runs: [
+        expect.objectContaining({
+          id: "run_child",
+          parentRunId: "run_parent"
+        })
+      ]
+    });
+  });
+
   it("inspects the node timeline for a run", async () => {
     const store = createMemoryAgentStore();
 

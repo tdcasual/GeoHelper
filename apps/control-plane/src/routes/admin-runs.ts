@@ -4,7 +4,8 @@ import { z } from "zod";
 import type { ControlPlaneServices } from "../control-plane-context";
 
 const RunsQuerySchema = z.object({
-  status: z.string().min(1).optional()
+  status: z.string().min(1).optional(),
+  parentRunId: z.string().min(1).optional()
 });
 
 export const registerAdminRunsRoutes = (
@@ -14,7 +15,8 @@ export const registerAdminRunsRoutes = (
   app.get("/admin/runs", async (request) => {
     const query = RunsQuerySchema.parse(request.query);
     const runs = await services.store.runs.listRuns({
-      status: query.status as never
+      status: query.status as never,
+      parentRunId: query.parentRunId
     });
 
     return {

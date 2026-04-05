@@ -4,6 +4,7 @@ export type AgentStoreResult<T> = T | Promise<T>;
 
 export interface RunFilter {
   status?: Run["status"];
+  parentRunId?: string;
 }
 
 export interface RunSnapshot {

@@ -423,4 +423,61 @@ describe("agent store", () => {
       });
     }
   });
+
+  it("filters child runs by parentRunId after sqlite store reopen", async () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "geohelper-agent-store-"));
+    const databasePath = path.join(tempDir, "agent-store.sqlite");
+
+    try {
+      const store = createSqliteAgentStore({
+        path: databasePath
+      });
+
+      await store.runs.createRun({
+        id: "run_parent",
+        threadId: "thread_sqlite_1",
+        profileId: "platform_geometry_standard",
+        status: "completed",
+        inputArtifactIds: [],
+        outputArtifactIds: [],
+        budget: {
+          maxModelCalls: 4,
+          maxToolCalls: 8,
+          maxDurationMs: 60_000
+        },
+        createdAt: "2026-04-05T00:00:00.000Z",
+        updatedAt: "2026-04-05T00:00:00.000Z"
+      });
+      await store.runs.createRun({
+        id: "run_child",
+        threadId: "thread_sqlite_1",
+        profileId: "platform_geometry_quick_draft",
+        status: "queued",
+        parentRunId: "run_parent",
+        inputArtifactIds: [],
+        outputArtifactIds: [],
+        budget: {
+          maxModelCalls: 3,
+          maxToolCalls: 4,
+          maxDurationMs: 30_000
+        },
+        createdAt: "2026-04-05T00:01:00.000Z",
+        updatedAt: "2026-04-05T00:01:00.000Z"
+      });
+
+      const reopened = createSqliteAgentStore({
+        path: databasePath
+      });
+      const children = await reopened.runs.listRuns({
+        parentRunId: "run_parent"
+      });
+
+      expect(children.map((run) => run.id)).toEqual(["run_child"]);
+    } finally {
+      rmSync(tempDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
 });

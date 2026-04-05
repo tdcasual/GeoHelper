@@ -55,6 +55,20 @@ const createCheckpointIdFactory = (): (() => string) => {
 const buildRunEventId = (runId: string, sequence: number): string =>
   `event_${runId}_${sequence}`;
 
+const buildSubagentRunId = (parentRunId: string, nodeId: string): string =>
+  `run_child_${parentRunId}_${nodeId}`;
+
+const parseInputArtifactIds = (value: unknown): string[] | null => {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  return value.filter(
+    (artifactId): artifactId is string =>
+      typeof artifactId === "string" && artifactId.length > 0
+  );
+};
+
 const createToolHandler = (
   tools: Record<string, WorkerToolRegistration>,
   now: () => string,
@@ -109,6 +123,57 @@ const createCheckpointHandler = (
   };
 };
 
+const createSubagentHandler = (
+  store: AgentStore,
+  platformRuntime: PlatformRuntimeContext<
+    PlatformAgentDefinition,
+    WorkerToolRegistration,
+    unknown
+  >,
+  now: () => string
+): NodeHandler => async ({ run, node }) => {
+  const runProfileId =
+    typeof node.config.runProfileId === "string"
+      ? node.config.runProfileId
+      : null;
+
+  if (!runProfileId) {
+    return {
+      type: "continue"
+    };
+  }
+
+  const childRunId = buildSubagentRunId(run.id, node.id);
+  const existingChildRun = await store.runs.getRun(childRunId);
+
+  if (!existingChildRun) {
+    const childProfile = platformRuntime.runProfiles.get(runProfileId);
+    const inputArtifactIds =
+      parseInputArtifactIds(node.config.inputArtifactIds) ??
+      run.inputArtifactIds;
+    const timestamp = now();
+
+    await store.runs.createRun({
+      id: childRunId,
+      threadId: run.threadId,
+      profileId: runProfileId,
+      status: "queued",
+      parentRunId: run.id,
+      inputArtifactIds,
+      outputArtifactIds: [],
+      budget: childProfile?.defaultBudget ?? run.budget,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    });
+    await store.dispatches.enqueueRun(childRunId, timestamp);
+  }
+
+  return {
+    type: "spawn_subagent",
+    childRunId
+  };
+};
+
 const mapExecutionStatusToRunStatus = (
   status: WorkflowExecutionResult["status"]
 ): Run["status"] => {
@@ -142,6 +207,7 @@ export const createRunLoop = ({
         buildCheckpointId
       ),
       checkpoint: createCheckpointHandler(now, buildCheckpointId),
+      subagent: createSubagentHandler(store, platformRuntime, now),
       ...handlers
     })
   });

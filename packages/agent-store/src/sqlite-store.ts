@@ -33,6 +33,7 @@ import type { EventRepo } from "./repos/event-repo";
 import type { MemoryEntryFilter, MemoryRepo } from "./repos/memory-repo";
 import type {
   AgentStoreResult,
+  RunFilter,
   RunRepo,
   RunSnapshot
 } from "./repos/run-repo";
@@ -156,6 +157,18 @@ const parseJson = <T>(value: string | null | undefined, fallback: T): T => {
 };
 
 const readRows = <TRow>(rows: unknown): TRow[] => rows as TRow[];
+
+const matchesRunFilter = (run: Run, filter: RunFilter = {}): boolean => {
+  if (filter.status && run.status !== filter.status) {
+    return false;
+  }
+
+  if (filter.parentRunId && run.parentRunId !== filter.parentRunId) {
+    return false;
+  }
+
+  return true;
+};
 
 const mapRunRow = (row: RunRow): Run =>
   RunSchema.parse({
@@ -348,22 +361,6 @@ export const createSqliteAgentStore = ({
       created_at,
       updated_at
     from runs
-    order by created_at asc
-  `);
-  const listRunsByStatusStatement = database.prepare(`
-    select
-      id,
-      thread_id,
-      profile_id,
-      status,
-      parent_run_id,
-      budget_json,
-      input_artifact_ids_json,
-      output_artifact_ids_json,
-      created_at,
-      updated_at
-    from runs
-    where status = ?
     order by created_at asc
   `);
   const upsertThreadStatement = database.prepare(`
@@ -678,15 +675,10 @@ export const createSqliteAgentStore = ({
 
       return row ? mapRunRow(row) : null;
     },
-    listRuns: (filter = {}) => {
-      const rows = readRows<RunRow>(
-        filter.status
-          ? listRunsByStatusStatement.all(filter.status)
-          : listRunsStatement.all()
-      );
-
-      return rows.map(mapRunRow);
-    }
+    listRuns: (filter = {}) =>
+      readRows<RunRow>(listRunsStatement.all())
+        .map(mapRunRow)
+        .filter((run) => matchesRunFilter(run, filter))
   };
 
   const eventRepo: EventRepo = {

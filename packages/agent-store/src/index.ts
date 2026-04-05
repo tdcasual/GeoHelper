@@ -39,6 +39,10 @@ const matchesRunFilter = (run: Run, filter: RunFilter = {}): boolean => {
     return false;
   }
 
+  if (filter.parentRunId && run.parentRunId !== filter.parentRunId) {
+    return false;
+  }
+
   return true;
 };
 
