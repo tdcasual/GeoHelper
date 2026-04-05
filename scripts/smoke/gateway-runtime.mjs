@@ -84,19 +84,29 @@ export function buildGatewayRuntimeChecks(env = process.env) {
     path: "/api/v3/threads/:threadId"
   });
   checks.push({
-    name: "GET /api/v3/artifacts/:artifactId",
-    method: "GET",
-    path: "/api/v3/artifacts/:artifactId"
-  });
-  checks.push({
     name: "POST /api/v3/threads/:threadId/runs",
     method: "POST",
     path: "/api/v3/threads/:threadId/runs"
   });
   checks.push({
+    name: "POST /api/v3/browser-sessions",
+    method: "POST",
+    path: "/api/v3/browser-sessions"
+  });
+  checks.push({
     name: "GET /api/v3/runs/:runId/stream",
     method: "GET",
     path: "/api/v3/runs/:runId/stream"
+  });
+  checks.push({
+    name: "GET /api/v3/artifacts/:artifactId",
+    method: "GET",
+    path: "/api/v3/artifacts/:artifactId"
+  });
+  checks.push({
+    name: "POST /api/v3/browser-sessions/:sessionId/canvas-evidence",
+    method: "POST",
+    path: "/api/v3/browser-sessions/:sessionId/canvas-evidence"
   });
 
   return checks;
@@ -368,6 +378,31 @@ const runLiveChecks = async ({
     run_status: runBody.run.status ?? null
   });
 
+  const { body: sessionBody } = await fetchJson(
+    fetchImpl,
+    `${controlPlaneUrl}/api/v3/browser-sessions`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        runId: runBody.run.id,
+        allowedToolNames: ["scene.capture_snapshot"]
+      })
+    },
+    "create browser session"
+  );
+  if (!sessionBody?.session?.id) {
+    throw new Error("create browser session failed: missing session id");
+  }
+  checks.push({
+    name: "POST /api/v3/browser-sessions",
+    ok: true,
+    session_id: sessionBody.session.id,
+    run_id: sessionBody.session.runId ?? runBody.run.id
+  });
+
   const { text: streamBody } = await fetchText(
     fetchImpl,
     `${controlPlaneUrl}/api/v3/runs/${encodeURIComponent(runBody.run.id)}/stream`,
@@ -405,6 +440,39 @@ const runLiveChecks = async ({
     ok: true,
     artifact_id: artifactBody.artifact.id,
     kind: artifactBody.artifact.kind ?? null
+  });
+
+  const { body: canvasEvidenceBody } = await fetchJson(
+    fetchImpl,
+    `${controlPlaneUrl}/api/v3/browser-sessions/${encodeURIComponent(
+      sessionBody.session.id
+    )}/canvas-evidence`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        contentType: "application/json",
+        storage: "inline",
+        inlineData: {
+          snapshot: "scene_runtime_1"
+        },
+        metadata: {
+          source: "gateway-runtime-smoke"
+        }
+      })
+    },
+    "post canvas evidence"
+  );
+  if (canvasEvidenceBody?.artifact?.kind !== "canvas_evidence") {
+    throw new Error("post canvas evidence failed: unexpected artifact payload");
+  }
+  checks.push({
+    name: "POST /api/v3/browser-sessions/:sessionId/canvas-evidence",
+    ok: true,
+    artifact_id: canvasEvidenceBody.artifact.id,
+    kind: canvasEvidenceBody.artifact.kind ?? null
   });
 
   return checks;

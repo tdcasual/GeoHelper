@@ -67,19 +67,29 @@ describe("gateway runtime smoke script", () => {
         path: "/api/v3/threads/:threadId"
       },
       {
-        name: "GET /api/v3/artifacts/:artifactId",
-        method: "GET",
-        path: "/api/v3/artifacts/:artifactId"
-      },
-      {
         name: "POST /api/v3/threads/:threadId/runs",
         method: "POST",
         path: "/api/v3/threads/:threadId/runs"
       },
       {
+        name: "POST /api/v3/browser-sessions",
+        method: "POST",
+        path: "/api/v3/browser-sessions"
+      },
+      {
         name: "GET /api/v3/runs/:runId/stream",
         method: "GET",
         path: "/api/v3/runs/:runId/stream"
+      },
+      {
+        name: "GET /api/v3/artifacts/:artifactId",
+        method: "GET",
+        path: "/api/v3/artifacts/:artifactId"
+      },
+      {
+        name: "POST /api/v3/browser-sessions/:sessionId/canvas-evidence",
+        method: "POST",
+        path: "/api/v3/browser-sessions/:sessionId/canvas-evidence"
       }
     ]);
   });

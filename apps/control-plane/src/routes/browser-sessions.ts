@@ -17,6 +17,20 @@ const BrowserToolResultBodySchema = z.object({
   status: z.enum(["completed", "failed"]),
   output: z.unknown()
 });
+const CanvasEvidenceBodySchema = z.discriminatedUnion("storage", [
+  z.object({
+    contentType: z.string().min(1),
+    storage: z.literal("inline"),
+    inlineData: z.unknown(),
+    metadata: z.record(z.string(), z.unknown()).default({})
+  }),
+  z.object({
+    contentType: z.string().min(1),
+    storage: z.literal("blob"),
+    blobUri: z.string().min(1),
+    metadata: z.record(z.string(), z.unknown()).default({})
+  })
+]);
 
 export const registerBrowserSessionsRoutes = (
   app: FastifyInstance,
@@ -95,6 +109,60 @@ export const registerBrowserSessionsRoutes = (
 
       return reply.code(202).send({
         accepted: true
+      });
+    }
+  );
+
+  app.post(
+    "/api/v3/browser-sessions/:sessionId/canvas-evidence",
+    async (request, reply) => {
+      const params = z
+        .object({
+          sessionId: z.string().min(1)
+        })
+        .parse(request.params);
+      const body = CanvasEvidenceBodySchema.parse(request.body);
+      const session = await services.store.browserSessions.getSession(
+        params.sessionId
+      );
+
+      if (!session) {
+        return reply.code(404).send({
+          error: "browser_session_not_found"
+        });
+      }
+
+      const artifactId = `artifact_${params.sessionId}_${
+        (await services.store.artifacts.listRunArtifacts(session.runId)).length + 1
+      }`;
+      const artifact = {
+        id: artifactId,
+        runId: session.runId,
+        kind: "canvas_evidence" as const,
+        contentType: body.contentType,
+        storage: body.storage,
+        metadata: {
+          ...body.metadata,
+          sessionId: params.sessionId
+        },
+        createdAt: services.now(),
+        ...(body.storage === "inline"
+          ? {
+              inlineData: body.inlineData
+            }
+          : {
+              blobUri: body.blobUri
+            })
+      };
+
+      await services.store.artifacts.writeArtifact(artifact);
+      await appendRunEvent(services, session.runId, "canvas_evidence.recorded", {
+        artifactId,
+        sessionId: params.sessionId
+      });
+
+      return reply.code(201).send({
+        artifact
       });
     }
   );

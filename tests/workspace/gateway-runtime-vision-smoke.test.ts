@@ -177,19 +177,29 @@ describe("gateway runtime platform smoke", () => {
           path: "/api/v3/threads/:threadId"
         },
         {
-          name: "GET /api/v3/artifacts/:artifactId",
-          method: "GET",
-          path: "/api/v3/artifacts/:artifactId"
-        },
-        {
           name: "POST /api/v3/threads/:threadId/runs",
           method: "POST",
           path: "/api/v3/threads/:threadId/runs"
         },
         {
+          name: "POST /api/v3/browser-sessions",
+          method: "POST",
+          path: "/api/v3/browser-sessions"
+        },
+        {
           name: "GET /api/v3/runs/:runId/stream",
           method: "GET",
           path: "/api/v3/runs/:runId/stream"
+        },
+        {
+          name: "GET /api/v3/artifacts/:artifactId",
+          method: "GET",
+          path: "/api/v3/artifacts/:artifactId"
+        },
+        {
+          name: "POST /api/v3/browser-sessions/:sessionId/canvas-evidence",
+          method: "POST",
+          path: "/api/v3/browser-sessions/:sessionId/canvas-evidence"
         }
       ]
     });
@@ -242,6 +252,21 @@ describe("gateway runtime platform smoke", () => {
           }
         });
       }
+      if (url.endsWith("/api/v3/browser-sessions")) {
+        return jsonResponse(
+          {
+            session: {
+              id: "browser_session_1",
+              runId: "run_platform_1",
+              allowedToolNames: ["scene.capture_snapshot"],
+              createdAt: "2026-04-04T00:00:06.000Z"
+            }
+          },
+          {
+            status: 201
+          }
+        );
+      }
       if (url.endsWith("/api/v3/artifacts/artifact_response_1")) {
         return jsonResponse({
           artifact: runSnapshotPayload.artifacts[1]
@@ -264,6 +289,32 @@ describe("gateway runtime platform smoke", () => {
             headers: {
               "content-type": "text/event-stream"
             }
+          }
+        );
+      }
+      if (
+        url.endsWith("/api/v3/browser-sessions/browser_session_1/canvas-evidence")
+      ) {
+        return jsonResponse(
+          {
+            artifact: {
+              id: "artifact_canvas_2",
+              runId: "run_platform_1",
+              kind: "canvas_evidence",
+              contentType: "application/json",
+              storage: "inline",
+              metadata: {
+                sessionId: "browser_session_1",
+                source: "gateway-runtime-smoke"
+              },
+              inlineData: {
+                snapshot: "scene_runtime_1"
+              },
+              createdAt: "2026-04-04T00:00:06.500Z"
+            }
+          },
+          {
+            status: 201
           }
         );
       }
@@ -312,6 +363,12 @@ describe("gateway runtime platform smoke", () => {
           title: "smoke thread"
         }),
         expect.objectContaining({
+          name: "POST /api/v3/browser-sessions",
+          ok: true,
+          session_id: "browser_session_1",
+          run_id: "run_platform_1"
+        }),
+        expect.objectContaining({
           name: "GET /api/v3/artifacts/:artifactId",
           ok: true,
           artifact_id: "artifact_response_1",
@@ -331,6 +388,12 @@ describe("gateway runtime platform smoke", () => {
           command_count: 1,
           artifact_count: 3,
           event_count: 2
+        }),
+        expect.objectContaining({
+          name: "POST /api/v3/browser-sessions/:sessionId/canvas-evidence",
+          ok: true,
+          artifact_id: "artifact_canvas_2",
+          kind: "canvas_evidence"
         })
       ])
     );
