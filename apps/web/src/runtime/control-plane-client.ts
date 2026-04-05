@@ -1,18 +1,13 @@
-import type {
-  Checkpoint,
-  PlatformRunProfile
-} from "@geohelper/agent-protocol";
+import type { Checkpoint, PlatformRunProfile } from "@geohelper/agent-protocol";
 import type { RunSnapshot } from "@geohelper/agent-store";
 
 import type { PlatformThread } from "../state/thread-store";
-import {
-  buildRunStreamUrl,
-  parseRunStreamPayload
-} from "./control-plane-stream";
+import { buildRunStreamUrl, parseRunStreamPayload } from "./control-plane-stream";
 import { RuntimeApiError } from "./runtime-service";
 
 export interface ControlPlaneClient {
   createThread: (input: { title: string }) => Promise<PlatformThread>;
+  getThread: (threadId: string) => Promise<PlatformThread>;
   listRunProfiles: () => Promise<PlatformRunProfile[]>;
   startRun: (input: {
     threadId: string;
@@ -119,6 +114,15 @@ export const createControlPlaneClient = ({
           title
         })
       });
+      return payload.thread;
+    },
+    getThread: async (threadId) => {
+      const payload = await requestJson<{
+        thread: PlatformThread;
+      }>(
+        fetchImpl,
+        `${resolvedBaseUrl}/api/v3/threads/${encodeURIComponent(threadId)}`
+      );
       return payload.thread;
     },
     listRunProfiles: async () => {

@@ -79,6 +79,11 @@ export function buildGatewayRuntimeChecks(env = process.env) {
     path: "/api/v3/threads"
   });
   checks.push({
+    name: "GET /api/v3/threads/:threadId",
+    method: "GET",
+    path: "/api/v3/threads/:threadId"
+  });
+  checks.push({
     name: "POST /api/v3/threads/:threadId/runs",
     method: "POST",
     path: "/api/v3/threads/:threadId/runs"
@@ -312,6 +317,22 @@ const runLiveChecks = async ({
     name: "POST /api/v3/threads",
     ok: true,
     thread_id: threadBody.thread.id
+  });
+
+  const { body: fetchedThreadBody } = await fetchJson(
+    fetchImpl,
+    `${controlPlaneUrl}/api/v3/threads/${encodeURIComponent(threadBody.thread.id)}`,
+    undefined,
+    "get thread"
+  );
+  if (fetchedThreadBody?.thread?.id !== threadBody.thread.id) {
+    throw new Error("get thread failed: unexpected thread payload");
+  }
+  checks.push({
+    name: "GET /api/v3/threads/:threadId",
+    ok: true,
+    thread_id: fetchedThreadBody.thread.id,
+    title: fetchedThreadBody.thread.title ?? null
   });
 
   const { body: runBody } = await fetchJson(

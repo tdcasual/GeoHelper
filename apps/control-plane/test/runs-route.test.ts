@@ -101,6 +101,48 @@ describe("control-plane runs routes", () => {
     });
   });
 
+  it("gets an existing thread", async () => {
+    const app = buildServer({
+      now: () => "2026-04-04T00:00:00.000Z"
+    });
+
+    await app.inject({
+      method: "POST",
+      url: "/api/v3/threads",
+      payload: {
+        title: "Triangle lesson"
+      }
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v3/threads/thread_1"
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual({
+      thread: {
+        id: "thread_1",
+        title: "Triangle lesson",
+        createdAt: "2026-04-04T00:00:00.000Z"
+      }
+    });
+  });
+
+  it("returns 404 when a thread does not exist", async () => {
+    const app = buildServer();
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v3/threads/thread_missing"
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(JSON.parse(res.payload)).toEqual({
+      error: "thread_not_found"
+    });
+  });
+
   it("starts a run and streams the worker-progressed snapshot as server-sent events", async () => {
     const app = buildServer({
       now: () => "2026-04-04T00:00:00.000Z"

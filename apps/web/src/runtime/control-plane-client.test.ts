@@ -52,6 +52,35 @@ describe("control-plane-client", () => {
     ]);
   });
 
+  it("fetches thread details from the control plane", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      createJsonResponse({
+        thread: {
+          id: "thread_1",
+          title: "Triangle lesson",
+          createdAt: "2026-04-04T00:00:00.000Z"
+        }
+      })
+    );
+
+    const client = createControlPlaneClient({
+      baseUrl: "https://control-plane.example.com",
+      fetchImpl: fetchMock as typeof fetch
+    });
+
+    const result = await client.getThread("thread_1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://control-plane.example.com/api/v3/threads/thread_1",
+      undefined
+    );
+    expect(result).toEqual({
+      id: "thread_1",
+      title: "Triangle lesson",
+      createdAt: "2026-04-04T00:00:00.000Z"
+    });
+  });
+
   it("parses incremental run stream frames after a cursor", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
       new Response(
