@@ -67,6 +67,11 @@ describe("gateway runtime smoke script", () => {
         path: "/api/v3/threads/:threadId"
       },
       {
+        name: "GET /api/v3/artifacts/:artifactId",
+        method: "GET",
+        path: "/api/v3/artifacts/:artifactId"
+      },
+      {
         name: "POST /api/v3/threads/:threadId/runs",
         method: "POST",
         path: "/api/v3/threads/:threadId/runs"

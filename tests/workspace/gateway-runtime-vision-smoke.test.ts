@@ -177,6 +177,11 @@ describe("gateway runtime platform smoke", () => {
           path: "/api/v3/threads/:threadId"
         },
         {
+          name: "GET /api/v3/artifacts/:artifactId",
+          method: "GET",
+          path: "/api/v3/artifacts/:artifactId"
+        },
+        {
           name: "POST /api/v3/threads/:threadId/runs",
           method: "POST",
           path: "/api/v3/threads/:threadId/runs"
@@ -235,6 +240,11 @@ describe("gateway runtime platform smoke", () => {
             title: "smoke thread",
             createdAt: "2026-04-04T00:00:00.000Z"
           }
+        });
+      }
+      if (url.endsWith("/api/v3/artifacts/artifact_response_1")) {
+        return jsonResponse({
+          artifact: runSnapshotPayload.artifacts[1]
         });
       }
       if (url.endsWith("/api/v3/threads/thread_platform_1/runs")) {
@@ -300,6 +310,12 @@ describe("gateway runtime platform smoke", () => {
           ok: true,
           thread_id: "thread_platform_1",
           title: "smoke thread"
+        }),
+        expect.objectContaining({
+          name: "GET /api/v3/artifacts/:artifactId",
+          ok: true,
+          artifact_id: "artifact_response_1",
+          kind: "response"
         }),
         expect.objectContaining({
           name: "POST /api/v3/threads/:threadId/runs",

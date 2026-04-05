@@ -84,6 +84,11 @@ export function buildGatewayRuntimeChecks(env = process.env) {
     path: "/api/v3/threads/:threadId"
   });
   checks.push({
+    name: "GET /api/v3/artifacts/:artifactId",
+    method: "GET",
+    path: "/api/v3/artifacts/:artifactId"
+  });
+  checks.push({
     name: "POST /api/v3/threads/:threadId/runs",
     method: "POST",
     path: "/api/v3/threads/:threadId/runs"
@@ -157,7 +162,7 @@ const parseRunSnapshotStream = (payload) => {
   return JSON.parse(dataLine.slice(6));
 };
 
-const getCommandCount = (snapshot) => {
+  const getCommandCount = (snapshot) => {
   const latestToolResult = [...(snapshot?.artifacts ?? [])]
     .filter((artifact) => artifact?.kind === "tool_result")
     .sort((left, right) => String(left?.createdAt).localeCompare(String(right?.createdAt)))
@@ -170,6 +175,9 @@ const getCommandCount = (snapshot) => {
   const commands = latestToolResult?.inlineData?.commandBatch?.commands;
   return Array.isArray(commands) ? commands.length : 0;
 };
+
+const getPrimaryArtifactId = (snapshot) =>
+  snapshot?.run?.outputArtifactIds?.[0] ?? snapshot?.artifacts?.at(-1)?.id ?? null;
 
 const validateRunSnapshot = (snapshot) => {
   if (!snapshot?.run?.id) {
@@ -376,6 +384,27 @@ const runLiveChecks = async ({
     command_count: snapshotSummary.commandCount,
     artifact_count: snapshotSummary.artifactCount,
     event_count: snapshotSummary.eventCount
+  });
+
+  const artifactId = getPrimaryArtifactId(snapshot);
+  if (!artifactId) {
+    throw new Error("artifact fetch failed: missing artifact id");
+  }
+
+  const { body: artifactBody } = await fetchJson(
+    fetchImpl,
+    `${controlPlaneUrl}/api/v3/artifacts/${encodeURIComponent(artifactId)}`,
+    undefined,
+    "get artifact"
+  );
+  if (artifactBody?.artifact?.id !== artifactId) {
+    throw new Error("get artifact failed: unexpected artifact payload");
+  }
+  checks.push({
+    name: "GET /api/v3/artifacts/:artifactId",
+    ok: true,
+    artifact_id: artifactBody.artifact.id,
+    kind: artifactBody.artifact.kind ?? null
   });
 
   return checks;

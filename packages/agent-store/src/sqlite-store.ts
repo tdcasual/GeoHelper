@@ -603,6 +603,20 @@ export const createSqliteAgentStore = ({
     where run_id = ?
     order by created_at asc
   `);
+  const getArtifactStatement = database.prepare(`
+    select
+      id,
+      run_id,
+      kind,
+      content_type,
+      storage,
+      inline_data_json,
+      blob_uri,
+      metadata_json,
+      created_at
+    from artifacts
+    where id = ?
+  `);
 
   const writeMemoryEntryStatement = database.prepare(`
     insert into memory_entries (
@@ -821,6 +835,11 @@ export const createSqliteAgentStore = ({
         JSON.stringify(artifact.metadata),
         artifact.createdAt
       );
+    },
+    getArtifact: (artifactId) => {
+      const row = getArtifactStatement.get(artifactId) as ArtifactRow | undefined;
+
+      return row ? mapArtifactRow(row) : null;
     },
     listRunArtifacts: (runId) =>
       readRows<ArtifactRow>(listRunArtifactsStatement.all(runId)).map(

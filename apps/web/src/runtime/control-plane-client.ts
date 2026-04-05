@@ -1,4 +1,4 @@
-import type { Checkpoint, PlatformRunProfile } from "@geohelper/agent-protocol";
+import type { Artifact, Checkpoint, PlatformRunProfile } from "@geohelper/agent-protocol";
 import type { RunSnapshot } from "@geohelper/agent-store";
 
 import type { PlatformThread } from "../state/thread-store";
@@ -8,6 +8,7 @@ import { RuntimeApiError } from "./runtime-service";
 export interface ControlPlaneClient {
   createThread: (input: { title: string }) => Promise<PlatformThread>;
   getThread: (threadId: string) => Promise<PlatformThread>;
+  getArtifact: (artifactId: string) => Promise<Artifact>;
   listRunProfiles: () => Promise<PlatformRunProfile[]>;
   startRun: (input: {
     threadId: string;
@@ -26,10 +27,7 @@ export interface ControlPlaneClient {
   ) => Promise<Checkpoint>;
 }
 
-export interface ControlPlaneClientOptions {
-  baseUrl?: string;
-  fetchImpl?: typeof fetch;
-}
+export interface ControlPlaneClientOptions { baseUrl?: string; fetchImpl?: typeof fetch }
 const normalizeBaseUrl = (baseUrl = ""): string => baseUrl.replace(/\/+$/, "");
 const parseErrorPayload = async (response: Response): Promise<RuntimeApiError> => {
   try {
@@ -84,11 +82,7 @@ const requestJson = async <T>(
 
   return (await response.json()) as T;
 };
-const requestText = async (
-  fetchImpl: typeof fetch,
-  input: string,
-  init?: RequestInit
-): Promise<string> => {
+const requestText = async (fetchImpl: typeof fetch, input: string, init?: RequestInit): Promise<string> => {
   const response = await fetchImpl(input, init);
   if (!response.ok) {
     throw await parseErrorPayload(response);
@@ -124,6 +118,13 @@ export const createControlPlaneClient = ({
         `${resolvedBaseUrl}/api/v3/threads/${encodeURIComponent(threadId)}`
       );
       return payload.thread;
+    },
+    getArtifact: async (artifactId) => {
+      const payload = await requestJson<{ artifact: Artifact }>(
+        fetchImpl,
+        `${resolvedBaseUrl}/api/v3/artifacts/${encodeURIComponent(artifactId)}`
+      );
+      return payload.artifact;
     },
     listRunProfiles: async () => {
       const payload = await requestJson<{

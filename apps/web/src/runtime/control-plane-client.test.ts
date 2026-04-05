@@ -81,6 +81,46 @@ describe("control-plane-client", () => {
     });
   });
 
+  it("fetches artifacts from the control plane", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      createJsonResponse({
+        artifact: {
+          id: "artifact_1",
+          runId: "run_1",
+          kind: "response",
+          contentType: "application/json",
+          storage: "inline",
+          metadata: {
+            source: "control-plane"
+          },
+          inlineData: {
+            title: "几何结果"
+          },
+          createdAt: "2026-04-04T00:00:00.000Z"
+        }
+      })
+    );
+
+    const client = createControlPlaneClient({
+      baseUrl: "https://control-plane.example.com",
+      fetchImpl: fetchMock as typeof fetch
+    });
+
+    const result = await client.getArtifact("artifact_1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://control-plane.example.com/api/v3/artifacts/artifact_1",
+      undefined
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: "artifact_1",
+        kind: "response",
+        runId: "run_1"
+      })
+    );
+  });
+
   it("parses incremental run stream frames after a cursor", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
       new Response(

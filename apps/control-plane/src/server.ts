@@ -9,6 +9,7 @@ import { registerAdminCheckpointsRoutes } from "./routes/admin-checkpoints";
 import { registerAdminMemoryRoutes } from "./routes/admin-memory";
 import { registerAdminRunsRoutes } from "./routes/admin-runs";
 import { registerAdminToolsRoutes } from "./routes/admin-tools";
+import { registerArtifactsRoutes } from "./routes/artifacts";
 import { registerBrowserSessionsRoutes } from "./routes/browser-sessions";
 import { registerCheckpointsRoutes } from "./routes/checkpoints";
 import { registerPlatformCatalogRoutes } from "./routes/platform-catalog";
@@ -31,6 +32,7 @@ export const buildServer = (
   registerAdminCheckpointsRoutes(app, services);
   registerPlatformCatalogRoutes(app, services);
   registerThreadsRoutes(app, services);
+  registerArtifactsRoutes(app, services);
   registerRunProfilesRoutes(app, services);
   registerRunsRoutes(app, services);
   registerCheckpointsRoutes(app, services);

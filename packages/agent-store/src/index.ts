@@ -145,6 +145,10 @@ export const createMemoryAgentStore = (): AgentStore => {
       next.set(artifact.id, artifact);
       artifactsByRun.set(artifact.runId, next);
     },
+    getArtifact: (artifactId) =>
+      [...artifactsByRun.values()]
+        .flatMap((artifacts) => [...artifacts.values()])
+        .find((artifact) => artifact.id === artifactId) ?? null,
     listRunArtifacts: (runId) =>
       [...(artifactsByRun.get(runId)?.values() ?? [])].sort(byCreatedAt)
   };
