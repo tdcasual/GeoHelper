@@ -497,4 +497,30 @@ describe("worker run loop", () => {
     expect(result?.status).toBe("completed");
     expect(run?.status).toBe("completed");
   });
+
+  it("skips dispatched runs that were already cancelled", async () => {
+    const store = createMemoryAgentStore();
+
+    await store.runs.createRun(createRun({
+      status: "cancelled"
+    }));
+
+    const loop = createRunLoop({
+      store,
+      platformRuntime: createPlatformRuntimeContext({
+        agents: {},
+        runProfiles: {},
+        runProfileMap: new Map(),
+        workflows: {},
+        tools: {},
+        evaluators: {}
+      })
+    });
+
+    loop.enqueue("run_1");
+
+    expect(await loop.tick()).toBeNull();
+    expect((await store.runs.getRun("run_1"))?.status).toBe("cancelled");
+    expect(await store.events.listRunEvents("run_1")).toEqual([]);
+  });
 });

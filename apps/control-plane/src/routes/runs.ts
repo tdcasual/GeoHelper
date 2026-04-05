@@ -11,6 +11,10 @@ const StartRunBodySchema = z.object({
   profileId: z.string().min(1),
   inputArtifactIds: z.array(z.string().min(1)).default([])
 });
+const isTerminalRunStatus = (
+  status: "completed" | "failed" | "cancelled" | "queued" | "planning" | "running" | "waiting_for_checkpoint" | "waiting_for_subagent" | "waiting_for_tool" | "evaluating"
+): status is "completed" | "failed" | "cancelled" =>
+  status === "completed" || status === "failed" || status === "cancelled";
 
 export const registerRunsRoutes = (
   app: FastifyInstance,
@@ -51,6 +55,56 @@ export const registerRunsRoutes = (
 
     return reply.send({
       events: await services.store.events.listRunEvents(params.runId)
+    });
+  });
+
+  app.post("/api/v3/runs/:runId/cancel", async (request, reply) => {
+    const params = z
+      .object({
+        runId: z.string().min(1)
+      })
+      .parse(request.params);
+    const run = await services.store.runs.getRun(params.runId);
+
+    if (!run) {
+      return reply.code(404).send({
+        error: "run_not_found"
+      });
+    }
+    if (isTerminalRunStatus(run.status)) {
+      return reply.code(409).send({
+        error: "run_not_cancellable",
+        status: run.status
+      });
+    }
+
+    const timestamp = services.now();
+    const checkpoints = await services.store.checkpoints.listRunCheckpoints(run.id);
+    const cancelledRun = {
+      ...run,
+      status: "cancelled" as const,
+      updatedAt: timestamp
+    };
+
+    await services.store.runs.createRun(cancelledRun);
+    await Promise.all(
+      checkpoints
+        .filter((checkpoint) => checkpoint.status === "pending")
+        .map((checkpoint) =>
+          services.store.checkpoints.upsertCheckpoint({
+            ...checkpoint,
+            status: "cancelled",
+            resolvedAt: timestamp
+          })
+        )
+    );
+    await services.store.engineStates.deleteState(run.id);
+    await appendRunEvent(services, run.id, "run.cancelled", {
+      previousStatus: run.status
+    });
+
+    return reply.send({
+      run: cancelledRun
     });
   });
 

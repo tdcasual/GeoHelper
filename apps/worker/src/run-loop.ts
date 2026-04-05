@@ -505,6 +505,9 @@ export const createRunLoop = ({
         if (!run) {
           return null;
         }
+        if (isTerminalRunStatus(run.status)) {
+          return null;
+        }
 
         const resolution = platformRuntime.resolveRun(run);
         if (!resolution.ok) {
