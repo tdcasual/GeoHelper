@@ -74,6 +74,23 @@ describe("agent store", () => {
       createdAt: "2026-04-04T00:00:00.000Z"
     });
 
+    await store.runs.createRun({
+      id: "run_child_1",
+      threadId: "thread_1",
+      profileId: "platform_geometry_quick_draft",
+      status: "queued",
+      parentRunId: "run_1",
+      inputArtifactIds: [],
+      outputArtifactIds: [],
+      budget: {
+        maxModelCalls: 3,
+        maxToolCalls: 4,
+        maxDurationMs: 30_000
+      },
+      createdAt: "2026-04-04T00:00:01.000Z",
+      updatedAt: "2026-04-04T00:00:01.000Z"
+    });
+
     const snapshot = await store.loadRunSnapshot("run_1");
 
     expect(snapshot?.run.id).toBe("run_1");
@@ -82,6 +99,7 @@ describe("agent store", () => {
     expect(snapshot?.checkpoints).toHaveLength(1);
     expect(snapshot?.artifacts).toHaveLength(1);
     expect(snapshot?.memoryEntries).toHaveLength(1);
+    expect(snapshot?.childRuns.map((run) => run.id)).toEqual(["run_child_1"]);
   });
 
   it("lists checkpoints by status across runs", async () => {
@@ -195,6 +213,23 @@ describe("agent store", () => {
         createdAt: "2026-04-05T00:00:00.000Z"
       });
 
+      await store.runs.createRun({
+        id: "run_sqlite_child_1",
+        threadId: "thread_sqlite_1",
+        profileId: "platform_geometry_quick_draft",
+        status: "completed",
+        parentRunId: "run_sqlite_1",
+        inputArtifactIds: [],
+        outputArtifactIds: ["artifact_child_output_1"],
+        budget: {
+          maxModelCalls: 3,
+          maxToolCalls: 4,
+          maxDurationMs: 30_000
+        },
+        createdAt: "2026-04-05T00:00:30.000Z",
+        updatedAt: "2026-04-05T00:00:45.000Z"
+      });
+
       const reopened = createSqliteAgentStore({
         path: databasePath
       });
@@ -210,6 +245,9 @@ describe("agent store", () => {
       ]);
       expect(snapshot?.memoryEntries.map((entry) => entry.id)).toEqual([
         "memory_sqlite_1"
+      ]);
+      expect(snapshot?.childRuns.map((run) => run.id)).toEqual([
+        "run_sqlite_child_1"
       ]);
     } finally {
       rmSync(tempDir, {

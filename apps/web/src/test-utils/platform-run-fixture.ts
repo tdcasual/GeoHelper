@@ -1,4 +1,4 @@
-import type { Artifact, Checkpoint, RunEvent } from "@geohelper/agent-protocol";
+import type { Artifact, Checkpoint, Run, RunEvent } from "@geohelper/agent-protocol";
 import type { RunSnapshot } from "@geohelper/agent-store";
 
 import type { RuntimeRunResponse } from "../runtime/types";
@@ -8,6 +8,7 @@ interface PlatformRunFixtureOverride {
   events?: RunEvent[];
   checkpoints?: Checkpoint[];
   artifacts?: Artifact[];
+  childRuns?: Run[];
 }
 
 export const createRunSnapshotFixture = (
@@ -95,6 +96,7 @@ export const createRunSnapshotFixture = (
         createdAt: "2026-04-04T00:00:03.000Z"
       }
     ],
+  childRuns: override.childRuns ?? [],
   memoryEntries: []
 });
 

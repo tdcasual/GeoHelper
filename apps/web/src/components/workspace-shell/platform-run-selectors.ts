@@ -5,6 +5,7 @@ import type { CheckpointStoreState } from "../../state/checkpoint-store";
 import type { RunStoreState } from "../../state/run-store";
 
 const EMPTY_RUN_EVENTS: RunEvent[] = [];
+const EMPTY_RUNS: Run[] = [];
 const EMPTY_RUN_CHECKPOINTS: Checkpoint[] = [];
 const EMPTY_RUN_ARTIFACTS: Artifact[] = [];
 
@@ -15,6 +16,12 @@ export const selectLatestRunEvents = (state: RunStoreState): RunEvent[] =>
   state.latestRunId
     ? state.eventsByRunId[state.latestRunId] ?? EMPTY_RUN_EVENTS
     : EMPTY_RUN_EVENTS;
+
+export const selectChildRunsForRun = (
+  state: RunStoreState,
+  runId: string | null
+): Run[] =>
+  runId ? state.childRunsByParentRunId[runId] ?? EMPTY_RUNS : EMPTY_RUNS;
 
 export const selectCheckpointsForRun = (
   state: CheckpointStoreState,

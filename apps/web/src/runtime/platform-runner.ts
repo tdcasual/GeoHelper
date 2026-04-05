@@ -16,6 +16,7 @@ const buildThreadTitle = (message: string): string => {
 const buildFallbackSnapshot = (snapshot: RunSnapshot): RunSnapshot => ({
   ...snapshot,
   artifacts: snapshot.artifacts ?? [],
+  childRuns: snapshot.childRuns ?? [],
   checkpoints: snapshot.checkpoints ?? [],
   events: snapshot.events ?? [],
   memoryEntries: snapshot.memoryEntries ?? []

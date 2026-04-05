@@ -75,6 +75,24 @@ describe("control-plane-client", () => {
             },
             checkpoints: [],
             artifacts: [],
+            childRuns: [
+              {
+                id: "run_child_1",
+                threadId: "thread_1",
+                profileId: "platform_geometry_quick_draft",
+                status: "running",
+                parentRunId: "run_1",
+                inputArtifactIds: [],
+                outputArtifactIds: [],
+                budget: {
+                  maxModelCalls: 3,
+                  maxToolCalls: 4,
+                  maxDurationMs: 60000
+                },
+                createdAt: "2026-04-04T00:00:00.500Z",
+                updatedAt: "2026-04-04T00:00:01.000Z"
+              }
+            ],
             memoryEntries: []
           })}`,
           ``,
@@ -117,6 +135,13 @@ describe("control-plane-client", () => {
       expect.objectContaining({
         sequence: 2,
         type: "checkpoint.waiting"
+      })
+    ]);
+    expect(result.childRuns).toEqual([
+      expect.objectContaining({
+        id: "run_child_1",
+        parentRunId: "run_1",
+        profileId: "platform_geometry_quick_draft"
       })
     ]);
     expect(result.run.status).toBe("waiting_for_checkpoint");

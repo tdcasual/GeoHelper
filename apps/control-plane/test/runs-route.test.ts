@@ -1,3 +1,4 @@
+import { createMemoryAgentStore } from "@geohelper/agent-store";
 import { describe, expect, it } from "vitest";
 
 import { buildServer } from "../src/server";
@@ -41,6 +42,12 @@ const parseStreamSnapshot = (payload: string) => {
     };
     events: Array<{
       type: string;
+    }>;
+    childRuns: Array<{
+      id: string;
+      profileId: string;
+      parentRunId?: string;
+      status: string;
     }>;
     checkpoints: Array<{
       kind: string;
@@ -172,6 +179,64 @@ describe("control-plane runs routes", () => {
     expect(streamedEvents.length).toBeGreaterThan(0);
     expect(streamedEvents.every((event) => event.sequence > 1)).toBe(true);
     expect(streamedEvents.map((event) => event.type)).not.toContain("run.created");
+  });
+
+  it("includes direct child runs inside streamed run snapshots", async () => {
+    const store = createMemoryAgentStore();
+
+    await store.runs.createRun({
+      id: "run_parent",
+      threadId: "thread_1",
+      profileId: "platform_geometry_standard",
+      status: "waiting_for_subagent",
+      inputArtifactIds: [],
+      outputArtifactIds: [],
+      budget: {
+        maxModelCalls: 6,
+        maxToolCalls: 8,
+        maxDurationMs: 120000
+      },
+      createdAt: "2026-04-04T00:00:00.000Z",
+      updatedAt: "2026-04-04T00:00:10.000Z"
+    });
+    await store.runs.createRun({
+      id: "run_child_1",
+      threadId: "thread_1",
+      profileId: "platform_geometry_quick_draft",
+      status: "running",
+      parentRunId: "run_parent",
+      inputArtifactIds: [],
+      outputArtifactIds: [],
+      budget: {
+        maxModelCalls: 3,
+        maxToolCalls: 4,
+        maxDurationMs: 60000
+      },
+      createdAt: "2026-04-04T00:00:02.000Z",
+      updatedAt: "2026-04-04T00:00:08.000Z"
+    });
+
+    const app = buildServer({
+      store
+    });
+
+    const streamRes = await app.inject({
+      method: "GET",
+      url: "/api/v3/runs/run_parent/stream"
+    });
+
+    expect(streamRes.statusCode).toBe(200);
+
+    const snapshot = parseStreamSnapshot(streamRes.payload);
+
+    expect(snapshot.childRuns).toEqual([
+      expect.objectContaining({
+        id: "run_child_1",
+        parentRunId: "run_parent",
+        profileId: "platform_geometry_quick_draft",
+        status: "running"
+      })
+    ]);
   });
 
   it("rejects unknown run profiles", async () => {

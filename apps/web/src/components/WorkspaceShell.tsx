@@ -14,6 +14,7 @@ import { buildWorkspaceLayoutProps } from "./workspace-shell/layout-props";
 import {
   selectArtifactsForRun,
   selectCheckpointsForRun,
+  selectChildRunsForRun,
   selectLatestRun,
   selectLatestRunEvents
 } from "./workspace-shell/platform-run-selectors";
@@ -69,6 +70,9 @@ export const WorkspaceShell = ({
   const latestPlatformRunId = useRunStore((state) => state.latestRunId);
   const latestPlatformRun = useRunStore(selectLatestRun);
   const latestPlatformEvents = useRunStore(selectLatestRunEvents);
+  const latestPlatformChildRuns = useRunStore((state) =>
+    selectChildRunsForRun(state, latestPlatformRunId)
+  );
   const latestPlatformCheckpoints = useCheckpointStore((state) =>
     selectCheckpointsForRun(state, latestPlatformRunId)
   );
@@ -341,6 +345,7 @@ export const WorkspaceShell = ({
           <RunConsole
             run={latestPlatformRun}
             events={latestPlatformEvents}
+            childRuns={latestPlatformChildRuns}
             checkpoints={latestPlatformCheckpoints}
             artifacts={latestPlatformArtifacts}
           />

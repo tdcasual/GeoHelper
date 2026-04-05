@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   selectArtifactsForRun,
   selectCheckpointsForRun,
+  selectChildRunsForRun,
   selectLatestRun,
   selectLatestRunEvents
 } from "../../apps/web/src/components/workspace-shell/platform-run-selectors";
@@ -14,6 +15,7 @@ import type { Artifact, Checkpoint, Run, RunEvent } from "../../packages/agent-p
 const createRunState = (overrides: Partial<RunStoreState> = {}): RunStoreState => ({
   runsById: {},
   eventsByRunId: {},
+  childRunsByParentRunId: {},
   latestRunId: null,
   upsertRun: () => undefined,
   applyStreamSnapshot: () => undefined,
@@ -49,6 +51,9 @@ describe("platform run selectors", () => {
 
     expect(selectLatestRun(runState)).toBeNull();
     expect(selectLatestRunEvents(runState)).toBe(selectLatestRunEvents(runState));
+    expect(selectChildRunsForRun(runState, null)).toBe(
+      selectChildRunsForRun(runState, null)
+    );
     expect(selectCheckpointsForRun(checkpointState, null)).toBe(
       selectCheckpointsForRun(checkpointState, null)
     );
@@ -81,6 +86,24 @@ describe("platform run selectors", () => {
         type: "run.created",
         payload: {},
         createdAt: "2026-04-04T00:00:00.000Z"
+      }
+    ];
+    const childRuns: Run[] = [
+      {
+        id: "run_child_1",
+        threadId: "thread_1",
+        profileId: "platform_geometry_quick_draft",
+        status: "running",
+        parentRunId: "run_1",
+        inputArtifactIds: [],
+        outputArtifactIds: [],
+        budget: {
+          maxModelCalls: 3,
+          maxToolCalls: 4,
+          maxDurationMs: 30_000
+        },
+        createdAt: "2026-04-04T00:00:02.000Z",
+        updatedAt: "2026-04-04T00:00:03.000Z"
       }
     ];
     const checkpoints: Checkpoint[] = [
@@ -133,6 +156,16 @@ describe("platform run selectors", () => {
         })
       )
     ).toEqual(events);
+    expect(
+      selectChildRunsForRun(
+        createRunState({
+          childRunsByParentRunId: {
+            [run.id]: childRuns
+          }
+        }),
+        run.id
+      )
+    ).toEqual(childRuns);
     expect(
       selectCheckpointsForRun(
         createCheckpointState({

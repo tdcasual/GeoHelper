@@ -33,6 +33,24 @@ const createSnapshot = (status: "queued" | "completed", eventCount: number): Run
   })),
   checkpoints: [],
   artifacts: [],
+  childRuns: [
+    {
+      id: "run_child_1",
+      threadId: "thread_1",
+      profileId: "platform_geometry_quick_draft",
+      status: "running",
+      parentRunId: "run_1",
+      inputArtifactIds: [],
+      outputArtifactIds: [],
+      budget: {
+        maxModelCalls: 3,
+        maxToolCalls: 4,
+        maxDurationMs: 60000
+      },
+      createdAt: "2026-04-04T00:00:00.500Z",
+      updatedAt: "2026-04-04T00:00:01.000Z"
+    }
+  ],
   memoryEntries: []
 });
 
@@ -48,6 +66,13 @@ describe("createRunStore", () => {
 
     expect(store.getState().latestRunId).toBe("run_1");
     expect(store.getState().runsById.run_1?.status).toBe("completed");
+    expect(store.getState().runsById.run_child_1?.parentRunId).toBe("run_1");
+    expect(store.getState().childRunsByParentRunId.run_1).toEqual([
+      expect.objectContaining({
+        id: "run_child_1",
+        profileId: "platform_geometry_quick_draft"
+      })
+    ]);
     expect(store.getState().eventsByRunId.run_1).toHaveLength(2);
     expect(store.getState().eventsByRunId.run_1?.at(-1)?.type).toBe(
       "run.completed"

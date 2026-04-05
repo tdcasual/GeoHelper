@@ -37,6 +37,7 @@ const normalizeRunSnapshot = (snapshot: PartialRunSnapshot): RunSnapshot => ({
   events: snapshot.events ?? [],
   checkpoints: snapshot.checkpoints ?? [],
   artifacts: snapshot.artifacts ?? [],
+  childRuns: snapshot.childRuns ?? [],
   memoryEntries: snapshot.memoryEntries ?? []
 });
 

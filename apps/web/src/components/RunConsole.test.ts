@@ -4,6 +4,7 @@ import type {
   Run,
   RunEvent
 } from "@geohelper/agent-protocol";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
@@ -95,23 +96,43 @@ const artifacts: Artifact[] = [
   }
 ];
 
+const childRuns: Run[] = [
+  {
+    id: "run_child_1",
+    threadId: "thread_1",
+    profileId: "platform_geometry_quick_draft",
+    status: "running",
+    parentRunId: "run_1",
+    inputArtifactIds: [],
+    outputArtifactIds: [],
+    budget: {
+      maxModelCalls: 3,
+      maxToolCalls: 4,
+      maxDurationMs: 60000
+    },
+    createdAt: "2026-04-04T00:00:00.500Z",
+    updatedAt: "2026-04-04T00:00:01.000Z"
+  }
+];
+
 describe("RunConsole", () => {
-  it("updates checkpoint UI and shows the latest draft with canvas evidence", () => {
+  it("updates checkpoint UI and shows the latest draft with canvas evidence and child runs", () => {
     const pendingMarkup = renderToStaticMarkup(
-      <RunConsole
-        run={run}
-        events={events}
-        checkpoints={[pendingCheckpoint]}
-        artifacts={artifacts}
-      />
+      createElement(RunConsole, {
+        run,
+        events,
+        checkpoints: [pendingCheckpoint],
+        artifacts,
+        childRuns
+      })
     );
     const resolvedMarkup = renderToStaticMarkup(
-      <RunConsole
-        run={{
+      createElement(RunConsole, {
+        run: {
           ...run,
           status: "completed"
-        }}
-        events={[
+        },
+        events: [
           ...events,
           {
             id: "event_2",
@@ -121,10 +142,11 @@ describe("RunConsole", () => {
             payload: {},
             createdAt: "2026-04-04T00:01:00.000Z"
           }
-        ]}
-        checkpoints={[resolvedCheckpoint]}
-        artifacts={artifacts}
-      />
+        ],
+        checkpoints: [resolvedCheckpoint],
+        artifacts,
+        childRuns
+      })
     );
 
     expect(pendingMarkup).toContain("Confirm geometry draft");
@@ -132,5 +154,8 @@ describe("RunConsole", () => {
     expect(resolvedMarkup).toContain("暂无待处理 checkpoint");
     expect(resolvedMarkup).toContain("修正版草案");
     expect(resolvedMarkup).toContain("scene_1");
+    expect(resolvedMarkup).toContain("Subagents");
+    expect(resolvedMarkup).toContain("run_child_1");
+    expect(resolvedMarkup).toContain("platform_geometry_quick_draft");
   });
 });

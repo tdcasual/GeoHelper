@@ -11,6 +11,7 @@ import { CheckpointInbox } from "./CheckpointInbox";
 interface RunConsoleProps {
   run: Run | null | undefined;
   events: RunEvent[];
+  childRuns: Run[];
   checkpoints: Checkpoint[];
   artifacts: Artifact[];
 }
@@ -18,6 +19,7 @@ interface RunConsoleProps {
 export const RunConsole = ({
   run,
   events,
+  childRuns,
   checkpoints,
   artifacts
 }: RunConsoleProps) => {
@@ -38,6 +40,23 @@ export const RunConsole = ({
 
       <CheckpointInbox checkpoints={checkpoints} />
       <ArtifactViewer artifacts={artifacts} />
+
+      <section className="run-console-card">
+        <h3>Subagents</h3>
+        {childRuns.length > 0 ? (
+          <ul>
+            {childRuns.map((childRun) => (
+              <li key={childRun.id}>
+                <span>{childRun.id}</span>
+                <span>{childRun.profileId}</span>
+                <span>{childRun.status}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>暂无 subagent</p>
+        )}
+      </section>
 
       <section className="run-console-card">
         <h3>Timeline</h3>

@@ -12,6 +12,7 @@ export interface RunSnapshot {
   events: RunEvent[];
   checkpoints: Checkpoint[];
   artifacts: Artifact[];
+  childRuns: Run[];
   memoryEntries: MemoryEntry[];
 }
 

@@ -976,6 +976,9 @@ export const createSqliteAgentStore = ({
         events: await eventRepo.listRunEvents(runId),
         checkpoints: await checkpointRepo.listRunCheckpoints(runId),
         artifacts: await artifactRepo.listRunArtifacts(runId),
+        childRuns: await runRepo.listRuns({
+          parentRunId: runId
+        }),
         memoryEntries: await memoryRepo.listMemoryEntriesForRun(runId)
       };
     }

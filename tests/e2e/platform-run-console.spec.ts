@@ -136,6 +136,24 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
               createdAt: "2026-04-04T00:00:04.500Z"
             }
           ],
+          childRuns: [
+            {
+              id: "run_child_platform_1",
+              threadId: "thread_platform_1",
+              profileId: "platform_geometry_quick_draft",
+              status: "running",
+              parentRunId: "run_platform_1",
+              inputArtifactIds: [],
+              outputArtifactIds: [],
+              budget: {
+                maxModelCalls: 3,
+                maxToolCalls: 4,
+                maxDurationMs: 60000
+              },
+              createdAt: "2026-04-04T00:00:03.000Z",
+              updatedAt: "2026-04-04T00:00:04.000Z"
+            }
+          ],
           memoryEntries: []
         })}`,
         ""
@@ -153,6 +171,11 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
     "platform_geometry_standard"
   );
   await expect(page.getByTestId("run-console")).toContainText("waiting_for_checkpoint");
+  await expect(page.getByTestId("run-console")).toContainText("Subagents");
+  await expect(page.getByTestId("run-console")).toContainText("run_child_platform_1");
+  await expect(page.getByTestId("run-console")).toContainText(
+    "platform_geometry_quick_draft"
+  );
   await expect(page.getByTestId("run-console")).toContainText("checkpoint.waiting");
 
   await expect(page.getByTestId("checkpoint-inbox")).toContainText(
