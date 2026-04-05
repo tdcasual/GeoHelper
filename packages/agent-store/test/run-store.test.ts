@@ -1,6 +1,10 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
-import { createMemoryAgentStore } from "../src";
+import { createMemoryAgentStore, createSqliteAgentStore } from "../src";
 
 describe("agent store", () => {
   it("creates a run, appends events, and reconstructs a snapshot", async () => {
@@ -114,5 +118,193 @@ describe("agent store", () => {
 
     expect(pending.map((item) => item.id)).toEqual(["checkpoint_pending"]);
     expect(resolved.map((item) => item.id)).toEqual(["checkpoint_resolved"]);
+  });
+
+  it("persists a run snapshot across sqlite store reopen", async () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "geohelper-agent-store-"));
+    const databasePath = path.join(tempDir, "agent-store.sqlite");
+
+    try {
+      const store = createSqliteAgentStore({
+        path: databasePath
+      });
+
+      await store.runs.createRun({
+        id: "run_sqlite_1",
+        threadId: "thread_sqlite_1",
+        profileId: "platform_geometry_standard",
+        status: "waiting_for_checkpoint",
+        inputArtifactIds: ["artifact_input_1"],
+        outputArtifactIds: ["artifact_output_1"],
+        budget: {
+          maxModelCalls: 4,
+          maxToolCalls: 8,
+          maxDurationMs: 60_000
+        },
+        createdAt: "2026-04-05T00:00:00.000Z",
+        updatedAt: "2026-04-05T00:00:00.000Z"
+      });
+
+      await store.events.appendRunEvent({
+        id: "event_sqlite_1",
+        runId: "run_sqlite_1",
+        sequence: 1,
+        type: "run.created",
+        payload: {
+          status: "queued"
+        },
+        createdAt: "2026-04-05T00:00:00.000Z"
+      });
+
+      await store.checkpoints.upsertCheckpoint({
+        id: "checkpoint_sqlite_1",
+        runId: "run_sqlite_1",
+        nodeId: "node_review",
+        kind: "human_input",
+        status: "pending",
+        title: "Confirm geometry draft",
+        prompt: "请确认是否继续执行。",
+        createdAt: "2026-04-05T00:00:00.000Z"
+      });
+
+      await store.artifacts.writeArtifact({
+        id: "artifact_input_1",
+        runId: "run_sqlite_1",
+        kind: "input",
+        contentType: "application/json",
+        storage: "inline",
+        metadata: {
+          source: "sqlite"
+        },
+        inlineData: {
+          prompt: "构造外接圆"
+        },
+        createdAt: "2026-04-05T00:00:00.000Z"
+      });
+
+      await store.memory.writeMemoryEntry({
+        id: "memory_sqlite_1",
+        scope: "thread",
+        scopeId: "thread_sqlite_1",
+        key: "teacher_preference",
+        value: {
+          prefersConciseSummary: true
+        },
+        sourceRunId: "run_sqlite_1",
+        sourceArtifactId: "artifact_input_1",
+        createdAt: "2026-04-05T00:00:00.000Z"
+      });
+
+      const reopened = createSqliteAgentStore({
+        path: databasePath
+      });
+      const snapshot = await reopened.loadRunSnapshot("run_sqlite_1");
+
+      expect(snapshot?.run.status).toBe("waiting_for_checkpoint");
+      expect(snapshot?.events.map((event) => event.type)).toEqual(["run.created"]);
+      expect(snapshot?.checkpoints.map((checkpoint) => checkpoint.id)).toEqual([
+        "checkpoint_sqlite_1"
+      ]);
+      expect(snapshot?.artifacts.map((artifact) => artifact.id)).toEqual([
+        "artifact_input_1"
+      ]);
+      expect(snapshot?.memoryEntries.map((entry) => entry.id)).toEqual([
+        "memory_sqlite_1"
+      ]);
+    } finally {
+      rmSync(tempDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
+
+  it("lists filtered runs and checkpoints after sqlite store reopen", async () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "geohelper-agent-store-"));
+    const databasePath = path.join(tempDir, "agent-store.sqlite");
+
+    try {
+      const store = createSqliteAgentStore({
+        path: databasePath
+      });
+
+      await store.runs.createRun({
+        id: "run_sqlite_pending",
+        threadId: "thread_1",
+        profileId: "platform_geometry_standard",
+        status: "queued",
+        inputArtifactIds: [],
+        outputArtifactIds: [],
+        budget: {
+          maxModelCalls: 4,
+          maxToolCalls: 8,
+          maxDurationMs: 60_000
+        },
+        createdAt: "2026-04-05T00:00:00.000Z",
+        updatedAt: "2026-04-05T00:00:00.000Z"
+      });
+
+      await store.runs.createRun({
+        id: "run_sqlite_completed",
+        threadId: "thread_2",
+        profileId: "platform_geometry_quick_draft",
+        status: "completed",
+        inputArtifactIds: [],
+        outputArtifactIds: [],
+        budget: {
+          maxModelCalls: 3,
+          maxToolCalls: 4,
+          maxDurationMs: 30_000
+        },
+        createdAt: "2026-04-05T00:01:00.000Z",
+        updatedAt: "2026-04-05T00:01:00.000Z"
+      });
+
+      await store.checkpoints.upsertCheckpoint({
+        id: "checkpoint_sqlite_pending",
+        runId: "run_sqlite_pending",
+        nodeId: "node_review",
+        kind: "human_input",
+        status: "pending",
+        title: "Pending review",
+        prompt: "待老师确认",
+        createdAt: "2026-04-05T00:00:00.000Z"
+      });
+
+      await store.checkpoints.upsertCheckpoint({
+        id: "checkpoint_sqlite_resolved",
+        runId: "run_sqlite_completed",
+        nodeId: "node_review",
+        kind: "approval",
+        status: "resolved",
+        title: "Resolved review",
+        prompt: "已完成确认",
+        response: {
+          approved: true
+        },
+        createdAt: "2026-04-05T00:01:00.000Z",
+        resolvedAt: "2026-04-05T00:02:00.000Z"
+      });
+
+      const reopened = createSqliteAgentStore({
+        path: databasePath
+      });
+      const completedRuns = await reopened.runs.listRuns({
+        status: "completed"
+      });
+      const pendingCheckpoints = await reopened.checkpoints.listCheckpointsByStatus(
+        "pending"
+      );
+
+      expect(completedRuns.map((run) => run.id)).toEqual(["run_sqlite_completed"]);
+      expect(pendingCheckpoints.map((checkpoint) => checkpoint.id)).toEqual([
+        "checkpoint_sqlite_pending"
+      ]);
+    } finally {
+      rmSync(tempDir, {
+        recursive: true,
+        force: true
+      });
+    }
   });
 });

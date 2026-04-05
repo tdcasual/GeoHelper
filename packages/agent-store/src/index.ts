@@ -12,6 +12,7 @@ import type { CheckpointRepo } from "./repos/checkpoint-repo";
 import type { EventRepo } from "./repos/event-repo";
 import type { MemoryEntryFilter, MemoryRepo } from "./repos/memory-repo";
 import type { AgentStoreResult, RunFilter, RunRepo, RunSnapshot } from "./repos/run-repo";
+export { createSqliteAgentStore } from "./sqlite-store";
 
 const bySequence = (left: RunEvent, right: RunEvent): number =>
   left.sequence - right.sequence;

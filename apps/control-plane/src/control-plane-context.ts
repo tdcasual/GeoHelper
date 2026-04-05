@@ -6,8 +6,12 @@ import type {
   PlatformAgentDefinition,
   PlatformRunProfile,
   RunBudget,
-  RunEvent} from "@geohelper/agent-protocol";
-import { type AgentStore,createMemoryAgentStore } from "@geohelper/agent-store";
+  RunEvent
+} from "@geohelper/agent-protocol";
+import {
+  type AgentStore,
+  createMemoryAgentStore,
+  createSqliteAgentStore} from "@geohelper/agent-store";
 import {
   createWorkerRuntime,
   type WorkerToolRegistration
@@ -74,10 +78,24 @@ const createIdFactory = (prefix: string): (() => string) => {
   };
 };
 
+export const createControlPlaneStoreFromEnv = (
+  env: NodeJS.ProcessEnv = process.env
+): AgentStore => {
+  const sqlitePath = env.GEOHELPER_AGENT_STORE_SQLITE_PATH?.trim();
+
+  if (sqlitePath) {
+    return createSqliteAgentStore({
+      path: sqlitePath
+    });
+  }
+
+  return createMemoryAgentStore();
+};
+
 export const createControlPlaneServices = (
   overrides: Partial<ControlPlaneServices> = {}
 ): ControlPlaneServices => {
-  const store = overrides.store ?? createMemoryAgentStore();
+  const store = overrides.store ?? createControlPlaneStoreFromEnv();
   const platformRuntime =
     overrides.platformRuntime ??
     createPlatformRuntimeContext(createGeometryPlatformBootstrap());
