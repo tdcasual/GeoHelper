@@ -132,6 +132,22 @@ describe("control-plane admin routes", () => {
       createdAt: "2026-04-04T00:00:00.000Z",
       updatedAt: "2026-04-04T00:01:00.000Z"
     });
+    await store.runs.createRun({
+      id: "run_child_1",
+      threadId: "thread_1",
+      profileId: "platform_geometry_quick_draft",
+      status: "completed",
+      parentRunId: "run_1",
+      inputArtifactIds: [],
+      outputArtifactIds: [],
+      budget: {
+        maxModelCalls: 3,
+        maxToolCalls: 4,
+        maxDurationMs: 60000
+      },
+      createdAt: "2026-04-04T00:00:30.000Z",
+      updatedAt: "2026-04-04T00:00:40.000Z"
+    });
 
     await store.events.appendRunEvent({
       id: "event_1",
@@ -176,6 +192,13 @@ describe("control-plane admin routes", () => {
         }),
         expect.objectContaining({
           type: "node.completed"
+        })
+      ],
+      childRuns: [
+        expect.objectContaining({
+          id: "run_child_1",
+          parentRunId: "run_1",
+          profileId: "platform_geometry_quick_draft"
         })
       ],
       checkpoints: [],

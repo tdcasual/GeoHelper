@@ -8,6 +8,7 @@ import type {
 interface RunTimelinePageProps {
   run: Run;
   events: RunEvent[];
+  childRuns: Run[];
   checkpoints: Checkpoint[];
   memoryEntries: MemoryEntry[];
 }
@@ -23,6 +24,7 @@ const renderMemoryValue = (value: unknown): string => {
 export const RunTimelinePage = ({
   run,
   events,
+  childRuns,
   checkpoints,
   memoryEntries
 }: RunTimelinePageProps) => (
@@ -53,6 +55,19 @@ export const RunTimelinePage = ({
           <li key={checkpoint.id}>
             <span>{checkpoint.title}</span>
             <span>{checkpoint.status}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <section>
+      <h3>Subagents</h3>
+      <ul>
+        {childRuns.map((childRun) => (
+          <li key={childRun.id}>
+            <span>{childRun.id}</span>
+            <span>{childRun.profileId}</span>
+            <span>{childRun.status}</span>
           </li>
         ))}
       </ul>

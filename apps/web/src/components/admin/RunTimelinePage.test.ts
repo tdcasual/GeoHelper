@@ -4,6 +4,7 @@ import type {
   Run,
   RunEvent
 } from "@geohelper/agent-protocol";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
@@ -66,15 +67,35 @@ const memoryEntries: MemoryEntry[] = [
   }
 ];
 
+const childRuns: Run[] = [
+  {
+    id: "run_child_1",
+    threadId: "thread_1",
+    profileId: "platform_geometry_quick_draft",
+    status: "completed",
+    parentRunId: "run_1",
+    inputArtifactIds: [],
+    outputArtifactIds: ["artifact_child_1"],
+    budget: {
+      maxModelCalls: 3,
+      maxToolCalls: 4,
+      maxDurationMs: 60000
+    },
+    createdAt: "2026-04-04T00:00:20.000Z",
+    updatedAt: "2026-04-04T00:00:40.000Z"
+  }
+];
+
 describe("RunTimelinePage", () => {
-  it("renders run timeline, pending checkpoints, and memory writes", () => {
+  it("renders run timeline, pending checkpoints, memory writes, and child runs", () => {
     const markup = renderToStaticMarkup(
-      <RunTimelinePage
-        run={run}
-        events={events}
-        checkpoints={checkpoints}
-        memoryEntries={memoryEntries}
-      />
+      createElement(RunTimelinePage, {
+        run,
+        events,
+        checkpoints,
+        memoryEntries,
+        childRuns
+      })
     );
 
     expect(markup).toContain("run_1");
@@ -82,5 +103,8 @@ describe("RunTimelinePage", () => {
     expect(markup).toContain("node.started");
     expect(markup).toContain("Confirm geometry draft");
     expect(markup).toContain("teacher_preference");
+    expect(markup).toContain("Subagents");
+    expect(markup).toContain("run_child_1");
+    expect(markup).toContain("platform_geometry_quick_draft");
   });
 });

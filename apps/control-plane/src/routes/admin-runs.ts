@@ -38,9 +38,14 @@ export const registerAdminRunsRoutes = (
       });
     }
 
+    const childRuns = await services.store.runs.listRuns({
+      parentRunId: params.runId
+    });
+
     return {
       run: snapshot.run,
       events: snapshot.events,
+      childRuns,
       checkpoints: snapshot.checkpoints,
       memoryEntries: snapshot.memoryEntries
     };

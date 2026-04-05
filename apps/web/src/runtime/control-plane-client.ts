@@ -3,6 +3,7 @@ import type {
   PlatformRunProfile
 } from "@geohelper/agent-protocol";
 import type { RunSnapshot } from "@geohelper/agent-store";
+
 import type { PlatformThread } from "../state/thread-store";
 import {
   buildRunStreamUrl,
