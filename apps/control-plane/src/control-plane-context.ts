@@ -1,4 +1,7 @@
-import { createGeometryRunProfileMap } from "@geohelper/agent-domain-geometry";
+import {
+  createGeometryPlatformBootstrap,
+  type GeometryPlatformBootstrap
+} from "@geohelper/agent-domain-geometry";
 import type {
   Checkpoint,
   CheckpointStatus,
@@ -24,6 +27,7 @@ export interface ControlPlaneServices {
   store: AgentStore;
   threads: Map<string, ControlPlaneThread>;
   browserSessions: Map<string, BrowserSession>;
+  platformBootstrap: GeometryPlatformBootstrap;
   runProfiles: Map<string, PlatformRunProfile>;
   now: () => string;
   buildThreadId: () => string;
@@ -49,18 +53,24 @@ const createIdFactory = (prefix: string): (() => string) => {
 
 export const createControlPlaneServices = (
   overrides: Partial<ControlPlaneServices> = {}
-): ControlPlaneServices => ({
-  store: overrides.store ?? createMemoryAgentStore(),
-  threads: overrides.threads ?? new Map(),
-  browserSessions: overrides.browserSessions ?? new Map(),
-  runProfiles: overrides.runProfiles ?? createGeometryRunProfileMap(),
-  now: overrides.now ?? (() => new Date().toISOString()),
-  buildThreadId: overrides.buildThreadId ?? createIdFactory("thread"),
-  buildRunId: overrides.buildRunId ?? createIdFactory("run"),
-  buildEventId: overrides.buildEventId ?? createIdFactory("event"),
-  buildBrowserSessionId:
-    overrides.buildBrowserSessionId ?? createIdFactory("browser_session")
-});
+): ControlPlaneServices => {
+  const platformBootstrap =
+    overrides.platformBootstrap ?? createGeometryPlatformBootstrap();
+
+  return {
+    store: overrides.store ?? createMemoryAgentStore(),
+    threads: overrides.threads ?? new Map(),
+    browserSessions: overrides.browserSessions ?? new Map(),
+    platformBootstrap,
+    runProfiles: overrides.runProfiles ?? platformBootstrap.runProfileMap,
+    now: overrides.now ?? (() => new Date().toISOString()),
+    buildThreadId: overrides.buildThreadId ?? createIdFactory("thread"),
+    buildRunId: overrides.buildRunId ?? createIdFactory("run"),
+    buildEventId: overrides.buildEventId ?? createIdFactory("event"),
+    buildBrowserSessionId:
+      overrides.buildBrowserSessionId ?? createIdFactory("browser_session")
+  };
+};
 
 export const appendRunEvent = async (
   services: ControlPlaneServices,

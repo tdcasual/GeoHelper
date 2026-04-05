@@ -18,4 +18,12 @@ describe("control-plane context", () => {
       geometryDomain.runProfiles.platform_geometry_quick_draft
     );
   });
+
+  it("exposes the default platform bootstrap alongside the derived run profile map", () => {
+    const services = createControlPlaneServices();
+
+    expect(services.platformBootstrap.runProfiles.platform_geometry_standard).toBeDefined();
+    expect(services.platformBootstrap.tools["scene.read_state"]).toBeDefined();
+    expect(services.runProfiles).toBe(services.platformBootstrap.runProfileMap);
+  });
 });

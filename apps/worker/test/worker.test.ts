@@ -42,6 +42,8 @@ describe("worker runtime", () => {
     const result = await runtime.runLoop.tick();
     const run = await store.runs.getRun("run_1");
 
+    expect(runtime.platformBootstrap.runProfiles.platform_geometry_standard).toBeDefined();
+    expect(runtime.platformBootstrap.tools["scene.read_state"]).toBeDefined();
     expect(result?.status).toBe("completed");
     expect(run?.status).toBe("completed");
   });

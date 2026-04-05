@@ -1,5 +1,8 @@
 import type { NodeHandlerMap } from "@geohelper/agent-core";
-import { createGeometryDomainPackage } from "@geohelper/agent-domain-geometry";
+import {
+  createGeometryPlatformBootstrap,
+  type GeometryPlatformBootstrap
+} from "@geohelper/agent-domain-geometry";
 import type {
   PlatformRunProfile,
   WorkflowDefinition
@@ -51,16 +54,27 @@ export const createGeometryWorkerRuntime = ({
   handlers,
   now
 }: GeometryWorkerRuntimeOptions) => {
-  const geometryDomain = createGeometryDomainPackage();
+  const platformBootstrap = createGeometryPlatformBootstrap();
 
-  return createWorkerRuntime({
+  const runtime = createWorkerRuntime({
     store,
-    workflows: geometryDomain.workflows,
-    runProfiles: geometryDomain.runProfiles,
+    workflows: platformBootstrap.workflows,
+    runProfiles: platformBootstrap.runProfiles,
     handlers,
     now
   });
+
+  return {
+    ...runtime,
+    platformBootstrap
+  };
 };
+
+export interface GeometryWorkerRuntime {
+  browserToolDispatch: ReturnType<typeof createBrowserToolDispatch>;
+  runLoop: ReturnType<typeof createRunLoop>;
+  platformBootstrap: GeometryPlatformBootstrap;
+}
 
 export * from "./browser-tool-dispatch";
 export * from "./model-dispatch";

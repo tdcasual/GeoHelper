@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { createGeometryDomainPackage } from "../src";
+import {
+  createGeometryDomainPackage,
+  createGeometryPlatformBootstrap
+} from "../src";
 
 describe("geometry domain package", () => {
   it("registers the geometry solver agent definition", () => {
@@ -51,6 +54,20 @@ describe("geometry domain package", () => {
     expect(quickDraftProfile.defaultBudget.maxModelCalls).toBeLessThan(
       standardProfile.defaultBudget.maxModelCalls
     );
+  });
+
+  it("exposes an explicit platform bootstrap for default runtime wiring", () => {
+    const bootstrap = createGeometryPlatformBootstrap();
+
+    expect(bootstrap.agents.geometry_solver.id).toBe("geometry_solver");
+    expect(bootstrap.runProfiles.platform_geometry_standard.workflowId).toBe(
+      "wf_geometry_solver"
+    );
+    expect(
+      bootstrap.runProfileMap.get("platform_geometry_standard")
+    ).toEqual(bootstrap.runProfiles.platform_geometry_standard);
+    expect(bootstrap.tools["scene.read_state"]).toBeDefined();
+    expect(bootstrap.evaluators.teacher_readiness).toBeDefined();
   });
 
   it("creates a tool_result artifact when applying a geometry command batch", async () => {
