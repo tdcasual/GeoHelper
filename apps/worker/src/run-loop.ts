@@ -2,14 +2,15 @@ import {
   createWorkflowEngine,
   type NodeHandler,
   type NodeHandlerMap,
+  type PlatformRuntimeContext,
   type WorkflowEngineState,
   type WorkflowExecutionResult
 } from "@geohelper/agent-core";
 import type {
-  PlatformRunProfile,
+  PlatformAgentDefinition,
+  PlatformRunResolutionFailureReason,
   Run,
-  RunEvent,
-  WorkflowDefinition
+  RunEvent
 } from "@geohelper/agent-protocol";
 import { CheckpointSchema } from "@geohelper/agent-protocol";
 import type { AgentStore } from "@geohelper/agent-store";
@@ -22,8 +23,11 @@ import { createModelDispatch } from "./model-dispatch";
 
 export interface RunLoopOptions {
   store: AgentStore;
-  workflows: Record<string, WorkflowDefinition>;
-  runProfiles: Record<string, PlatformRunProfile>;
+  platformRuntime: PlatformRuntimeContext<
+    PlatformAgentDefinition,
+    unknown,
+    unknown
+  >;
   handlers?: NodeHandlerMap;
   browserToolDispatch?: BrowserToolDispatch;
   now?: () => string;
@@ -87,8 +91,7 @@ const mapExecutionStatusToRunStatus = (
 
 export const createRunLoop = ({
   store,
-  workflows,
-  runProfiles,
+  platformRuntime,
   handlers = {},
   browserToolDispatch = createBrowserToolDispatch(),
   now = defaultNow,
@@ -148,7 +151,10 @@ export const createRunLoop = ({
 
   const failRun = async (
     run: Run,
-    reason: WorkflowExecutionResult["failureReason"]
+    reason:
+      | PlatformRunResolutionFailureReason
+      | NonNullable<WorkflowExecutionResult["failureReason"]>,
+    missingName?: string
   ): Promise<WorkflowExecutionResult> => {
     const storedEvents = await store.events.listRunEvents(run.id);
     const failureEvent: RunEvent = {
@@ -158,7 +164,8 @@ export const createRunLoop = ({
       type: "run.failed",
       payload: {
         reason,
-        profileId: run.profileId
+        profileId: run.profileId,
+        ...(missingName ? { missingName } : {})
       },
       createdAt: now()
     };
@@ -213,14 +220,9 @@ export const createRunLoop = ({
         return null;
       }
 
-      const runProfile = runProfiles[run.profileId];
-      if (!runProfile) {
-        return failRun(run, "missing_profile");
-      }
-
-      const workflow = workflows[runProfile.workflowId];
-      if (!workflow) {
-        return failRun(run, "missing_workflow");
+      const resolution = platformRuntime.resolveRun(run);
+      if (!resolution.ok) {
+        return failRun(run, resolution.reason, resolution.missingName);
       }
 
       if (run.status === "waiting_for_checkpoint") {
@@ -259,7 +261,7 @@ export const createRunLoop = ({
 
       const result = await engine.execute({
         run,
-        workflow
+        workflow: resolution.value.workflow
       });
 
       await persistExecutionEvents(runId, result.events);

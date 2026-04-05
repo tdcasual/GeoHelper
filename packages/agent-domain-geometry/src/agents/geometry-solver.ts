@@ -1,14 +1,9 @@
-import type { RunBudget } from "@geohelper/agent-protocol";
+import type {
+  PlatformAgentDefinition,
+  RunBudget
+} from "@geohelper/agent-protocol";
 
-export interface GeometryAgentDefinition {
-  id: string;
-  name: string;
-  description: string;
-  workflowId: string;
-  toolNames: string[];
-  evaluatorNames: string[];
-  defaultBudget: RunBudget;
-}
+export interface GeometryAgentDefinition extends PlatformAgentDefinition {}
 
 const defaultBudget: RunBudget = {
   maxModelCalls: 6,

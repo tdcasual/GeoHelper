@@ -1,11 +1,15 @@
-import type { NodeHandlerMap } from "@geohelper/agent-core";
+import {
+  createPlatformRuntimeContext,
+  type NodeHandlerMap,
+  type PlatformRuntimeContext
+} from "@geohelper/agent-core";
 import {
   createGeometryPlatformBootstrap,
-  type GeometryPlatformBootstrap
+  type GeometryAgentDefinition,
+  type GeometryEvaluator
 } from "@geohelper/agent-domain-geometry";
 import type {
-  PlatformRunProfile,
-  WorkflowDefinition
+  PlatformAgentDefinition
 } from "@geohelper/agent-protocol";
 import type { AgentStore } from "@geohelper/agent-store";
 
@@ -14,24 +18,25 @@ import { createRunLoop } from "./run-loop";
 
 export interface WorkerRuntimeOptions {
   store: AgentStore;
-  workflows: Record<string, WorkflowDefinition>;
-  runProfiles: Record<string, PlatformRunProfile>;
+  platformRuntime: PlatformRuntimeContext<
+    PlatformAgentDefinition,
+    unknown,
+    unknown
+  >;
   handlers?: NodeHandlerMap;
   now?: () => string;
 }
 
 export const createWorkerRuntime = ({
   store,
-  workflows,
-  runProfiles,
+  platformRuntime,
   handlers,
   now
 }: WorkerRuntimeOptions) => {
   const browserToolDispatch = createBrowserToolDispatch();
   const runLoop = createRunLoop({
     store,
-    workflows,
-    runProfiles,
+    platformRuntime,
     handlers,
     now,
     browserToolDispatch
@@ -39,7 +44,8 @@ export const createWorkerRuntime = ({
 
   return {
     browserToolDispatch,
-    runLoop
+    runLoop,
+    platformRuntime
   };
 };
 
@@ -54,26 +60,30 @@ export const createGeometryWorkerRuntime = ({
   handlers,
   now
 }: GeometryWorkerRuntimeOptions) => {
-  const platformBootstrap = createGeometryPlatformBootstrap();
+  const platformRuntime = createPlatformRuntimeContext(
+    createGeometryPlatformBootstrap()
+  );
 
   const runtime = createWorkerRuntime({
     store,
-    workflows: platformBootstrap.workflows,
-    runProfiles: platformBootstrap.runProfiles,
+    platformRuntime,
     handlers,
     now
   });
 
   return {
-    ...runtime,
-    platformBootstrap
+    ...runtime
   };
 };
 
 export interface GeometryWorkerRuntime {
   browserToolDispatch: ReturnType<typeof createBrowserToolDispatch>;
   runLoop: ReturnType<typeof createRunLoop>;
-  platformBootstrap: GeometryPlatformBootstrap;
+  platformRuntime: PlatformRuntimeContext<
+    GeometryAgentDefinition,
+    unknown,
+    GeometryEvaluator<any, any>
+  >;
 }
 
 export * from "./browser-tool-dispatch";

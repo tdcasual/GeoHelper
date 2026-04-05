@@ -1,5 +1,6 @@
 import type {
   Checkpoint,
+  PlatformRunResolutionFailureReason,
   Run,
   RunEvent,
   WorkflowDefinition,
@@ -72,11 +73,10 @@ export interface WorkflowExecutionResult {
   spawnedRunIds: string[];
   pendingCheckpoint?: Checkpoint;
   failureReason?:
+    | PlatformRunResolutionFailureReason
     | "model_budget_exhausted"
     | "tool_budget_exhausted"
-    | "missing_node"
-    | "missing_profile"
-    | "missing_workflow";
+    | "missing_node";
   state?: WorkflowEngineState;
 }
 

@@ -1,4 +1,4 @@
-import type { PlatformRunProfile, WorkflowDefinition } from "@geohelper/agent-protocol";
+import type { PlatformBootstrap } from "@geohelper/agent-protocol";
 import type { AnyToolDefinition } from "@geohelper/agent-tools";
 
 import {
@@ -14,17 +14,9 @@ import { createSceneApplyCommandBatchTool } from "./tools/scene-apply-command-ba
 import { createSceneReadStateTool } from "./tools/scene-read-state";
 import { createGeometrySolverWorkflow } from "./workflows/geometry-solver-workflow";
 
-export interface PlatformBootstrap<TAgentDefinition, TEvaluator> {
-  agents: Record<string, TAgentDefinition>;
-  runProfiles: Record<string, PlatformRunProfile>;
-  runProfileMap: Map<string, PlatformRunProfile>;
-  workflows: Record<string, WorkflowDefinition>;
-  tools: Record<string, AnyToolDefinition>;
-  evaluators: Record<string, TEvaluator>;
-}
-
 export type GeometryPlatformBootstrap = PlatformBootstrap<
   GeometryAgentDefinition,
+  AnyToolDefinition,
   GeometryEvaluator<any, any>
 >;
 

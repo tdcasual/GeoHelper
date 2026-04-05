@@ -9,6 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@geohelper/agent-core": "workspace:*",
     "@geohelper/agent-domain-geometry": "workspace:*",
     "@geohelper/agent-protocol": "workspace:*",
     "@geohelper/agent-store": "workspace:*",

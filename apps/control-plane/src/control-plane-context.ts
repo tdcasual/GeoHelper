@@ -1,6 +1,8 @@
+import { createPlatformRuntimeContext, type PlatformRuntimeContext } from "@geohelper/agent-core";
 import {
   createGeometryPlatformBootstrap,
-  type GeometryPlatformBootstrap
+  type GeometryAgentDefinition,
+  type GeometryEvaluator
 } from "@geohelper/agent-domain-geometry";
 import type {
   Checkpoint,
@@ -27,7 +29,11 @@ export interface ControlPlaneServices {
   store: AgentStore;
   threads: Map<string, ControlPlaneThread>;
   browserSessions: Map<string, BrowserSession>;
-  platformBootstrap: GeometryPlatformBootstrap;
+  platformRuntime: PlatformRuntimeContext<
+    GeometryAgentDefinition,
+    unknown,
+    GeometryEvaluator<any, any>
+  >;
   runProfiles: Map<string, PlatformRunProfile>;
   now: () => string;
   buildThreadId: () => string;
@@ -54,15 +60,16 @@ const createIdFactory = (prefix: string): (() => string) => {
 export const createControlPlaneServices = (
   overrides: Partial<ControlPlaneServices> = {}
 ): ControlPlaneServices => {
-  const platformBootstrap =
-    overrides.platformBootstrap ?? createGeometryPlatformBootstrap();
+  const platformRuntime =
+    overrides.platformRuntime ??
+    createPlatformRuntimeContext(createGeometryPlatformBootstrap());
 
   return {
     store: overrides.store ?? createMemoryAgentStore(),
     threads: overrides.threads ?? new Map(),
     browserSessions: overrides.browserSessions ?? new Map(),
-    platformBootstrap,
-    runProfiles: overrides.runProfiles ?? platformBootstrap.runProfileMap,
+    platformRuntime,
+    runProfiles: overrides.runProfiles ?? platformRuntime.runProfiles,
     now: overrides.now ?? (() => new Date().toISOString()),
     buildThreadId: overrides.buildThreadId ?? createIdFactory("thread"),
     buildRunId: overrides.buildRunId ?? createIdFactory("run"),

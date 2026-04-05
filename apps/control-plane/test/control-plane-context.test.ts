@@ -22,8 +22,8 @@ describe("control-plane context", () => {
   it("exposes the default platform bootstrap alongside the derived run profile map", () => {
     const services = createControlPlaneServices();
 
-    expect(services.platformBootstrap.runProfiles.platform_geometry_standard).toBeDefined();
-    expect(services.platformBootstrap.tools["scene.read_state"]).toBeDefined();
-    expect(services.runProfiles).toBe(services.platformBootstrap.runProfileMap);
+    expect(services.platformRuntime.bootstrap.runProfiles.platform_geometry_standard).toBeDefined();
+    expect(services.platformRuntime.tools["scene.read_state"]).toBeDefined();
+    expect(services.runProfiles).toBe(services.platformRuntime.runProfiles);
   });
 });

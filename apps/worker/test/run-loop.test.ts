@@ -1,3 +1,4 @@
+import { createPlatformRuntimeContext } from "@geohelper/agent-core";
 import { createGeometryDomainPackage } from "@geohelper/agent-domain-geometry";
 import type { Run } from "@geohelper/agent-protocol";
 import { createMemoryAgentStore } from "@geohelper/agent-store";
@@ -22,12 +23,98 @@ const createRun = (overrides: Partial<Run> = {}) => ({
   ...overrides
 });
 
+const createTestPlatformRuntime = (input: {
+  profileId: string;
+  workflowId: string;
+  workflow: {
+    id: string;
+    version: number;
+    entryNodeId: string;
+    nodes: Array<{
+      id: string;
+      kind:
+        | "planner"
+        | "model"
+        | "tool"
+        | "router"
+        | "checkpoint"
+        | "evaluator"
+        | "subagent"
+        | "synthesizer";
+      name: string;
+      config: Record<string, unknown>;
+      next: string[];
+    }>;
+  };
+  tools?: Record<string, unknown>;
+  evaluators?: Record<string, unknown>;
+}) =>
+  createPlatformRuntimeContext({
+    agents: {
+      geometry_solver: {
+        id: "geometry_solver",
+        name: "Geometry Solver",
+        description: "Test agent",
+        workflowId: input.workflowId,
+        toolNames: Object.keys(input.tools ?? {}),
+        evaluatorNames: Object.keys(input.evaluators ?? {}),
+        defaultBudget: {
+          maxModelCalls: 6,
+          maxToolCalls: 8,
+          maxDurationMs: 120000
+        }
+      }
+    },
+    runProfiles: {
+      [input.profileId]: {
+        id: input.profileId,
+        name: "Test workflow",
+        description: "Test run profile",
+        agentId: "geometry_solver",
+        workflowId: input.workflowId,
+        defaultBudget: {
+          maxModelCalls: 6,
+          maxToolCalls: 8,
+          maxDurationMs: 120000
+        }
+      }
+    },
+    runProfileMap: new Map([
+      [
+        input.profileId,
+        {
+          id: input.profileId,
+          name: "Test workflow",
+          description: "Test run profile",
+          agentId: "geometry_solver",
+          workflowId: input.workflowId,
+          defaultBudget: {
+            maxModelCalls: 6,
+            maxToolCalls: 8,
+            maxDurationMs: 120000
+          }
+        }
+      ]
+    ]),
+    workflows: {
+      [input.workflowId]: input.workflow
+    },
+    tools: input.tools ?? {},
+    evaluators: input.evaluators ?? {}
+  });
+
 describe("worker run loop", () => {
   it("claims queued runs in FIFO order", () => {
     const loop = createRunLoop({
       store: createMemoryAgentStore(),
-      workflows: {},
-      runProfiles: {}
+      platformRuntime: createPlatformRuntimeContext({
+        agents: {},
+        runProfiles: {},
+        runProfileMap: new Map(),
+        workflows: {},
+        tools: {},
+        evaluators: {}
+      })
     });
 
     loop.enqueue("run_1");
@@ -45,22 +132,10 @@ describe("worker run loop", () => {
 
     const loop = createRunLoop({
       store,
-      runProfiles: {
-        profile_basic: {
-          id: "profile_basic",
-          name: "Basic workflow",
-          description: "Basic run profile",
-          agentId: "geometry_solver",
-          workflowId: "wf_basic",
-          defaultBudget: {
-            maxModelCalls: 6,
-            maxToolCalls: 8,
-            maxDurationMs: 120000
-          }
-        }
-      },
-      workflows: {
-        wf_basic: {
+      platformRuntime: createTestPlatformRuntime({
+        profileId: "profile_basic",
+        workflowId: "wf_basic",
+        workflow: {
           id: "wf_basic",
           version: 1,
           entryNodeId: "node_plan",
@@ -81,7 +156,7 @@ describe("worker run loop", () => {
             }
           ]
         }
-      }
+      })
     });
 
     loop.enqueue("run_1");
@@ -104,22 +179,10 @@ describe("worker run loop", () => {
 
     const loop = createRunLoop({
       store,
-      runProfiles: {
-        profile_browser_tool: {
-          id: "profile_browser_tool",
-          name: "Browser tool workflow",
-          description: "Browser tool run profile",
-          agentId: "geometry_solver",
-          workflowId: "wf_browser_tool",
-          defaultBudget: {
-            maxModelCalls: 6,
-            maxToolCalls: 8,
-            maxDurationMs: 120000
-          }
-        }
-      },
-      workflows: {
-        wf_browser_tool: {
+      platformRuntime: createTestPlatformRuntime({
+        profileId: "profile_browser_tool",
+        workflowId: "wf_browser_tool",
+        workflow: {
           id: "wf_browser_tool",
           version: 1,
           entryNodeId: "node_browser_tool",
@@ -142,8 +205,11 @@ describe("worker run loop", () => {
               next: []
             }
           ]
+        },
+        tools: {
+          "scene.read_state": {}
         }
-      }
+      })
     });
 
     loop.enqueue("run_1");
@@ -166,22 +232,10 @@ describe("worker run loop", () => {
 
     const loop = createRunLoop({
       store,
-      runProfiles: {
-        profile_browser_tool: {
-          id: "profile_browser_tool",
-          name: "Browser tool workflow",
-          description: "Browser tool run profile",
-          agentId: "geometry_solver",
-          workflowId: "wf_browser_tool",
-          defaultBudget: {
-            maxModelCalls: 6,
-            maxToolCalls: 8,
-            maxDurationMs: 120000
-          }
-        }
-      },
-      workflows: {
-        wf_browser_tool: {
+      platformRuntime: createTestPlatformRuntime({
+        profileId: "profile_browser_tool",
+        workflowId: "wf_browser_tool",
+        workflow: {
           id: "wf_browser_tool",
           version: 1,
           entryNodeId: "node_browser_tool",
@@ -204,8 +258,11 @@ describe("worker run loop", () => {
               next: []
             }
           ]
+        },
+        tools: {
+          "scene.apply_command_batch": {}
         }
-      }
+      })
     });
 
     loop.enqueue("run_1");
@@ -244,8 +301,14 @@ describe("worker run loop", () => {
 
     const loop = createRunLoop({
       store,
-      runProfiles: {},
-      workflows: {}
+      platformRuntime: createPlatformRuntimeContext({
+        agents: {},
+        runProfiles: {},
+        runProfileMap: new Map(),
+        workflows: {},
+        tools: {},
+        evaluators: {}
+      })
     });
 
     loop.enqueue("run_1");
@@ -267,8 +330,7 @@ describe("worker run loop", () => {
 
     const loop = createRunLoop({
       store,
-      runProfiles: geometryDomain.runProfiles,
-      workflows: geometryDomain.workflows,
+      platformRuntime: createPlatformRuntimeContext(geometryDomain),
       handlers: {
         planner: async () => ({ type: "continue" }),
         tool: async () => ({ type: "continue" }),
