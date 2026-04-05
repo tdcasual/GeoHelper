@@ -9,6 +9,7 @@ export const RunStatusSchema = z.enum([
   "planning",
   "running",
   "waiting_for_checkpoint",
+  "waiting_for_subagent",
   "waiting_for_tool",
   "evaluating",
   "completed",

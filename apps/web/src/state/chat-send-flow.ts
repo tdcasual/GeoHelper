@@ -245,7 +245,8 @@ export const buildAssistantMessageFromRunResult = (input: {
   const isGuard =
     input.snapshot.run.status === "queued" ||
     input.snapshot.run.status === "running" ||
-    input.snapshot.run.status === "waiting_for_checkpoint";
+    input.snapshot.run.status === "waiting_for_checkpoint" ||
+    input.snapshot.run.status === "waiting_for_subagent";
 
   return {
     id: input.id,

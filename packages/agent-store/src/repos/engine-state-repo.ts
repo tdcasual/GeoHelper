@@ -12,7 +12,8 @@ export interface WorkflowEngineStateRecord {
   emittedEventCount: number;
   spawnedRunIds: string[];
   budgetUsage: WorkflowBudgetUsageState;
-  pendingCheckpointId: string;
+  pendingCheckpointId?: string;
+  pendingChildRunId?: string;
   updatedAt: string;
 }
 

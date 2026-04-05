@@ -23,15 +23,28 @@ export type NodeHandlerResult =
   | {
       type: "spawn_subagent";
       childRunId: string;
+      waitForCompletion?: boolean;
     }
   | {
       type: "complete";
     };
 
 export interface WorkflowCheckpointResolution {
+  kind: "checkpoint";
   checkpointId: string;
   response: unknown;
 }
+
+export interface WorkflowSubagentResolution {
+  kind: "subagent";
+  childRunId: string;
+  status: Run["status"];
+  outputArtifactIds: string[];
+}
+
+export type WorkflowResumeResolution =
+  | WorkflowCheckpointResolution
+  | WorkflowSubagentResolution;
 
 export interface NodeHandlerContext {
   run: Run;
@@ -39,7 +52,7 @@ export interface NodeHandlerContext {
   node: WorkflowNode;
   visitedNodeIds: string[];
   budgetUsage: WorkflowBudgetUsage;
-  resolution?: WorkflowCheckpointResolution;
+  resolution?: WorkflowResumeResolution;
 }
 
 export type NodeHandler = (

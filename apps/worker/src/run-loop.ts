@@ -5,6 +5,7 @@ import {
   type NodeHandler,
   type NodeHandlerMap,
   type PlatformRuntimeContext,
+  type WorkflowCheckpointResolution,
   type WorkflowEngineState,
   type WorkflowExecutionResult
 } from "@geohelper/agent-core";
@@ -68,6 +69,16 @@ const parseInputArtifactIds = (value: unknown): string[] | null => {
       typeof artifactId === "string" && artifactId.length > 0
   );
 };
+
+const isAwaitedSubagent = (value: unknown): boolean => value === true;
+
+const isTerminalRunStatus = (status: Run["status"]): boolean =>
+  status === "completed" || status === "failed" || status === "cancelled";
+
+const mergeArtifactIds = (
+  existingArtifactIds: string[],
+  nextArtifactIds: string[]
+): string[] => [...new Set([...existingArtifactIds, ...nextArtifactIds])];
 
 const createToolHandler = (
   tools: Record<string, WorkerToolRegistration>,
@@ -170,7 +181,8 @@ const createSubagentHandler = (
 
   return {
     type: "spawn_subagent",
-    childRunId
+    childRunId,
+    waitForCompletion: isAwaitedSubagent(node.config.awaitCompletion)
   };
 };
 
@@ -183,6 +195,10 @@ const mapExecutionStatusToRunStatus = (
 
   if (status === "failed") {
     return "failed";
+  }
+
+  if (status === "waiting_for_subagent") {
+    return "waiting_for_subagent";
   }
 
   return "waiting_for_checkpoint";
@@ -288,8 +304,7 @@ export const createRunLoop = ({
 
   const persistWaitingState = async (
     runId: string,
-    state: WorkflowEngineState,
-    pendingCheckpointId: string
+    state: WorkflowEngineState
   ): Promise<void> => {
     await store.engineStates.upsertState({
       runId,
@@ -298,7 +313,8 @@ export const createRunLoop = ({
       emittedEventCount: state.events.length,
       spawnedRunIds: state.spawnedRunIds,
       budgetUsage: state.budgetUsage,
-      pendingCheckpointId,
+      pendingCheckpointId: state.pendingCheckpoint?.id,
+      pendingChildRunId: state.pendingSubagentRunId,
       updatedAt: now()
     });
   };
@@ -327,12 +343,12 @@ export const createRunLoop = ({
     workflow: WorkflowEngineState["workflow"]
   ): Promise<{
     state: WorkflowEngineState;
-    resolution: CheckpointResolution;
+    resolution: WorkflowCheckpointResolution;
     emittedEventCount: number;
   } | null> => {
     const storedState = await store.engineStates.getState(run.id);
 
-    if (!storedState) {
+    if (!storedState || !storedState.pendingCheckpointId) {
       return null;
     }
 
@@ -356,12 +372,107 @@ export const createRunLoop = ({
         pendingCheckpoint
       },
       resolution: {
-        runId: run.id,
+        kind: "checkpoint",
         checkpointId: pendingCheckpoint.id,
         response: pendingCheckpoint.response
       },
       emittedEventCount: storedState.emittedEventCount
     };
+  };
+
+  const rehydrateWaitingSubagentState = async (
+    run: Run,
+    workflow: WorkflowEngineState["workflow"]
+  ): Promise<{
+    state: WorkflowEngineState;
+    resolution: {
+      kind: "subagent";
+      childRunId: string;
+      status: Run["status"];
+      outputArtifactIds: string[];
+    };
+    emittedEventCount: number;
+  } | null> => {
+    const storedState = await store.engineStates.getState(run.id);
+
+    if (!storedState || !storedState.pendingChildRunId) {
+      return null;
+    }
+
+    const childRun = await store.runs.getRun(storedState.pendingChildRunId);
+
+    if (!childRun || !isTerminalRunStatus(childRun.status)) {
+      return null;
+    }
+
+    return {
+      state: {
+        run:
+          childRun.status === "completed"
+            ? {
+                ...run,
+                inputArtifactIds: mergeArtifactIds(
+                  run.inputArtifactIds,
+                  childRun.outputArtifactIds
+                )
+              }
+            : run,
+        workflow,
+        nextNodeId: storedState.nextNodeId,
+        visitedNodeIds: storedState.visitedNodeIds,
+        events: await store.events.listRunEvents(run.id),
+        spawnedRunIds: storedState.spawnedRunIds,
+        budgetUsage: storedState.budgetUsage,
+        pendingSubagentRunId: childRun.id
+      },
+      resolution: {
+        kind: "subagent",
+        childRunId: childRun.id,
+        status: childRun.status,
+        outputArtifactIds: childRun.outputArtifactIds
+      },
+      emittedEventCount: storedState.emittedEventCount
+    };
+  };
+
+  const persistResultState = async (
+    runId: string,
+    result: WorkflowExecutionResult
+  ): Promise<void> => {
+    if (
+      (result.status === "waiting_for_checkpoint" ||
+        result.status === "waiting_for_subagent") &&
+      result.state
+    ) {
+      if (result.pendingCheckpoint) {
+        await store.checkpoints.upsertCheckpoint(result.pendingCheckpoint);
+      }
+
+      await persistWaitingState(runId, result.state);
+      return;
+    }
+
+    await store.engineStates.deleteState(runId);
+  };
+
+  const enqueueParentRunIfReady = async (run: Run): Promise<void> => {
+    if (!run.parentRunId || !isTerminalRunStatus(run.status)) {
+      return;
+    }
+
+    const parentRun = await store.runs.getRun(run.parentRunId);
+
+    if (!parentRun || parentRun.status !== "waiting_for_subagent") {
+      return;
+    }
+
+    const parentState = await store.engineStates.getState(parentRun.id);
+
+    if (!parentState || parentState.pendingChildRunId !== run.id) {
+      return;
+    }
+
+    await store.dispatches.enqueueRun(parentRun.id, now());
   };
 
   return {
@@ -412,10 +523,7 @@ export const createRunLoop = ({
 
           const result = await engine.resume({
             state: resumedState.state,
-            resolution: {
-              checkpointId: resumedState.resolution.checkpointId,
-              response: resumedState.resolution.response
-            }
+            resolution: resumedState.resolution
           });
 
           await persistExecutionEvents(
@@ -423,20 +531,42 @@ export const createRunLoop = ({
             result.events,
             resumedState.emittedEventCount
           );
-          await persistRunStatus(run, mapExecutionStatusToRunStatus(result.status));
+          const updatedRun = await persistRunStatus(
+            resumedState.state.run,
+            mapExecutionStatusToRunStatus(result.status)
+          );
+          await persistResultState(run.id, result);
+          await enqueueParentRunIfReady(updatedRun);
 
-          if (result.status === "waiting_for_checkpoint" && result.state) {
-            if (result.pendingCheckpoint) {
-              await store.checkpoints.upsertCheckpoint(result.pendingCheckpoint);
-              await persistWaitingState(
-                run.id,
-                result.state,
-                result.pendingCheckpoint.id
-              );
-            }
-          } else {
-            await store.engineStates.deleteState(run.id);
+          return result;
+        }
+
+        if (run.status === "waiting_for_subagent") {
+          const resumedState = await rehydrateWaitingSubagentState(
+            run,
+            resolution.value.workflow
+          );
+
+          if (!resumedState) {
+            return null;
           }
+
+          const result = await engine.resume({
+            state: resumedState.state,
+            resolution: resumedState.resolution
+          });
+
+          await persistExecutionEvents(
+            run.id,
+            result.events,
+            resumedState.emittedEventCount
+          );
+          const updatedRun = await persistRunStatus(
+            resumedState.state.run,
+            mapExecutionStatusToRunStatus(result.status)
+          );
+          await persistResultState(run.id, result);
+          await enqueueParentRunIfReady(updatedRun);
 
           return result;
         }
@@ -447,20 +577,12 @@ export const createRunLoop = ({
         });
 
         await persistExecutionEvents(run.id, result.events);
-        await persistRunStatus(run, mapExecutionStatusToRunStatus(result.status));
-
-        if (result.status === "waiting_for_checkpoint" && result.state) {
-          if (result.pendingCheckpoint) {
-            await store.checkpoints.upsertCheckpoint(result.pendingCheckpoint);
-            await persistWaitingState(
-              run.id,
-              result.state,
-              result.pendingCheckpoint.id
-            );
-          }
-        } else {
-          await store.engineStates.deleteState(run.id);
-        }
+        const updatedRun = await persistRunStatus(
+          run,
+          mapExecutionStatusToRunStatus(result.status)
+        );
+        await persistResultState(run.id, result);
+        await enqueueParentRunIfReady(updatedRun);
 
         return result;
       } finally {

@@ -227,6 +227,28 @@ describe("chat-send-flow", () => {
     });
   });
 
+  it("treats waiting_for_subagent snapshots as guard results", () => {
+    expect(
+      buildAssistantMessageFromRunResult({
+        id: "msg_assistant_subagent_wait",
+        snapshot: createRunSnapshotFixture({
+          run: {
+            id: "run_waiting_subagent",
+            status: "waiting_for_subagent"
+          },
+          artifacts: [],
+          checkpoints: []
+        })
+      })
+    ).toMatchObject({
+      content: "Run 状态：waiting_for_subagent",
+      result: {
+        status: "guard",
+        summaryItems: ["Run 状态：waiting_for_subagent"]
+      }
+    });
+  });
+
   it("builds structured guard messages for teacher-facing review", () => {
     expect(
       buildAssistantMessageFromGuard({

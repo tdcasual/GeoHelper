@@ -131,8 +131,14 @@ interface WorkflowEngineStateRow {
   emitted_event_count: number;
   spawned_run_ids_json: string;
   budget_usage_json: string;
-  pending_checkpoint_id: string;
+  pending_checkpoint_id: string | null;
+  pending_child_run_id: string | null;
   updated_at: string;
+}
+
+interface TableInfoRow {
+  name: string;
+  notnull: number;
 }
 
 interface ThreadRow {
@@ -253,9 +259,77 @@ const mapWorkflowEngineStateRow = (
     modelCalls: 0,
     toolCalls: 0
   }),
-  pendingCheckpointId: row.pending_checkpoint_id,
+  pendingCheckpointId: row.pending_checkpoint_id ?? undefined,
+  pendingChildRunId: row.pending_child_run_id ?? undefined,
   updatedAt: row.updated_at
 });
+
+const ensureWorkflowEngineStateSchema = (database: DatabaseSync): void => {
+  const columns = readRows<TableInfoRow>(
+    database.prepare("pragma table_info(workflow_engine_states)").all()
+  );
+  const pendingCheckpointColumn = columns.find(
+    (column) => column.name === "pending_checkpoint_id"
+  );
+  const hasPendingChildColumn = columns.some(
+    (column) => column.name === "pending_child_run_id"
+  );
+
+  if (hasPendingChildColumn && pendingCheckpointColumn?.notnull !== 1) {
+    return;
+  }
+
+  database.exec("pragma foreign_keys = off;");
+
+  try {
+    database.exec(`
+      alter table workflow_engine_states
+      rename to workflow_engine_states_legacy;
+
+      create table workflow_engine_states (
+        run_id text primary key,
+        next_node_id text,
+        visited_node_ids_json text not null,
+        emitted_event_count integer not null,
+        spawned_run_ids_json text not null,
+        budget_usage_json text not null,
+        pending_checkpoint_id text,
+        pending_child_run_id text,
+        updated_at text not null,
+        foreign key (run_id) references runs(id) on delete cascade,
+        foreign key (pending_checkpoint_id) references checkpoints(id) on delete cascade,
+        foreign key (pending_child_run_id) references runs(id) on delete cascade
+      );
+
+      insert into workflow_engine_states (
+        run_id,
+        next_node_id,
+        visited_node_ids_json,
+        emitted_event_count,
+        spawned_run_ids_json,
+        budget_usage_json,
+        pending_checkpoint_id,
+        pending_child_run_id,
+        updated_at
+      )
+      select
+        run_id,
+        next_node_id,
+        visited_node_ids_json,
+        emitted_event_count,
+        spawned_run_ids_json,
+        budget_usage_json,
+        pending_checkpoint_id,
+        null,
+        updated_at
+      from workflow_engine_states_legacy;
+
+      drop table workflow_engine_states_legacy;
+    `);
+  } finally {
+    database.exec("pragma foreign_keys = on;");
+  }
+};
 
 const mapThreadRow = (row: ThreadRow): AgentThread => ({
   id: row.id,
@@ -308,6 +382,7 @@ export const createSqliteAgentStore = ({
   const database = new DatabaseSync(path);
   database.exec("pragma foreign_keys = on;");
   database.exec(SCHEMA_SQL);
+  ensureWorkflowEngineStateSchema(database);
 
   const upsertRunStatement = database.prepare(`
     insert into runs (
@@ -601,8 +676,9 @@ export const createSqliteAgentStore = ({
       spawned_run_ids_json,
       budget_usage_json,
       pending_checkpoint_id,
+      pending_child_run_id,
       updated_at
-    ) values (?, ?, ?, ?, ?, ?, ?, ?)
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
     on conflict(run_id) do update set
       next_node_id = excluded.next_node_id,
       visited_node_ids_json = excluded.visited_node_ids_json,
@@ -610,6 +686,7 @@ export const createSqliteAgentStore = ({
       spawned_run_ids_json = excluded.spawned_run_ids_json,
       budget_usage_json = excluded.budget_usage_json,
       pending_checkpoint_id = excluded.pending_checkpoint_id,
+      pending_child_run_id = excluded.pending_child_run_id,
       updated_at = excluded.updated_at
   `);
   const getWorkflowEngineStateStatement = database.prepare(`
@@ -621,6 +698,7 @@ export const createSqliteAgentStore = ({
       spawned_run_ids_json,
       budget_usage_json,
       pending_checkpoint_id,
+      pending_child_run_id,
       updated_at
     from workflow_engine_states
     where run_id = ?
@@ -826,7 +904,8 @@ export const createSqliteAgentStore = ({
         state.emittedEventCount,
         JSON.stringify(state.spawnedRunIds),
         JSON.stringify(state.budgetUsage),
-        state.pendingCheckpointId,
+        state.pendingCheckpointId ?? null,
+        state.pendingChildRunId ?? null,
         state.updatedAt
       );
     },

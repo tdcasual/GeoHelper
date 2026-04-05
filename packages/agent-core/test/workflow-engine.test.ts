@@ -192,6 +192,7 @@ describe("workflow engine", () => {
     const resumed = await engine.resume({
       state: firstPass.state!,
       resolution: {
+        kind: "checkpoint",
         checkpointId: "checkpoint_1",
         response: {
           approved: true
@@ -245,6 +246,66 @@ describe("workflow engine", () => {
 
     expect(result.status).toBe("completed");
     expect(result.spawnedRunIds).toEqual(["run_child_1"]);
+  });
+
+  it("waits for an awaited subagent and resumes after child completion", async () => {
+    const engine = createWorkflowEngine({
+      handlers: {
+        subagent: async () => ({
+          type: "spawn_subagent",
+          childRunId: "run_child_1",
+          waitForCompletion: true
+        }),
+        synthesizer: async () => ({ type: "complete" })
+      }
+    });
+
+    const firstPass = await engine.execute({
+      run: createRun(),
+      workflow: {
+        id: "wf_geometry_solver",
+        version: 1,
+        entryNodeId: "node_subagent",
+        nodes: [
+          {
+            id: "node_subagent",
+            kind: "subagent",
+            name: "Ask reviewer agent",
+            config: {},
+            next: ["node_finish"]
+          },
+          {
+            id: "node_finish",
+            kind: "synthesizer",
+            name: "Finish",
+            config: {},
+            next: []
+          }
+        ]
+      }
+    });
+
+    expect(firstPass.status).toBe("waiting_for_subagent");
+    expect(firstPass.spawnedRunIds).toEqual(["run_child_1"]);
+    expect(firstPass.state?.pendingSubagentRunId).toBe("run_child_1");
+
+    const resumed = await engine.resume({
+      state: firstPass.state!,
+      resolution: {
+        kind: "subagent",
+        childRunId: "run_child_1",
+        status: "completed",
+        outputArtifactIds: ["artifact_child_output"]
+      }
+    });
+
+    expect(resumed.status).toBe("completed");
+    expect(resumed.visitedNodeIds).toEqual(["node_subagent", "node_finish"]);
+    expect(
+      resumed.events.map((event) => event.type)
+    ).toEqual(
+      expect.arrayContaining(["subagent.waiting", "subagent.completed", "run.completed"])
+    );
   });
 
   it("fails fast when a node would exceed the run budget", async () => {

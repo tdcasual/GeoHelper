@@ -81,10 +81,12 @@ create table if not exists workflow_engine_states (
   emitted_event_count integer not null,
   spawned_run_ids_json text not null,
   budget_usage_json text not null,
-  pending_checkpoint_id text not null,
+  pending_checkpoint_id text,
+  pending_child_run_id text,
   updated_at text not null,
   foreign key (run_id) references runs(id) on delete cascade,
-  foreign key (pending_checkpoint_id) references checkpoints(id) on delete cascade
+  foreign key (pending_checkpoint_id) references checkpoints(id) on delete cascade,
+  foreign key (pending_child_run_id) references runs(id) on delete cascade
 );
 
 create table if not exists browser_sessions (

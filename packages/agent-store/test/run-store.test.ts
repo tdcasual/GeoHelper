@@ -480,4 +480,76 @@ describe("agent store", () => {
       });
     }
   });
+
+  it("persists pending child run ids in workflow engine state across sqlite reopen", async () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "geohelper-agent-store-"));
+    const databasePath = path.join(tempDir, "agent-store.sqlite");
+
+    try {
+      const store = createSqliteAgentStore({
+        path: databasePath
+      });
+
+      await store.runs.createRun({
+        id: "run_parent_waiting",
+        threadId: "thread_sqlite_waiting",
+        profileId: "platform_geometry_standard",
+        status: "waiting_for_subagent",
+        inputArtifactIds: [],
+        outputArtifactIds: [],
+        budget: {
+          maxModelCalls: 4,
+          maxToolCalls: 8,
+          maxDurationMs: 60_000
+        },
+        createdAt: "2026-04-05T00:00:00.000Z",
+        updatedAt: "2026-04-05T00:00:00.000Z"
+      });
+      await store.runs.createRun({
+        id: "run_child_waiting",
+        threadId: "thread_sqlite_waiting",
+        profileId: "platform_geometry_quick_draft",
+        status: "queued",
+        parentRunId: "run_parent_waiting",
+        inputArtifactIds: [],
+        outputArtifactIds: [],
+        budget: {
+          maxModelCalls: 3,
+          maxToolCalls: 4,
+          maxDurationMs: 30_000
+        },
+        createdAt: "2026-04-05T00:01:00.000Z",
+        updatedAt: "2026-04-05T00:01:00.000Z"
+      });
+      await store.engineStates.upsertState({
+        runId: "run_parent_waiting",
+        nextNodeId: "node_finish",
+        visitedNodeIds: ["node_subagent"],
+        emittedEventCount: 3,
+        spawnedRunIds: ["run_child_waiting"],
+        budgetUsage: {
+          modelCalls: 0,
+          toolCalls: 0
+        },
+        pendingChildRunId: "run_child_waiting",
+        updatedAt: "2026-04-05T00:01:00.000Z"
+      });
+
+      const reopened = createSqliteAgentStore({
+        path: databasePath
+      });
+
+      expect(await reopened.engineStates.getState("run_parent_waiting")).toEqual(
+        expect.objectContaining({
+          pendingChildRunId: "run_child_waiting",
+          visitedNodeIds: ["node_subagent"]
+        })
+      );
+    } finally {
+      rmSync(tempDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
 });

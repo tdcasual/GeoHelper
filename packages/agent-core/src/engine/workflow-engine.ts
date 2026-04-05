@@ -15,7 +15,7 @@ import {
 import {
   type NodeHandlerMap,
   runNode,
-  type WorkflowCheckpointResolution
+  type WorkflowResumeResolution
 } from "./node-runner";
 import type { WorkflowEngineStatus } from "./status-machine";
 
@@ -64,6 +64,7 @@ export interface WorkflowEngineState {
   spawnedRunIds: string[];
   budgetUsage: WorkflowBudgetUsage;
   pendingCheckpoint?: Checkpoint;
+  pendingSubagentRunId?: string;
 }
 
 export interface WorkflowExecutionResult {
@@ -72,11 +73,13 @@ export interface WorkflowExecutionResult {
   events: RunEvent[];
   spawnedRunIds: string[];
   pendingCheckpoint?: Checkpoint;
+  pendingSubagentRunId?: string;
   failureReason?:
     | PlatformRunResolutionFailureReason
     | "model_budget_exhausted"
     | "tool_budget_exhausted"
-    | "missing_node";
+    | "missing_node"
+    | "subagent_failed";
   state?: WorkflowEngineState;
 }
 
@@ -87,7 +90,7 @@ export interface WorkflowExecutionInput {
 
 export interface WorkflowResumeInput {
   state: WorkflowEngineState;
-  resolution: WorkflowCheckpointResolution;
+  resolution: WorkflowResumeResolution;
 }
 
 export interface WorkflowEngineDeps {
@@ -203,6 +206,31 @@ const continueExecution = async (input: {
         childRunId: result.childRunId,
         nodeId: node.id
       }, now);
+
+      if (result.waitForCompletion) {
+        events = appendEvent(events, input.run.id, "subagent.waiting", {
+          childRunId: result.childRunId,
+          nodeId: node.id
+        }, now);
+        return {
+          status: "waiting_for_subagent",
+          visitedNodeIds,
+          events,
+          spawnedRunIds,
+          pendingSubagentRunId: result.childRunId,
+          state: {
+            run: input.run,
+            workflow: input.workflow,
+            nextNodeId: firstNextNodeId(node),
+            visitedNodeIds,
+            events,
+            spawnedRunIds,
+            budgetUsage,
+            pendingSubagentRunId: result.childRunId
+          }
+        };
+      }
+
       currentNodeId = firstNextNodeId(node);
       continue;
     }
@@ -239,12 +267,82 @@ export const createWorkflowEngine = (deps: WorkflowEngineDeps) => ({
   resume: async (input: WorkflowResumeInput): Promise<WorkflowExecutionResult> => {
     const now = deps.now ?? defaultNow;
     const pendingCheckpoint = input.state.pendingCheckpoint;
+    const pendingSubagentRunId = input.state.pendingSubagentRunId;
     let events = [...input.state.events];
 
-    if (!pendingCheckpoint || pendingCheckpoint.id !== input.resolution.checkpointId) {
+    if (pendingCheckpoint) {
+      if (
+        input.resolution.kind !== "checkpoint" ||
+        pendingCheckpoint.id !== input.resolution.checkpointId
+      ) {
+        events = appendEvent(events, input.state.run.id, "run.failed", {
+          reason: "missing_node",
+          checkpointId:
+            input.resolution.kind === "checkpoint"
+              ? input.resolution.checkpointId
+              : undefined
+        }, now);
+        return {
+          status: "failed",
+          visitedNodeIds: input.state.visitedNodeIds,
+          events,
+          spawnedRunIds: input.state.spawnedRunIds,
+          failureReason: "missing_node"
+        };
+      }
+
+      events = appendEvent(events, input.state.run.id, "checkpoint.resolved", {
+        checkpointId: input.resolution.checkpointId,
+        response: input.resolution.response
+      }, now);
+    } else if (pendingSubagentRunId) {
+      if (
+        input.resolution.kind !== "subagent" ||
+        pendingSubagentRunId !== input.resolution.childRunId
+      ) {
+        events = appendEvent(events, input.state.run.id, "run.failed", {
+          reason: "missing_node",
+          childRunId:
+            input.resolution.kind === "subagent"
+              ? input.resolution.childRunId
+              : undefined
+        }, now);
+        return {
+          status: "failed",
+          visitedNodeIds: input.state.visitedNodeIds,
+          events,
+          spawnedRunIds: input.state.spawnedRunIds,
+          failureReason: "missing_node"
+        };
+      }
+
+      if (input.resolution.status !== "completed") {
+        events = appendEvent(events, input.state.run.id, "subagent.failed", {
+          childRunId: input.resolution.childRunId,
+          status: input.resolution.status
+        }, now);
+        events = appendEvent(events, input.state.run.id, "run.failed", {
+          reason: "subagent_failed",
+          childRunId: input.resolution.childRunId,
+          status: input.resolution.status
+        }, now);
+        return {
+          status: "failed",
+          visitedNodeIds: input.state.visitedNodeIds,
+          events,
+          spawnedRunIds: input.state.spawnedRunIds,
+          failureReason: "subagent_failed"
+        };
+      }
+
+      events = appendEvent(events, input.state.run.id, "subagent.completed", {
+        childRunId: input.resolution.childRunId,
+        status: input.resolution.status,
+        outputArtifactIds: input.resolution.outputArtifactIds
+      }, now);
+    } else {
       events = appendEvent(events, input.state.run.id, "run.failed", {
-        reason: "missing_node",
-        checkpointId: input.resolution.checkpointId
+        reason: "missing_node"
       }, now);
       return {
         status: "failed",
@@ -254,11 +352,6 @@ export const createWorkflowEngine = (deps: WorkflowEngineDeps) => ({
         failureReason: "missing_node"
       };
     }
-
-    events = appendEvent(events, input.state.run.id, "checkpoint.resolved", {
-      checkpointId: input.resolution.checkpointId,
-      response: input.resolution.response
-    }, now);
 
     return continueExecution({
       deps,
