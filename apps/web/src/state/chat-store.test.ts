@@ -1,16 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { RuntimeApiError } from "../runtime/orchestrator";
-import { createAgentRunEnvelopeFixture } from "../test-utils/agent-run-fixture";
+import { getPlatformRunProfile } from "../runtime/platform-run-profiles";
+import { RuntimeApiError } from "../runtime/runtime-service";
+import { createRuntimeRunResponseFixture } from "../test-utils/platform-run-fixture";
 import { createChatStore } from "./chat-store";
 import { sceneStore } from "./scene-store";
 import { settingsStore } from "./settings-store";
 
-const createCompileResponse = (overrides: Parameters<
-  typeof createAgentRunEnvelopeFixture
->[0] = {}) => ({
-  agent_run: createAgentRunEnvelopeFixture(overrides)
-});
+const createCompileResponse = (
+  overrides: Parameters<typeof createRuntimeRunResponseFixture>[0] = {}
+) => createRuntimeRunResponseFixture(overrides);
 
 describe("chat-store", () => {
   it("stores compile result and appends assistant message", async () => {
@@ -19,18 +18,28 @@ describe("chat-store", () => {
         run: {
           id: "run_store"
         },
-        telemetry: {
-          upstreamCallCount: 2,
-          degraded: false,
-          retryCount: 0,
-          stages: [
-            {
-              name: "author",
-              status: "ok",
+        events: [
+          {
+            id: "event_1",
+            runId: "run_store",
+            sequence: 1,
+            type: "run.created",
+            payload: {},
+            createdAt: "2026-04-04T00:00:00.000Z"
+          },
+          {
+            id: "event_2",
+            runId: "run_store",
+            sequence: 2,
+            type: "node.completed",
+            payload: {
+              nodeId: "node_plan_geometry",
+              resultType: "continue",
               durationMs: 8
-            }
-          ]
-        }
+            },
+            createdAt: "2026-04-04T00:00:01.000Z"
+          }
+        ]
       })
     );
     const store = createChatStore({ compile });
@@ -39,8 +48,8 @@ describe("chat-store", () => {
 
     const message = store.getState().messages.at(-1);
     expect(message?.role).toBe("assistant");
-    expect(message?.agentRunId).toBe("run_store");
-    expect(message?.agentSteps?.[0]?.name).toBe("author");
+    expect(message?.platformRunId).toBe("run_store");
+    expect(message?.agentSteps?.[0]?.name).toBe("node_plan_geometry");
   });
 
   it("dispatches proof-assist follow-up prompts as explicit user requests", async () => {
@@ -153,6 +162,38 @@ describe("chat-store", () => {
       .messages.find((message) => message.role === "user");
     expect(userMessage?.attachments).toEqual(attachments);
     expect(compile.mock.calls[0]?.[0]?.attachments).toEqual(attachments);
+  });
+
+  it("forwards the resolved platform run profile into compile calls", async () => {
+    const compile = vi.fn().mockResolvedValue(createCompileResponse());
+    const resolveCompileOptions = vi.fn().mockResolvedValue({
+      runtimeTarget: "gateway",
+      runtimeBaseUrl: "https://gateway.example.com",
+      runtimeCapabilities: {
+        supportsOfficialAuth: true,
+        supportsVision: false,
+        supportsAgentSteps: true,
+        supportsServerMetrics: true,
+        supportsRateLimitHeaders: true
+      },
+      retryAttempts: 0,
+      extraHeaders: {},
+      platformRunProfile: getPlatformRunProfile("platform_geometry_quick_draft")
+    });
+    const store = createChatStore({
+      compile,
+      resolveCompileOptions
+    });
+
+    await store.getState().send("先出一个快速草稿");
+
+    expect(compile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platformRunProfile: getPlatformRunProfile(
+          "platform_geometry_quick_draft"
+        )
+      })
+    );
   });
 
   it("retries compile when runtime options enable retries", async () => {

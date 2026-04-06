@@ -185,7 +185,7 @@ curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
   "https://<gateway-domain>/admin/traces/<trace-id>"
 ```
 
-The legacy compile route has already been removed. `POST /api/v2/agent/runs` is the only active compile endpoint; historical cutover notes remain archived in `docs/deploy/legacy-compile-external-consumer-checklist.md`.
+The legacy compile route has already been removed. Active run traffic now goes through the control plane `thread -> run -> stream` surfaces, while historical cutover notes remain archived in `docs/deploy/legacy-compile-external-consumer-checklist.md`.
 
 Verify the running gateway build identity when investigating deploy drift:
 

@@ -264,6 +264,37 @@ test("remote backup upload defaults to guarded writes and only force-overwrites 
     }
   );
   await page.route(
+    "https://gateway.example.com/admin/backups/history?limit=5",
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          history: [
+            {
+              stored_at: "2026-03-12T10:05:00.000Z",
+              schema_version: 2,
+              created_at: "2026-03-12T10:00:00.000Z",
+              updated_at: "2026-03-12T10:04:00.000Z",
+              app_version: "0.0.1",
+              checksum: "checksum-remote",
+              conversation_count: 2,
+              snapshot_id: "snap-remote",
+              device_id: "device-remote"
+            }
+          ],
+          build: {
+            git_sha: "backupsha",
+            build_time: "2026-03-12T10:05:30.000Z",
+            node_env: "test",
+            redis_enabled: true,
+            attachments_enabled: false
+          }
+        })
+      });
+    }
+  );
+  await page.route(
     "https://gateway.example.com/admin/backups/latest",
     async (route) => {
       latestPutCalls += 1;

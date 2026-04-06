@@ -56,15 +56,15 @@ describe("quality benchmark runner", () => {
       total_cases: number;
       by_domain: Record<string, number>;
       capability_gates: {
-        gateway_attachments: string;
-        vision_smoke_required_when_enabled: boolean;
+        platform_runs: string;
+        run_snapshot_required: boolean;
       };
     };
 
     expect(payload.dry_run).toBe(true);
     expect(payload.capability_gates).toEqual({
-      gateway_attachments: "explicit_flag",
-      vision_smoke_required_when_enabled: true
+      platform_runs: "control_plane_v3",
+      run_snapshot_required: true
     });
     expect(payload.total_cases).toBe(80);
     expect(payload.by_domain["2d"]).toBe(20);
@@ -73,7 +73,7 @@ describe("quality benchmark runner", () => {
     expect(payload.by_domain.probability).toBe(20);
   });
 
-  it("posts benchmark cases to the v2 agent run endpoint and scores agent_run drafts", async () => {
+  it("posts benchmark cases to platform run endpoints and scores run snapshots", async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "geohelper-benchmark-"));
     const casesPath = path.join(tempDir, "cases.json");
     const outputPath = path.join(tempDir, "result.json");
@@ -105,41 +105,100 @@ describe("quality benchmark runner", () => {
         requests.push({
           method: req.method,
           url: req.url,
-          body: JSON.parse(body)
+          body: body ? JSON.parse(body) : {}
         });
-        res.writeHead(200, {
-          "content-type": "application/json"
-        });
-        res.end(
-          JSON.stringify({
-            trace_id: "tr_bench_1",
-            agent_run: {
+
+        if (req.url === "/api/v3/threads") {
+          res.writeHead(201, {
+            "content-type": "application/json"
+          });
+          res.end(
+            JSON.stringify({
+              thread: {
+                id: "thread_bench_1",
+                title: "case_1",
+                createdAt: "2026-04-04T00:00:00.000Z"
+              }
+            })
+          );
+          return;
+        }
+
+        if (req.url === "/api/v3/threads/thread_bench_1/runs") {
+          res.writeHead(202, {
+            "content-type": "application/json"
+          });
+          res.end(
+            JSON.stringify({
               run: {
                 id: "run_bench_1",
-                status: "success"
-              },
-              draft: {
-                commandBatchDraft: {
-                  version: "1.0",
-                  scene_id: "scene_1",
-                  transaction_id: "tx_bench_1",
-                  commands: [{ name: "noop" }],
-                  post_checks: [],
-                  explanations: []
-                }
-              },
-              telemetry: {
-                stages: [
-                  {
-                    name: "author",
-                    status: "ok",
-                    durationMs: 8
-                  }
-                ]
+                threadId: "thread_bench_1",
+                profileId: "platform_geometry_standard",
+                status: "completed",
+                inputArtifactIds: [],
+                outputArtifactIds: ["artifact_response_1"],
+                budget: {
+                  maxModelCalls: 6,
+                  maxToolCalls: 8,
+                  maxDurationMs: 120000
+                },
+                createdAt: "2026-04-04T00:00:00.000Z",
+                updatedAt: "2026-04-04T00:00:05.000Z"
               }
-            }
-          })
-        );
+            })
+          );
+          return;
+        }
+
+        if (req.url === "/api/v3/runs/run_bench_1/stream") {
+          res.writeHead(200, {
+            "content-type": "text/event-stream"
+          });
+          res.end(
+            [
+              "event: run.snapshot",
+              `data: ${JSON.stringify({
+                run: {
+                  id: "run_bench_1",
+                  threadId: "thread_bench_1",
+                  profileId: "platform_geometry_standard",
+                  status: "completed",
+                  inputArtifactIds: [],
+                  outputArtifactIds: ["artifact_response_1"],
+                  budget: {
+                    maxModelCalls: 6,
+                    maxToolCalls: 8,
+                    maxDurationMs: 120000
+                  },
+                  createdAt: "2026-04-04T00:00:00.000Z",
+                  updatedAt: "2026-04-04T00:00:05.000Z"
+                },
+                events: [],
+                checkpoints: [],
+                artifacts: [
+                  {
+                    id: "artifact_tool_1",
+                    runId: "run_bench_1",
+                    kind: "tool_result",
+                    contentType: "application/json",
+                    storage: "inline",
+                    metadata: {
+                      commandCount: 1
+                    },
+                    inlineData: {
+                      commandBatch: {
+                        commands: [{ name: "noop" }]
+                      }
+                    },
+                    createdAt: "2026-04-04T00:00:02.000Z"
+                  }
+                ],
+                memoryEntries: []
+              })}`,
+              ""
+            ].join("\n")
+          );
+        }
       });
     });
 
@@ -150,37 +209,49 @@ describe("quality benchmark runner", () => {
 
       const { port } = server.address() as AddressInfo;
       const run = await runNodeScript([
-          "scripts/bench/run-quality-benchmark.mjs",
-          "--cases",
-          casesPath,
-          "--gateway-url",
-          `http://127.0.0.1:${port}`,
-          "--output",
-          outputPath
-        ]);
+        "scripts/bench/run-quality-benchmark.mjs",
+        "--cases",
+        casesPath,
+        "--control-plane-url",
+        `http://127.0.0.1:${port}`,
+        "--output",
+        outputPath
+      ]);
 
       expect(run.status).toBe(0);
       expect(run.stderr).toBe("");
       expect(requests).toEqual([
         {
           method: "POST",
-          url: "/api/v2/agent/runs",
+          url: "/api/v3/threads",
           body: {
-            message: "画一个圆",
-            mode: "byok"
+            title: "case_1"
           }
+        },
+        {
+          method: "POST",
+          url: "/api/v3/threads/thread_bench_1/runs",
+          body: {
+            profileId: "platform_geometry_standard",
+            inputArtifactIds: []
+          }
+        },
+        {
+          method: "GET",
+          url: "/api/v3/runs/run_bench_1/stream",
+          body: {}
         }
       ]);
 
       const payload = JSON.parse(fs.readFileSync(outputPath, "utf8")) as {
-        gateway_url: string;
+        control_plane_url: string;
         total_cases: number;
         success_cases: number;
         failed_cases: number;
         success_rate: number;
       };
 
-      expect(payload.gateway_url).toBe(`http://127.0.0.1:${port}`);
+      expect(payload.control_plane_url).toBe(`http://127.0.0.1:${port}`);
       expect(payload.total_cases).toBe(1);
       expect(payload.success_cases).toBe(1);
       expect(payload.failed_cases).toBe(0);

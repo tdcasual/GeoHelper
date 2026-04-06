@@ -4,13 +4,13 @@ export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 30_000,
   use: {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: "http://127.0.0.1:41731",
     trace: "on-first-retry"
   },
   webServer: {
-    command: "pnpm --filter @geohelper/web dev --host 127.0.0.1 --port 5173",
-    url: "http://127.0.0.1:5173",
-    reuseExistingServer: true,
+    command: "pnpm --filter @geohelper/web dev --host 127.0.0.1 --port 41731",
+    url: "http://127.0.0.1:41731",
+    reuseExistingServer: false,
     timeout: 120_000
   }
 });

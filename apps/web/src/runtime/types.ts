@@ -1,9 +1,6 @@
-import {
-  type AgentRunEnvelope,
-  AgentRunEnvelopeSchema,
-  type GeometryCanvasEvidence,
-  type RuntimeAttachment
-} from "@geohelper/protocol";
+import type { PlatformRunProfile } from "@geohelper/agent-protocol";
+import type { RunSnapshot } from "@geohelper/agent-store";
+import type { RuntimeAttachment } from "@geohelper/protocol";
 
 import type { BackupEnvelope } from "../storage/backup";
 
@@ -26,6 +23,7 @@ export interface RuntimeCapabilities {
 }
 
 export type { RuntimeAttachment };
+export type { PlatformRunProfile } from "@geohelper/agent-protocol";
 
 export const runtimeCapabilitiesByTarget: Record<
   RuntimeTarget,
@@ -85,11 +83,12 @@ export const resolveRuntimeCapabilitiesForModel = (params: {
   };
 };
 
-export interface RuntimeCompileRequest {
-  target: RuntimeTarget;
+export interface RuntimeRunRequest {
   baseUrl?: string;
   message: string;
   mode: ChatMode;
+  conversationId: string;
+  platformRunProfile: PlatformRunProfile;
   model?: string;
   sessionToken?: string;
   byokEndpoint?: string;
@@ -108,21 +107,12 @@ export interface RuntimeCompileRequest {
       commandCount: number;
     }>;
   };
-  repair?: {
-    sourceRun: AgentRunEnvelope;
-    teacherInstruction: string;
-    canvasEvidence: GeometryCanvasEvidence;
-  };
 }
 
-export interface RuntimeCompileResponse {
+export interface RuntimeRunResponse {
   trace_id?: string;
-  agent_run: AgentRunEnvelope;
+  run_snapshot: RunSnapshot;
 }
-
-export const normalizeAgentRunEnvelope = (
-  value: unknown
-): AgentRunEnvelope => AgentRunEnvelopeSchema.parse(value);
 
 export interface RuntimeLoginRequest {
   target: RuntimeTarget;

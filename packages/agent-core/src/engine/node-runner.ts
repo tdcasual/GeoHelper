@@ -1,0 +1,76 @@
+import type {
+  Checkpoint,
+  Run,
+  WorkflowDefinition,
+  WorkflowNode,
+  WorkflowNodeKind
+} from "@geohelper/agent-protocol";
+
+import type { WorkflowBudgetUsage } from "./budget";
+
+export type NodeHandlerResult =
+  | {
+      type: "continue";
+    }
+  | {
+      type: "route";
+      nextNodeId: string;
+    }
+  | {
+      type: "checkpoint";
+      checkpoint: Checkpoint;
+    }
+  | {
+      type: "spawn_subagent";
+      childRunId: string;
+      waitForCompletion?: boolean;
+    }
+  | {
+      type: "complete";
+    };
+
+export interface WorkflowCheckpointResolution {
+  kind: "checkpoint";
+  checkpointId: string;
+  response: unknown;
+}
+
+export interface WorkflowSubagentResolution {
+  kind: "subagent";
+  childRunId: string;
+  status: Run["status"];
+  outputArtifactIds: string[];
+}
+
+export type WorkflowResumeResolution =
+  | WorkflowCheckpointResolution
+  | WorkflowSubagentResolution;
+
+export interface NodeHandlerContext {
+  run: Run;
+  workflow: WorkflowDefinition;
+  node: WorkflowNode;
+  visitedNodeIds: string[];
+  budgetUsage: WorkflowBudgetUsage;
+  resolution?: WorkflowResumeResolution;
+}
+
+export type NodeHandler = (
+  input: NodeHandlerContext
+) => NodeHandlerResult | Promise<NodeHandlerResult>;
+
+export type NodeHandlerMap = Partial<Record<WorkflowNodeKind, NodeHandler>>;
+
+export const runNode = async (
+  handlers: NodeHandlerMap,
+  input: NodeHandlerContext
+): Promise<NodeHandlerResult> => {
+  const handler = handlers[input.node.kind];
+  if (!handler) {
+    return {
+      type: "continue"
+    };
+  }
+
+  return handler(input);
+};

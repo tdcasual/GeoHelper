@@ -15,6 +15,15 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.0.3)
+      '@geohelper/agent-core':
+        specifier: workspace:*
+        version: link:packages/agent-core
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:packages/agent-protocol
+      '@geohelper/browser-bridge':
+        specifier: workspace:*
+        version: link:packages/browser-bridge
       '@playwright/test':
         specifier: ^1.56.1
         version: 1.58.2
@@ -43,6 +52,37 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@24.11.0)(tsx@4.21.0)
 
+  apps/control-plane:
+    dependencies:
+      '@geohelper/agent-core':
+        specifier: workspace:*
+        version: link:../../packages/agent-core
+      '@geohelper/agent-domain-geometry':
+        specifier: workspace:*
+        version: link:../../packages/agent-domain-geometry
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../../packages/agent-protocol
+      '@geohelper/agent-store':
+        specifier: workspace:*
+        version: link:../../packages/agent-store
+      '@geohelper/worker':
+        specifier: workspace:*
+        version: link:../worker
+      fastify:
+        specifier: ^5.6.1
+        version: 5.7.4
+      tsx:
+        specifier: ^4.20.5
+        version: 4.21.0
+      zod:
+        specifier: ^4.1.8
+        version: 4.3.6
+    devDependencies:
+      '@types/node':
+        specifier: ^24.3.1
+        version: 24.11.0
+
   apps/gateway:
     dependencies:
       '@geohelper/protocol':
@@ -67,6 +107,15 @@ importers:
 
   apps/web:
     dependencies:
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../../packages/agent-protocol
+      '@geohelper/agent-store':
+        specifier: workspace:*
+        version: link:../../packages/agent-store
+      '@geohelper/browser-bridge':
+        specifier: workspace:*
+        version: link:../../packages/browser-bridge
       '@geohelper/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -95,6 +144,87 @@ importers:
       vite:
         specifier: ^7.2.1
         version: 7.3.1(@types/node@24.11.0)(tsx@4.21.0)
+
+  apps/worker:
+    dependencies:
+      '@geohelper/agent-core':
+        specifier: workspace:*
+        version: link:../../packages/agent-core
+      '@geohelper/agent-domain-geometry':
+        specifier: workspace:*
+        version: link:../../packages/agent-domain-geometry
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../../packages/agent-protocol
+      '@geohelper/agent-store':
+        specifier: workspace:*
+        version: link:../../packages/agent-store
+      tsx:
+        specifier: ^4.20.5
+        version: 4.21.0
+    devDependencies:
+      '@types/node':
+        specifier: ^24.3.1
+        version: 24.11.0
+
+  packages/agent-core:
+    dependencies:
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
+
+  packages/agent-domain-geometry:
+    dependencies:
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
+      '@geohelper/agent-tools':
+        specifier: workspace:*
+        version: link:../agent-tools
+      '@geohelper/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      zod:
+        specifier: ^4.1.8
+        version: 4.3.6
+
+  packages/agent-evals: {}
+
+  packages/agent-memory:
+    dependencies:
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
+      '@geohelper/agent-store':
+        specifier: workspace:*
+        version: link:../agent-store
+
+  packages/agent-protocol:
+    dependencies:
+      zod:
+        specifier: ^4.1.8
+        version: 4.3.6
+
+  packages/agent-store:
+    dependencies:
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
+
+  packages/agent-tools:
+    dependencies:
+      zod:
+        specifier: ^4.1.8
+        version: 4.3.6
+
+  packages/browser-bridge:
+    dependencies:
+      '@geohelper/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      zod:
+        specifier: ^4.1.8
+        version: 4.3.6
 
   packages/protocol:
     dependencies:

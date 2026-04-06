@@ -15,36 +15,14 @@ import {
   GatewayBuildInfo,
   getGatewayBuildIdentity
 } from "../services/build-info";
-import {
-  CompileEventSink,
-  CompileFinalStatus,
-  readCompileTraceDetails,
-  readRecentCompileEvents
-} from "../services/compile-events";
 import { getGatewayMetricsSnapshot } from "../services/metrics";
 import { GatewayMetricsStore } from "../services/metrics-store";
 
 interface AdminRouteDeps {
   metricsStore: GatewayMetricsStore;
-  compileEventSink: CompileEventSink;
   buildInfo: GatewayBuildInfo;
   backupStore: GatewayBackupStore;
 }
-
-const AdminCompileEventsQuerySchema = z.object({
-  limit: z.coerce.number().int().positive().max(100).optional(),
-  traceId: z.string().trim().min(1).optional(),
-  requestId: z.string().trim().min(1).optional(),
-  mode: z.string().trim().min(1).optional(),
-  finalStatus: z.enum([
-    "success",
-    "fallback",
-    "repair",
-    "validation_failure",
-    "upstream_failure"
-  ] satisfies CompileFinalStatus[]).optional(),
-  since: z.string().trim().min(1).optional()
-});
 
 const AdminBackupHistoryQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).optional()
@@ -422,47 +400,4 @@ export const registerAdminRoutes = (
     return reply.send(getGatewayBuildIdentity(deps.buildInfo));
   });
 
-  app.get("/admin/compile-events", async (request, reply) => {
-    if (!requireAdminToken(request, reply, config)) {
-      return reply;
-    }
-
-    const parsed = AdminCompileEventsQuerySchema.safeParse(request.query);
-    const query = parsed.success
-      ? {
-          limit: parsed.data.limit ?? 20,
-          traceId: parsed.data.traceId,
-          requestId: parsed.data.requestId,
-          mode: parsed.data.mode,
-          finalStatus: parsed.data.finalStatus,
-          since: parsed.data.since
-        }
-      : { limit: 20 };
-    const events = await readRecentCompileEvents(deps.compileEventSink, query);
-
-    return reply.send({ events });
-  });
-
-  app.get("/admin/traces/:traceId", async (request, reply) => {
-    if (!requireAdminToken(request, reply, config)) {
-      return reply;
-    }
-
-    const params = request.params as { traceId?: string };
-    const trace = await readCompileTraceDetails(
-      deps.compileEventSink,
-      params.traceId ?? ""
-    );
-
-    if (!trace) {
-      return reply.status(404).send({
-        error: {
-          code: "TRACE_NOT_FOUND",
-          message: "Trace was not found"
-        }
-      });
-    }
-
-    return reply.send(trace);
-  });
 };

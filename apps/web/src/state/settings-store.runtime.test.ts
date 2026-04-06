@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { platformRunProfiles } from "../runtime/platform-run-profiles";
 import { browserSecretService } from "../services/secure-secret";
 import {
   createSettingsStore,
@@ -11,6 +12,14 @@ import {
   settingsStore
 } from "./settings-store";
 import { createMemoryStorage } from "./settings-store.test-helpers";
+
+const createJsonResponse = (payload: unknown, status = 200): Response =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: {
+      "content-type": "application/json"
+    }
+  });
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -59,21 +68,8 @@ describe("settings-store runtime", () => {
     expect(inferModelSupportsVision("gpt-4.1-mini")).toBe(false);
   });
 
-  it("resolves runtime compile options with hydrated gateway capabilities", async () => {
+  it("resolves runtime compile options with gateway capabilities", async () => {
     vi.stubEnv("VITE_GATEWAY_URL", "https://gateway-capable.example.com");
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          git_sha: "sha123",
-          build_time: "2026-03-12T00:00:00.000Z",
-          node_env: "production",
-          redis_enabled: true,
-          attachments_enabled: true
-        })
-      })
-    );
     const originalState = settingsStore.getState();
 
     try {
@@ -93,10 +89,110 @@ describe("settings-store runtime", () => {
       expect(options.runtimeTarget).toBe("gateway");
       expect(options.runtimeBaseUrl).toBe("https://gateway-capable.example.com");
       expect(options.runtimeCapabilities.supportsOfficialAuth).toBe(true);
-      expect(options.runtimeCapabilities.supportsVision).toBe(true);
+      expect(options.runtimeCapabilities.supportsVision).toBe(false);
     } finally {
       settingsStore.setState(() => originalState);
     }
+  });
+
+  it("refreshes platform run profiles from control plane and heals a missing selection", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      createJsonResponse({
+        catalog: {
+          runProfiles: [
+            {
+              id: "platform_remote_geometry_pro",
+              name: "远端几何增强",
+              description: "control-plane 下发的增强版本",
+              agentId: "geometry_solver",
+              workflowId: "wf_geometry_solver",
+              defaultBudget: {
+                maxModelCalls: 9,
+                maxToolCalls: 12,
+                maxDurationMs: 180000
+              }
+            },
+            {
+              id: "platform_remote_geometry_fast",
+              name: "远端快速版",
+              description: "control-plane 下发的快速版本",
+              agentId: "geometry_solver",
+              workflowId: "wf_geometry_solver",
+              defaultBudget: {
+                maxModelCalls: 4,
+                maxToolCalls: 5,
+                maxDurationMs: 90000
+              }
+            }
+          ]
+        }
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const store = createSettingsStore();
+    store.getState().upsertRuntimeProfile({
+      id: "runtime_gateway",
+      name: "Gateway",
+      target: "gateway",
+      baseUrl: "https://control-plane.example.com"
+    });
+    store.getState().setDefaultRuntimeProfile("runtime_gateway");
+    store
+      .getState()
+      .setDefaultPlatformAgentProfile("platform_remote_missing");
+
+    await store.getState().refreshPlatformRunProfiles();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://control-plane.example.com/api/v3/platform/catalog",
+      undefined
+    );
+    expect(store.getState().platformRunProfileCatalog).toEqual(
+      expect.objectContaining({
+        source: "control_plane",
+        status: "ready",
+        error: null,
+        profiles: [
+          expect.objectContaining({
+            id: "platform_remote_geometry_pro"
+          }),
+          expect.objectContaining({
+            id: "platform_remote_geometry_fast"
+          })
+        ]
+      })
+    );
+    expect(store.getState().defaultPlatformAgentProfileId).toBe(
+      "platform_remote_geometry_pro"
+    );
+  });
+
+  it("falls back to the local platform run profile catalog when refresh fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockRejectedValueOnce(new Error("catalog offline"))
+    );
+
+    const store = createSettingsStore();
+    store.getState().upsertRuntimeProfile({
+      id: "runtime_gateway",
+      name: "Gateway",
+      target: "gateway",
+      baseUrl: "https://control-plane.example.com"
+    });
+    store.getState().setDefaultRuntimeProfile("runtime_gateway");
+
+    await store.getState().refreshPlatformRunProfiles();
+
+    expect(store.getState().platformRunProfileCatalog).toEqual(
+      expect.objectContaining({
+        source: "local",
+        status: "error",
+        error: "catalog offline",
+        profiles: platformRunProfiles
+      })
+    );
   });
 
   it("keeps resolveCompileRuntimeOptions facade wiring store state updates", async () => {

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getGeoGebraAdapter, registerGeoGebraAdapter } from "../geogebra/adapter";
 import { toAppletPixelSize } from "../geogebra/applet-size";
+import { executeBatch as executeGeoGebraCommandBatch } from "../geogebra/command-executor";
 import { toGeoGebraRuntimeConfig } from "../geogebra/vendor-runtime";
+import { registerCanvasBridgeBindings } from "../runtime/browser-bridge";
 import { useSceneFocusStore } from "../state/scene-focus-store";
 import { sceneStore } from "../state/scene-store";
 import { type CanvasFocusNotice,CanvasPanelFrame } from "./canvas-panel/CanvasPanelFrame";
@@ -81,6 +83,10 @@ export const CanvasPanel = ({ profile, visible, focusNotice }: CanvasPanelProps)
       registerGeoGebraAdapter(
         createRuntimeAdapter(appletObject, suppressSceneCapture)
       );
+      registerCanvasBridgeBindings({
+        executeBatch: executeGeoGebraCommandBatch,
+        getSceneXml: () => appletObject.getXML?.() ?? null
+      });
       return appletObject;
     },
     [scheduleSceneCapture, suppressSceneCapture]
@@ -189,6 +195,12 @@ export const CanvasPanel = ({ profile, visible, focusNotice }: CanvasPanelProps)
       window.clearTimeout(timeoutId);
     };
   }, [scheduleAppletResize, visible]);
+
+  useEffect(() => {
+    return () => {
+      registerCanvasBridgeBindings(null);
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {

@@ -1,0 +1,24 @@
+{
+  "name": "@geohelper/control-plane",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@geohelper/agent-core": "workspace:*",
+    "@geohelper/agent-domain-geometry": "workspace:*",
+    "@geohelper/agent-protocol": "workspace:*",
+    "@geohelper/agent-store": "workspace:*",
+    "@geohelper/worker": "workspace:*",
+    "fastify": "^5.6.1",
+    "zod": "^4.1.8",
+    "tsx": "^4.20.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.1"
+  }
+}

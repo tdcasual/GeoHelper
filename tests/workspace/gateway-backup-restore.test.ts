@@ -128,15 +128,19 @@ describe("gateway backup restore smoke", () => {
   });
 
   it("documents restore drill as snapshot recovery with metadata-only startup checks", () => {
-    const txt = fs.readFileSync("README.md", "utf8");
+    const txt = [
+      fs.readFileSync("docs/BETA_CHECKLIST.md", "utf8"),
+      fs.readFileSync("docs/deploy/edgeone.md", "utf8"),
+      fs.readFileSync("docs/user/settings-backup-recovery.md", "utf8")
+    ].join("\n");
     expect(txt).toContain("lightweight cloud sync");
     expect(txt).toContain("snapshot-based");
-    expect(txt).toMatch(/startup freshness checks stay metadata-only/i);
+    expect(txt).toMatch(/startup freshness checks (stay|are) metadata-only/i);
     expect(txt).toContain("delayed upload is opt-in");
     expect(txt).toContain("never auto-restores");
     expect(txt).toContain("browser sync defaults to guarded writes");
     expect(txt).toContain("force overwrite requires an explicit danger action");
-    expect(txt).toContain("operator/manual tooling compatibility");
+    expect(txt).toMatch(/operator\/manual recovery|operator-only/);
     expect(txt).toContain("Retained remote snapshot history can be inspected explicitly");
     expect(txt).toContain("selected historical snapshot by `snapshot_id`");
     expect(txt).toContain("BACKUP_MAX_HISTORY");

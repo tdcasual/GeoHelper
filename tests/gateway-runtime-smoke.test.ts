@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("gateway runtime smoke script", () => {
-  it("exposes a dry-run plan with ordered gateway checks", () => {
+  it("exposes a dry-run plan with ordered gateway and platform checks", () => {
     const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8")) as {
       scripts?: Record<string, string>;
     };
@@ -57,19 +57,49 @@ describe("gateway runtime smoke script", () => {
         path: "/api/v1/auth/token/revoke"
       },
       {
-        name: "POST /api/v2/agent/runs",
+        name: "POST /api/v3/threads",
         method: "POST",
-        path: "/api/v2/agent/runs"
+        path: "/api/v3/threads"
       },
       {
-        name: "GET /admin/compile-events",
+        name: "GET /api/v3/threads/:threadId",
         method: "GET",
-        path: "/admin/compile-events?limit=10"
+        path: "/api/v3/threads/:threadId"
       },
       {
-        name: "GET /admin/metrics",
+        name: "POST /api/v3/threads/:threadId/runs",
+        method: "POST",
+        path: "/api/v3/threads/:threadId/runs"
+      },
+      {
+        name: "GET /api/v3/runs/:runId",
         method: "GET",
-        path: "/admin/metrics"
+        path: "/api/v3/runs/:runId"
+      },
+      {
+        name: "GET /api/v3/runs/:runId/events",
+        method: "GET",
+        path: "/api/v3/runs/:runId/events"
+      },
+      {
+        name: "POST /api/v3/browser-sessions",
+        method: "POST",
+        path: "/api/v3/browser-sessions"
+      },
+      {
+        name: "GET /api/v3/runs/:runId/stream",
+        method: "GET",
+        path: "/api/v3/runs/:runId/stream"
+      },
+      {
+        name: "GET /api/v3/artifacts/:artifactId",
+        method: "GET",
+        path: "/api/v3/artifacts/:artifactId"
+      },
+      {
+        name: "POST /api/v3/browser-sessions/:sessionId/canvas-evidence",
+        method: "POST",
+        path: "/api/v3/browser-sessions/:sessionId/canvas-evidence"
       }
     ]);
   });

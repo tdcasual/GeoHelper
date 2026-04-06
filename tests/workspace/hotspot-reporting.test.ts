@@ -12,20 +12,25 @@ describe("hotspot reporting", () => {
     expect(hotspotPaths).not.toContain(
       "apps/web/src/state/settings-store.test.ts"
     );
-    expect(hotspotPaths).not.toContain("apps/gateway/src/routes/agent-runs.ts");
+    expect(hotspotPaths).not.toContain("apps/web/src/runtime/control-plane-client.ts");
+    expect(hotspotPaths).not.toContain("apps/web/src/runtime/platform-runner.ts");
+    expect(hotspotPaths).not.toContain("apps/control-plane/src/routes/runs.ts");
     expect(hotspotPaths).not.toContain("apps/web/src/storage/backup-import.ts");
   });
 
   it("classifies modules and test files separately and only reports still-over-budget test hotspots when requested", async () => {
     const reportModule = await import("../../scripts/quality/report-hotspots.mjs");
 
-    expect(reportModule.classifyFile("apps/web/src/runtime/gateway-client.ts")).toBe(
+    expect(
+      reportModule.classifyFile("apps/web/src/runtime/control-plane-client.ts")
+    ).toBe("module");
+    expect(reportModule.classifyFile("apps/web/src/runtime/platform-runner.ts")).toBe(
       "module"
     );
     expect(reportModule.classifyFile("apps/web/src/storage/backup-import.ts")).toBe(
       "module"
     );
-    expect(reportModule.classifyFile("apps/gateway/src/routes/agent-runs.ts")).toBe(
+    expect(reportModule.classifyFile("apps/control-plane/src/routes/runs.ts")).toBe(
       "module"
     );
     expect(reportModule.classifyFile("apps/gateway/src/services/backup-store.ts")).toBe(

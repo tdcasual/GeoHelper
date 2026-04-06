@@ -4,7 +4,7 @@ test("homepage frames GeoHelper as a teacher-first diagram studio", async ({
   page
 }) => {
   await page.setViewportSize({ width: 1600, height: 960 });
-  await page.goto("http://localhost:5173");
+  await page.goto("/");
 
   await expect(page.getByTestId("studio-homepage")).toBeVisible();
   await expect(

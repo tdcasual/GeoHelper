@@ -1,19 +1,18 @@
-import { type AgentRunEnvelope, CommandBatch } from "@geohelper/protocol";
+import type { RunSnapshot } from "@geohelper/agent-store";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 
-import { executeBatch } from "../geogebra/command-executor";
-import { compileWithRuntime } from "../runtime/runtime-service";
-import {
-  AgentStep,
+import { submitPromptToPlatform } from "../runtime/platform-runner";
+import type {
   ChatMode,
+  PlatformRunProfile,
   RuntimeAttachment,
-  RuntimeCompileRequest,
-  RuntimeCompileResponse,
+  RuntimeRunRequest,
+  RuntimeRunResponse,
   RuntimeTarget
 } from "../runtime/types";
 import { ensureRemoteSyncStartupCheck } from "../storage/remote-sync";
-import { agentRunStore } from "./agent-run-store";
+import { artifactStore } from "./artifact-store";
 import type { PersistedChatSnapshot } from "./chat-persistence";
 import { loadChatSnapshot, saveChatSnapshot } from "./chat-persistence";
 import type {
@@ -21,7 +20,12 @@ import type {
   ChatStudioUncertaintyReviewStatus
 } from "./chat-result";
 import { createChatStoreActions } from "./chat-store-actions";
-import { type PersistableChatState,toPersistedChatSnapshot } from "./chat-store-helpers";
+import type {
+  PersistableChatState
+} from "./chat-store-helpers";
+import { toPersistedChatSnapshot } from "./chat-store-helpers";
+import { checkpointStore } from "./checkpoint-store";
+import { runStore } from "./run-store";
 import {
   appendDebugEventIfEnabled,
   CompileRuntimeOptions,
@@ -36,15 +40,19 @@ export interface ChatMessage {
   content: string;
   attachments?: ChatAttachment[];
   result?: ChatStudioResult;
-  agentRunId?: string;
+  platformRunId?: string;
   traceId?: string;
-  agentSteps?: AgentStep[];
+  agentSteps?: Array<{
+    name: string;
+    status: "ok" | "fallback" | "error" | "skipped";
+    duration_ms: number;
+    detail?: string;
+  }>;
 }
 
 export interface ChatSendInput {
   content: string;
   attachments?: ChatAttachment[];
-  repair?: RuntimeCompileRequest["repair"];
 }
 
 export interface ConversationThread {
@@ -79,7 +87,9 @@ export interface ChatStoreState {
 
 export interface ChatStoreDeps {
   compile: (input: {
+    conversationId: string;
     message: string;
+    platformRunProfile: PlatformRunProfile;
     attachments?: ChatAttachment[];
     mode: ChatMode;
     runtimeTarget?: RuntimeTarget;
@@ -101,25 +111,22 @@ export interface ChatStoreDeps {
         commandCount: number;
       }>;
     };
-    repair?: RuntimeCompileRequest["repair"];
-  }) => Promise<RuntimeCompileResponse>;
-  execute: (batch: CommandBatch) => Promise<void>;
+  }) => Promise<RuntimeRunResponse>;
   resolveCompileOptions: (input: {
     conversationId: string;
     mode: ChatMode;
   }) => Promise<CompileRuntimeOptions>;
   logEvent: (event: { level: "info" | "error"; message: string }) => void;
-  recordAgentRun: (input: {
+  recordRunSnapshot: (input: {
     messageId: string;
-    agentRun: AgentRunEnvelope;
+    snapshot: RunSnapshot;
   }) => void;
 }
 
 const defaultDeps: ChatStoreDeps = {
   compile: ({
+    conversationId,
     message,
-    mode,
-    runtimeTarget,
     runtimeBaseUrl,
     sessionToken,
     model,
@@ -129,12 +136,14 @@ const defaultDeps: ChatStoreDeps = {
     extraHeaders,
     attachments,
     context,
-    repair
+    platformRunProfile,
+    mode
   }) =>
-    compileWithRuntime({
-      target: runtimeTarget ?? "gateway",
+    submitPromptToPlatform({
       baseUrl: runtimeBaseUrl,
+      conversationId,
       message,
+      platformRunProfile,
       mode,
       model,
       byokEndpoint,
@@ -143,20 +152,18 @@ const defaultDeps: ChatStoreDeps = {
       extraHeaders,
       attachments,
       context,
-      repair,
       sessionToken: sessionToken ?? undefined
-    }),
-  execute: (batch) => executeBatch(batch),
+    } satisfies RuntimeRunRequest),
   resolveCompileOptions: ({ conversationId, mode }) =>
     resolveCompileRuntimeOptions({
       conversationId,
       mode
     }),
   logEvent: (event) => appendDebugEventIfEnabled(event),
-  recordAgentRun: ({ messageId, agentRun }) => {
-    const state = agentRunStore.getState();
-    state.upsertRun(agentRun);
-    state.linkMessageToRun(messageId, agentRun.run.id);
+  recordRunSnapshot: ({ snapshot }) => {
+    runStore.getState().applyStreamSnapshot(snapshot);
+    checkpointStore.getState().applyRunSnapshot(snapshot);
+    artifactStore.getState().applyRunSnapshot(snapshot);
   }
 };
 

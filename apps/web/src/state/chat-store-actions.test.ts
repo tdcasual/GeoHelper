@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createAgentRunEnvelopeFixture } from "../test-utils/agent-run-fixture";
+import { getPlatformRunProfile } from "../runtime/platform-run-profiles";
+import { createRuntimeRunResponseFixture } from "../test-utils/platform-run-fixture";
 import type { ChatStoreDeps, ChatStoreState } from "./chat-store";
 import { createChatStoreActions } from "./chat-store-actions";
 import type { PersistableChatState } from "./chat-store-helpers";
@@ -25,10 +26,9 @@ const createBaseState = (): ChatStoreState => ({
 
 const createDeps = (): ChatStoreDeps => ({
   compile: vi.fn(),
-  execute: vi.fn(),
   resolveCompileOptions: vi.fn(),
   logEvent: vi.fn(),
-  recordAgentRun: vi.fn()
+  recordRunSnapshot: vi.fn()
 });
 
 const createActionHarness = (
@@ -99,48 +99,43 @@ describe("chat-store actions", () => {
             supportsServerMetrics: false,
             supportsRateLimitHeaders: false
           },
+          platformRunProfile: getPlatformRunProfile(),
           retryAttempts: 0,
           extraHeaders: {}
         })),
         compile: vi.fn(async () => ({
-          trace_id: "trace_send",
-          agent_run: createAgentRunEnvelopeFixture({
+          ...createRuntimeRunResponseFixture({
             run: {
               id: "run_send"
             },
-            draft: {
-              commandBatchDraft: {
-                version: "1.0",
-                scene_id: "scene_send",
-                transaction_id: "tx_send",
-                commands: [],
-                post_checks: ["待确认：点 D 在线段 BC 上"],
-                explanations: ["已创建三角形 ABC"]
+            checkpoints: [
+              {
+                id: "unc_d",
+                runId: "run_send",
+                nodeId: "node_teacher_checkpoint",
+                kind: "human_input",
+                status: "pending",
+                title: "点 D 在线段 BC 上",
+                prompt: "请确认点 D 是否在线段 BC 上。",
+                createdAt: "2026-04-04T00:00:02.000Z"
               }
-            },
-            teacherPacket: {
-              summary: ["已创建三角形 ABC"],
-              warnings: [],
-              uncertainties: [
-                {
-                  id: "unc_d",
-                  label: "点 D 在线段 BC 上",
-                  reviewStatus: "pending",
-                  followUpPrompt: "请确认点 D 是否在线段 BC 上。"
-                }
-              ],
-              canvasLinks: [],
-              nextActions: ["执行到画布"]
-            },
-            telemetry: {
-              upstreamCallCount: 2,
-              degraded: false,
-              retryCount: 0,
-              stages: []
-            }
+            ],
+            artifacts: [
+              {
+                id: "artifact_response_send",
+                runId: "run_send",
+                kind: "response",
+                contentType: "application/json",
+                storage: "inline",
+                metadata: {},
+                inlineData: {
+                  summary: ["已创建三角形 ABC"]
+                },
+                createdAt: "2026-04-04T00:00:03.000Z"
+              }
+            ]
           })
         })),
-        execute: vi.fn(async () => undefined)
       }
     );
 
@@ -153,10 +148,9 @@ describe("chat-store actions", () => {
 
     expect(assistantMessage?.result).toMatchObject({
       status: "success",
-      commandCount: 0,
       summaryItems: ["已创建三角形 ABC"]
     });
-    expect(assistantMessage?.agentRunId).toBe("run_send");
+    expect(assistantMessage?.platformRunId).toBe("run_send");
     expect(assistantMessage?.result?.uncertaintyItems[0]?.label).toBe(
       "点 D 在线段 BC 上"
     );

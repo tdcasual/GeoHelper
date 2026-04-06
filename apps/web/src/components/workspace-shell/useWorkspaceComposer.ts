@@ -8,11 +8,8 @@ import {
   useState
 } from "react";
 
-import { getGeoGebraAdapter } from "../../geogebra/adapter";
 import { resolveRuntimeCapabilities } from "../../runtime/runtime-service";
 import { type ChatMode } from "../../runtime/types";
-import { getAgentRunForMessage } from "../../state/agent-run-store";
-import { buildCanvasEvidenceForRepair } from "../../state/canvas-evidence";
 import { type ChatAttachment, useChatStore } from "../../state/chat-store";
 import {
   resolveRuntimeCapabilitiesForModel,
@@ -370,21 +367,9 @@ export const useWorkspaceComposer = ({
       return;
     }
 
-    const agentRun = getAgentRunForMessage(latestAssistantMessage.id);
-    const canvasEvidence = agentRun
-      ? buildCanvasEvidenceForRepair({
-          agentRun,
-          uncertaintyId,
-          sceneXml: getGeoGebraAdapter().getXML?.() ?? null
-        })
-      : null;
     const prompt = resolveUncertaintyRepairPrompt(
       latestAssistantMessage,
-      uncertaintyId,
-      {
-        agentRun,
-        canvasEvidence
-      }
+      uncertaintyId
     );
     updateUncertaintyReviewStatus({
       messageId: latestAssistantMessage.id,
@@ -392,18 +377,6 @@ export const useWorkspaceComposer = ({
       reviewStatus: "needs_fix"
     });
     if (prompt) {
-      if (agentRun && canvasEvidence) {
-        await send({
-          content: prompt,
-          repair: {
-            sourceRun: agentRun,
-            teacherInstruction: prompt,
-            canvasEvidence
-          }
-        });
-        return;
-      }
-
       await sendFollowUpPrompt(prompt);
     }
   };

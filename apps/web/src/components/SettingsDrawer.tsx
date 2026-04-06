@@ -77,6 +77,12 @@ export const SettingsDrawer = ({
   const defaultRuntimeProfileId = useSettingsStore(
     (state) => state.defaultRuntimeProfileId
   );
+  const defaultPlatformAgentProfileId = useSettingsStore(
+    (state) => state.defaultPlatformAgentProfileId
+  );
+  const platformRunProfileCatalog = useSettingsStore(
+    (state) => state.platformRunProfileCatalog
+  );
   const byokPresets = useSettingsStore((state) => state.byokPresets);
   const officialPresets = useSettingsStore((state) => state.officialPresets);
   const defaultByokPresetId = useSettingsStore(
@@ -95,6 +101,12 @@ export const SettingsDrawer = ({
   );
   const setDefaultRuntimeProfile = useSettingsStore(
     (state) => state.setDefaultRuntimeProfile
+  );
+  const setDefaultPlatformAgentProfile = useSettingsStore(
+    (state) => state.setDefaultPlatformAgentProfile
+  );
+  const refreshPlatformRunProfiles = useSettingsStore(
+    (state) => state.refreshPlatformRunProfiles
   );
   const setDefaultMode = useSettingsStore((state) => state.setDefaultMode);
   const upsertByokPreset = useSettingsStore((state) => state.upsertByokPreset);
@@ -209,10 +221,13 @@ export const SettingsDrawer = ({
   }, [runtimeProfiles, selectedRuntimeId]);
 
   useEffect(() => {
-    if (open) {
-      setActiveSection("general");
+    if (!open) {
+      return;
     }
-  }, [open]);
+
+    setActiveSection("general");
+    void refreshPlatformRunProfiles();
+  }, [defaultRuntimeProfileId, open, refreshPlatformRunProfiles]);
 
   useEffect(() => {
     if (!open || typeof document === "undefined") {
@@ -331,16 +346,20 @@ export const SettingsDrawer = ({
                 currentMode={currentMode}
                 defaultMode={defaultMode}
                 defaultRuntimeProfileId={defaultRuntimeProfileId}
+                defaultPlatformAgentProfileId={defaultPlatformAgentProfileId}
                 runtimeProfiles={runtimeProfiles}
+                platformRunProfileCatalog={platformRunProfileCatalog}
                 selectedRuntimeId={selectedRuntimeId}
                 runtimeDraft={runtimeDraft}
                 savingRuntime={savingRuntime}
                 setDefaultMode={setDefaultMode}
                 setDefaultRuntimeProfile={setDefaultRuntimeProfile}
+                setDefaultPlatformAgentProfile={setDefaultPlatformAgentProfile}
                 setSelectedRuntimeId={setSelectedRuntimeId}
                 setRuntimeDraft={setRuntimeDraft}
                 setSavingRuntime={setSavingRuntime}
                 upsertRuntimeProfile={upsertRuntimeProfile}
+                refreshPlatformRunProfiles={refreshPlatformRunProfiles}
                 onApplyMode={onApplyMode}
               />
             ) : null}

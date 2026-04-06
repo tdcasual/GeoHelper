@@ -4,7 +4,7 @@ test("teacher template library is reachable from homepage and the input rail", a
   page
 }) => {
   await page.setViewportSize({ width: 1600, height: 960 });
-  await page.goto("http://localhost:5173");
+  await page.goto("/");
 
   await page.getByRole("button", { name: "进入模板库", exact: true }).click();
   const library = page.getByTestId("teacher-template-library");

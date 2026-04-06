@@ -121,7 +121,7 @@ const seedGatewayRemoteBackupSettingsImpl = async (page: Page, once: boolean) =>
 };
 
 export const openWorkspace = async (page: Page) => {
-  await page.goto("http://localhost:5173");
+  await page.goto("/");
   await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
   await page
     .getByRole("button", { name: "设置" })

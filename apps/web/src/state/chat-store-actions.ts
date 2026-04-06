@@ -1,11 +1,8 @@
-import { getGeoGebraAdapter } from "../geogebra/adapter";
-import type { RuntimeCompileResponse } from "../runtime/types";
-import { buildCanvasEvidenceFromAgentRun } from "./canvas-evidence";
 import type { ChatStudioUncertaintyReviewStatus } from "./chat-result";
 import {
-  buildAssistantMessageFromCompileResult,
   buildAssistantMessageFromError,
   buildAssistantMessageFromGuard,
+  buildAssistantMessageFromRunResult,
   buildCompileContext,
   isOfficialSessionExpiredError,
   resolveChatSendGuard
@@ -282,8 +279,8 @@ export const createChatStoreActions = ({
       let lastError: unknown;
       let compileResult:
         | {
-            agentRun: RuntimeCompileResponse["agent_run"];
-            traceId: RuntimeCompileResponse["trace_id"];
+            snapshot: Awaited<ReturnType<ChatStoreDeps["compile"]>>["run_snapshot"];
+            traceId: Awaited<ReturnType<ChatStoreDeps["compile"]>>["trace_id"];
           }
         | undefined;
 
@@ -297,7 +294,9 @@ export const createChatStoreActions = ({
             sceneTransactions: sceneStore.getState().transactions
           });
           const response = await deps.compile({
+            conversationId: targetConversationId,
             message: normalizedInput.content,
+            platformRunProfile: runtime.platformRunProfile,
             attachments: normalizedInput.attachments,
             mode: get().mode,
             runtimeTarget: runtime.runtimeTarget,
@@ -308,11 +307,10 @@ export const createChatStoreActions = ({
             byokKey: runtime.byokKey,
             timeoutMs: runtime.timeoutMs,
             extraHeaders: runtime.extraHeaders,
-            context,
-            repair: normalizedInput.repair
+            context
           });
           compileResult = {
-            agentRun: response.agent_run,
+            snapshot: response.run_snapshot,
             traceId: response.trace_id
           };
           break;
@@ -339,29 +337,15 @@ export const createChatStoreActions = ({
         throw lastError ?? new Error("Compile result is empty");
       }
 
-      const { agentRun, traceId } = compileResult;
-      const batch = agentRun.draft.commandBatchDraft;
-      await deps.execute(batch);
-      sceneStore.getState().recordTransaction(batch);
-      const agentRunWithCanvas = {
-        ...agentRun,
-        evidence: {
-          ...agentRun.evidence,
-          canvas: buildCanvasEvidenceFromAgentRun({
-            agentRun,
-            sceneXml: getGeoGebraAdapter().getXML?.() ?? null
-          })
-        }
-      };
-
-      const assistantMessage = buildAssistantMessageFromCompileResult({
+      const { snapshot, traceId } = compileResult;
+      const assistantMessage = buildAssistantMessageFromRunResult({
         id: makeId(),
-        agentRun: agentRunWithCanvas,
+        snapshot,
         traceId
       });
-      deps.recordAgentRun({
+      deps.recordRunSnapshot({
         messageId: assistantMessage.id,
-        agentRun: agentRunWithCanvas
+        snapshot
       });
 
       finishSend(assistantMessage);

@@ -1,0 +1,16 @@
+{
+  "name": "@geohelper/agent-domain-geometry",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@geohelper/agent-protocol": "workspace:*",
+    "@geohelper/agent-tools": "workspace:*",
+    "@geohelper/protocol": "workspace:*",
+    "zod": "^4.1.8"
+  }
+}

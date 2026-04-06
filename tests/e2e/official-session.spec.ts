@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const openWorkspace = async (page: import("@playwright/test").Page) => {
-  await page.goto("http://localhost:5173");
+  await page.goto("/");
   await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 };
 
@@ -22,7 +22,7 @@ test("opens token dialog automatically when official session expires", async ({
 }) => {
   await page.addInitScript(setOfficialSnapshot);
 
-  await page.route("**/api/v2/agent/runs", async (route) => {
+  await page.route("**/api/v3/threads", async (route) => {
     await route.fulfill({
       status: 401,
       headers: {

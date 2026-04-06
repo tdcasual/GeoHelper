@@ -122,6 +122,25 @@ export const createRuntimeAndPresetActions = (
         defaultRuntimeProfileId: id
       };
     }),
+  setDefaultPlatformAgentProfile: (id: string) =>
+    deps.set((state) => {
+      const resolvedProfileId = id.trim();
+      if (
+        resolvedProfileId.length === 0 ||
+        state.defaultPlatformAgentProfileId === resolvedProfileId
+      ) {
+        return {};
+      }
+
+      const next = {
+        ...state,
+        defaultPlatformAgentProfileId: resolvedProfileId
+      };
+      deps.saveState(next);
+      return {
+        defaultPlatformAgentProfileId: resolvedProfileId
+      };
+    }),
   setDefaultMode: (mode: ChatMode) =>
     deps.set((state) => {
       const next = {

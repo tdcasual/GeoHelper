@@ -1,10 +1,7 @@
 #!/usr/bin/env node
 
-const DEFAULT_COMPILE_MESSAGE = "创建点A=(0,0)，画一个半径为3的圆";
-const DEFAULT_ATTACHMENT_COMPILE_MESSAGE = "根据图片给出几何作图步骤";
-const DEFAULT_ATTACHMENT_DATA_URL =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF9sAAAAASUVORK5CYII=";
-const ATTACHMENT_CHECK_NAME = "POST /api/v2/agent/runs (attachment)";
+const DEFAULT_THREAD_TITLE = "Gateway runtime smoke";
+const DEFAULT_PROFILE_ID = "platform_geometry_standard";
 
 export function parseArgs(argv) {
   const parsed = {};
@@ -41,32 +38,7 @@ export function parseArgs(argv) {
   return parsed;
 }
 
-const parseJsonEnv = (value) => {
-  if (!value) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-};
-
-const resolveAttachmentCapability = (runtimeIdentity, env = process.env) =>
-  Boolean(runtimeIdentity?.attachments_enabled) || env.SMOKE_FORCE_ATTACHMENT_CHECK === "1";
-
-const buildAttachmentCheck = () => ({
-  name: ATTACHMENT_CHECK_NAME,
-  method: "POST",
-  path: "/api/v2/agent/runs",
-  capability: "attachments"
-});
-
-export function buildGatewayRuntimeChecks(
-  env = process.env,
-  runtimeIdentity = parseJsonEnv(env.SMOKE_GATEWAY_IDENTITY_JSON)
-) {
+export function buildGatewayRuntimeChecks(env = process.env) {
   const checks = [
     {
       name: "GET /api/v1/health",
@@ -102,32 +74,55 @@ export function buildGatewayRuntimeChecks(
   }
 
   checks.push({
-    name: "POST /api/v2/agent/runs",
+    name: "POST /api/v3/threads",
     method: "POST",
-    path: "/api/v2/agent/runs"
+    path: "/api/v3/threads"
   });
-
-  if (resolveAttachmentCapability(runtimeIdentity, env)) {
-    checks.push(buildAttachmentCheck());
-  }
-
-  if (env.ADMIN_METRICS_TOKEN) {
-    checks.push({
-      name: "GET /admin/compile-events",
-      method: "GET",
-      path: "/admin/compile-events?limit=10"
-    });
-    checks.push({
-      name: "GET /admin/metrics",
-      method: "GET",
-      path: "/admin/metrics"
-    });
-  }
+  checks.push({
+    name: "GET /api/v3/threads/:threadId",
+    method: "GET",
+    path: "/api/v3/threads/:threadId"
+  });
+  checks.push({
+    name: "POST /api/v3/threads/:threadId/runs",
+    method: "POST",
+    path: "/api/v3/threads/:threadId/runs"
+  });
+  checks.push({
+    name: "GET /api/v3/runs/:runId",
+    method: "GET",
+    path: "/api/v3/runs/:runId"
+  });
+  checks.push({
+    name: "GET /api/v3/runs/:runId/events",
+    method: "GET",
+    path: "/api/v3/runs/:runId/events"
+  });
+  checks.push({
+    name: "POST /api/v3/browser-sessions",
+    method: "POST",
+    path: "/api/v3/browser-sessions"
+  });
+  checks.push({
+    name: "GET /api/v3/runs/:runId/stream",
+    method: "GET",
+    path: "/api/v3/runs/:runId/stream"
+  });
+  checks.push({
+    name: "GET /api/v3/artifacts/:artifactId",
+    method: "GET",
+    path: "/api/v3/artifacts/:artifactId"
+  });
+  checks.push({
+    name: "POST /api/v3/browser-sessions/:sessionId/canvas-evidence",
+    method: "POST",
+    path: "/api/v3/browser-sessions/:sessionId/canvas-evidence"
+  });
 
   return checks;
 }
 
-const normalizeBaseUrl = (value) => String(value ?? "").replace(/\/$/, "");
+const normalizeBaseUrl = (value) => String(value ?? "").replace(/\/+$/, "");
 
 const parseJsonText = (text) => {
   if (!text) {
@@ -151,63 +146,86 @@ const fetchJson = async (fetchImpl, url, options, label) => {
     );
   }
 
-  return { response, body };
+  return {
+    response,
+    body
+  };
+};
+
+const fetchText = async (fetchImpl, url, options, label) => {
+  const response = await fetchImpl(url, options);
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`${label} failed: ${response.status} ${text}`);
+  }
+
+  return {
+    response,
+    text
+  };
 };
 
 const getAdminHeaders = (env) => ({
   "x-admin-token": env.ADMIN_METRICS_TOKEN
 });
 
-const buildAttachmentCompileRequestBody = (env) => ({
-  message: env.SMOKE_ATTACHMENT_COMPILE_MESSAGE ?? DEFAULT_ATTACHMENT_COMPILE_MESSAGE,
-  mode: "byok",
-  ...(env.LITELLM_MODEL ? { model: env.LITELLM_MODEL } : {}),
-  attachments: [
-    {
-      id: "smoke_img_1",
-      kind: "image",
-      name: "gateway-smoke.png",
-      mimeType: "image/png",
-      size: 68,
-      transportPayload: env.SMOKE_ATTACHMENT_DATA_URL ?? DEFAULT_ATTACHMENT_DATA_URL
-    }
-  ]
-});
+const parseRunSnapshotStream = (payload) => {
+  const dataLine = payload
+    .split("\n")
+    .find((line) => line.startsWith("data: "));
 
-const validateAgentRunResponse = (label, response, body) => {
-  const traceId = body?.trace_id;
-  const agentRun = body?.agent_run;
-  if (typeof traceId !== "string" || !agentRun) {
-    throw new Error(`${label} failed: missing trace_id or agent_run`);
+  if (!dataLine) {
+    throw new Error("run stream failed: missing snapshot payload");
   }
-  const runId = agentRun.run?.id;
-  if (!runId) {
-    throw new Error(`${label} failed: missing agent_run.run.id`);
+
+  return JSON.parse(dataLine.slice(6));
+};
+
+  const getCommandCount = (snapshot) => {
+  const latestToolResult = [...(snapshot?.artifacts ?? [])]
+    .filter((artifact) => artifact?.kind === "tool_result")
+    .sort((left, right) => String(left?.createdAt).localeCompare(String(right?.createdAt)))
+    .at(-1);
+
+  if (typeof latestToolResult?.metadata?.commandCount === "number") {
+    return latestToolResult.metadata.commandCount;
   }
-  const commandBatch = agentRun.draft?.commandBatchDraft;
-  if (!commandBatch || !Array.isArray(commandBatch.commands)) {
-    throw new Error(
-      `${label} failed: missing agent_run.draft.commandBatchDraft.commands`
-    );
+
+  const commands = latestToolResult?.inlineData?.commandBatch?.commands;
+  return Array.isArray(commands) ? commands.length : 0;
+};
+
+const getPrimaryArtifactId = (snapshot) =>
+  snapshot?.run?.outputArtifactIds?.[0] ?? snapshot?.artifacts?.at(-1)?.id ?? null;
+
+const validateRunSnapshot = (snapshot) => {
+  if (!snapshot?.run?.id) {
+    throw new Error("run stream failed: missing run id");
   }
-  const stages = agentRun.telemetry?.stages;
-  if (!Array.isArray(stages) || stages.length === 0) {
-    throw new Error(`${label} failed: missing agent_run.telemetry.stages`);
+  if (!Array.isArray(snapshot.events)) {
+    throw new Error("run stream failed: missing events");
   }
-  if (response.headers.get("x-trace-id") !== traceId) {
-    throw new Error(`${label} failed: trace header mismatch`);
+  if (!Array.isArray(snapshot.artifacts)) {
+    throw new Error("run stream failed: missing artifacts");
   }
+
   return {
-    traceId,
-    runId,
-    commandCount: commandBatch.commands.length,
-    telemetryStages: stages.length
+    runId: snapshot.run.id,
+    finalStatus: snapshot.run.status ?? null,
+    commandCount: getCommandCount(snapshot),
+    artifactCount: snapshot.artifacts.length,
+    eventCount: snapshot.events.length
   };
 };
 
-const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
+const runLiveChecks = async ({
+  gatewayUrl,
+  controlPlaneUrl,
+  env,
+  fetchImpl
+}) => {
   const checks = [];
-  let runtimeIdentity = parseJsonEnv(env.SMOKE_GATEWAY_IDENTITY_JSON);
 
   const { body: healthBody } = await fetchJson(
     fetchImpl,
@@ -237,7 +255,6 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
     ok: true
   });
 
-  let metricsBefore = null;
   if (env.ADMIN_METRICS_TOKEN) {
     const { body: versionBody } = await fetchJson(
       fetchImpl,
@@ -253,7 +270,6 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
     ) {
       throw new Error("admin version failed: missing runtime identity fields");
     }
-    runtimeIdentity = versionBody;
     checks.push({
       name: "GET /admin/version",
       ok: true,
@@ -262,22 +278,8 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
       redis_enabled: versionBody.redis_enabled,
       attachments_enabled: Boolean(versionBody.attachments_enabled)
     });
-
-    const { body: metricsBody } = await fetchJson(
-      fetchImpl,
-      `${gatewayUrl}/admin/metrics`,
-      {
-        headers: getAdminHeaders(env)
-      },
-      "admin metrics baseline"
-    );
-    if (typeof metricsBody?.compile?.total_requests !== "number") {
-      throw new Error("admin metrics baseline failed: missing compile totals");
-    }
-    metricsBefore = metricsBody.compile.total_requests;
   }
 
-  let revokedToken;
   if (env.PRESET_TOKEN) {
     const { body: loginBody } = await fetchJson(
       fetchImpl,
@@ -297,7 +299,6 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
     if (!loginBody?.session_token) {
       throw new Error("auth login failed: missing session_token");
     }
-    revokedToken = String(loginBody.session_token);
     checks.push({
       name: "POST /api/v1/auth/token/login",
       ok: true
@@ -309,7 +310,7 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
       {
         method: "POST",
         headers: {
-          authorization: `Bearer ${revokedToken}`
+          authorization: `Bearer ${loginBody.session_token}`
         }
       },
       "auth revoke"
@@ -323,122 +324,198 @@ const runLiveChecks = async ({ gatewayUrl, env, fetchImpl }) => {
     });
   }
 
-  const { response: compileResponse, body: compileBody } = await fetchJson(
+  const { body: threadBody } = await fetchJson(
     fetchImpl,
-    `${gatewayUrl}/api/v2/agent/runs`,
+    `${controlPlaneUrl}/api/v3/threads`,
     {
       method: "POST",
       headers: {
         "content-type": "application/json"
       },
       body: JSON.stringify({
-        message: env.SMOKE_COMPILE_MESSAGE ?? DEFAULT_COMPILE_MESSAGE,
-        mode: "byok",
-        ...(env.LITELLM_MODEL ? { model: env.LITELLM_MODEL } : {})
+        title: env.SMOKE_THREAD_TITLE ?? DEFAULT_THREAD_TITLE
       })
     },
-    "compile"
+    "create thread"
   );
-  const compileResult = validateAgentRunResponse("compile", compileResponse, compileBody);
+  if (!threadBody?.thread?.id) {
+    throw new Error("create thread failed: missing thread id");
+  }
   checks.push({
-    name: "POST /api/v2/agent/runs",
+    name: "POST /api/v3/threads",
     ok: true,
-    trace_id: compileResult.traceId,
-    run_id: compileResult.runId,
-    command_count: compileResult.commandCount,
-    telemetry_stages: compileResult.telemetryStages
+    thread_id: threadBody.thread.id
   });
 
-  const attachmentSmokeEnabled = resolveAttachmentCapability(runtimeIdentity, env);
-  if (attachmentSmokeEnabled) {
-    const attachmentRequestBody = buildAttachmentCompileRequestBody(env);
-    const {
-      response: attachmentCompileResponse,
-      body: attachmentCompileBody
-    } = await fetchJson(
-      fetchImpl,
-      `${gatewayUrl}/api/v2/agent/runs`,
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json"
+  const { body: fetchedThreadBody } = await fetchJson(
+    fetchImpl,
+    `${controlPlaneUrl}/api/v3/threads/${encodeURIComponent(threadBody.thread.id)}`,
+    undefined,
+    "get thread"
+  );
+  if (fetchedThreadBody?.thread?.id !== threadBody.thread.id) {
+    throw new Error("get thread failed: unexpected thread payload");
+  }
+  checks.push({
+    name: "GET /api/v3/threads/:threadId",
+    ok: true,
+    thread_id: fetchedThreadBody.thread.id,
+    title: fetchedThreadBody.thread.title ?? null
+  });
+
+  const { body: runBody } = await fetchJson(
+    fetchImpl,
+    `${controlPlaneUrl}/api/v3/threads/${encodeURIComponent(threadBody.thread.id)}/runs`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        profileId: env.SMOKE_PROFILE_ID ?? DEFAULT_PROFILE_ID,
+        inputArtifactIds: []
+      })
+    },
+    "start run"
+  );
+  if (!runBody?.run?.id) {
+    throw new Error("start run failed: missing run id");
+  }
+  checks.push({
+    name: "POST /api/v3/threads/:threadId/runs",
+    ok: true,
+    run_id: runBody.run.id,
+    run_status: runBody.run.status ?? null
+  });
+
+  const { body: fetchedRunBody } = await fetchJson(
+    fetchImpl,
+    `${controlPlaneUrl}/api/v3/runs/${encodeURIComponent(runBody.run.id)}`,
+    undefined,
+    "get run"
+  );
+  if (fetchedRunBody?.run?.id !== runBody.run.id) {
+    throw new Error("get run failed: unexpected run payload");
+  }
+  checks.push({
+    name: "GET /api/v3/runs/:runId",
+    ok: true,
+    run_id: fetchedRunBody.run.id,
+    run_status: fetchedRunBody.run.status ?? null
+  });
+
+  const { body: runEventsBody } = await fetchJson(
+    fetchImpl,
+    `${controlPlaneUrl}/api/v3/runs/${encodeURIComponent(runBody.run.id)}/events`,
+    undefined,
+    "get run events"
+  );
+  if (!Array.isArray(runEventsBody?.events)) {
+    throw new Error("get run events failed: missing events payload");
+  }
+  checks.push({
+    name: "GET /api/v3/runs/:runId/events",
+    ok: true,
+    run_id: runBody.run.id,
+    event_count: runEventsBody.events.length
+  });
+
+  const { body: sessionBody } = await fetchJson(
+    fetchImpl,
+    `${controlPlaneUrl}/api/v3/browser-sessions`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        runId: runBody.run.id,
+        allowedToolNames: ["scene.capture_snapshot"]
+      })
+    },
+    "create browser session"
+  );
+  if (!sessionBody?.session?.id) {
+    throw new Error("create browser session failed: missing session id");
+  }
+  checks.push({
+    name: "POST /api/v3/browser-sessions",
+    ok: true,
+    session_id: sessionBody.session.id,
+    run_id: sessionBody.session.runId ?? runBody.run.id
+  });
+
+  const { text: streamBody } = await fetchText(
+    fetchImpl,
+    `${controlPlaneUrl}/api/v3/runs/${encodeURIComponent(runBody.run.id)}/stream`,
+    undefined,
+    "stream run"
+  );
+  const snapshot = parseRunSnapshotStream(streamBody);
+  const snapshotSummary = validateRunSnapshot(snapshot);
+  checks.push({
+    name: "GET /api/v3/runs/:runId/stream",
+    ok: true,
+    run_id: snapshotSummary.runId,
+    final_status: snapshotSummary.finalStatus,
+    command_count: snapshotSummary.commandCount,
+    artifact_count: snapshotSummary.artifactCount,
+    event_count: snapshotSummary.eventCount
+  });
+
+  const artifactId = getPrimaryArtifactId(snapshot);
+  if (!artifactId) {
+    throw new Error("artifact fetch failed: missing artifact id");
+  }
+
+  const { body: artifactBody } = await fetchJson(
+    fetchImpl,
+    `${controlPlaneUrl}/api/v3/artifacts/${encodeURIComponent(artifactId)}`,
+    undefined,
+    "get artifact"
+  );
+  if (artifactBody?.artifact?.id !== artifactId) {
+    throw new Error("get artifact failed: unexpected artifact payload");
+  }
+  checks.push({
+    name: "GET /api/v3/artifacts/:artifactId",
+    ok: true,
+    artifact_id: artifactBody.artifact.id,
+    kind: artifactBody.artifact.kind ?? null
+  });
+
+  const { body: canvasEvidenceBody } = await fetchJson(
+    fetchImpl,
+    `${controlPlaneUrl}/api/v3/browser-sessions/${encodeURIComponent(
+      sessionBody.session.id
+    )}/canvas-evidence`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        contentType: "application/json",
+        storage: "inline",
+        inlineData: {
+          snapshot: "scene_runtime_1"
         },
-        body: JSON.stringify(attachmentRequestBody)
-      },
-      "attachment compile"
-    );
-    const attachmentResult = validateAgentRunResponse(
-      "attachment compile",
-      attachmentCompileResponse,
-      attachmentCompileBody
-    );
-    checks.push({
-      name: ATTACHMENT_CHECK_NAME,
-      ok: true,
-      trace_id: attachmentResult.traceId,
-      run_id: attachmentResult.runId,
-      command_count: attachmentResult.commandCount,
-      telemetry_stages: attachmentResult.telemetryStages,
-      attachments_count: Array.isArray(attachmentRequestBody.attachments)
-        ? attachmentRequestBody.attachments.length
-        : 0
-    });
+        metadata: {
+          source: "gateway-runtime-smoke"
+        }
+      })
+    },
+    "post canvas evidence"
+  );
+  if (canvasEvidenceBody?.artifact?.kind !== "canvas_evidence") {
+    throw new Error("post canvas evidence failed: unexpected artifact payload");
   }
-
-  if (env.ADMIN_METRICS_TOKEN) {
-    const traceId = String(compileBody.trace_id);
-    const { body: compileEventsBody } = await fetchJson(
-      fetchImpl,
-      `${gatewayUrl}/admin/compile-events?traceId=${encodeURIComponent(traceId)}&limit=10`,
-      {
-        headers: getAdminHeaders(env)
-      },
-      "admin compile events"
-    );
-    if (!Array.isArray(compileEventsBody?.events)) {
-      throw new Error("admin compile events failed: missing events array");
-    }
-    const matchingEvent = compileEventsBody.events.find(
-      (event) => event?.traceId === traceId
-    );
-    if (!matchingEvent) {
-      throw new Error("admin compile events failed: trace not found");
-    }
-    checks.push({
-      name: "GET /admin/compile-events",
-      ok: true,
-      trace_id: traceId,
-      final_status: matchingEvent.finalStatus ?? null,
-      event_count: compileEventsBody.events.length
-    });
-
-    const { body: metricsBody } = await fetchJson(
-      fetchImpl,
-      `${gatewayUrl}/admin/metrics`,
-      {
-        headers: getAdminHeaders(env)
-      },
-      "admin metrics"
-    );
-    if (typeof metricsBody?.compile?.total_requests !== "number") {
-      throw new Error("admin metrics failed: missing compile totals");
-    }
-    const expectedAdvance = attachmentSmokeEnabled ? 2 : 1;
-    if (
-      typeof metricsBefore === "number" &&
-      metricsBody.compile.total_requests < metricsBefore + expectedAdvance
-    ) {
-      throw new Error("admin metrics failed: compile totals did not advance");
-    }
-    checks.push({
-      name: "GET /admin/metrics",
-      ok: true,
-      total_requests_before: metricsBefore,
-      total_requests_after: metricsBody.compile.total_requests,
-      total_requests_expected_min:
-        typeof metricsBefore === "number" ? metricsBefore + expectedAdvance : null
-    });
-  }
+  checks.push({
+    name: "POST /api/v3/browser-sessions/:sessionId/canvas-evidence",
+    ok: true,
+    artifact_id: canvasEvidenceBody.artifact.id,
+    kind: canvasEvidenceBody.artifact.kind ?? null
+  });
 
   return checks;
 };
@@ -452,25 +529,29 @@ export async function runGatewayRuntimeSmoke({
   const args = parseArgs(argv);
 
   if (args.help) {
-    stdout.write([
-      "Usage: node scripts/smoke/gateway-runtime.mjs [options]",
-      "",
-      "Options:",
-      "  --dry-run                 Print ordered checks without network calls",
-      "  --gateway-url <url>       Gateway base URL (or GATEWAY_URL)",
-      "  --help                    Show this help"
-    ].join("\n") + "\n");
+    stdout.write(
+      [
+        "Usage: node scripts/smoke/gateway-runtime.mjs [options]",
+        "",
+        "Options:",
+        "  --dry-run                 Print ordered checks without network calls",
+        "  --gateway-url <url>       Gateway base URL (or GATEWAY_URL)",
+        "  --control-plane-url <url> Control plane base URL (defaults to gateway URL)",
+        "  --help                    Show this help"
+      ].join("\n") + "\n"
+    );
     return 0;
   }
 
+  const gatewayUrl = normalizeBaseUrl(args["gateway-url"] ?? env.GATEWAY_URL);
+  const controlPlaneUrl = normalizeBaseUrl(
+    args["control-plane-url"] ?? env.CONTROL_PLANE_URL ?? gatewayUrl
+  );
   const checks = buildGatewayRuntimeChecks(env).map((check) => ({
     name: check.name,
     method: check.method,
-    path: check.path,
-    ...(check.capability ? { capability: check.capability } : {})
+    path: check.path
   }));
-
-  const gatewayUrl = normalizeBaseUrl(args["gateway-url"] ?? env.GATEWAY_URL);
 
   if (args["dry-run"]) {
     stdout.write(
@@ -478,6 +559,7 @@ export async function runGatewayRuntimeSmoke({
         {
           dry_run: true,
           gateway_url: gatewayUrl || null,
+          control_plane_url: controlPlaneUrl || null,
           checks
         },
         null,
@@ -490,13 +572,24 @@ export async function runGatewayRuntimeSmoke({
   if (!gatewayUrl) {
     throw new Error("GATEWAY_URL or --gateway-url is required for live smoke");
   }
+  if (!controlPlaneUrl) {
+    throw new Error(
+      "CONTROL_PLANE_URL or --control-plane-url is required for live smoke"
+    );
+  }
 
-  const results = await runLiveChecks({ gatewayUrl, env, fetchImpl });
+  const results = await runLiveChecks({
+    gatewayUrl,
+    controlPlaneUrl,
+    env,
+    fetchImpl
+  });
   stdout.write(
     JSON.stringify(
       {
         dry_run: false,
         gateway_url: gatewayUrl,
+        control_plane_url: controlPlaneUrl,
         checks: results
       },
       null,
@@ -518,11 +611,11 @@ const isMainModule = (() => {
 if (isMainModule) {
   runGatewayRuntimeSmoke().then(
     (code) => {
-      process.exit(code);
+      process.exitCode = code;
     },
     (error) => {
       console.error(error instanceof Error ? error.message : String(error));
-      process.exit(1);
+      process.exitCode = 1;
     }
   );
 }

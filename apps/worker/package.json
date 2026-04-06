@@ -1,0 +1,22 @@
+{
+  "name": "@geohelper/worker",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/worker.ts",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@geohelper/agent-core": "workspace:*",
+    "@geohelper/agent-domain-geometry": "workspace:*",
+    "@geohelper/agent-protocol": "workspace:*",
+    "@geohelper/agent-store": "workspace:*",
+    "tsx": "^4.20.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.1"
+  }
+}

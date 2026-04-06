@@ -1,6 +1,4 @@
-import { useAgentRunStore } from "../state/agent-run-store";
 import type { ChatMessage } from "../state/chat-store";
-import { AgentRunPanel } from "./agent-run-panel";
 import { toStudioResultViewModel } from "./studio-result-panel";
 
 interface StudioResultPanelProps {
@@ -22,10 +20,7 @@ export const StudioResultPanel = ({
   onFocusUncertainty,
   activeUncertaintyId
 }: StudioResultPanelProps) => {
-  const agentRun = useAgentRunStore((state) =>
-    message?.agentRunId ? state.runsById[message.agentRunId] ?? null : null
-  );
-  const viewModel = toStudioResultViewModel(message, agentRun);
+  const viewModel = toStudioResultViewModel(message);
   const statusLabel =
     viewModel.status === "success"
       ? "可继续补图"
@@ -61,8 +56,6 @@ export const StudioResultPanel = ({
           ))}
         </ul>
       </section>
-
-      <AgentRunPanel agentRun={agentRun} />
 
       <section className="studio-result-section">
         <h3>执行步骤</h3>
