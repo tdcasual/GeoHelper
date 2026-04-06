@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@geohelper/agent-protocol": "workspace:*",
+    "@geohelper/agent-sdk": "workspace:*",
     "@geohelper/agent-tools": "workspace:*",
     "@geohelper/protocol": "workspace:*",
     "zod": "^4.1.8"

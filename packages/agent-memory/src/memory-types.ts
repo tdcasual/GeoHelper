@@ -6,6 +6,16 @@ export interface MemoryLookup {
   key?: string;
 }
 
+export interface MemoryLookupOptions {
+  limit?: number;
+}
+
+export interface RankedMemoryEntry {
+  entry: MemoryEntry;
+  score: number;
+  reason: string;
+}
+
 export interface MemoryWriteInput
   extends Omit<MemoryEntry, "sourceRunId" | "sourceArtifactId"> {
   sourceRunId: string;

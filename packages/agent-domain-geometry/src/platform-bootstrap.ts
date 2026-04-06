@@ -1,4 +1,8 @@
 import type { PlatformBootstrap } from "@geohelper/agent-protocol";
+import {
+  createPlatformBootstrap,
+  type DomainPackage
+} from "@geohelper/agent-sdk";
 import type { AnyToolDefinition } from "@geohelper/agent-tools";
 
 import {
@@ -9,7 +13,7 @@ import {
   createTeacherReadinessEvaluator,
   type GeometryEvaluator
 } from "./evals/teacher-readiness";
-import { createGeometryRunProfileMap, createGeometryRunProfiles } from "./run-profiles";
+import { createGeometryRunProfiles } from "./run-profiles";
 import { createSceneApplyCommandBatchTool } from "./tools/scene-apply-command-batch";
 import { createSceneReadStateTool } from "./tools/scene-read-state";
 import { createGeometrySolverWorkflow } from "./workflows/geometry-solver-workflow";
@@ -20,21 +24,26 @@ export type GeometryPlatformBootstrap = PlatformBootstrap<
   GeometryEvaluator<any, any>
 >;
 
-export const createGeometryPlatformBootstrap = (): GeometryPlatformBootstrap => {
+export type GeometryDomainPackage = DomainPackage<
+  GeometryAgentDefinition,
+  AnyToolDefinition,
+  GeometryEvaluator<any, any>
+>;
+
+export const createGeometryDomainPackage = (): GeometryDomainPackage => {
   const geometrySolver = createGeometrySolverAgentDefinition();
   const runProfiles = createGeometryRunProfiles(geometrySolver);
-  const runProfileMap = createGeometryRunProfileMap(geometrySolver);
   const workflow = createGeometrySolverWorkflow();
   const sceneReadState = createSceneReadStateTool();
   const sceneApplyCommandBatch = createSceneApplyCommandBatchTool();
   const teacherReadiness = createTeacherReadinessEvaluator();
 
   return {
+    id: "geometry",
     agents: {
       [geometrySolver.id]: geometrySolver
     },
     runProfiles,
-    runProfileMap,
     workflows: {
       [workflow.id]: workflow
     },
@@ -47,3 +56,8 @@ export const createGeometryPlatformBootstrap = (): GeometryPlatformBootstrap => 
     }
   };
 };
+
+export const createGeometryPlatformBootstrap = (): GeometryPlatformBootstrap =>
+  createPlatformBootstrap({
+    domainPackages: [createGeometryDomainPackage()]
+  });

@@ -63,6 +63,9 @@ importers:
       '@geohelper/agent-protocol':
         specifier: workspace:*
         version: link:../../packages/agent-protocol
+      '@geohelper/agent-sdk':
+        specifier: workspace:*
+        version: link:../../packages/agent-sdk
       '@geohelper/agent-store':
         specifier: workspace:*
         version: link:../../packages/agent-store
@@ -147,15 +150,24 @@ importers:
 
   apps/worker:
     dependencies:
+      '@geohelper/agent-context':
+        specifier: workspace:*
+        version: link:../../packages/agent-context
       '@geohelper/agent-core':
         specifier: workspace:*
         version: link:../../packages/agent-core
       '@geohelper/agent-domain-geometry':
         specifier: workspace:*
         version: link:../../packages/agent-domain-geometry
+      '@geohelper/agent-intelligence':
+        specifier: workspace:*
+        version: link:../../packages/agent-intelligence
       '@geohelper/agent-protocol':
         specifier: workspace:*
         version: link:../../packages/agent-protocol
+      '@geohelper/agent-sdk':
+        specifier: workspace:*
+        version: link:../../packages/agent-sdk
       '@geohelper/agent-store':
         specifier: workspace:*
         version: link:../../packages/agent-store
@@ -166,6 +178,18 @@ importers:
       '@types/node':
         specifier: ^24.3.1
         version: 24.11.0
+
+  packages/agent-context:
+    dependencies:
+      '@geohelper/agent-memory':
+        specifier: workspace:*
+        version: link:../agent-memory
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
+      '@geohelper/agent-store':
+        specifier: workspace:*
+        version: link:../agent-store
 
   packages/agent-core:
     dependencies:
@@ -178,6 +202,9 @@ importers:
       '@geohelper/agent-protocol':
         specifier: workspace:*
         version: link:../agent-protocol
+      '@geohelper/agent-sdk':
+        specifier: workspace:*
+        version: link:../agent-sdk
       '@geohelper/agent-tools':
         specifier: workspace:*
         version: link:../agent-tools
@@ -188,7 +215,26 @@ importers:
         specifier: ^4.1.8
         version: 4.3.6
 
-  packages/agent-evals: {}
+  packages/agent-evals:
+    dependencies:
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
+
+  packages/agent-intelligence:
+    dependencies:
+      '@geohelper/agent-context':
+        specifier: workspace:*
+        version: link:../agent-context
+      '@geohelper/agent-core':
+        specifier: workspace:*
+        version: link:../agent-core
+      '@geohelper/agent-evals':
+        specifier: workspace:*
+        version: link:../agent-evals
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
 
   packages/agent-memory:
     dependencies:
@@ -204,6 +250,12 @@ importers:
       zod:
         specifier: ^4.1.8
         version: 4.3.6
+
+  packages/agent-sdk:
+    dependencies:
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
 
   packages/agent-store:
     dependencies:

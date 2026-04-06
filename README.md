@@ -8,7 +8,15 @@ GeoHelper 正在从几何 compile 流水线重构为平台型 agent 系统。当
 - `apps/gateway`: Fastify 网关，负责 health、Official token、备份、版本与运维接口
 - `apps/control-plane`: 平台 API，负责 thread、run、checkpoint、stream 与 admin 视图
 - `apps/worker`: 平台 worker 运行时
-- `packages/agent-*`: 平台协议、存储、工作流引擎、工具、记忆与几何领域包
+- `packages/agent-protocol`: 平台协议与运行时契约
+- `packages/agent-core`: 工作流执行引擎与状态机
+- `packages/agent-context`: 节点上下文组装与 store-backed context plane
+- `packages/agent-intelligence`: planner/model/evaluator/synthesizer 节点驱动
+- `packages/agent-sdk`: domain package 注册与平台组合层
+- `packages/agent-store`: durable run/event/artifact/memory 存储
+- `packages/agent-tools`: 工具定义、策略与运行时
+- `packages/agent-memory`: 记忆检索与写入策略
+- `packages/agent-domain-geometry`: 几何领域包
 - `packages/protocol`: GeoGebra 命令与前端共享协议
 
 ## Quick Start

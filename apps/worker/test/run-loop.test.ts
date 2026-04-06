@@ -5,6 +5,7 @@ import path from "node:path";
 import { createPlatformRuntimeContext } from "@geohelper/agent-core";
 import { createGeometryDomainPackage } from "@geohelper/agent-domain-geometry";
 import type { Run } from "@geohelper/agent-protocol";
+import { createPlatformBootstrap } from "@geohelper/agent-sdk";
 import {
   createMemoryAgentStore,
   createSqliteAgentStore
@@ -306,11 +307,26 @@ describe("worker run loop", () => {
     const resumed = await loop.tick();
     const run = await store.runs.getRun("run_1");
     const resolved = await store.checkpoints.listCheckpointsByStatus("resolved");
+    const artifacts = await store.artifacts.listRunArtifacts("run_1");
 
     expect(resumed?.status).toBe("completed");
     expect(run?.status).toBe("completed");
     expect(resolved.map((checkpoint) => checkpoint.id)).toEqual([
       pendingCheckpoint!.id
+    ]);
+    expect(run?.outputArtifactIds).toEqual(["artifact_browser_tool_result_run_1_node_browser_tool"]);
+    expect(artifacts).toEqual([
+      expect.objectContaining({
+        id: "artifact_browser_tool_result_run_1_node_browser_tool",
+        kind: "tool_result",
+        inlineData: {
+          artifactId: "artifact_tool_1"
+        },
+        metadata: expect.objectContaining({
+          toolName: "scene.apply_command_batch",
+          sourceCheckpointId: pendingCheckpoint!.id
+        })
+      })
     ]);
   });
 
@@ -476,7 +492,11 @@ describe("worker run loop", () => {
 
     const loop = createRunLoop({
       store,
-      platformRuntime: createPlatformRuntimeContext(geometryDomain),
+      platformRuntime: createPlatformRuntimeContext(
+        createPlatformBootstrap({
+          domainPackages: [geometryDomain]
+        })
+      ),
       handlers: {
         planner: async () => ({ type: "continue" }),
         tool: async () => ({ type: "continue" }),
@@ -496,6 +516,206 @@ describe("worker run loop", () => {
 
     expect(result?.status).toBe("completed");
     expect(run?.status).toBe("completed");
+  });
+
+  it("assembles store-backed context for intelligence drivers", async () => {
+    const store = createMemoryAgentStore();
+    let capturedContext:
+      | {
+          artifactIds: string[];
+          memoryIds: string[];
+          toolNames: string[];
+        }
+      | undefined;
+
+    await store.artifacts.writeArtifact({
+      id: "artifact_context_input",
+      runId: "run_1",
+      kind: "input",
+      contentType: "application/json",
+      storage: "inline",
+      inlineData: {
+        prompt: "construct the median"
+      },
+      metadata: {},
+      createdAt: "2026-04-06T00:00:00.000Z"
+    });
+    await store.memory.writeMemoryEntry({
+      id: "memory_context_thread",
+      scope: "thread",
+      scopeId: "thread_1",
+      key: "teacher_preference",
+      value: "Use concise steps.",
+      createdAt: "2026-04-06T00:00:00.000Z"
+    });
+    await store.runs.createRun(createRun({
+      inputArtifactIds: ["artifact_context_input"],
+      profileId: "profile_context_runtime"
+    }));
+
+    const loop = createRunLoop({
+      store,
+      platformRuntime: createTestPlatformRuntime({
+        profileId: "profile_context_runtime",
+        workflowId: "wf_context_runtime",
+        workflow: {
+          id: "wf_context_runtime",
+          version: 1,
+          entryNodeId: "node_plan",
+          nodes: [
+            {
+              id: "node_plan",
+              kind: "planner",
+              name: "Plan",
+              config: {},
+              next: ["node_finish"]
+            },
+            {
+              id: "node_finish",
+              kind: "synthesizer",
+              name: "Finish",
+              config: {},
+              next: []
+            }
+          ]
+        },
+        tools: {
+          "scene.read_state": createTestTool(
+            "scene.read_state",
+            "browser_tool"
+          )
+        }
+      }),
+      intelligence: {
+        drivers: {
+          planner: {
+            execute: async ({ context }) => {
+              capturedContext = {
+                artifactIds: context.artifacts.map((artifact) => artifact.id),
+                memoryIds: context.memories.map((memory) => memory.id),
+                toolNames: context.toolCatalog.map((tool) => tool.name)
+              };
+
+              return {
+                type: "continue"
+              };
+            }
+          }
+        }
+      }
+    });
+
+    loop.enqueue("run_1");
+
+    const result = await loop.tick();
+
+    expect(result?.status).toBe("completed");
+    expect(capturedContext).toEqual({
+      artifactIds: ["artifact_context_input"],
+      memoryIds: ["memory_context_thread"],
+      toolNames: ["scene.read_state"]
+    });
+  });
+
+  it("writes evaluation artifacts and gates failed evaluator nodes with checkpoints", async () => {
+    const store = createMemoryAgentStore();
+
+    await store.runs.createRun(createRun({
+      profileId: "profile_eval_gate"
+    }));
+
+    const loop = createRunLoop({
+      store,
+      platformRuntime: createTestPlatformRuntime({
+        profileId: "profile_eval_gate",
+        workflowId: "wf_eval_gate",
+        workflow: {
+          id: "wf_eval_gate",
+          version: 1,
+          entryNodeId: "node_eval",
+          nodes: [
+            {
+              id: "node_eval",
+              kind: "evaluator",
+              name: "Evaluate readiness",
+              config: {
+                evaluatorName: "teacher_readiness",
+                evaluatorInput: {
+                  commandBatch: {
+                    version: "1.0",
+                    scene_id: "scene_1",
+                    transaction_id: "tx_1",
+                    commands: [],
+                    post_checks: [],
+                    explanations: []
+                  },
+                  teachingOutline: [],
+                  reviewChecklist: [],
+                  blockingIssues: ["needs_teacher_review"]
+                },
+                checkpointOnFailure: true,
+                checkpointTitle: "Review evaluation",
+                checkpointPrompt: "Confirm whether the run may continue."
+              },
+              next: ["node_finish"]
+            },
+            {
+              id: "node_finish",
+              kind: "synthesizer",
+              name: "Finish",
+              config: {},
+              next: []
+            }
+          ]
+        },
+        evaluators: {
+          teacher_readiness: {
+            name: "teacher_readiness",
+            evaluate: ({
+              blockingIssues
+            }: {
+              blockingIssues: string[];
+            }) => ({
+              evaluator: "teacher_readiness",
+              ready: blockingIssues.length === 0,
+              score: blockingIssues.length === 0 ? 0.95 : 0.35,
+              summary: ["Evaluation completed."],
+              warnings: blockingIssues,
+              nextActions:
+                blockingIssues.length === 0
+                  ? ["continue"]
+                  : ["request_teacher_review"]
+            })
+          }
+        }
+      })
+    });
+
+    loop.enqueue("run_1");
+
+    const result = await loop.tick();
+    const checkpoints = await store.checkpoints.listCheckpointsByStatus("pending");
+    const artifacts = await store.artifacts.listRunArtifacts("run_1");
+
+    expect(result?.status).toBe("waiting_for_checkpoint");
+    expect(checkpoints[0]).toEqual(
+      expect.objectContaining({
+        title: "Review evaluation",
+        prompt: "Confirm whether the run may continue."
+      })
+    );
+    expect(artifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "evaluation",
+          inlineData: expect.objectContaining({
+            evaluator: "teacher_readiness",
+            status: "failed",
+            passed: false
+          })
+        })
+      ])
+    );
   });
 
   it("skips dispatched runs that were already cancelled", async () => {

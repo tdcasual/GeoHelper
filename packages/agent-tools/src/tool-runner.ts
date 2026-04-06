@@ -1,5 +1,15 @@
+import {
+  createServerToolProvider
+} from "./providers/server-provider";
+import type { ToolProviderMap } from "./providers/types";
+import { toToolProviderKind } from "./providers/types";
+import {
+  createWorkerToolProvider
+} from "./providers/worker-provider";
+import { createToolRunnerError } from "./tool-errors";
 import { ensureToolPermissions, type ToolRunnerPolicy } from "./tool-policy";
 import type { ToolRegistry } from "./tool-registry";
+import { runWithOptionalTimeout } from "./tool-timeouts";
 
 const redactValue = (value: unknown, redactPaths: string[]): unknown => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -28,20 +38,36 @@ export interface ToolRunResult {
 
 export interface ToolRunnerDeps extends ToolRunnerPolicy {
   registry: ToolRegistry;
+  providers?: ToolProviderMap;
 }
+
+const createDefaultProviders = (): ToolProviderMap => ({
+  server: createServerToolProvider(),
+  worker: createWorkerToolProvider()
+});
 
 export const createToolRunner = (deps: ToolRunnerDeps) => ({
   run: async (name: string, rawInput: unknown): Promise<ToolRunResult> => {
     const tool = deps.registry.getTool(name);
     if (!tool) {
-      throw new Error("tool_not_found");
+      throw createToolRunnerError("tool_not_found");
     }
 
     ensureToolPermissions(tool.permissions, deps.allowedPermissions);
 
     const parsedInput = tool.inputSchema.safeParse(rawInput);
     if (!parsedInput.success) {
-      throw new Error("invalid_tool_input");
+      throw createToolRunnerError("invalid_tool_input");
+    }
+
+    const providers = {
+      ...createDefaultProviders(),
+      ...deps.providers
+    };
+    const provider = providers[toToolProviderKind(tool.kind)];
+
+    if (!provider) {
+      throw createToolRunnerError("tool_provider_missing");
     }
 
     const maxAttempts = tool.retryable
@@ -54,10 +80,18 @@ export const createToolRunner = (deps: ToolRunnerDeps) => ({
     while (attemptCount < maxAttempts) {
       attemptCount += 1;
       try {
-        const rawOutput = await tool.execute(parsedInput.data);
+        const rawOutput = await runWithOptionalTimeout(
+          Promise.resolve(
+            provider.invoke({
+              tool,
+              input: parsedInput.data
+            })
+          ),
+          tool.timeoutMs
+        );
         const parsedOutput = tool.outputSchema.safeParse(rawOutput);
         if (!parsedOutput.success) {
-          throw new Error("invalid_tool_output");
+          throw createToolRunnerError("invalid_tool_output");
         }
 
         return {
@@ -76,6 +110,8 @@ export const createToolRunner = (deps: ToolRunnerDeps) => ({
       }
     }
 
-    throw lastError instanceof Error ? lastError : new Error("tool_run_failed");
+    throw lastError instanceof Error
+      ? lastError
+      : createToolRunnerError("tool_run_failed");
   }
 });

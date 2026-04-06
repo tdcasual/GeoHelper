@@ -1,13 +1,3 @@
-import {
-  createGeometryPlatformBootstrap,
-  type GeometryPlatformBootstrap
-} from "./platform-bootstrap";
-
-export type GeometryDomainPackage = GeometryPlatformBootstrap;
-
-export const createGeometryDomainPackage = (): GeometryDomainPackage =>
-  createGeometryPlatformBootstrap();
-
 export * from "./agents/geometry-solver";
 export * from "./evals/teacher-readiness";
 export * from "./platform-bootstrap";

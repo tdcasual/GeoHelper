@@ -11,6 +11,7 @@ export interface ToolDefinition<TInput = unknown, TOutput = unknown> {
   kind: ToolKind;
   permissions: string[];
   retryable: boolean;
+  timeoutMs?: number;
   redactPaths?: string[];
   inputSchema: ZodType<TInput>;
   outputSchema: ZodType<TOutput>;

@@ -1,0 +1,15 @@
+{
+  "name": "@geohelper/agent-context",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@geohelper/agent-memory": "workspace:*",
+    "@geohelper/agent-protocol": "workspace:*",
+    "@geohelper/agent-store": "workspace:*"
+  }
+}

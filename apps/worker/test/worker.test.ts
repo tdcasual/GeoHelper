@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { createPlatformRuntimeContext } from "@geohelper/agent-core";
-import { createGeometryPlatformBootstrap } from "@geohelper/agent-domain-geometry";
+import { createGeometryDomainPackage } from "@geohelper/agent-domain-geometry";
+import { createPlatformBootstrap } from "@geohelper/agent-sdk";
 import { createMemoryAgentStore } from "@geohelper/agent-store";
 import { describe, expect, it } from "vitest";
 
@@ -77,7 +78,9 @@ describe("worker runtime", () => {
       updatedAt: "2026-04-05T00:00:00.000Z"
     });
 
-    const bootstrap = createGeometryPlatformBootstrap();
+    const bootstrap = createPlatformBootstrap({
+      domainPackages: [createGeometryDomainPackage()]
+    });
     const runtime = createWorkerRuntime({
       store,
       platformRuntime: createPlatformRuntimeContext({

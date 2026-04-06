@@ -23,6 +23,7 @@ export const CheckpointSchema = z.object({
   status: CheckpointStatusSchema,
   title: z.string().min(1),
   prompt: z.string().min(1),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   response: z.unknown().optional(),
   createdAt: TimestampSchema,
   resolvedAt: TimestampSchema.optional()

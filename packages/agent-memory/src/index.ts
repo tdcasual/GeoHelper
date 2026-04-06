@@ -1,4 +1,5 @@
 export * from "./memory-policy";
+export * from "./memory-ranker";
 export * from "./memory-retriever";
 export * from "./memory-types";
 export * from "./memory-writer";

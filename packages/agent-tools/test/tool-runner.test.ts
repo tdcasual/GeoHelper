@@ -92,6 +92,11 @@ describe("tool runner", () => {
     const runner = createToolRunner({
       registry,
       allowedPermissions: ["fetch:read"],
+      providers: {
+        external: {
+          invoke: async ({ tool, input }) => tool.execute(input)
+        }
+      },
       retryPolicy: {
         maxAttempts: 2
       }
@@ -144,5 +149,120 @@ describe("tool runner", () => {
       token: "[REDACTED]",
       expiresIn: 3600
     });
+  });
+
+  it("routes browser tools through the browser provider instead of local execute", async () => {
+    const registry = createToolRegistry([
+      {
+        name: "scene.read_state",
+        kind: "browser_tool",
+        permissions: ["scene:read"],
+        retryable: false,
+        inputSchema: z.object({
+          sessionId: z.string()
+        }),
+        outputSchema: z.object({
+          objects: z.array(z.string())
+        }),
+        execute: async () => {
+          throw new Error("should_not_use_local_execute");
+        }
+      }
+    ]);
+
+    const runner = createToolRunner({
+      registry,
+      allowedPermissions: ["scene:read"],
+      providers: {
+        browser: {
+          invoke: async ({ input }) => ({
+            objects: [`session:${(input as { sessionId: string }).sessionId}`]
+          })
+        }
+      }
+    });
+
+    await expect(
+      runner.run("scene.read_state", {
+        sessionId: "browser_1"
+      })
+    ).resolves.toEqual(
+      expect.objectContaining({
+        output: {
+          objects: ["session:browser_1"]
+        }
+      })
+    );
+  });
+
+  it("fails when an external tool has no matching provider", async () => {
+    const registry = createToolRegistry([
+      {
+        name: "remote.search",
+        kind: "external_tool",
+        permissions: ["search:read"],
+        retryable: false,
+        inputSchema: z.object({
+          query: z.string()
+        }),
+        outputSchema: z.object({
+          result: z.string()
+        }),
+        execute: async () => ({
+          result: "should_not_run"
+        })
+      }
+    ]);
+
+    const runner = createToolRunner({
+      registry,
+      allowedPermissions: ["search:read"]
+    });
+
+    await expect(
+      runner.run("remote.search", {
+        query: "triangle"
+      })
+    ).rejects.toThrow("tool_provider_missing");
+  });
+
+  it("fails timed out tool calls with a stable timeout error", async () => {
+    const registry = createToolRegistry([
+      {
+        name: "slow.remote_fetch",
+        kind: "external_tool",
+        permissions: ["fetch:read"],
+        retryable: false,
+        timeoutMs: 5,
+        inputSchema: z.object({}),
+        outputSchema: z.object({
+          ok: z.boolean()
+        }),
+        execute: async () => ({
+          ok: true
+        })
+      }
+    ]);
+
+    const runner = createToolRunner({
+      registry,
+      allowedPermissions: ["fetch:read"],
+      providers: {
+        external: {
+          invoke: async () =>
+            await new Promise((resolve) => {
+              setTimeout(() => {
+                resolve({
+                  ok: true
+                });
+              }, 20);
+            })
+        }
+      }
+    });
+
+    await expect(runner.run("slow.remote_fetch", {})).rejects.toThrow(
+      "tool_timeout"
+    );
   });
 });

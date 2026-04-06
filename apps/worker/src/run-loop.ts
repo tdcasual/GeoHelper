@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { createStoreBackedContextAssembler } from "@geohelper/agent-context";
 import {
   createWorkflowEngine,
   type NodeHandler,
@@ -9,19 +10,28 @@ import {
   type WorkflowEngineState,
   type WorkflowExecutionResult
 } from "@geohelper/agent-core";
+import {
+  createEvaluatorDriver,
+  createPlatformNodeHandlers,
+  type PlatformNodeHandlerOptions
+} from "@geohelper/agent-intelligence";
 import type {
+  Artifact,
   PlatformAgentDefinition,
   PlatformRunResolutionFailureReason,
   Run,
   RunEvent
 } from "@geohelper/agent-protocol";
-import { type CheckpointKind,CheckpointSchema } from "@geohelper/agent-protocol";
+import {
+  ArtifactSchema,
+  type CheckpointKind,
+  CheckpointSchema
+} from "@geohelper/agent-protocol";
 import type { AgentStore } from "@geohelper/agent-store";
 
 import {
   type BrowserToolResult
 } from "./browser-tool-dispatch";
-import { createModelDispatch } from "./model-dispatch";
 
 export interface WorkerToolRegistration {
   name: string;
@@ -42,6 +52,7 @@ export interface RunLoopOptions {
     unknown
   >;
   handlers?: NodeHandlerMap;
+  intelligence?: PlatformNodeHandlerOptions;
   now?: () => string;
   buildCheckpointId?: () => string;
   workerId?: string;
@@ -80,6 +91,38 @@ const mergeArtifactIds = (
   nextArtifactIds: string[]
 ): string[] => [...new Set([...existingArtifactIds, ...nextArtifactIds])];
 
+const buildBrowserToolArtifactId = (runId: string, nodeId: string): string =>
+  `artifact_browser_tool_result_${runId}_${nodeId}`;
+
+const createBrowserToolArtifact = (input: {
+  runId: string;
+  nodeId: string;
+  toolName: string;
+  checkpointId: string;
+  output: unknown;
+  createdAt: string;
+}): Artifact => {
+  const parsed = ArtifactSchema.safeParse(input.output);
+
+  if (parsed.success) {
+    return parsed.data;
+  }
+
+  return ArtifactSchema.parse({
+    id: buildBrowserToolArtifactId(input.runId, input.nodeId),
+    runId: input.runId,
+    kind: "tool_result",
+    contentType: "application/json",
+    storage: "inline",
+    inlineData: input.output,
+    metadata: {
+      toolName: input.toolName,
+      sourceCheckpointId: input.checkpointId
+    },
+    createdAt: input.createdAt
+  });
+};
+
 const createToolHandler = (
   tools: Record<string, WorkerToolRegistration>,
   now: () => string,
@@ -100,6 +143,9 @@ const createToolHandler = (
         status: "pending",
         title: `Await browser tool: ${toolName}`,
         prompt: `Wait for browser tool ${toolName} to finish.`,
+        metadata: {
+          toolName
+        },
         createdAt: now()
       })
     };
@@ -210,13 +256,33 @@ export const createRunLoop = ({
   store,
   platformRuntime,
   handlers = {},
+  intelligence,
   now = defaultNow,
   buildCheckpointId = createCheckpointIdFactory(),
   workerId = "worker_local"
 }: RunLoopOptions) => {
+  const contextAssembler =
+    intelligence?.contextAssembler ??
+    createStoreBackedContextAssembler({
+      store,
+      tools: platformRuntime.tools
+    });
+  const defaultEvaluatorDriver = createEvaluatorDriver({
+    evaluators: platformRuntime.evaluators as Record<string, any>,
+    writeArtifact: (artifact) => store.artifacts.writeArtifact(artifact),
+    now
+  });
   const engine = createWorkflowEngine({
     now,
-    handlers: createModelDispatch({
+    handlers: {
+      ...createPlatformNodeHandlers({
+        ...intelligence,
+        drivers: {
+          evaluator: intelligence?.drivers?.evaluator ?? defaultEvaluatorDriver,
+          ...intelligence?.drivers
+        },
+        contextAssembler
+      }),
       tool: createToolHandler(
         platformRuntime.tools,
         now,
@@ -225,7 +291,7 @@ export const createRunLoop = ({
       checkpoint: createCheckpointHandler(now, buildCheckpointId),
       subagent: createSubagentHandler(store, platformRuntime, now),
       ...handlers
-    })
+    }
   });
 
   const persistExecutionEvents = async (
@@ -326,6 +392,36 @@ export const createRunLoop = ({
 
     if (!pendingCheckpoint || pendingCheckpoint.status !== "pending") {
       return;
+    }
+
+    if (pendingCheckpoint.kind === "tool_result") {
+      const toolName =
+        typeof pendingCheckpoint.metadata?.toolName === "string"
+          ? (pendingCheckpoint.metadata.toolName as string)
+          : pendingCheckpoint.nodeId;
+      const artifact = createBrowserToolArtifact({
+        runId: result.runId,
+        nodeId: pendingCheckpoint.nodeId,
+        toolName,
+        checkpointId: pendingCheckpoint.id,
+        output: result.output,
+        createdAt: now()
+      });
+      const run = readSync(store.runs.getRun(result.runId));
+
+      void readSync(store.artifacts.writeArtifact(artifact));
+
+      if (run) {
+        void readSync(
+          store.runs.createRun({
+            ...run,
+            outputArtifactIds: mergeArtifactIds(run.outputArtifactIds, [
+              artifact.id
+            ]),
+            updatedAt: now()
+          })
+        );
+      }
     }
 
     void readSync(

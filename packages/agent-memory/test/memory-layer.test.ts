@@ -158,4 +158,72 @@ describe("agent memory layer", () => {
     expect(result.entry.sourceRunId).toBe("run_1");
     expect(result.entry.sourceArtifactId).toBe("artifact_template_1");
   });
+
+  it("ranks multi-scope retrieval and prefers earlier lookups", async () => {
+    const store = createMemoryAgentStore();
+
+    await store.memory.writeMemoryEntry({
+      id: "memory_thread_older",
+      scope: "thread",
+      scopeId: "thread_1",
+      key: "teacher_preference",
+      value: {
+        tone: "concise"
+      },
+      sourceRunId: "run_1",
+      sourceArtifactId: "artifact_1",
+      createdAt: "2026-04-04T00:00:00.000Z"
+    });
+    await store.memory.writeMemoryEntry({
+      id: "memory_workspace",
+      scope: "workspace",
+      scopeId: "workspace_1",
+      key: "canvas_mode",
+      value: {
+        mode: "geogebra"
+      },
+      sourceRunId: "run_2",
+      sourceArtifactId: "artifact_2",
+      createdAt: "2026-04-04T00:01:00.000Z"
+    });
+    await store.memory.writeMemoryEntry({
+      id: "memory_thread_newer",
+      scope: "thread",
+      scopeId: "thread_1",
+      key: "teacher_preference",
+      value: {
+        tone: "detailed"
+      },
+      sourceRunId: "run_3",
+      sourceArtifactId: "artifact_3",
+      createdAt: "2026-04-04T00:02:00.000Z"
+    });
+
+    const retriever = createMemoryRetriever({
+      memoryRepo: store.memory
+    });
+
+    const ranked = await retriever.forLookups(
+      [
+        {
+          scope: "workspace",
+          scopeId: "workspace_1"
+        },
+        {
+          scope: "thread",
+          scopeId: "thread_1"
+        }
+      ],
+      {
+        limit: 2
+      }
+    );
+
+    expect(ranked.map((item) => item.entry.id)).toEqual([
+      "memory_workspace",
+      "memory_thread_newer"
+    ]);
+    expect(ranked[0]?.reason).toContain("workspace");
+    expect(ranked[0]?.score).toBeGreaterThan(ranked[1]?.score ?? 0);
+  });
 });
