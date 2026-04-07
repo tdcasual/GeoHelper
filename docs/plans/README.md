@@ -15,6 +15,7 @@ Use this section when you know the problem domain first and only then want the r
 
 - Product boundary reset: [`2026-03-17-product-scope-reset-design.md`](./2026-03-17-product-scope-reset-design.md)
 - Platform agent rewrite: [`2026-04-03-platform-agent-rewrite-design.md`](./2026-04-03-platform-agent-rewrite-design.md), [`2026-04-03-platform-agent-rewrite-implementation-plan.md`](./2026-04-03-platform-agent-rewrite-implementation-plan.md)
+- OpenClaw-portable agent spec v2: [`2026-04-07-openclaw-portable-agent-spec-v2-design.md`](./2026-04-07-openclaw-portable-agent-spec-v2-design.md), [`2026-04-07-openclaw-portable-agent-spec-v2-implementation-plan.md`](./2026-04-07-openclaw-portable-agent-spec-v2-implementation-plan.md)
 - M4 release closure: [`2026-03-19-m4-release-closure-implementation-plan.md`](./2026-03-19-m4-release-closure-implementation-plan.md)
 - Current branch closure execution: [`2026-03-31-project-phase-plan.md`](./2026-03-31-project-phase-plan.md)
 

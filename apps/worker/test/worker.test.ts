@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { createPlatformRuntimeContext } from "@geohelper/agent-core";
-import { createGeometryDomainPackage } from "@geohelper/agent-domain-geometry";
+import {
+  createGeometryDomainPackage,
+  createGeometryPlatformBootstrap
+} from "@geohelper/agent-domain-geometry";
 import { createPlatformBootstrap } from "@geohelper/agent-sdk";
 import { createMemoryAgentStore } from "@geohelper/agent-store";
 import { describe, expect, it } from "vitest";
@@ -55,6 +58,9 @@ describe("worker runtime", () => {
 
     expect(runtime.platformRuntime.bootstrap.runProfiles.platform_geometry_standard).toBeDefined();
     expect(runtime.platformRuntime.tools["scene.read_state"]).toBeDefined();
+    expect(runtime.platformRuntime.agents.geometry_solver.bundle?.bundleId).toBe(
+      "geometry_solver"
+    );
     expect(result?.status).toBe("completed");
     expect(run?.status).toBe("completed");
   });
@@ -97,6 +103,17 @@ describe("worker runtime", () => {
     expect(result?.status).toBe("failed");
     expect(result?.failureReason).toBe("missing_evaluator");
     expect(run?.status).toBe("failed");
+  });
+
+  it("uses the geometry platform bootstrap as the authoritative bundle-backed registry", () => {
+    const runtime = createPlatformRuntimeContext(createGeometryPlatformBootstrap());
+
+    expect(runtime.agents.geometry_solver.bundle?.workspaceBootstrapFiles).toContain(
+      "workspace/AGENTS.md"
+    );
+    expect(runtime.workflows.wf_geometry_solver.entryNodeId).toBe(
+      "node_plan_geometry"
+    );
   });
 
   it("boots a sqlite-backed worker store from env when configured", async () => {

@@ -1,22 +1,22 @@
+import type { PortableToolManifest } from "@geohelper/agent-bundle";
 import type { PlatformBootstrap } from "@geohelper/agent-protocol";
 import {
+  createBundleDomainPackage,
   createPlatformBootstrap,
   type DomainPackage
 } from "@geohelper/agent-sdk";
-import type { AnyToolDefinition } from "@geohelper/agent-tools";
+import type { AnyToolDefinition, ToolDefinition } from "@geohelper/agent-tools";
 
 import {
-  createGeometrySolverAgentDefinition,
   type GeometryAgentDefinition
 } from "./agents/geometry-solver";
+import { loadGeometryBundle } from "./bundle";
 import {
   createTeacherReadinessEvaluator,
   type GeometryEvaluator
 } from "./evals/teacher-readiness";
-import { createGeometryRunProfiles } from "./run-profiles";
 import { createSceneApplyCommandBatchTool } from "./tools/scene-apply-command-batch";
 import { createSceneReadStateTool } from "./tools/scene-read-state";
-import { createGeometrySolverWorkflow } from "./workflows/geometry-solver-workflow";
 
 export type GeometryPlatformBootstrap = PlatformBootstrap<
   GeometryAgentDefinition,
@@ -30,31 +30,71 @@ export type GeometryDomainPackage = DomainPackage<
   GeometryEvaluator<any, any>
 >;
 
-export const createGeometryDomainPackage = (): GeometryDomainPackage => {
-  const geometrySolver = createGeometrySolverAgentDefinition();
-  const runProfiles = createGeometryRunProfiles(geometrySolver);
-  const workflow = createGeometrySolverWorkflow();
-  const sceneReadState = createSceneReadStateTool();
-  const sceneApplyCommandBatch = createSceneApplyCommandBatchTool();
-  const teacherReadiness = createTeacherReadinessEvaluator();
+const toRuntimeToolKind = (
+  kind: PortableToolManifest["kind"]
+): AnyToolDefinition["kind"] => {
+  if (kind === "browser") {
+    return "browser_tool";
+  }
 
-  return {
+  if (kind === "server") {
+    return "server_tool";
+  }
+
+  if (kind === "worker") {
+    return "worker_tool";
+  }
+
+  return "external_tool";
+};
+
+const applyPortableToolManifest = <TInput, TOutput>(
+  definition: ToolDefinition<TInput, TOutput>,
+  manifest: PortableToolManifest
+): ToolDefinition<TInput, TOutput> => ({
+  ...definition,
+  name: manifest.name,
+  kind: toRuntimeToolKind(manifest.kind),
+  permissions: [...manifest.permissions],
+  retryable: manifest.retryable,
+  timeoutMs: manifest.timeoutMs ?? definition.timeoutMs
+});
+
+export const createGeometryDomainPackage = (): GeometryDomainPackage => {
+  return createBundleDomainPackage<
+    GeometryAgentDefinition,
+    AnyToolDefinition,
+    GeometryEvaluator<any, any>
+  >({
     id: "geometry",
-    agents: {
-      [geometrySolver.id]: geometrySolver
+    bundle: loadGeometryBundle(),
+    bindTool: ({ manifest }) => {
+      if (manifest.name === "scene.read_state") {
+        return applyPortableToolManifest(
+          createSceneReadStateTool(),
+          manifest
+        );
+      }
+
+      if (manifest.name === "scene.apply_command_batch") {
+        return applyPortableToolManifest(
+          createSceneApplyCommandBatchTool(),
+          manifest
+        );
+      }
+
+      throw new Error(`Unsupported geometry tool manifest: ${manifest.name}`);
     },
-    runProfiles,
-    workflows: {
-      [workflow.id]: workflow
-    },
-    tools: {
-      [sceneReadState.name]: sceneReadState,
-      [sceneApplyCommandBatch.name]: sceneApplyCommandBatch
-    },
-    evaluators: {
-      [teacherReadiness.name]: teacherReadiness
+    bindEvaluator: ({ manifest }) => {
+      if (manifest.name === "teacher_readiness") {
+        return createTeacherReadinessEvaluator();
+      }
+
+      throw new Error(
+        `Unsupported geometry evaluator manifest: ${manifest.name}`
+      );
     }
-  };
+  });
 };
 
 export const createGeometryPlatformBootstrap = (): GeometryPlatformBootstrap =>

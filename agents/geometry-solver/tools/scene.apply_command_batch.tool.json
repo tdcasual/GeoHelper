@@ -1,0 +1,19 @@
+{
+  "name": "scene.apply_command_batch",
+  "kind": "browser",
+  "description": "Apply a geometry command batch to the active scene.",
+  "inputSchemaRef": "#/schemas/SceneApplyCommandBatchInput",
+  "outputSchemaRef": "#/schemas/Artifact",
+  "permissions": [
+    "scene:write"
+  ],
+  "retryable": false,
+  "timeoutMs": 12000,
+  "hostCapability": "workspace.scene.write",
+  "export": {
+    "openClaw": {
+      "mode": "host-bound",
+      "preferredTransport": "plugin"
+    }
+  }
+}

@@ -1,4 +1,6 @@
+export * from "./bundle-registry";
 export * from "./domain-package";
+export * from "./load-domain-bundle";
 export * from "./platform-registry";
 export * from "./register-domain-package";
 

@@ -1,0 +1,15 @@
+{
+  "name": "teacher_readiness",
+  "description": "Score whether the geometry output is ready for classroom use.",
+  "promptRef": "prompts/evaluator-teacher-readiness.md",
+  "inputContract": {
+    "artifactKinds": [
+      "tool_result",
+      "response"
+    ]
+  },
+  "policy": {
+    "minimumScore": 0.8,
+    "checkpointOnFailure": true
+  }
+}

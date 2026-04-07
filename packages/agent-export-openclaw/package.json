@@ -1,5 +1,5 @@
 {
-  "name": "@geohelper/agent-sdk",
+  "name": "@geohelper/agent-export-openclaw",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -8,7 +8,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@geohelper/agent-bundle": "workspace:*",
-    "@geohelper/agent-protocol": "workspace:*"
+    "@geohelper/agent-bundle": "workspace:*"
   }
 }

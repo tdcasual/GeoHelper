@@ -1,0 +1,19 @@
+{
+  "name": "scene.read_state",
+  "kind": "browser",
+  "description": "Read the active geometry scene state from the host workspace.",
+  "inputSchemaRef": "#/schemas/SceneReadStateInput",
+  "outputSchemaRef": "#/schemas/SceneReadStateOutput",
+  "permissions": [
+    "scene:read"
+  ],
+  "retryable": true,
+  "timeoutMs": 8000,
+  "hostCapability": "workspace.scene.read",
+  "export": {
+    "openClaw": {
+      "mode": "plugin",
+      "preferredTransport": "plugin"
+    }
+  }
+}

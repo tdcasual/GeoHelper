@@ -1,0 +1,12 @@
+{
+  "includeWorkspaceBootstrap": true,
+  "memoryScopes": [
+    "workspace",
+    "thread"
+  ],
+  "artifactKinds": [
+    "tool_result",
+    "response"
+  ],
+  "maxConversationMessages": 16
+}

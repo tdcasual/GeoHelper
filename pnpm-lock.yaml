@@ -179,6 +179,15 @@ importers:
         specifier: ^24.3.1
         version: 24.11.0
 
+  packages/agent-bundle:
+    dependencies:
+      '@geohelper/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
+      zod:
+        specifier: ^4.1.8
+        version: 4.3.6
+
   packages/agent-context:
     dependencies:
       '@geohelper/agent-memory':
@@ -199,6 +208,9 @@ importers:
 
   packages/agent-domain-geometry:
     dependencies:
+      '@geohelper/agent-bundle':
+        specifier: workspace:*
+        version: link:../agent-bundle
       '@geohelper/agent-protocol':
         specifier: workspace:*
         version: link:../agent-protocol
@@ -220,6 +232,12 @@ importers:
       '@geohelper/agent-protocol':
         specifier: workspace:*
         version: link:../agent-protocol
+
+  packages/agent-export-openclaw:
+    dependencies:
+      '@geohelper/agent-bundle':
+        specifier: workspace:*
+        version: link:../agent-bundle
 
   packages/agent-intelligence:
     dependencies:
@@ -253,6 +271,9 @@ importers:
 
   packages/agent-sdk:
     dependencies:
+      '@geohelper/agent-bundle':
+        specifier: workspace:*
+        version: link:../agent-bundle
       '@geohelper/agent-protocol':
         specifier: workspace:*
         version: link:../agent-protocol

@@ -1,5 +1,5 @@
 import { createPlatformRuntimeContext, type PlatformRuntimeContext } from "@geohelper/agent-core";
-import { createGeometryDomainPackage } from "@geohelper/agent-domain-geometry";
+import { createGeometryPlatformBootstrap } from "@geohelper/agent-domain-geometry";
 import type {
   Checkpoint,
   CheckpointStatus,
@@ -8,7 +8,6 @@ import type {
   RunBudget,
   RunEvent
 } from "@geohelper/agent-protocol";
-import { createPlatformBootstrap } from "@geohelper/agent-sdk";
 import {
   type AgentStore,
   createMemoryAgentStore,
@@ -84,9 +83,7 @@ export const createControlPlaneServices = (
   const platformRuntime =
     overrides.platformRuntime ??
     createPlatformRuntimeContext(
-      createPlatformBootstrap({
-        domainPackages: [createGeometryDomainPackage()]
-      })
+      createGeometryPlatformBootstrap()
     );
   const workerRuntime = createWorkerRuntime({
     store,

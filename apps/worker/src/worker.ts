@@ -4,12 +4,11 @@ import {
   type PlatformRuntimeContext
 } from "@geohelper/agent-core";
 import {
-  createGeometryDomainPackage,
+  createGeometryPlatformBootstrap,
   type GeometryAgentDefinition,
   type GeometryEvaluator
 } from "@geohelper/agent-domain-geometry";
 import type { PlatformAgentDefinition } from "@geohelper/agent-protocol";
-import { createPlatformBootstrap } from "@geohelper/agent-sdk";
 import {
   type AgentStore,
   createMemoryAgentStore,
@@ -79,9 +78,7 @@ export const createGeometryWorkerRuntime = ({
   now
 }: GeometryWorkerRuntimeOptions) => {
   const platformRuntime = createPlatformRuntimeContext(
-    createPlatformBootstrap({
-      domainPackages: [createGeometryDomainPackage()]
-    })
+    createGeometryPlatformBootstrap()
   );
 
   const runtime = createWorkerRuntime({

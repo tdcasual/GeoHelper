@@ -25,11 +25,11 @@ describe("control-plane platform catalog routes", () => {
           })
         ]),
         agents: [
-          {
+          expect.objectContaining({
             id: "geometry_solver",
             name: "Geometry Solver",
             description:
-              "Plans geometry constructions, emits browser-ready command batches, and gates outputs for classroom readiness.",
+              "Plans geometry constructions, proposes scene command batches, and gates outputs for classroom readiness.",
             workflowId: "wf_geometry_solver",
             toolNames: ["scene.read_state", "scene.apply_command_batch"],
             evaluatorNames: ["teacher_readiness"],
@@ -37,8 +37,21 @@ describe("control-plane platform catalog routes", () => {
               maxModelCalls: 6,
               maxToolCalls: 8,
               maxDurationMs: 120000
-            }
-          }
+            },
+            bundle: expect.objectContaining({
+              bundleId: "geometry_solver",
+              schemaVersion: "2",
+              hostRequirements: ["workspace.scene.read", "workspace.scene.write"],
+              workspaceBootstrapFiles: expect.arrayContaining([
+                "workspace/AGENTS.md",
+                "workspace/STANDING_ORDERS.md"
+              ]),
+              promptAssetPaths: expect.arrayContaining([
+                "prompts/planner.md",
+                "prompts/evaluator-teacher-readiness.md"
+              ])
+            })
+          })
         ],
         workflows: expect.arrayContaining([
           expect.objectContaining({

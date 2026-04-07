@@ -1,0 +1,17 @@
+{
+  "defaultMode": "allow-with-policy",
+  "rules": [
+    {
+      "action": "scene.read",
+      "approval": "allow"
+    },
+    {
+      "action": "scene.write",
+      "approval": "allow"
+    },
+    {
+      "action": "delegate.acp-agent",
+      "approval": "checkpoint"
+    }
+  ]
+}

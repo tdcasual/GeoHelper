@@ -1,0 +1,13 @@
+{
+  "writableScopes": [
+    "thread",
+    "workspace"
+  ],
+  "promotionRules": [
+    {
+      "from": "thread",
+      "to": "workspace",
+      "when": "teacher_preference_confirmed"
+    }
+  ]
+}

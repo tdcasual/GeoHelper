@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "2",
+  "id": "geometry_solver",
+  "name": "Geometry Solver",
+  "description": "Plans geometry constructions, proposes scene command batches, and gates outputs for classroom readiness.",
+  "entrypoint": {
+    "plannerPrompt": "prompts/planner.md",
+    "executorPrompt": "prompts/executor.md",
+    "synthesizerPrompt": "prompts/synthesizer.md"
+  },
+  "workspace": {
+    "bootstrapFiles": [
+      "workspace/AGENTS.md",
+      "workspace/IDENTITY.md",
+      "workspace/USER.md",
+      "workspace/TOOLS.md",
+      "workspace/MEMORY.md",
+      "workspace/STANDING_ORDERS.md"
+    ]
+  },
+  "workflow": {
+    "path": "workflows/geometry-solver.workflow.json"
+  },
+  "defaultBudget": {
+    "maxModelCalls": 6,
+    "maxToolCalls": 8,
+    "maxDurationMs": 120000
+  },
+  "runProfiles": [
+    {
+      "id": "platform_geometry_standard",
+      "name": "几何解题",
+      "description": "标准几何解题链路，保留完整的规划、工具和课堂就绪预算。"
+    },
+    {
+      "id": "platform_geometry_quick_draft",
+      "name": "几何快速草稿",
+      "description": "使用更紧的预算快速产出一版草稿，适合先看方向再细化。",
+      "defaultBudget": {
+        "maxModelCalls": 3,
+        "maxToolCalls": 4,
+        "maxDurationMs": 60000
+      }
+    }
+  ],
+  "tools": [
+    "tools/scene.read_state.tool.json",
+    "tools/scene.apply_command_batch.tool.json"
+  ],
+  "evaluators": [
+    "evaluators/teacher_readiness.eval.json"
+  ],
+  "policies": {
+    "context": "policies/context-policy.json",
+    "memory": "policies/memory-policy.json",
+    "approval": "policies/approval-policy.json"
+  },
+  "artifacts": {
+    "outputContract": "artifacts/output-contract.json"
+  },
+  "delegation": {
+    "config": "delegations/subagents.json"
+  },
+  "hostRequirements": [
+    "workspace.scene.read",
+    "workspace.scene.write"
+  ],
+  "hostExtensions": {
+    "geohelper.domain": "geometry"
+  }
+}

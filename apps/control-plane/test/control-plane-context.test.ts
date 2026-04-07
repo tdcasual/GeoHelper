@@ -6,7 +6,10 @@ import {
   createPlatformRuntimeContext,
   type PlatformRuntimeContext
 } from "@geohelper/agent-core";
-import { createGeometryDomainPackage } from "@geohelper/agent-domain-geometry";
+import {
+  createGeometryDomainPackage,
+  createGeometryPlatformBootstrap
+} from "@geohelper/agent-domain-geometry";
 import type { PlatformAgentDefinition } from "@geohelper/agent-protocol";
 import { describe, expect, it } from "vitest";
 
@@ -120,7 +123,19 @@ describe("control-plane context", () => {
 
     expect(services.platformRuntime.bootstrap.runProfiles.platform_geometry_standard).toBeDefined();
     expect(services.platformRuntime.tools["scene.read_state"]).toBeDefined();
+    expect(services.platformRuntime.agents.geometry_solver.bundle?.bundleId).toBe(
+      "geometry_solver"
+    );
     expect(services.runProfiles).toBe(services.platformRuntime.runProfiles);
+  });
+
+  it("can boot directly from the geometry platform bootstrap helper", () => {
+    const runtime = createPlatformRuntimeContext(createGeometryPlatformBootstrap());
+
+    expect(runtime.bootstrap.runProfiles.platform_geometry_standard).toBeDefined();
+    expect(runtime.agents.geometry_solver.bundle?.promptAssetPaths).toContain(
+      "prompts/planner.md"
+    );
   });
 
   it("uses a durable sqlite agent store when GEOHELPER_AGENT_STORE_SQLITE_PATH is set", async () => {

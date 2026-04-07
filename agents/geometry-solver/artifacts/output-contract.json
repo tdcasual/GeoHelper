@@ -1,0 +1,14 @@
+{
+  "response": {
+    "requiredSections": [
+      "summary",
+      "next_action"
+    ]
+  },
+  "actionProposals": [
+    {
+      "kind": "scene_command_batch",
+      "description": "A structured set of scene commands for GeoHelper or a compatible host."
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "name": "@geohelper/agent-domain-geometry",
+  "name": "@geohelper/agent-bundle",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -8,11 +8,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@geohelper/agent-bundle": "workspace:*",
     "@geohelper/agent-protocol": "workspace:*",
-    "@geohelper/agent-sdk": "workspace:*",
-    "@geohelper/agent-tools": "workspace:*",
-    "@geohelper/protocol": "workspace:*",
     "zod": "^4.1.8"
   }
 }

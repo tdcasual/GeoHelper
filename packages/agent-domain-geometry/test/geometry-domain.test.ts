@@ -17,6 +17,13 @@ describe("geometry domain package", () => {
       "scene.apply_command_batch"
     ]);
     expect(agent?.evaluatorNames).toEqual(["teacher_readiness"]);
+    expect(agent?.bundle).toMatchObject({
+      bundleId: "geometry_solver",
+      schemaVersion: "2"
+    });
+    expect(agent?.bundle?.workspaceBootstrapFiles).toContain(
+      "workspace/AGENTS.md"
+    );
   });
 
   it("defines a workflow graph for the geometry solver", () => {
