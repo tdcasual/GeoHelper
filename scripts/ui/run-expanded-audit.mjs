@@ -4,6 +4,7 @@ import path from "node:path";
 import { chromium } from "@playwright/test";
 
 import { filterViewportButtonViolations } from "./lib/offscreen-buttons.mjs";
+import { ensureWorkspaceShellVisible } from "./lib/workspace-bootstrap.mjs";
 
 const baseUrl = process.env.UI_AUDIT_BASE_URL ?? "http://127.0.0.1:4173";
 
@@ -222,8 +223,7 @@ async function prepareSeed(page) {
 async function openApp(page) {
   await prepareSeed(page);
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector(".workspace-shell");
-  await page.waitForTimeout(400);
+  await ensureWorkspaceShellVisible(page);
 }
 
 async function shot(page, name) {

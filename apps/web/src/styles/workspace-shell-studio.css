@@ -1,34 +1,32 @@
-.studio-result-rail {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
+.workspace-dialog-result-shell {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 12px;
-  background:
-    linear-gradient(180deg, rgba(255, 252, 246, 0.98), rgba(248, 243, 234, 0.96)),
-    var(--studio-paper-elevated);
+  gap: 10px;
+  min-height: 0;
 }
 
-.studio-result-rail-header {
+.workspace-dialog-result-header {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(183, 157, 121, 0.24);
+  padding: 0 2px;
 }
 
-.studio-result-rail-header h3 {
+.workspace-dialog-result-header h3 {
   margin: 0;
   font-size: 15px;
   color: var(--studio-ink);
 }
 
-.studio-result-rail-header span {
+.workspace-dialog-result-header span {
   font-size: 12px;
   line-height: 1.5;
   color: var(--studio-ink-soft);
+}
+
+.workspace-dialog-result-shell .studio-result-panel {
+  max-height: min(34vh, 320px);
+  overflow: auto;
 }
 
 .studio-result-panel {

@@ -39,6 +39,8 @@ export const StudioInputPanel = ({
   composerSlot
 }: StudioInputPanelProps) => (
   <div className="studio-input-panel">
+    {headerSlot}
+
     <div className="studio-input-mode-switcher">
       <button
         type="button"
@@ -101,7 +103,6 @@ export const StudioInputPanel = ({
       />
     ) : null}
 
-    {headerSlot}
     {composerSlot}
   </div>
 );

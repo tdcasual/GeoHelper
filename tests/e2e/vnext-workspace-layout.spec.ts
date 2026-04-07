@@ -1,48 +1,46 @@
 import { expect, test } from "@playwright/test";
 
-test("desktop workspace uses a left input rail, center canvas, and right result rail", async ({
+test("desktop workspace uses a left canvas and right dialog rail", async ({
   page
 }) => {
   await page.setViewportSize({ width: 1600, height: 960 });
   await page.goto("/");
   await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 
-  const inputRail = page.getByTestId("studio-input-rail");
   const canvas = page.locator("[data-panel='canvas']");
-  const resultRail = page.getByTestId("studio-result-rail");
+  const dialogRail = page.getByTestId("workspace-dialog-rail");
+  const conversationSidebar = page.getByTestId("conversation-sidebar");
+  const historyToggle = page.getByTestId("history-toggle-button");
+  const resultPanel = page.getByTestId("studio-result-panel");
+  const composer = page.locator(".chat-composer");
 
-  await expect(inputRail).toBeVisible();
   await expect(canvas).toBeVisible();
-  await expect(resultRail).toBeVisible();
+  await expect(dialogRail).toBeVisible();
+  await expect(historyToggle).toBeVisible();
+  await expect(resultPanel).toBeVisible();
+  await expect(composer).toBeVisible();
 
-  const inputBox = await inputRail.boundingBox();
+  await historyToggle.click();
+  await expect(conversationSidebar).toBeVisible();
+
   const canvasBox = await canvas.boundingBox();
-  const resultBox = await resultRail.boundingBox();
+  const dialogBox = await dialogRail.boundingBox();
 
-  expect(inputBox).not.toBeNull();
   expect(canvasBox).not.toBeNull();
-  expect(resultBox).not.toBeNull();
+  expect(dialogBox).not.toBeNull();
 
-  if (!inputBox || !canvasBox || !resultBox) {
+  if (!canvasBox || !dialogBox) {
     return;
   }
 
-  expect(inputBox.x).toBeLessThan(canvasBox.x);
-  expect(canvasBox.x).toBeLessThan(resultBox.x);
-  expect(canvasBox.width).toBeGreaterThan(inputBox.width);
-  expect(canvasBox.width).toBeGreaterThan(resultBox.width);
+  expect(canvasBox.x).toBeLessThan(dialogBox.x);
+  expect(canvasBox.width).toBeGreaterThan(dialogBox.width);
 
-  const inputRailSurface = await inputRail.evaluate((node) => {
+  const dialogRailSurface = await dialogRail.evaluate((node) => {
     const styles = window.getComputedStyle(node);
     return {
       backgroundImage: styles.backgroundImage,
-      borderRightWidth: styles.borderRightWidth
-    };
-  });
-  const resultRailSurface = await resultRail.evaluate((node) => {
-    const styles = window.getComputedStyle(node);
-    return {
-      backgroundImage: styles.backgroundImage
+      borderLeftWidth: styles.borderLeftWidth
     };
   });
   const canvasSurface = await page.locator(".geogebra-host").evaluate((node) => {
@@ -53,9 +51,8 @@ test("desktop workspace uses a left input rail, center canvas, and right result 
     };
   });
 
-  expect(inputRailSurface.backgroundImage).toContain("linear-gradient");
-  expect(parseFloat(inputRailSurface.borderRightWidth)).toBeGreaterThanOrEqual(1);
-  expect(resultRailSurface.backgroundImage).toContain("linear-gradient");
+  expect(dialogRailSurface.backgroundImage).toContain("linear-gradient");
+  expect(parseFloat(dialogRailSurface.borderLeftWidth)).toBeGreaterThanOrEqual(1);
   expect(parseFloat(canvasSurface.borderRadius)).toBeGreaterThanOrEqual(20);
   expect(canvasSurface.boxShadow).not.toBe("none");
 });
