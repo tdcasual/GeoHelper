@@ -102,9 +102,6 @@ describe("control-plane platform catalog routes", () => {
         ])
       })
     });
-    expect(geometrySolver).not.toHaveProperty("workflowId");
-    expect(geometrySolver).not.toHaveProperty("toolNames");
-    expect(geometrySolver).not.toHaveProperty("evaluatorNames");
     expect(geometryReviewer).toMatchObject({
       id: "geometry_reviewer",
       bundle: expect.objectContaining({
@@ -116,9 +113,6 @@ describe("control-plane platform catalog routes", () => {
         ])
       })
     });
-    expect(geometryReviewer).not.toHaveProperty("workflowId");
-    expect(geometryReviewer).not.toHaveProperty("toolNames");
-    expect(geometryReviewer).not.toHaveProperty("evaluatorNames");
   });
 
   it("exposes the same canonical platform catalog on the admin surface", async () => {

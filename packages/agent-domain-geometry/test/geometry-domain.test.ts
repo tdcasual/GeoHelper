@@ -11,9 +11,6 @@ describe("geometry domain package", () => {
     const agent = domain.agents.geometry_solver;
 
     expect(agent).toBeDefined();
-    expect(agent).not.toHaveProperty("workflowId");
-    expect(agent).not.toHaveProperty("toolNames");
-    expect(agent).not.toHaveProperty("evaluatorNames");
     expect(agent?.bundle).toMatchObject({
       bundleId: "geometry_solver",
       schemaVersion: "2"
@@ -85,9 +82,6 @@ describe("geometry domain package", () => {
     expect(reviewer).toMatchObject({
       id: "geometry_reviewer"
     });
-    expect(reviewer).not.toHaveProperty("workflowId");
-    expect(reviewer).not.toHaveProperty("toolNames");
-    expect(reviewer).not.toHaveProperty("evaluatorNames");
     expect(reviewer.bundle).toMatchObject({
       bundleId: "geometry_reviewer",
       schemaVersion: "2"

@@ -53,7 +53,7 @@ OpenClaw 官方文档的重点，不是固定 workflow graph，而是：
 
 这次重构必须明确做出以下不可回头的决定：
 
-1. 废弃“agent 只是 `workflowId + toolNames + evaluatorNames` 的轻量定义”。
+1. 废弃“agent 只是轻量执行声明”的定义方式。
 2. 废弃“domain package 工厂函数就是 agent 全部形态”的做法。
 3. 废弃“subagent == 内部 child run”的唯一表达。
 4. 废弃“GeoHelper runtime contract 就是 agent contract”的设计。

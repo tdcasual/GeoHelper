@@ -1,16 +1,16 @@
-# Drop Legacy Agent Compatibility Implementation Plan
+# Portable Agent Contract Cutover Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Remove the old lightweight agent-definition compatibility layer so GeoHelper only uses portable agent bundles as the runtime source of truth.
+**Goal:** Finalize the platform agent contract so GeoHelper uses portable agent bundles as the runtime source of truth.
 
-**Architecture:** Shrink `PlatformAgentDefinition` down to portable-bundle semantics and stop storing legacy `workflowId/toolNames/evaluatorNames` on the agent object. Run resolution will derive workflow/tool/evaluator requirements from the selected run profile and workflow graph, while portable agent factories and tests are updated to the new contract. This intentionally breaks backward compatibility with the pre-bundle agent shape.
+**Architecture:** Shrink `PlatformAgentDefinition` down to portable-bundle semantics and remove deprecated per-agent execution declarations from the agent object. Run resolution will derive workflow, tool, and evaluator requirements from the selected run profile and workflow graph, while portable agent factories and tests are updated to the new contract. This intentionally drops the previous lightweight agent shape.
 
 **Tech Stack:** TypeScript, Vitest, GeoHelper agent-protocol / agent-core / agent-sdk / agent-domain-geometry / control-plane / worker
 
 ---
 
-## Task 1: Remove legacy fields from the platform agent contract
+## Task 1: Remove deprecated fields from the platform agent contract
 
 **Files:**
 - Modify: `packages/agent-protocol/src/platform-agent.ts`
@@ -22,22 +22,19 @@
 
 **Step 1: Write the failing test**
 
-Change expectations so portable agents no longer expose:
-- `workflowId`
-- `toolNames`
-- `evaluatorNames`
+Change expectations so portable agents expose only bundle metadata and default budget.
 
 **Step 2: Run the failing test**
 
 Run: `pnpm --filter @geohelper/agent-domain-geometry test -- test/geometry-domain.test.ts`
 
-Expected: FAIL because the current contract still publishes legacy fields.
+Expected: FAIL because the current contract still publishes deprecated per-agent execution fields.
 
 **Step 3: Implement the minimal protocol cut**
 
 Change:
 - `PlatformAgentDefinition` to only keep bundle-era agent metadata
-- portable agent factory helper to stop accepting/setting legacy fields
+- portable agent factory helper to stop accepting/setting deprecated fields
 - bundle domain package loader to stop computing those fields
 
 **Step 4: Re-run the test**
@@ -46,7 +43,7 @@ Run: `pnpm --filter @geohelper/agent-domain-geometry test -- test/geometry-domai
 
 Expected: PASS
 
-## Task 2: Make runtime resolution independent from legacy agent fields
+## Task 2: Make runtime resolution independent from deprecated agent fields
 
 **Files:**
 - Modify: `packages/agent-core/src/platform-runtime-context.ts`
@@ -65,7 +62,7 @@ Run:
 - `pnpm --filter @geohelper/agent-core test -- test/platform-runtime-context.test.ts`
 - `pnpm --filter @geohelper/agent-sdk test -- test/platform-registry.test.ts`
 
-Expected: FAIL because runtime resolution still reads legacy agent fields.
+Expected: FAIL because runtime resolution still reads deprecated agent fields.
 
 **Step 3: Implement minimal runtime cutover**
 
@@ -94,7 +91,7 @@ Expected: PASS
 
 **Step 1: Write the failing tests**
 
-Update fixtures so agent definitions stop including legacy fields, while preserving run-profile and workflow behavior.
+Update fixtures so agent definitions stop including deprecated per-agent execution fields, while preserving run-profile and workflow behavior.
 
 **Step 2: Run the failing tests**
 
