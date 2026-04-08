@@ -7,8 +7,8 @@ import { createMemoryAgentStore } from "@geohelper/agent-store";
 import { describe, expect, it } from "vitest";
 
 import {
-  createBundleBackedContextAssembler,
   createContextAssembler,
+  createPortableContextAssembler,
   createStoreBackedContextAssembler
 } from "../src";
 
@@ -263,7 +263,7 @@ describe("context assembler", () => {
       createdAt: "2026-04-05T00:01:00.000Z"
     });
 
-    const assembler = createBundleBackedContextAssembler({
+    const assembler = createPortableContextAssembler({
       store,
       tools: {
         "scene.read_state": {

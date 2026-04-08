@@ -4,7 +4,7 @@
 
 **Goal:** Rebuild GeoHelper's agent definition and registration flow around a portable, file-backed agent bundle format that can later be exported into an OpenClaw-friendly agent workspace.
 
-**Architecture:** Introduce a new bundle contract layer that owns portable agent manifests, workspace bootstrap files, tool/evaluator manifests, and export metadata. Keep the existing `control-plane + worker + store` runtime, but treat it as a host adapter that loads and binds bundles instead of owning the agent definition. Convert the geometry agent into the first bundle-backed domain and add an OpenClaw exporter that emits a compatibility report.
+**Architecture:** Introduce a new bundle contract layer that owns portable agent manifests, workspace bootstrap files, tool/evaluator manifests, and export metadata. Keep the existing `control-plane + worker + store` runtime, but treat it as a host adapter that loads and binds portable bundles instead of owning the agent definition. Convert the geometry agent into the first portable domain and add an OpenClaw exporter that emits a compatibility report.
 
 **Tech Stack:** TypeScript, Node.js, Zod, Fastify, Vitest, existing GeoHelper packages
 
@@ -86,7 +86,7 @@ Run: `pnpm --filter @geohelper/agent-bundle test`
 
 Commit message: `feat: add geometry portable agent bundle`
 
-### Task 3: Add bundle-backed host registration
+### Task 3: Add portable host registration
 
 **Files:**
 - Modify: `packages/agent-sdk/src/index.ts`
@@ -120,7 +120,7 @@ Run: `pnpm --filter @geohelper/agent-domain-geometry test -- test/platform-boots
 
 Commit message: `feat: load geometry runtime from portable bundle`
 
-### Task 4: Cut worker and control-plane over to bundle-backed bootstrap
+### Task 4: Cut worker and control-plane over to portable bootstrap
 
 **Files:**
 - Modify: `apps/worker/src/worker.ts`
@@ -143,7 +143,7 @@ Run:
 
 **Step 3: Implement runtime cutover**
 
-Make bundle-backed bootstrap the authoritative path while preserving current run semantics.
+Make portable bootstrap the authoritative path while preserving current run semantics.
 
 **Step 4: Re-run targeted runtime tests**
 
@@ -151,7 +151,7 @@ Use the same commands as Step 2.
 
 **Step 5: Commit**
 
-Commit message: `feat: cut runtime over to bundle-backed agents`
+Commit message: `feat: cut runtime over to portable agents`
 
 ### Task 5: Add the OpenClaw exporter
 

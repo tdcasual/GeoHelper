@@ -61,7 +61,7 @@ export const createRunProfilesFromBundle = (input: {
         {
           id: `platform_${input.bundle.manifest.id}_standard`,
           name: `${input.bundle.manifest.name} Standard`,
-          description: "Default bundle-backed run profile"
+          description: "Default portable run profile"
         }
       ];
 

@@ -78,7 +78,7 @@ describe("geometry domain package", () => {
     expect(bootstrap.evaluators.teacher_readiness).toBeDefined();
   });
 
-  it("registers a second bundle-backed reviewer agent", () => {
+  it("registers a second portable reviewer agent", () => {
     const bootstrap = createGeometryPlatformBootstrap();
     const reviewer = bootstrap.agents.geometry_reviewer;
 

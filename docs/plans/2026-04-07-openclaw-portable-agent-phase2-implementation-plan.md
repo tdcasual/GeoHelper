@@ -4,7 +4,7 @@
 
 **Goal:** Turn the new portable bundle architecture from a registration/export layer into the actual execution source of truth for context assembly, prompt driving, tool binding, delegation, and host interoperability.
 
-**Architecture:** Keep the bundle schema, geometry bundle assets, and OpenClaw exporter that now exist, but make the runtime consume them end-to-end. Phase 2 shifts the center of gravity from “bundle-backed metadata” to “bundle-backed execution” by wiring workspace bootstrap files, policies, prompts, capability bindings, and delegation contracts into the context plane, intelligence plane, tool plane, and control-plane ops surface.
+**Architecture:** Keep the bundle schema, geometry bundle assets, and OpenClaw exporter that now exist, but make the runtime consume them end-to-end. Phase 2 shifts the center of gravity from “portable bundle metadata” to “portable bundle execution” by wiring workspace bootstrap files, policies, prompts, capability bindings, and delegation contracts into the context plane, intelligence plane, tool plane, and control-plane ops surface.
 
 **Tech Stack:** TypeScript, Node.js, Fastify, Zod, Vitest, existing GeoHelper packages, current control-plane + worker runtime
 
@@ -16,7 +16,7 @@ Phase 1 solved these problems:
 
 1. portable bundle schema exists
 2. geometry agent is file-backed
-3. runtime bootstrap is bundle-backed
+3. runtime bootstrap is portable
 4. OpenClaw export path exists
 
 What is still missing:
@@ -39,7 +39,7 @@ Priority order:
 3. Bundle-driven intelligence drivers
 4. Delegation V2 with native + ACP modes
 5. Export operationalization
-6. Portability proof via a second bundle-backed agent
+6. Portability proof via a second portable agent
 
 ## Task 1: Make the context plane bundle-aware
 
@@ -49,9 +49,9 @@ Priority order:
 - Modify: `packages/agent-context/src/context-types.ts`
 - Modify: `packages/agent-context/src/context-assembler.ts`
 - Modify: `packages/agent-context/src/store-backed-context-assembler.ts`
-- Create: `packages/agent-context/src/bundle-backed-context-assembler.ts`
+- Create: `packages/agent-context/src/portable-context-assembler.ts`
 - Modify: `apps/worker/src/run-loop.ts`
-- Test: `packages/agent-context/test/bundle-backed-context-assembler.test.ts`
+- Test: `packages/agent-context/test/context-assembler.test.ts`
 
 **Step 1: Write failing tests**
 
@@ -62,7 +62,7 @@ Cover:
 
 **Step 2: Run the failing tests**
 
-Run: `pnpm --filter @geohelper/agent-context test -- test/bundle-backed-context-assembler.test.ts`
+Run: `pnpm --filter @geohelper/agent-context test -- test/context-assembler.test.ts`
 
 **Step 3: Implement bundle-aware context assembly**
 
@@ -78,7 +78,7 @@ Ensure runtime context can hand the active bundle into context assembly.
 **Step 5: Re-run tests**
 
 Run:
-- `pnpm --filter @geohelper/agent-context test -- test/bundle-backed-context-assembler.test.ts`
+- `pnpm --filter @geohelper/agent-context test -- test/context-assembler.test.ts`
 - `pnpm --filter @geohelper/worker test -- test/run-loop.test.ts`
 
 **Step 6: Commit**
@@ -251,7 +251,7 @@ Run:
 
 Commit message: `feat: operationalize openclaw bundle export`
 
-## Task 6: Prove portability with a second bundle-backed agent
+## Task 6: Prove portability with a second portable agent
 
 **Outcome:** the system proves it is not geometry-singleton architecture anymore.
 
@@ -263,7 +263,7 @@ Commit message: `feat: operationalize openclaw bundle export`
 **Step 1: Write failing tests**
 
 Cover:
-- repo can load more than one bundle-backed agent
+- repo can load more than one portable agent
 - platform catalog exposes multiple agents/run profiles
 - exporter handles both agents
 
@@ -288,7 +288,7 @@ Run:
 
 **Step 5: Commit**
 
-Commit message: `feat: add second portable bundle-backed agent`
+Commit message: `feat: add second portable agent`
 
 ## Task 7: Full verification pass
 

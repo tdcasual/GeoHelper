@@ -74,8 +74,8 @@ describe("openclaw bundle exporter", () => {
         "prompts/synthesizer.md"
       ]);
       expect(smoke.workspaceBootstrapFiles).toContain("workspace/AGENTS.md");
-      expect(smoke.toolNames).toContain("scene.apply_command_batch");
-      expect(smoke.evaluatorNames).toContain("teacher_readiness");
+      expect(smoke.exportedToolNames).toContain("scene.apply_command_batch");
+      expect(smoke.exportedEvaluatorNames).toContain("teacher_readiness");
       expect(smoke.thinAdapter.requiresHostBindings).toBe(true);
       expect(smoke.thinAdapter.hostBoundTools).toContain(
         "scene.apply_command_batch"

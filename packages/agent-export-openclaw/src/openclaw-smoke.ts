@@ -21,8 +21,8 @@ export interface OpenClawSmokeImportResult {
   workspaceBootstrapFiles: string[];
   entrypointPrompts: string[];
   promptAssetPaths: string[];
-  toolNames: string[];
-  evaluatorNames: string[];
+  exportedToolNames: string[];
+  exportedEvaluatorNames: string[];
   delegationModes: string[];
   compatibility: OpenClawCompatibilityReport;
   thinAdapter: {
@@ -130,8 +130,8 @@ export const smokeImportOpenClawWorkspace = (input: {
     workspaceBootstrapFiles,
     entrypointPrompts,
     promptAssetPaths: [...new Set([...entrypointPrompts, ...evaluatorPromptPaths])],
-    toolNames: tools.map((tool) => tool.name),
-    evaluatorNames: evaluators.map((evaluator) => evaluator.name),
+    exportedToolNames: tools.map((tool) => tool.name),
+    exportedEvaluatorNames: evaluators.map((evaluator) => evaluator.name),
     delegationModes,
     compatibility,
     thinAdapter: {

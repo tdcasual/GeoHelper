@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Prove that a bundle-backed GeoHelper agent can be moved into an OpenClaw-style workspace with only a thin adapter, then add a real ACP external executor bridge with claim lifecycle semantics, and finally prepare the work for commit.
+**Goal:** Prove that a portable GeoHelper agent bundle can be moved into an OpenClaw-style workspace with only a thin adapter, then add a real ACP external executor bridge with claim lifecycle semantics, and finally prepare the work for commit.
 
 **Architecture:** Extend the exporter with a smoke-import validator that reads only the exported OpenClaw-friendly workspace and produces an adapter-surface report. In parallel, upgrade ACP sessions from “list + submit result” to a true external executor bridge by persisting claim metadata and exposing claim / heartbeat / release semantics before result submission. This keeps GeoHelper as the host runtime while making the migration and external-execution boundary explicit and testable.
 

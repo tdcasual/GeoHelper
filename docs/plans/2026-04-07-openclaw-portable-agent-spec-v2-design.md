@@ -615,7 +615,7 @@ exports/openclaw/geometry-solver/
 
 ### Phase 6: Cutover
 
-1. control-plane / worker 只接受 bundle-backed agent
+1. control-plane / worker 只接受 portable agent bundle
 2. 删除旧 platform bootstrap 入口
 
 ## 21. Success Criteria

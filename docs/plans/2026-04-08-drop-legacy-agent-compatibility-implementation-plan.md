@@ -2,9 +2,9 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Remove the old lightweight agent-definition compatibility layer so GeoHelper only uses bundle-backed agent definitions as the runtime source of truth.
+**Goal:** Remove the old lightweight agent-definition compatibility layer so GeoHelper only uses portable agent bundles as the runtime source of truth.
 
-**Architecture:** Shrink `PlatformAgentDefinition` down to bundle-era semantics and stop storing legacy `workflowId/toolNames/evaluatorNames` on the agent object. Run resolution will derive workflow/tool/evaluator requirements from the selected run profile and workflow graph, while bundle-backed agent factories and tests are updated to the new contract. This intentionally breaks backward compatibility with the pre-bundle agent shape.
+**Architecture:** Shrink `PlatformAgentDefinition` down to portable-bundle semantics and stop storing legacy `workflowId/toolNames/evaluatorNames` on the agent object. Run resolution will derive workflow/tool/evaluator requirements from the selected run profile and workflow graph, while portable agent factories and tests are updated to the new contract. This intentionally breaks backward compatibility with the pre-bundle agent shape.
 
 **Tech Stack:** TypeScript, Vitest, GeoHelper agent-protocol / agent-core / agent-sdk / agent-domain-geometry / control-plane / worker
 
@@ -22,7 +22,7 @@
 
 **Step 1: Write the failing test**
 
-Change expectations so bundle-backed agents no longer expose:
+Change expectations so portable agents no longer expose:
 - `workflowId`
 - `toolNames`
 - `evaluatorNames`
@@ -37,7 +37,7 @@ Expected: FAIL because the current contract still publishes legacy fields.
 
 Change:
 - `PlatformAgentDefinition` to only keep bundle-era agent metadata
-- bundle-backed agent factory helper to stop accepting/setting legacy fields
+- portable agent factory helper to stop accepting/setting legacy fields
 - bundle domain package loader to stop computing those fields
 
 **Step 4: Re-run the test**

@@ -4,7 +4,7 @@ import {
   type LoadedPortableAgentBundle,
   loadPortableAgentBundleFromFs} from "@geohelper/agent-bundle";
 import {
-  createBundleBackedContextAssembler
+  createPortableContextAssembler
 } from "@geohelper/agent-context";
 import {
   createWorkflowEngine,
@@ -388,7 +388,7 @@ export const createRunLoop = ({
   })();
   const contextAssembler =
     intelligence?.contextAssembler ??
-    createBundleBackedContextAssembler({
+    createPortableContextAssembler({
       store,
       tools: platformRuntime.tools,
       resolveBundle: (input) => resolvePortableBundle(input.run)

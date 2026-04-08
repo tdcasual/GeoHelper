@@ -148,7 +148,7 @@ const createTestTool = (
 interface CapturedRuntimeContext {
   artifactIds: string[];
   memoryIds: string[];
-  toolNames: string[];
+  toolCatalogNames: string[];
   bundleId: string | null;
 }
 
@@ -626,7 +626,7 @@ describe("worker run loop", () => {
               const nextCapturedContext: CapturedRuntimeContext = {
                 artifactIds: context.artifacts.map((artifact) => artifact.id),
                 memoryIds: context.memories.map((memory) => memory.id),
-                toolNames: context.toolCatalog.map((tool) => tool.name),
+                toolCatalogNames: context.toolCatalog.map((tool) => tool.name),
                 bundleId: context.bundle?.manifest.id ?? null
               };
               capturedContext = nextCapturedContext;
@@ -648,7 +648,7 @@ describe("worker run loop", () => {
     expect(capturedContext).toEqual({
       artifactIds: [],
       memoryIds: ["memory_context_thread"],
-      toolNames: ["scene.read_state"],
+      toolCatalogNames: ["scene.read_state"],
       bundleId: "geometry_solver"
     });
   });

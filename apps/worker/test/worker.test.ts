@@ -105,7 +105,7 @@ describe("worker runtime", () => {
     expect(run?.status).toBe("failed");
   });
 
-  it("uses the geometry platform bootstrap as the authoritative bundle-backed registry", () => {
+  it("uses the geometry platform bootstrap as the authoritative portable registry", () => {
     const runtime = createPlatformRuntimeContext(createGeometryPlatformBootstrap());
 
     expect(runtime.agents.geometry_solver.bundle?.workspaceBootstrapFiles).toContain(

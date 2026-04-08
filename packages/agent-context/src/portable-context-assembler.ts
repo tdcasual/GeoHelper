@@ -13,7 +13,7 @@ import type {
 } from "./context-types";
 import type { StoreBackedToolDefinition } from "./store-backed-context-assembler";
 
-export interface CreateBundleBackedContextAssemblerOptions<
+export interface CreatePortableContextAssemblerOptions<
   TToolDefinition extends StoreBackedToolDefinition = StoreBackedToolDefinition
 > {
   store: Pick<AgentStore, "artifacts" | "memory">;
@@ -189,7 +189,26 @@ const trimConversation = (
   return conversation.slice(-maxMessages);
 };
 
-export const createBundleBackedContextAssembler = <
+export interface CreatePortableContextAssemblerOptions<
+  TToolDefinition extends StoreBackedToolDefinition = StoreBackedToolDefinition
+> {
+  store: Pick<AgentStore, "artifacts" | "memory">;
+  tools: Record<string, TToolDefinition>;
+  resolveBundle?: (
+    input: ContextAssemblyInput
+  ) => LoadedPortableAgentBundle | null | Promise<LoadedPortableAgentBundle | null>;
+  loadConversation?: (
+    input: ContextAssemblyInput
+  ) =>
+    | Promise<ContextConversationMessage[]>
+    | ContextConversationMessage[];
+  loadWorkspace?: (
+    input: ContextAssemblyInput,
+    bundle: LoadedPortableAgentBundle | null
+  ) => Promise<Record<string, unknown>> | Record<string, unknown>;
+}
+
+export const createPortableContextAssembler = <
   TToolDefinition extends StoreBackedToolDefinition = StoreBackedToolDefinition
 >({
   store,
@@ -197,7 +216,7 @@ export const createBundleBackedContextAssembler = <
   resolveBundle,
   loadConversation,
   loadWorkspace
-}: CreateBundleBackedContextAssemblerOptions<TToolDefinition>): ContextAssembler => {
+}: CreatePortableContextAssemblerOptions<TToolDefinition>): ContextAssembler => {
   const bundleCache = new WeakMap<
     ContextAssemblyInput,
     Promise<LoadedPortableAgentBundle | null>
