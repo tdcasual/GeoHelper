@@ -4,6 +4,7 @@ import type {
   Run,
   RunEvent
 } from "@geohelper/agent-protocol";
+import type { AcpSessionRecord } from "@geohelper/agent-store";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -86,6 +87,20 @@ const childRuns: Run[] = [
   }
 ];
 
+const acpSessions: AcpSessionRecord[] = [
+  {
+    id: "acp_session_run_1_node_delegate",
+    runId: "run_1",
+    checkpointId: "checkpoint_1",
+    delegationName: "teacher_review",
+    agentRef: "openclaw.geometry-reviewer",
+    status: "pending",
+    outputArtifactIds: [],
+    createdAt: "2026-04-08T00:00:00.000Z",
+    updatedAt: "2026-04-08T00:00:00.000Z"
+  }
+];
+
 describe("RunTimelinePage", () => {
   it("renders run timeline, pending checkpoints, memory writes, and child runs", () => {
     const markup = renderToStaticMarkup(
@@ -94,7 +109,8 @@ describe("RunTimelinePage", () => {
         events,
         checkpoints,
         memoryEntries,
-        childRuns
+        childRuns,
+        acpSessions
       })
     );
 
@@ -103,6 +119,9 @@ describe("RunTimelinePage", () => {
     expect(markup).toContain("node.started");
     expect(markup).toContain("Confirm geometry draft");
     expect(markup).toContain("teacher_preference");
+    expect(markup).toContain("ACP Sessions");
+    expect(markup).toContain("teacher_review");
+    expect(markup).toContain("openclaw.geometry-reviewer");
     expect(markup).toContain("Subagents");
     expect(markup).toContain("run_child_1");
     expect(markup).toContain("platform_geometry_quick_draft");

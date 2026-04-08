@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "2",
+  "id": "geometry_reviewer",
+  "name": "Geometry Reviewer",
+  "description": "Reviews geometry drafts and responses, then produces teacher-facing critique and next-step guidance.",
+  "entrypoint": {
+    "plannerPrompt": "prompts/planner.md",
+    "executorPrompt": "prompts/executor.md",
+    "synthesizerPrompt": "prompts/synthesizer.md"
+  },
+  "workspace": {
+    "bootstrapFiles": [
+      "workspace/AGENTS.md",
+      "workspace/IDENTITY.md",
+      "workspace/USER.md",
+      "workspace/TOOLS.md",
+      "workspace/MEMORY.md",
+      "workspace/STANDING_ORDERS.md"
+    ]
+  },
+  "workflow": {
+    "path": "workflows/geometry-reviewer.workflow.json"
+  },
+  "defaultBudget": {
+    "maxModelCalls": 4,
+    "maxToolCalls": 1,
+    "maxDurationMs": 90000
+  },
+  "runProfiles": [
+    {
+      "id": "platform_geometry_review",
+      "name": "几何审阅",
+      "description": "审阅几何草稿与回答，输出教师可直接使用的反馈。"
+    }
+  ],
+  "tools": [],
+  "evaluators": [],
+  "policies": {
+    "context": "policies/context-policy.json",
+    "memory": "policies/memory-policy.json",
+    "approval": "policies/approval-policy.json"
+  },
+  "artifacts": {
+    "outputContract": "artifacts/output-contract.json"
+  },
+  "delegation": {
+    "config": "delegations/subagents.json"
+  },
+  "hostRequirements": [],
+  "hostExtensions": {
+    "geohelper.domain": "geometry"
+  }
+}

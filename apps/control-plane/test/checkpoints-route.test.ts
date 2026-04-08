@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { createPlatformRuntimeContext } from "@geohelper/agent-core";
 import {
@@ -10,6 +11,30 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { buildServer } from "../src/server";
+
+const geometryBundleDir = path.resolve(
+  fileURLToPath(new URL("../../../agents/geometry-solver", import.meta.url))
+);
+
+const createTestBundleMetadata = () => ({
+  bundleId: "geometry_solver",
+  schemaVersion: "2",
+  rootDir: geometryBundleDir,
+  workspaceBootstrapFiles: [
+    "workspace/AGENTS.md",
+    "workspace/IDENTITY.md",
+    "workspace/USER.md",
+    "workspace/TOOLS.md",
+    "workspace/MEMORY.md",
+    "workspace/STANDING_ORDERS.md"
+  ],
+  hostRequirements: ["workspace.scene.read", "workspace.scene.write"],
+  promptAssetPaths: [
+    "prompts/planner.md",
+    "prompts/executor.md",
+    "prompts/synthesizer.md"
+  ]
+});
 
 const parseStreamSnapshot = (payload: string) => {
   const dataLine = payload
@@ -79,14 +104,12 @@ const createTestPlatformRuntime = (input: {
         id: "geometry_solver",
         name: "Geometry Solver",
         description: "Test agent",
-        workflowId: input.workflow.id,
-        toolNames: Object.keys(input.tools ?? {}),
-        evaluatorNames: [],
         defaultBudget: {
           maxModelCalls: 6,
           maxToolCalls: 8,
           maxDurationMs: 120000
-        }
+        },
+        bundle: createTestBundleMetadata()
       }
     },
     runProfiles: {

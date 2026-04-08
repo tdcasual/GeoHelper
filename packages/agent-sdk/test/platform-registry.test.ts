@@ -15,9 +15,6 @@ describe("platform registry", () => {
               id: "geometry_solver",
               name: "Geometry Solver",
               description: "Solves geometry tasks",
-              workflowId: "wf_geometry",
-              toolNames: ["scene.read_state"],
-              evaluatorNames: ["teacher_readiness"],
               defaultBudget: {
                 maxModelCalls: 6,
                 maxToolCalls: 8,
@@ -73,9 +70,6 @@ describe("platform registry", () => {
               id: "algebra_solver",
               name: "Algebra Solver",
               description: "Solves algebra tasks",
-              workflowId: "wf_algebra",
-              toolNames: [],
-              evaluatorNames: [],
               defaultBudget: {
                 maxModelCalls: 4,
                 maxToolCalls: 2,

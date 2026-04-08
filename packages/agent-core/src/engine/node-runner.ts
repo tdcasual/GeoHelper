@@ -13,6 +13,11 @@ export type NodeHandlerResult =
       type: "continue";
     }
   | {
+      type: "fail";
+      reason: "delegation_error";
+      message: string;
+    }
+  | {
       type: "route";
       nextNodeId: string;
     }

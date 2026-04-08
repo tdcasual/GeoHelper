@@ -55,23 +55,32 @@ describe("platform-runner", () => {
           202
         )
       )
-      .mockResolvedValueOnce(createSseSnapshotResponse());
+      .mockResolvedValueOnce(createSseSnapshotResponse())
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          sessions: []
+        })
+      );
 
     vi.stubGlobal("fetch", fetchMock);
 
-    await submitPromptToPlatform({
+    const result = await submitPromptToPlatform({
       conversationId: "conv_1",
       message: "快速草稿",
       mode: "byok",
       platformRunProfile: getPlatformRunProfile("platform_geometry_quick_draft")
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     const startRunRequest = fetchMock.mock.calls[1];
     expect(startRunRequest?.[0]).toContain("/api/v3/threads/thread_1/runs");
     expect(JSON.parse(String(startRunRequest?.[1]?.body))).toEqual({
       profileId: "platform_geometry_quick_draft",
       inputArtifactIds: [],
     });
+    expect(fetchMock.mock.calls[3]?.[0]).toContain(
+      "/api/v3/acp-sessions?runId=run_1"
+    );
+    expect(result.acpSessions).toEqual([]);
   });
 });

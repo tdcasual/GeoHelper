@@ -111,8 +111,14 @@ describe("worker runtime", () => {
     expect(runtime.agents.geometry_solver.bundle?.workspaceBootstrapFiles).toContain(
       "workspace/AGENTS.md"
     );
+    expect(runtime.agents.geometry_reviewer.bundle?.bundleId).toBe(
+      "geometry_reviewer"
+    );
     expect(runtime.workflows.wf_geometry_solver.entryNodeId).toBe(
       "node_plan_geometry"
+    );
+    expect(runtime.workflows.wf_geometry_reviewer.entryNodeId).toBe(
+      "node_plan_review"
     );
   });
 

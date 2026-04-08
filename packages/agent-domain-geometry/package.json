@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@geohelper/agent-bundle": "workspace:*",
+    "@geohelper/agent-host-geohelper": "workspace:*",
     "@geohelper/agent-protocol": "workspace:*",
     "@geohelper/agent-sdk": "workspace:*",
     "@geohelper/agent-tools": "workspace:*",

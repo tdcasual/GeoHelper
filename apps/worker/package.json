@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@geohelper/agent-bundle": "workspace:*",
     "@geohelper/agent-context": "workspace:*",
     "@geohelper/agent-core": "workspace:*",
     "@geohelper/agent-domain-geometry": "workspace:*",

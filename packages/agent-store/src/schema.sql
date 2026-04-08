@@ -35,6 +35,7 @@ create table if not exists checkpoints (
   status text not null,
   title text not null,
   prompt text not null,
+  metadata_json text not null default '{}',
   response_json text,
   created_at text not null,
   resolved_at text,
@@ -97,6 +98,26 @@ create table if not exists browser_sessions (
   foreign key (run_id) references runs(id) on delete cascade
 );
 
+create table if not exists acp_sessions (
+  id text primary key,
+  run_id text not null,
+  checkpoint_id text not null,
+  delegation_name text not null,
+  agent_ref text not null,
+  service_ref text,
+  status text not null,
+  output_artifact_ids_json text not null,
+  result_json text,
+  claimed_by text,
+  claimed_at text,
+  claim_expires_at text,
+  created_at text not null,
+  updated_at text not null,
+  resolved_at text,
+  foreign key (run_id) references runs(id) on delete cascade,
+  foreign key (checkpoint_id) references checkpoints(id) on delete cascade
+);
+
 create index if not exists idx_runs_status_created_at
   on runs(status, created_at);
 
@@ -126,3 +147,15 @@ create index if not exists idx_run_dispatches_worker_id_claimed_at
 
 create index if not exists idx_browser_sessions_run_id_created_at
   on browser_sessions(run_id, created_at);
+
+create index if not exists idx_acp_sessions_run_id_created_at
+  on acp_sessions(run_id, created_at);
+
+create index if not exists idx_acp_sessions_status_created_at
+  on acp_sessions(status, created_at);
+
+create index if not exists idx_acp_sessions_agent_ref_status_created_at
+  on acp_sessions(agent_ref, status, created_at);
+
+create index if not exists idx_acp_sessions_claimed_by_claim_expires_at
+  on acp_sessions(claimed_by, claim_expires_at);

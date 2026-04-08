@@ -121,6 +121,47 @@ describe("control-plane-client", () => {
     );
   });
 
+  it("lists ACP sessions for a run", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      createJsonResponse({
+        sessions: [
+          {
+            id: "acp_session_run_1_node_delegate",
+            runId: "run_1",
+            checkpointId: "checkpoint_1",
+            delegationName: "teacher_review",
+            agentRef: "openclaw.geometry-reviewer",
+            status: "pending",
+            outputArtifactIds: [],
+            createdAt: "2026-04-08T00:00:00.000Z",
+            updatedAt: "2026-04-08T00:00:00.000Z"
+          }
+        ]
+      })
+    );
+
+    const client = createControlPlaneClient({
+      baseUrl: "https://control-plane.example.com",
+      fetchImpl: fetchMock as typeof fetch
+    });
+
+    const result = await client.listAcpSessions({
+      runId: "run_1"
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://control-plane.example.com/api/v3/acp-sessions?runId=run_1",
+      undefined
+    );
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: "acp_session_run_1_node_delegate",
+        runId: "run_1",
+        delegationName: "teacher_review"
+      })
+    ]);
+  });
+
   it("parses incremental run stream frames after a cursor", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
       new Response(

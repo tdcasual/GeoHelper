@@ -14,6 +14,10 @@ import {
   RunEventSchema,
   RunSchema} from "@geohelper/agent-protocol";
 
+import type {
+  AcpSessionRecord,
+  AcpSessionRepo
+} from "./repos/acp-session-repo";
 import type { ArtifactRepo } from "./repos/artifact-repo";
 import type {
   BrowserSessionRecord,
@@ -54,6 +58,7 @@ interface SqliteAgentStore {
   dispatches: DispatchRepo;
   engineStates: EngineStateRepo;
   threads: ThreadRepo;
+  acpSessions: AcpSessionRepo;
   browserSessions: BrowserSessionRepo;
   loadRunSnapshot: (runId: string) => AgentStoreResult<RunSnapshot | null>;
 }
@@ -88,6 +93,7 @@ interface CheckpointRow {
   status: Checkpoint["status"];
   title: string;
   prompt: string;
+  metadata_json: string;
   response_json: string | null;
   created_at: string;
   resolved_at: string | null;
@@ -154,6 +160,24 @@ interface BrowserSessionRow {
   created_at: string;
 }
 
+interface AcpSessionRow {
+  id: string;
+  run_id: string;
+  checkpoint_id: string;
+  delegation_name: string;
+  agent_ref: string;
+  service_ref: string | null;
+  status: AcpSessionRecord["status"];
+  output_artifact_ids_json: string;
+  result_json: string | null;
+  claimed_by: string | null;
+  claimed_at: string | null;
+  claim_expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+}
+
 const parseJson = <T>(value: string | null | undefined, fallback: T): T => {
   if (!value) {
     return fallback;
@@ -209,6 +233,7 @@ const mapCheckpointRow = (row: CheckpointRow): Checkpoint =>
     status: row.status,
     title: row.title,
     prompt: row.prompt,
+    metadata: parseJson(row.metadata_json, {}),
     response: parseJson(row.response_json, undefined),
     createdAt: row.created_at,
     resolvedAt: row.resolved_at ?? undefined
@@ -331,6 +356,48 @@ const ensureWorkflowEngineStateSchema = (database: DatabaseSync): void => {
   }
 };
 
+const ensureCheckpointMetadataSchema = (database: DatabaseSync): void => {
+  const columns = readRows<TableInfoRow>(
+    database.prepare("pragma table_info(checkpoints)").all()
+  );
+
+  if (columns.some((column) => column.name === "metadata_json")) {
+    return;
+  }
+
+  database.exec(`
+    alter table checkpoints
+    add column metadata_json text not null default '{}'
+  `);
+};
+
+const ensureAcpSessionClaimSchema = (database: DatabaseSync): void => {
+  const columns = readRows<TableInfoRow>(
+    database.prepare("pragma table_info(acp_sessions)").all()
+  );
+
+  if (!columns.some((column) => column.name === "claimed_by")) {
+    database.exec(`
+      alter table acp_sessions
+      add column claimed_by text
+    `);
+  }
+
+  if (!columns.some((column) => column.name === "claimed_at")) {
+    database.exec(`
+      alter table acp_sessions
+      add column claimed_at text
+    `);
+  }
+
+  if (!columns.some((column) => column.name === "claim_expires_at")) {
+    database.exec(`
+      alter table acp_sessions
+      add column claim_expires_at text
+    `);
+  }
+};
+
 const mapThreadRow = (row: ThreadRow): AgentThread => ({
   id: row.id,
   title: row.title,
@@ -344,6 +411,24 @@ const mapBrowserSessionRow = (
   runId: row.run_id,
   allowedToolNames: parseJson(row.allowed_tool_names_json, []),
   createdAt: row.created_at
+});
+
+const mapAcpSessionRow = (row: AcpSessionRow): AcpSessionRecord => ({
+  id: row.id,
+  runId: row.run_id,
+  checkpointId: row.checkpoint_id,
+  delegationName: row.delegation_name,
+  agentRef: row.agent_ref,
+  serviceRef: row.service_ref ?? undefined,
+  status: row.status,
+  outputArtifactIds: parseJson(row.output_artifact_ids_json, []),
+  result: parseJson(row.result_json, undefined),
+  claimedBy: row.claimed_by ?? undefined,
+  claimedAt: row.claimed_at ?? undefined,
+  claimExpiresAt: row.claim_expires_at ?? undefined,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  resolvedAt: row.resolved_at ?? undefined
 });
 
 const matchesMemoryFilter = (
@@ -382,7 +467,9 @@ export const createSqliteAgentStore = ({
   const database = new DatabaseSync(path);
   database.exec("pragma foreign_keys = on;");
   database.exec(SCHEMA_SQL);
+  ensureCheckpointMetadataSchema(database);
   ensureWorkflowEngineStateSchema(database);
+  ensureAcpSessionClaimSchema(database);
 
   const upsertRunStatement = database.prepare(`
     insert into runs (
@@ -503,10 +590,11 @@ export const createSqliteAgentStore = ({
       status,
       title,
       prompt,
+      metadata_json,
       response_json,
       created_at,
       resolved_at
-    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     on conflict(id) do update set
       run_id = excluded.run_id,
       node_id = excluded.node_id,
@@ -514,6 +602,7 @@ export const createSqliteAgentStore = ({
       status = excluded.status,
       title = excluded.title,
       prompt = excluded.prompt,
+      metadata_json = excluded.metadata_json,
       response_json = excluded.response_json,
       created_at = excluded.created_at,
       resolved_at = excluded.resolved_at
@@ -527,6 +616,7 @@ export const createSqliteAgentStore = ({
       status,
       title,
       prompt,
+      metadata_json,
       response_json,
       created_at,
       resolved_at
@@ -543,6 +633,7 @@ export const createSqliteAgentStore = ({
       status,
       title,
       prompt,
+      metadata_json,
       response_json,
       created_at,
       resolved_at
@@ -559,6 +650,7 @@ export const createSqliteAgentStore = ({
       status,
       title,
       prompt,
+      metadata_json,
       response_json,
       created_at,
       resolved_at
@@ -746,6 +838,84 @@ export const createSqliteAgentStore = ({
     delete from browser_sessions
     where id = ?
   `);
+  const upsertAcpSessionStatement = database.prepare(`
+    insert into acp_sessions (
+      id,
+      run_id,
+      checkpoint_id,
+      delegation_name,
+      agent_ref,
+      service_ref,
+      status,
+      output_artifact_ids_json,
+      result_json,
+      claimed_by,
+      claimed_at,
+      claim_expires_at,
+      created_at,
+      updated_at,
+      resolved_at
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    on conflict(id) do update set
+      run_id = excluded.run_id,
+      checkpoint_id = excluded.checkpoint_id,
+      delegation_name = excluded.delegation_name,
+      agent_ref = excluded.agent_ref,
+      service_ref = excluded.service_ref,
+      status = excluded.status,
+      output_artifact_ids_json = excluded.output_artifact_ids_json,
+      result_json = excluded.result_json,
+      claimed_by = excluded.claimed_by,
+      claimed_at = excluded.claimed_at,
+      claim_expires_at = excluded.claim_expires_at,
+      created_at = excluded.created_at,
+      updated_at = excluded.updated_at,
+      resolved_at = excluded.resolved_at
+  `);
+  const getAcpSessionStatement = database.prepare(`
+    select
+      id,
+      run_id,
+      checkpoint_id,
+      delegation_name,
+      agent_ref,
+      service_ref,
+      status,
+      output_artifact_ids_json,
+      result_json,
+      claimed_by,
+      claimed_at,
+      claim_expires_at,
+      created_at,
+      updated_at,
+      resolved_at
+    from acp_sessions
+    where id = ?
+  `);
+  const listAcpSessionsStatement = database.prepare(`
+    select
+      id,
+      run_id,
+      checkpoint_id,
+      delegation_name,
+      agent_ref,
+      service_ref,
+      status,
+      output_artifact_ids_json,
+      result_json,
+      claimed_by,
+      claimed_at,
+      claim_expires_at,
+      created_at,
+      updated_at,
+      resolved_at
+    from acp_sessions
+    order by created_at asc
+  `);
+  const deleteAcpSessionStatement = database.prepare(`
+    delete from acp_sessions
+    where id = ?
+  `);
 
   const runRepo: RunRepo = {
     createRun: (run) => {
@@ -798,6 +968,7 @@ export const createSqliteAgentStore = ({
         checkpoint.status,
         checkpoint.title,
         checkpoint.prompt,
+        JSON.stringify(checkpoint.metadata ?? {}),
         checkpoint.response === undefined
           ? null
           : JSON.stringify(checkpoint.response),
@@ -952,6 +1123,62 @@ export const createSqliteAgentStore = ({
     listThreads: () => readRows<ThreadRow>(listThreadsStatement.all()).map(mapThreadRow)
   };
 
+  const acpSessionRepo: AcpSessionRepo = {
+    upsertSession: (session) => {
+      upsertAcpSessionStatement.run(
+        session.id,
+        session.runId,
+        session.checkpointId,
+        session.delegationName,
+        session.agentRef,
+        session.serviceRef ?? null,
+        session.status,
+        JSON.stringify(session.outputArtifactIds),
+        session.result === undefined ? null : JSON.stringify(session.result),
+        session.claimedBy ?? null,
+        session.claimedAt ?? null,
+        session.claimExpiresAt ?? null,
+        session.createdAt,
+        session.updatedAt,
+        session.resolvedAt ?? null
+      );
+    },
+    getSession: (sessionId) => {
+      const row = getAcpSessionStatement.get(sessionId) as AcpSessionRow | undefined;
+
+      return row ? mapAcpSessionRow(row) : null;
+    },
+    listSessions: (filter = {}) =>
+      readRows<AcpSessionRow>(listAcpSessionsStatement.all())
+        .map(mapAcpSessionRow)
+        .filter((session) => {
+          if (filter.runId && session.runId !== filter.runId) {
+            return false;
+          }
+
+          if (filter.status && session.status !== filter.status) {
+            return false;
+          }
+
+          if (filter.agentRef && session.agentRef !== filter.agentRef) {
+            return false;
+          }
+
+          if (filter.serviceRef && session.serviceRef !== filter.serviceRef) {
+            return false;
+          }
+
+          if (filter.claimedBy && session.claimedBy !== filter.claimedBy) {
+            return false;
+          }
+
+          return true;
+        }),
+    deleteSession: (sessionId) => {
+      deleteAcpSessionStatement.run(sessionId);
+    }
+  };
+
   const browserSessionRepo: BrowserSessionRepo = {
     createSession: (session) => {
       upsertBrowserSessionStatement.run(
@@ -982,6 +1209,7 @@ export const createSqliteAgentStore = ({
     dispatches: dispatchRepo,
     engineStates: engineStateRepo,
     threads: threadRepo,
+    acpSessions: acpSessionRepo,
     browserSessions: browserSessionRepo,
     loadRunSnapshot: async (runId): Promise<RunSnapshot | null> => {
       const run = await runRepo.getRun(runId);

@@ -7,8 +7,6 @@ import type {
   WorkflowDefinition
 } from "@geohelper/agent-protocol";
 
-const unique = (values: string[]): string[] => [...new Set(values)];
-
 const getWorkflowToolNames = (workflow: WorkflowDefinition): string[] =>
   workflow.nodes.flatMap((node) => {
     if (node.kind !== "tool") {
@@ -126,10 +124,7 @@ export const createPlatformRuntimeContext = <
       };
     }
 
-    const requiredToolNames = unique([
-      ...agent.toolNames,
-      ...getWorkflowToolNames(workflow)
-    ]);
+    const requiredToolNames = getWorkflowToolNames(workflow);
     const tools: TToolDefinition[] = [];
 
     for (const toolName of requiredToolNames) {
@@ -146,10 +141,7 @@ export const createPlatformRuntimeContext = <
       tools.push(tool);
     }
 
-    const requiredEvaluatorNames = unique([
-      ...agent.evaluatorNames,
-      ...getWorkflowEvaluatorNames(workflow)
-    ]);
+    const requiredEvaluatorNames = getWorkflowEvaluatorNames(workflow);
     const evaluators: TEvaluator[] = [];
 
     for (const evaluatorName of requiredEvaluatorNames) {

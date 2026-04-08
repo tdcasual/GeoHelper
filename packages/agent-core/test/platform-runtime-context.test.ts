@@ -24,9 +24,6 @@ const createTestBootstrap = () => ({
       id: "geometry_solver",
       name: "Geometry Solver",
       description: "Test geometry solver",
-      workflowId: "wf_geometry_solver",
-      toolNames: ["scene.read_state", "scene.apply_command_batch"],
-      evaluatorNames: ["teacher_readiness"],
       defaultBudget: {
         maxModelCalls: 6,
         maxToolCalls: 8,
@@ -158,7 +155,7 @@ describe("platform runtime context", () => {
     ]);
   });
 
-  it("fails when an agent tool is missing from the runtime registry", () => {
+  it("fails when a workflow tool is missing from the runtime registry", () => {
     const bootstrap = createTestBootstrap();
     const runtime = createPlatformRuntimeContext({
       ...bootstrap,

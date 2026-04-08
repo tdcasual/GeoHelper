@@ -4,7 +4,9 @@ import type {
   Run,
   RunEvent
 } from "@geohelper/agent-protocol";
+import type { AcpSessionRecord } from "@geohelper/agent-store";
 
+import { AcpSessionInbox } from "./AcpSessionInbox";
 import { ArtifactViewer } from "./ArtifactViewer";
 import { CheckpointInbox } from "./CheckpointInbox";
 
@@ -14,6 +16,7 @@ interface RunConsoleProps {
   childRuns: Run[];
   checkpoints: Checkpoint[];
   artifacts: Artifact[];
+  acpSessions: AcpSessionRecord[];
 }
 
 export const RunConsole = ({
@@ -21,7 +24,8 @@ export const RunConsole = ({
   events,
   childRuns,
   checkpoints,
-  artifacts
+  artifacts,
+  acpSessions
 }: RunConsoleProps) => {
   if (!run) {
     return null;
@@ -39,6 +43,7 @@ export const RunConsole = ({
       </section>
 
       <CheckpointInbox checkpoints={checkpoints} />
+      <AcpSessionInbox sessions={acpSessions} />
       <ArtifactViewer artifacts={artifacts} />
 
       <section className="run-console-card">

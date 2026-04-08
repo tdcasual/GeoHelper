@@ -1,0 +1,32 @@
+{
+  "id": "wf_geometry_reviewer",
+  "version": 1,
+  "entryNodeId": "node_plan_review",
+  "nodes": [
+    {
+      "id": "node_plan_review",
+      "kind": "planner",
+      "name": "Plan review",
+      "config": {},
+      "next": [
+        "node_model_review"
+      ]
+    },
+    {
+      "id": "node_model_review",
+      "kind": "model",
+      "name": "Draft review",
+      "config": {},
+      "next": [
+        "node_finish_review"
+      ]
+    },
+    {
+      "id": "node_finish_review",
+      "kind": "synthesizer",
+      "name": "Finish review",
+      "config": {},
+      "next": []
+    }
+  ]
+}

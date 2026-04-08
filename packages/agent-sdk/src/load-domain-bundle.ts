@@ -3,7 +3,7 @@ import type { PlatformAgentDefinition } from "@geohelper/agent-protocol";
 import type { PlatformRunProfile } from "@geohelper/agent-protocol";
 
 import {
-  createBundleBackedPlatformAgentDefinition,
+  createPortablePlatformAgentDefinition,
   createRunProfilesFromBundle
 } from "./bundle-registry";
 import type { DomainPackage } from "./domain-package";
@@ -48,13 +48,8 @@ export const createBundleDomainPackage = <
   TEvaluator
 >): DomainPackage<TAgentDefinition, TToolDefinition, TEvaluator> => {
   const workflowId = bundle.workflow.id;
-  const toolNames = bundle.tools.map((tool) => tool.name);
-  const evaluatorNames = bundle.evaluators.map((evaluator) => evaluator.name);
-  const agent = createBundleBackedPlatformAgentDefinition({
+  const agent = createPortablePlatformAgentDefinition({
     bundle,
-    workflowId,
-    toolNames,
-    evaluatorNames,
     decorate: decorateAgent
   });
 

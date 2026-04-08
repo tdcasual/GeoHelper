@@ -1,5 +1,9 @@
-import type { Artifact, Checkpoint, PlatformRunProfile } from "@geohelper/agent-protocol";
-import type { RunSnapshot } from "@geohelper/agent-store";
+import type {
+  Artifact,
+  Checkpoint,
+  PlatformRunProfile
+} from "@geohelper/agent-protocol";
+import type { AcpSessionRecord, RunSnapshot } from "@geohelper/agent-store";
 
 import type { PlatformThread } from "../state/thread-store";
 import { buildRunStreamUrl, parseRunStreamPayload } from "./control-plane-stream";
@@ -21,6 +25,10 @@ export interface ControlPlaneClient {
       afterSequence?: number;
     }
   ) => Promise<RunSnapshot>;
+  listAcpSessions: (options?: {
+    runId?: string;
+    status?: AcpSessionRecord["status"];
+  }) => Promise<AcpSessionRecord[]>;
   resolveCheckpoint: (
     checkpointId: string,
     response: unknown
@@ -90,6 +98,21 @@ const requestText = async (fetchImpl: typeof fetch, input: string, init?: Reques
 
   return await response.text();
 };
+
+const buildQueryString = (params: Record<string, string | undefined>): string => {
+  const searchParams = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value) {
+      searchParams.set(key, value);
+    }
+  }
+
+  const query = searchParams.toString();
+
+  return query ? `?${query}` : "";
+};
+
 export const createControlPlaneClient = ({
   baseUrl = "",
   fetchImpl = fetch
@@ -169,6 +192,19 @@ export const createControlPlaneClient = ({
           })
         )
       );
+    },
+    listAcpSessions: async (options = {}) => {
+      const payload = await requestJson<{
+        sessions: AcpSessionRecord[];
+      }>(
+        fetchImpl,
+        `${resolvedBaseUrl}/api/v3/acp-sessions${buildQueryString({
+          runId: options.runId,
+          status: options.status
+        })}`
+      );
+
+      return payload.sessions;
     },
     resolveCheckpoint: async (checkpointId, responsePayload) => {
       const payload = await requestJson<{

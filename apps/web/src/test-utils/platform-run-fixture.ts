@@ -1,5 +1,5 @@
 import type { Artifact, Checkpoint, Run, RunEvent } from "@geohelper/agent-protocol";
-import type { RunSnapshot } from "@geohelper/agent-store";
+import type { AcpSessionRecord, RunSnapshot } from "@geohelper/agent-store";
 
 import type { RuntimeRunResponse } from "../runtime/types";
 
@@ -9,6 +9,7 @@ interface PlatformRunFixtureOverride {
   checkpoints?: Checkpoint[];
   artifacts?: Artifact[];
   childRuns?: Run[];
+  acpSessions?: AcpSessionRecord[];
 }
 
 export const createRunSnapshotFixture = (
@@ -104,5 +105,6 @@ export const createRuntimeRunResponseFixture = (
   override: PlatformRunFixtureOverride = {}
 ): RuntimeRunResponse => ({
   trace_id: override.run?.id ?? "run_fixture",
-  run_snapshot: createRunSnapshotFixture(override)
+  run_snapshot: createRunSnapshotFixture(override),
+  acpSessions: override.acpSessions ?? []
 });

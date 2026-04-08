@@ -1,3 +1,4 @@
+export * from "./bundle-backed-context-assembler";
 export * from "./context-assembler";
 export * from "./context-types";
 export * from "./store-backed-context-assembler";

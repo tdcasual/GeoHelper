@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 
-import { createStoreBackedContextAssembler } from "@geohelper/agent-context";
+import {
+  type LoadedPortableAgentBundle,
+  loadPortableAgentBundleFromFs} from "@geohelper/agent-bundle";
+import {
+  createBundleBackedContextAssembler
+} from "@geohelper/agent-context";
 import {
   createWorkflowEngine,
   type NodeHandler,
@@ -27,6 +32,10 @@ import {
   type CheckpointKind,
   CheckpointSchema
 } from "@geohelper/agent-protocol";
+import {
+  resolveBundleDelegation,
+  resolveDelegationRunProfileId
+} from "@geohelper/agent-sdk";
 import type { AgentStore } from "@geohelper/agent-store";
 
 import {
@@ -70,6 +79,9 @@ const buildRunEventId = (runId: string, sequence: number): string =>
 const buildSubagentRunId = (parentRunId: string, nodeId: string): string =>
   `run_child_${parentRunId}_${nodeId}`;
 
+const buildAcpSessionId = (runId: string, nodeId: string): string =>
+  `acp_session_${runId}_${nodeId}`;
+
 const parseInputArtifactIds = (value: unknown): string[] | null => {
   if (!Array.isArray(value)) {
     return null;
@@ -80,8 +92,6 @@ const parseInputArtifactIds = (value: unknown): string[] | null => {
       typeof artifactId === "string" && artifactId.length > 0
   );
 };
-
-const isAwaitedSubagent = (value: unknown): boolean => value === true;
 
 const isTerminalRunStatus = (status: Run["status"]): boolean =>
   status === "completed" || status === "failed" || status === "cancelled";
@@ -187,18 +197,105 @@ const createSubagentHandler = (
     WorkerToolRegistration,
     unknown
   >,
-  now: () => string
+  now: () => string,
+  buildCheckpointId: () => string,
+  resolveBundle: (run: Run) => LoadedPortableAgentBundle | null
 ): NodeHandler => async ({ run, node }) => {
-  const runProfileId =
-    typeof node.config.runProfileId === "string"
-      ? node.config.runProfileId
-      : null;
+  const delegationName =
+    typeof node.config.delegation === "string"
+      ? node.config.delegation
+      : typeof node.config.delegationName === "string"
+        ? node.config.delegationName
+        : null;
+  const delegation = resolveBundleDelegation({
+    bundle: resolveBundle(run),
+    delegationName,
+    nodeId: node.id
+  });
 
-  if (!runProfileId) {
+  if (!delegation.ok) {
     return {
-      type: "continue"
+      type: "fail",
+      reason: "delegation_error",
+      message: delegation.message
     };
   }
+
+  if (delegation.value.mode === "acp-agent") {
+    const createdAt = now();
+    const checkpoint = CheckpointSchema.parse({
+      id: buildCheckpointId(),
+      runId: run.id,
+      nodeId: node.id,
+      kind: "human_input",
+      status: "pending",
+      title: `Await ACP delegation: ${delegation.value.name}`,
+      prompt: `Resolve ACP delegation ${delegation.value.name} to continue the run.`,
+      metadata: {
+        delegationMode: delegation.value.mode,
+        delegationName: delegation.value.name,
+        agentRef: delegation.value.agentRef,
+        serviceRef: delegation.value.serviceRef,
+        acpSessionId: buildAcpSessionId(run.id, node.id)
+      },
+      createdAt
+    });
+
+    await store.acpSessions.upsertSession({
+      id: buildAcpSessionId(run.id, node.id),
+      runId: run.id,
+      checkpointId: checkpoint.id,
+      delegationName: delegation.value.name,
+      agentRef: delegation.value.agentRef ?? "",
+      serviceRef: delegation.value.serviceRef,
+      status: "pending",
+      outputArtifactIds: [],
+      createdAt,
+      updatedAt: createdAt
+    });
+
+    return {
+      type: "checkpoint",
+      checkpoint
+    };
+  }
+
+  if (delegation.value.mode === "host-service") {
+    return {
+      type: "checkpoint",
+      checkpoint: CheckpointSchema.parse({
+        id: buildCheckpointId(),
+        runId: run.id,
+        nodeId: node.id,
+        kind: "human_input",
+        status: "pending",
+        title: `Await host delegation: ${delegation.value.name}`,
+        prompt: `Resolve host delegation ${delegation.value.name} to continue the run.`,
+        metadata: {
+          delegationMode: delegation.value.mode,
+          delegationName: delegation.value.name,
+          agentRef: delegation.value.agentRef,
+          serviceRef: delegation.value.serviceRef
+        },
+        createdAt: now()
+      })
+    };
+  }
+
+  const runProfileResolution = resolveDelegationRunProfileId({
+    delegation: delegation.value,
+    runProfiles: platformRuntime.runProfiles
+  });
+
+  if (!runProfileResolution.ok) {
+    return {
+      type: "fail",
+      reason: "delegation_error",
+      message: runProfileResolution.message
+    };
+  }
+
+  const runProfileId = runProfileResolution.runProfileId;
 
   const childRunId = buildSubagentRunId(run.id, node.id);
   const existingChildRun = await store.runs.getRun(childRunId);
@@ -228,7 +325,7 @@ const createSubagentHandler = (
   return {
     type: "spawn_subagent",
     childRunId,
-    waitForCompletion: isAwaitedSubagent(node.config.awaitCompletion)
+    waitForCompletion: delegation.value.awaitCompletion
   };
 };
 
@@ -261,11 +358,40 @@ export const createRunLoop = ({
   buildCheckpointId = createCheckpointIdFactory(),
   workerId = "worker_local"
 }: RunLoopOptions) => {
+  const resolvePortableBundle = (() => {
+    const cache = new Map<string, LoadedPortableAgentBundle>();
+
+    return (run: Run): LoadedPortableAgentBundle | null => {
+      const resolution = platformRuntime.resolveRun(run);
+
+      if (!resolution.ok) {
+        return null;
+      }
+
+      const rootDir = resolution.value.agent.bundle?.rootDir;
+
+      if (!rootDir) {
+        return null;
+      }
+
+      const cached = cache.get(rootDir);
+
+      if (cached) {
+        return cached;
+      }
+
+      const bundle = loadPortableAgentBundleFromFs(rootDir);
+      cache.set(rootDir, bundle);
+
+      return bundle;
+    };
+  })();
   const contextAssembler =
     intelligence?.contextAssembler ??
-    createStoreBackedContextAssembler({
+    createBundleBackedContextAssembler({
       store,
-      tools: platformRuntime.tools
+      tools: platformRuntime.tools,
+      resolveBundle: (input) => resolvePortableBundle(input.run)
     });
   const defaultEvaluatorDriver = createEvaluatorDriver({
     evaluators: platformRuntime.evaluators as Record<string, any>,
@@ -277,6 +403,8 @@ export const createRunLoop = ({
     handlers: {
       ...createPlatformNodeHandlers({
         ...intelligence,
+        writeArtifact: (artifact) => store.artifacts.writeArtifact(artifact),
+        now,
         drivers: {
           evaluator: intelligence?.drivers?.evaluator ?? defaultEvaluatorDriver,
           ...intelligence?.drivers
@@ -289,7 +417,13 @@ export const createRunLoop = ({
         buildCheckpointId
       ),
       checkpoint: createCheckpointHandler(now, buildCheckpointId),
-      subagent: createSubagentHandler(store, platformRuntime, now),
+      subagent: createSubagentHandler(
+        store,
+        platformRuntime,
+        now,
+        buildCheckpointId,
+        resolvePortableBundle
+      ),
       ...handlers
     }
   });

@@ -46,9 +46,13 @@ export const submitPromptToPlatform = async (
     profileId: request.platformRunProfile.id
   });
   const snapshot = await client.streamRun(run.id);
+  const acpSessions = await client.listAcpSessions({
+    runId: run.id
+  });
 
   return {
     trace_id: run.id,
-    run_snapshot: buildFallbackSnapshot(snapshot)
+    run_snapshot: buildFallbackSnapshot(snapshot),
+    acpSessions
   };
 };

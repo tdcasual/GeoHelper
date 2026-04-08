@@ -175,6 +175,28 @@ describe("control-plane admin routes", () => {
       store
     });
 
+    await store.acpSessions.upsertSession({
+      id: "acp_session_run_1_node_delegate",
+      runId: "run_1",
+      checkpointId: "checkpoint_run_1",
+      delegationName: "teacher_review",
+      agentRef: "openclaw.geometry-reviewer",
+      status: "pending",
+      outputArtifactIds: [],
+      createdAt: "2026-04-04T00:00:35.000Z",
+      updatedAt: "2026-04-04T00:00:35.000Z"
+    });
+    await store.checkpoints.upsertCheckpoint({
+      id: "checkpoint_run_1",
+      runId: "run_1",
+      nodeId: "node_delegate",
+      kind: "human_input",
+      status: "pending",
+      title: "Await ACP delegation",
+      prompt: "Resolve ACP delegation teacher_review to continue the run.",
+      createdAt: "2026-04-04T00:00:35.000Z"
+    });
+
     const res = await app.inject({
       method: "GET",
       url: "/admin/runs/run_1/timeline"
@@ -201,7 +223,18 @@ describe("control-plane admin routes", () => {
           profileId: "platform_geometry_quick_draft"
         })
       ],
-      checkpoints: [],
+      checkpoints: [
+        expect.objectContaining({
+          id: "checkpoint_run_1"
+        })
+      ],
+      acpSessions: [
+        expect.objectContaining({
+          id: "acp_session_run_1_node_delegate",
+          delegationName: "teacher_review",
+          agentRef: "openclaw.geometry-reviewer"
+        })
+      ],
       memoryEntries: []
     });
   });

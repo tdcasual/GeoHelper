@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 
+import { useAcpSessionStore } from "../state/acp-session-store";
 import { useArtifactStore } from "../state/artifact-store";
 import { useCheckpointStore } from "../state/checkpoint-store";
 import { useRunStore } from "../state/run-store";
@@ -12,6 +13,7 @@ import { SettingsDrawer } from "./SettingsDrawer";
 import { TokenGateDialog } from "./TokenGateDialog";
 import { buildWorkspaceLayoutProps } from "./workspace-shell/layout-props";
 import {
+  selectAcpSessionsForRun,
   selectArtifactsForRun,
   selectCheckpointsForRun,
   selectChildRunsForRun,
@@ -78,6 +80,9 @@ export const WorkspaceShell = ({
   );
   const latestPlatformArtifacts = useArtifactStore((state) =>
     selectArtifactsForRun(state, latestPlatformRunId)
+  );
+  const latestPlatformAcpSessions = useAcpSessionStore((state) =>
+    selectAcpSessionsForRun(state, latestPlatformRunId)
   );
 
   const chatShellRef = useRef<HTMLDivElement | null>(null);
@@ -348,6 +353,7 @@ export const WorkspaceShell = ({
             childRuns={latestPlatformChildRuns}
             checkpoints={latestPlatformCheckpoints}
             artifacts={latestPlatformArtifacts}
+            acpSessions={latestPlatformAcpSessions}
           />
         </section>
       ) : null}

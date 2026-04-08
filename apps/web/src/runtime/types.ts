@@ -1,5 +1,5 @@
 import type { PlatformRunProfile } from "@geohelper/agent-protocol";
-import type { RunSnapshot } from "@geohelper/agent-store";
+import type { AcpSessionRecord, RunSnapshot } from "@geohelper/agent-store";
 import type { RuntimeAttachment } from "@geohelper/protocol";
 
 import type { BackupEnvelope } from "../storage/backup";
@@ -112,6 +112,7 @@ export interface RuntimeRunRequest {
 export interface RuntimeRunResponse {
   trace_id?: string;
   run_snapshot: RunSnapshot;
+  acpSessions: AcpSessionRecord[];
 }
 
 export interface RuntimeLoginRequest {

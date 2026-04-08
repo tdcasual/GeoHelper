@@ -1,3 +1,4 @@
+import type { AcpSessionRecord } from "@geohelper/agent-store";
 import type { RunSnapshot } from "@geohelper/agent-store";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
@@ -12,6 +13,7 @@ import type {
   RuntimeTarget
 } from "../runtime/types";
 import { ensureRemoteSyncStartupCheck } from "../storage/remote-sync";
+import { acpSessionStore } from "./acp-session-store";
 import { artifactStore } from "./artifact-store";
 import type { PersistedChatSnapshot } from "./chat-persistence";
 import { loadChatSnapshot, saveChatSnapshot } from "./chat-persistence";
@@ -120,6 +122,7 @@ export interface ChatStoreDeps {
   recordRunSnapshot: (input: {
     messageId: string;
     snapshot: RunSnapshot;
+    acpSessions?: AcpSessionRecord[];
   }) => void;
 }
 
@@ -160,10 +163,11 @@ const defaultDeps: ChatStoreDeps = {
       mode
     }),
   logEvent: (event) => appendDebugEventIfEnabled(event),
-  recordRunSnapshot: ({ snapshot }) => {
+  recordRunSnapshot: ({ snapshot, acpSessions = [] }) => {
     runStore.getState().applyStreamSnapshot(snapshot);
     checkpointStore.getState().applyRunSnapshot(snapshot);
     artifactStore.getState().applyRunSnapshot(snapshot);
+    acpSessionStore.getState().applySessions(acpSessions);
   }
 };
 

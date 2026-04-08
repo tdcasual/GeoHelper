@@ -1,4 +1,6 @@
-import { createContextAssembler } from "@geohelper/agent-context";
+import {
+  type ContextBundlePacket,
+  createContextAssembler} from "@geohelper/agent-context";
 import type { NodeHandlerContext } from "@geohelper/agent-core";
 import type { Run } from "@geohelper/agent-protocol";
 import { describe, expect, it, vi } from "vitest";
@@ -49,6 +51,75 @@ const createHandlerContext = (
   ...overrides
 });
 
+const createBundlePacket = (): ContextBundlePacket => ({
+  manifest: {
+    id: "geometry_solver",
+    name: "Geometry Solver",
+    description: "bundle",
+    entrypoint: {
+      synthesizerPrompt: "prompts/synthesizer.md"
+    },
+    workflow: {
+      path: "workflows/geometry-solver.workflow.json"
+    },
+    schemaVersion: "2" as const,
+    workspace: {
+      bootstrapFiles: []
+    },
+    defaultBudget: {
+      maxModelCalls: 6,
+      maxToolCalls: 8,
+      maxDurationMs: 120000
+    },
+    runProfiles: [],
+    tools: [],
+    evaluators: [],
+    policies: {
+      context: "policies/context-policy.json",
+      memory: "policies/memory-policy.json",
+      approval: "policies/approval-policy.json"
+    },
+    artifacts: {
+      outputContract: "artifacts/output-contract.json"
+    },
+    hostRequirements: [],
+    hostExtensions: {}
+  },
+  workspaceFiles: {},
+  prompts: {
+    "prompts/synthesizer.md": "Summarize the result for the teacher."
+  },
+  contextPolicy: {
+    includeWorkspaceBootstrap: true,
+    memoryScopes: [
+      "thread",
+      "workspace"
+    ] as ContextBundlePacket["contextPolicy"]["memoryScopes"],
+    artifactKinds: ["tool_result", "response"],
+    maxConversationMessages: 16
+  },
+  memoryPolicy: {
+    writableScopes: [
+      "thread",
+      "workspace"
+    ] as ContextBundlePacket["memoryPolicy"]["writableScopes"],
+    promotionRules: []
+  },
+  approvalPolicy: {
+    defaultMode: "allow-with-policy" as const,
+    rules: []
+  },
+  outputContract: {
+    response: {
+      requiredSections: ["summary"]
+    },
+    actionProposals: []
+  },
+  delegationConfig: {
+    delegations: []
+  }
+});
+
 describe("platform node handlers", () => {
   it("assembles context before calling planner drivers", async () => {
     const execute = vi.fn(async () => ({
@@ -86,7 +157,9 @@ describe("platform node handlers", () => {
 
   it("completes synthesizer nodes by default", async () => {
     const handlers = createPlatformNodeHandlers({
-      contextAssembler: createContextAssembler()
+      contextAssembler: createContextAssembler({
+        loadBundle: async () => createBundlePacket()
+      })
     });
 
     const result = await handlers.synthesizer?.(

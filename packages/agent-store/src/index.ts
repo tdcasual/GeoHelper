@@ -7,6 +7,11 @@ import type {
   RunEvent
 } from "@geohelper/agent-protocol";
 
+import type {
+  AcpSessionRecord,
+  AcpSessionRepo,
+  AcpSessionStatus
+} from "./repos/acp-session-repo";
 import type { ArtifactRepo } from "./repos/artifact-repo";
 import type {
   BrowserSessionRecord,
@@ -85,6 +90,7 @@ export interface AgentStore {
   dispatches: DispatchRepo;
   engineStates: EngineStateRepo;
   threads: ThreadRepo;
+  acpSessions: AcpSessionRepo;
   browserSessions: BrowserSessionRepo;
   loadRunSnapshot: (runId: string) => AgentStoreResult<RunSnapshot | null>;
 }
@@ -98,6 +104,7 @@ export const createMemoryAgentStore = (): AgentStore => {
   const runDispatches: RunDispatch[] = [];
   const engineStates = new Map<string, WorkflowEngineStateRecord>();
   const threads = new Map<string, AgentThread>();
+  const acpSessions = new Map<string, AcpSessionRecord>();
   const browserSessions = new Map<string, BrowserSessionRecord>();
   let dispatchCount = 0;
 
@@ -227,6 +234,45 @@ export const createMemoryAgentStore = (): AgentStore => {
     listThreads: () => [...threads.values()].sort(byCreatedAt)
   };
 
+  const acpSessionRepo: AcpSessionRepo = {
+    upsertSession: (session) => {
+      acpSessions.set(session.id, session);
+    },
+    getSession: (sessionId) => acpSessions.get(sessionId) ?? null,
+    listSessions: (filter = {}) =>
+      [...acpSessions.values()]
+        .filter((session) => {
+          if (filter.runId && session.runId !== filter.runId) {
+            return false;
+          }
+
+          if (
+            filter.status &&
+            (session.status as AcpSessionStatus) !== filter.status
+          ) {
+            return false;
+          }
+
+          if (filter.agentRef && session.agentRef !== filter.agentRef) {
+            return false;
+          }
+
+          if (filter.serviceRef && session.serviceRef !== filter.serviceRef) {
+            return false;
+          }
+
+          if (filter.claimedBy && session.claimedBy !== filter.claimedBy) {
+            return false;
+          }
+
+          return true;
+        })
+        .sort(byCreatedAt),
+    deleteSession: (sessionId) => {
+      acpSessions.delete(sessionId);
+    }
+  };
+
   const browserSessionRepo: BrowserSessionRepo = {
     createSession: (session) => {
       browserSessions.set(session.id, session);
@@ -246,6 +292,7 @@ export const createMemoryAgentStore = (): AgentStore => {
     dispatches: dispatchRepo,
     engineStates: engineStateRepo,
     threads: threadRepo,
+    acpSessions: acpSessionRepo,
     browserSessions: browserSessionRepo,
     loadRunSnapshot: async (runId) => {
       const run = await runRepo.getRun(runId);
@@ -267,6 +314,7 @@ export const createMemoryAgentStore = (): AgentStore => {
   };
 };
 
+export type * from "./repos/acp-session-repo";
 export type * from "./repos/artifact-repo";
 export type * from "./repos/browser-session-repo";
 export type * from "./repos/checkpoint-repo";

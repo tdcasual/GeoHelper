@@ -161,6 +161,9 @@ export type PortableContextPolicy = z.infer<typeof PortableContextPolicySchema>;
 export type PortableDelegationConfig = z.infer<
   typeof PortableDelegationConfigSchema
 >;
+export type PortableDelegationEntry = z.infer<
+  typeof PortableDelegationEntrySchema
+>;
 export type PortableEvaluatorManifest = z.infer<
   typeof PortableEvaluatorManifestSchema
 >;

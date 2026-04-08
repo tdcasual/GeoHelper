@@ -281,6 +281,9 @@ export const createChatStoreActions = ({
         | {
             snapshot: Awaited<ReturnType<ChatStoreDeps["compile"]>>["run_snapshot"];
             traceId: Awaited<ReturnType<ChatStoreDeps["compile"]>>["trace_id"];
+            acpSessions: Awaited<
+              ReturnType<ChatStoreDeps["compile"]>
+            >["acpSessions"];
           }
         | undefined;
 
@@ -311,7 +314,8 @@ export const createChatStoreActions = ({
           });
           compileResult = {
             snapshot: response.run_snapshot,
-            traceId: response.trace_id
+            traceId: response.trace_id,
+            acpSessions: response.acpSessions
           };
           break;
         } catch (error) {
@@ -345,7 +349,8 @@ export const createChatStoreActions = ({
       });
       deps.recordRunSnapshot({
         messageId: assistantMessage.id,
-        snapshot
+        snapshot,
+        acpSessions: compileResult.acpSessions
       });
 
       finishSend(assistantMessage);

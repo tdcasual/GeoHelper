@@ -1,0 +1,7 @@
+{
+  "writableScopes": [
+    "thread",
+    "workspace"
+  ],
+  "promotionRules": []
+}

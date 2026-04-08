@@ -173,7 +173,7 @@ describe("control-plane runs routes", () => {
         profileId: "platform_geometry_quick_draft",
         status: "queued",
         inputArtifactIds: ["artifact_input_1"],
-        outputArtifactIds: [],
+        outputArtifactIds: ["artifact_plan_run_1_node_plan_geometry"],
         budget: {
           maxModelCalls: 3,
           maxToolCalls: 4,
@@ -221,6 +221,79 @@ describe("control-plane runs routes", () => {
     expect(streamedEvents.length).toBeGreaterThan(0);
     expect(streamedEvents.every((event) => event.sequence > 1)).toBe(true);
     expect(streamedEvents.map((event) => event.type)).not.toContain("run.created");
+  });
+
+  it("runs the geometry reviewer profile to completion through the control plane", async () => {
+    const app = buildServer({
+      now: () => "2026-04-04T00:00:00.000Z"
+    });
+
+    await app.inject({
+      method: "POST",
+      url: "/api/v3/threads",
+      payload: {
+        title: "Reviewer thread"
+      }
+    });
+
+    const runRes = await app.inject({
+      method: "POST",
+      url: "/api/v3/threads/thread_1/runs",
+      payload: {
+        profileId: "platform_geometry_review",
+        inputArtifactIds: []
+      }
+    });
+
+    expect(runRes.statusCode).toBe(202);
+    expect(JSON.parse(runRes.payload)).toEqual({
+      run: expect.objectContaining({
+        id: "run_1",
+        profileId: "platform_geometry_review",
+        outputArtifactIds: [
+          "artifact_plan_run_1_node_plan_review",
+          "artifact_draft_run_1_node_model_review",
+          "artifact_response_run_1_node_finish_review"
+        ]
+      })
+    });
+
+    const detailRes = await app.inject({
+      method: "GET",
+      url: "/api/v3/runs/run_1"
+    });
+    const eventsRes = await app.inject({
+      method: "GET",
+      url: "/api/v3/runs/run_1/events"
+    });
+
+    expect(detailRes.statusCode).toBe(200);
+    expect(JSON.parse(detailRes.payload)).toEqual({
+      run: expect.objectContaining({
+        id: "run_1",
+        profileId: "platform_geometry_review",
+        status: "completed",
+        outputArtifactIds: [
+          "artifact_plan_run_1_node_plan_review",
+          "artifact_draft_run_1_node_model_review",
+          "artifact_response_run_1_node_finish_review"
+        ]
+      })
+    });
+    expect(eventsRes.statusCode).toBe(200);
+    expect(JSON.parse(eventsRes.payload)).toEqual({
+      events: expect.arrayContaining([
+        expect.objectContaining({
+          type: "node.started",
+          payload: expect.objectContaining({
+            nodeId: "node_plan_review"
+          })
+        }),
+        expect.objectContaining({
+          type: "run.completed"
+        })
+      ])
+    });
   });
 
   it("gets an existing run and its event log", async () => {

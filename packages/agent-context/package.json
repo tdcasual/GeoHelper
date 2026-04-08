@@ -8,6 +8,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@geohelper/agent-bundle": "workspace:*",
     "@geohelper/agent-memory": "workspace:*",
     "@geohelper/agent-protocol": "workspace:*",
     "@geohelper/agent-store": "workspace:*"

@@ -3,9 +3,21 @@ import type {
   NodeHandlerContext,
   NodeHandlerResult
 } from "@geohelper/agent-core";
+import type { Artifact } from "@geohelper/agent-protocol";
 
 export interface IntelligenceNodeDriverInput extends NodeHandlerContext {
   context: ContextPacket;
+}
+
+export type IntelligenceArtifactWriter = (
+  artifact: Artifact
+) => Promise<void> | void;
+
+export type IntelligenceNow = () => string;
+
+export interface PromptBackedNodeDriverOptions {
+  writeArtifact?: IntelligenceArtifactWriter;
+  now?: IntelligenceNow;
 }
 
 export interface IntelligenceNodeDriver {

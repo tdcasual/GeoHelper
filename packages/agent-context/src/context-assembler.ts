@@ -3,6 +3,7 @@ import type { Artifact, MemoryEntry } from "@geohelper/agent-protocol";
 import type {
   ContextAssembler,
   ContextAssemblyInput,
+  ContextBundlePacket,
   ContextConversationMessage,
   ContextPacket,
   ToolManifest
@@ -18,6 +19,7 @@ export interface ContextAssemblerDeps {
   loadMemories?: Loader<MemoryEntry[]>;
   loadWorkspace?: Loader<Record<string, unknown>>;
   loadToolCatalog?: Loader<ToolManifest[]>;
+  loadBundle?: Loader<ContextBundlePacket | null>;
 }
 
 const emptyContextPacket = (): ContextPacket => ({
@@ -27,7 +29,8 @@ const emptyContextPacket = (): ContextPacket => ({
   artifacts: [],
   memories: [],
   workspace: {},
-  toolCatalog: []
+  toolCatalog: [],
+  bundle: null
 });
 
 export const createContextAssembler = (
@@ -43,7 +46,8 @@ export const createContextAssembler = (
       artifacts,
       memories,
       workspace,
-      toolCatalog
+      toolCatalog,
+      bundle
     ] = await Promise.all([
       deps.loadSystem?.(input) ?? base.system,
       deps.loadInstructions?.(input) ?? base.instructions,
@@ -51,7 +55,8 @@ export const createContextAssembler = (
       deps.loadArtifacts?.(input) ?? base.artifacts,
       deps.loadMemories?.(input) ?? base.memories,
       deps.loadWorkspace?.(input) ?? base.workspace,
-      deps.loadToolCatalog?.(input) ?? base.toolCatalog
+      deps.loadToolCatalog?.(input) ?? base.toolCatalog,
+      deps.loadBundle?.(input) ?? base.bundle
     ]);
 
     return {
@@ -61,7 +66,8 @@ export const createContextAssembler = (
       artifacts,
       memories,
       workspace,
-      toolCatalog
+      toolCatalog,
+      bundle
     };
   }
 });

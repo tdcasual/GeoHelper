@@ -79,6 +79,7 @@ export interface WorkflowExecutionResult {
     | "model_budget_exhausted"
     | "tool_budget_exhausted"
     | "missing_node"
+    | "delegation_error"
     | "subagent_failed";
   state?: WorkflowEngineState;
 }
@@ -173,6 +174,21 @@ const continueExecution = async (input: {
         visitedNodeIds,
         events,
         spawnedRunIds
+      };
+    }
+
+    if (result.type === "fail") {
+      events = appendEvent(events, input.run.id, "run.failed", {
+        reason: result.reason,
+        message: result.message,
+        nodeId: node.id
+      }, now);
+      return {
+        status: "failed",
+        visitedNodeIds,
+        events,
+        spawnedRunIds,
+        failureReason: result.reason
       };
     }
 

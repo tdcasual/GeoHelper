@@ -1,5 +1,11 @@
+import path from "node:path";
+
 import { createPlatformRuntimeContext, type PlatformRuntimeContext } from "@geohelper/agent-core";
 import { createGeometryPlatformBootstrap } from "@geohelper/agent-domain-geometry";
+import {
+  exportOpenClawBundleFromBundleDir,
+  type ExportOpenClawBundleResult
+} from "@geohelper/agent-export-openclaw";
 import type {
   Checkpoint,
   CheckpointStatus,
@@ -20,6 +26,16 @@ import {
 interface PlatformToolCatalogRegistration extends WorkerToolRegistration {
   permissions?: string[];
   retryable?: boolean;
+}
+
+export interface RegisteredPortableBundle {
+  agentId: string;
+  bundleId: string;
+  rootDir: string;
+  schemaVersion: string;
+  hostRequirements: string[];
+  workspaceBootstrapFiles: string[];
+  promptAssetPaths: string[];
 }
 
 export interface ControlPlaneServices {
@@ -45,6 +61,14 @@ export interface ControlPlaneServices {
     checkpointId: string;
     output: unknown;
   }) => Promise<void>;
+  listBundles: () => RegisteredPortableBundle[];
+  exportBundleToOpenClaw: (input: {
+    agentId: string;
+    outputDir?: string;
+  }) => ExportOpenClawBundleResult & {
+    agentId: string;
+    bundleId: string;
+  };
 }
 
 export const DEFAULT_RUN_BUDGET: RunBudget = {
@@ -61,6 +85,33 @@ const createIdFactory = (prefix: string): (() => string) => {
     return `${prefix}_${count}`;
   };
 };
+
+const listRegisteredBundles = (
+  platformRuntime: PlatformRuntimeContext<
+    PlatformAgentDefinition,
+    PlatformToolCatalogRegistration,
+    unknown
+  >
+): RegisteredPortableBundle[] =>
+  Object.values(platformRuntime.agents)
+    .flatMap((agent) => {
+      if (!agent.bundle?.rootDir) {
+        return [];
+      }
+
+      return [
+        {
+          agentId: agent.id,
+          bundleId: agent.bundle.bundleId,
+          rootDir: agent.bundle.rootDir,
+          schemaVersion: agent.bundle.schemaVersion,
+          hostRequirements: [...agent.bundle.hostRequirements],
+          workspaceBootstrapFiles: [...agent.bundle.workspaceBootstrapFiles],
+          promptAssetPaths: [...agent.bundle.promptAssetPaths]
+        }
+      ];
+    })
+    .sort((left, right) => left.agentId.localeCompare(right.agentId));
 
 export const createControlPlaneStoreFromEnv = (
   env: NodeJS.ProcessEnv = process.env
@@ -137,6 +188,38 @@ export const createControlPlaneServices = (
       await workerRuntime.runLoop.tick();
     });
 
+  const listBundles =
+    overrides.listBundles ?? (() => listRegisteredBundles(platformRuntime));
+
+  const exportBundleToOpenClaw =
+    overrides.exportBundleToOpenClaw ??
+    (({
+      agentId,
+      outputDir
+    }: {
+      agentId: string;
+      outputDir?: string;
+    }) => {
+      const agent = platformRuntime.agents[agentId];
+
+      if (!agent?.bundle?.rootDir) {
+        throw new Error(`bundle_not_found:${agentId}`);
+      }
+
+      const result = exportOpenClawBundleFromBundleDir({
+        bundleDir: agent.bundle.rootDir,
+        outputDir:
+          outputDir ??
+          path.resolve(process.cwd(), "exports", "openclaw", agent.bundle.bundleId)
+      });
+
+      return {
+        ...result,
+        agentId,
+        bundleId: agent.bundle.bundleId
+      };
+    });
+
   return {
     store,
     platformRuntime,
@@ -148,7 +231,9 @@ export const createControlPlaneServices = (
       overrides.buildBrowserSessionId ?? createIdFactory("browser_session"),
     processRun,
     resumeRunFromCheckpoint,
-    resumeRunFromBrowserTool
+    resumeRunFromBrowserTool,
+    listBundles,
+    exportBundleToOpenClaw
   };
 };
 

@@ -1,3 +1,4 @@
+export * from "./agents/geometry-reviewer";
 export * from "./agents/geometry-solver";
 export * from "./evals/teacher-readiness";
 export * from "./platform-bootstrap";

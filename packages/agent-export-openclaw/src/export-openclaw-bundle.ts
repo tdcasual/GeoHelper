@@ -1,7 +1,9 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import type { LoadedPortableAgentBundle } from "@geohelper/agent-bundle";
+import {
+  type LoadedPortableAgentBundle,
+  loadPortableAgentBundleFromFs} from "@geohelper/agent-bundle";
 
 import {
   createOpenClawCompatibilityReport,
@@ -87,3 +89,12 @@ export const exportOpenClawBundleToFs = (input: {
     report
   };
 };
+
+export const exportOpenClawBundleFromBundleDir = (input: {
+  bundleDir: string;
+  outputDir: string;
+}): ExportOpenClawBundleResult =>
+  exportOpenClawBundleToFs({
+    bundle: loadPortableAgentBundleFromFs(input.bundleDir),
+    outputDir: input.outputDir
+  });

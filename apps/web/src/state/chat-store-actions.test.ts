@@ -154,6 +154,67 @@ describe("chat-store actions", () => {
     expect(assistantMessage?.result?.uncertaintyItems[0]?.label).toBe(
       "点 D 在线段 BC 上"
     );
+    expect(harness.saveState).toHaveBeenCalled();
+  });
+
+  it("records ACP sessions together with the run snapshot", async () => {
+    const recordRunSnapshot = vi.fn();
+    const harness = createActionHarness(
+      {},
+      {
+        resolveCompileOptions: vi.fn(async () => ({
+          runtimeTarget: "direct" as const,
+          runtimeCapabilities: {
+            supportsOfficialAuth: false,
+            supportsVision: true,
+            supportsAgentSteps: false,
+            supportsServerMetrics: false,
+            supportsRateLimitHeaders: false
+          },
+          platformRunProfile: getPlatformRunProfile(),
+          retryAttempts: 0,
+          extraHeaders: {}
+        })),
+        compile: vi.fn(async () =>
+          createRuntimeRunResponseFixture({
+            run: {
+              id: "run_acp_surface"
+            },
+            acpSessions: [
+              {
+                id: "acp_session_run_acp_surface_node_delegate",
+                runId: "run_acp_surface",
+                checkpointId: "checkpoint_1",
+                delegationName: "teacher_review",
+                agentRef: "openclaw.geometry-reviewer",
+                status: "pending",
+                outputArtifactIds: [],
+                createdAt: "2026-04-08T00:00:00.000Z",
+                updatedAt: "2026-04-08T00:00:00.000Z"
+              }
+            ]
+          })
+        ),
+        recordRunSnapshot
+      }
+    );
+
+    await harness.actions.send("继续");
+
+    expect(recordRunSnapshot).toHaveBeenCalledWith({
+      messageId: expect.any(String),
+      snapshot: expect.objectContaining({
+        run: expect.objectContaining({
+          id: "run_acp_surface"
+        })
+      }),
+      acpSessions: [
+        expect.objectContaining({
+          id: "acp_session_run_acp_surface_node_delegate",
+          status: "pending"
+        })
+      ]
+    });
   });
 
   it("updates one uncertainty review status without changing unrelated items", () => {

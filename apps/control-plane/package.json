@@ -11,6 +11,7 @@
   "dependencies": {
     "@geohelper/agent-core": "workspace:*",
     "@geohelper/agent-domain-geometry": "workspace:*",
+    "@geohelper/agent-export-openclaw": "workspace:*",
     "@geohelper/agent-protocol": "workspace:*",
     "@geohelper/agent-sdk": "workspace:*",
     "@geohelper/agent-store": "workspace:*",

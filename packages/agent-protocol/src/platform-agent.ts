@@ -13,9 +13,6 @@ export interface PlatformAgentDefinition {
   id: string;
   name: string;
   description: string;
-  workflowId: string;
-  toolNames: string[];
-  evaluatorNames: string[];
   defaultBudget: RunBudget;
   bundle?: PlatformAgentBundleMetadata;
 }

@@ -38,15 +38,21 @@ export const registerAdminRunsRoutes = (
       });
     }
 
-    const childRuns = await services.store.runs.listRuns({
-      parentRunId: params.runId
-    });
+    const [childRuns, acpSessions] = await Promise.all([
+      services.store.runs.listRuns({
+        parentRunId: params.runId
+      }),
+      services.store.acpSessions.listSessions({
+        runId: params.runId
+      })
+    ]);
 
     return {
       run: snapshot.run,
       events: snapshot.events,
       childRuns,
       checkpoints: snapshot.checkpoints,
+      acpSessions,
       memoryEntries: snapshot.memoryEntries
     };
   });

@@ -6,6 +6,7 @@ import type {
   NodeHandlerContext,
   NodeHandlerMap
 } from "@geohelper/agent-core";
+import type { Artifact } from "@geohelper/agent-protocol";
 
 import { createEvaluatorDriver } from "./node-drivers/evaluator-driver";
 import { createModelDriver } from "./node-drivers/model-driver";
@@ -17,6 +18,8 @@ export interface PlatformNodeHandlerOptions {
   contextAssembler?: ContextAssembler;
   drivers?: PlatformNodeDrivers;
   getWorkspaceId?: (input: NodeHandlerContext) => string | undefined;
+  writeArtifact?: (artifact: Artifact) => Promise<void> | void;
+  now?: () => string;
 }
 
 const defaultGetWorkspaceId = (input: NodeHandlerContext): string | undefined =>
@@ -47,25 +50,39 @@ const createNodeHandler = (input: {
 export const createPlatformNodeHandlers = ({
   contextAssembler = createContextAssembler(),
   drivers = {},
-  getWorkspaceId = defaultGetWorkspaceId
+  getWorkspaceId = defaultGetWorkspaceId,
+  writeArtifact,
+  now
 }: PlatformNodeHandlerOptions = {}): NodeHandlerMap => ({
   planner: createNodeHandler({
-    driver: drivers.planner ?? createPlannerDriver(),
+    driver: drivers.planner ?? createPlannerDriver({
+      writeArtifact,
+      now
+    }),
     contextAssembler,
     getWorkspaceId
   }),
   model: createNodeHandler({
-    driver: drivers.model ?? createModelDriver(),
+    driver: drivers.model ?? createModelDriver({
+      writeArtifact,
+      now
+    }),
     contextAssembler,
     getWorkspaceId
   }),
   evaluator: createNodeHandler({
-    driver: drivers.evaluator ?? createEvaluatorDriver(),
+    driver: drivers.evaluator ?? createEvaluatorDriver({
+      writeArtifact,
+      now
+    }),
     contextAssembler,
     getWorkspaceId
   }),
   synthesizer: createNodeHandler({
-    driver: drivers.synthesizer ?? createSynthesizerDriver(),
+    driver: drivers.synthesizer ?? createSynthesizerDriver({
+      writeArtifact,
+      now
+    }),
     contextAssembler,
     getWorkspaceId
   })

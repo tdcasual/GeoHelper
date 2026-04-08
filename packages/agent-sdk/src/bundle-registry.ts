@@ -33,22 +33,16 @@ export const createPlatformAgentBundleMetadata = (
   promptAssetPaths: bundle.promptFiles.map((file) => file.relativePath)
 });
 
-export const createBundleBackedPlatformAgentDefinition = <
+export const createPortablePlatformAgentDefinition = <
   TAgentDefinition extends PlatformAgentDefinition = PlatformAgentDefinition
 >(input: {
   bundle: LoadedPortableAgentBundle;
-  workflowId: string;
-  toolNames: string[];
-  evaluatorNames: string[];
   decorate?: (agent: PlatformAgentDefinition) => TAgentDefinition;
 }): TAgentDefinition => {
   const agent: PlatformAgentDefinition = {
     id: input.bundle.manifest.id,
     name: input.bundle.manifest.name,
     description: input.bundle.manifest.description,
-    workflowId: input.workflowId,
-    toolNames: input.toolNames,
-    evaluatorNames: input.evaluatorNames,
     defaultBudget: input.bundle.manifest.defaultBudget,
     bundle: createPlatformAgentBundleMetadata(input.bundle)
   };

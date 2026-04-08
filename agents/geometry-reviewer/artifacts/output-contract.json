@@ -1,0 +1,10 @@
+{
+  "response": {
+    "requiredSections": [
+      "review_summary",
+      "teacher_notes",
+      "risks"
+    ]
+  },
+  "actionProposals": []
+}

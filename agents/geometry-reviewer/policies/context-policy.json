@@ -1,0 +1,15 @@
+{
+  "includeWorkspaceBootstrap": true,
+  "memoryScopes": [
+    "thread",
+    "workspace"
+  ],
+  "artifactKinds": [
+    "input",
+    "plan",
+    "draft",
+    "tool_result",
+    "response"
+  ],
+  "maxConversationMessages": 16
+}

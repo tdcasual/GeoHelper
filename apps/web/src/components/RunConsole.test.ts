@@ -4,6 +4,7 @@ import type {
   Run,
   RunEvent
 } from "@geohelper/agent-protocol";
+import type { AcpSessionRecord } from "@geohelper/agent-store";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -115,6 +116,20 @@ const childRuns: Run[] = [
   }
 ];
 
+const acpSessions: AcpSessionRecord[] = [
+  {
+    id: "acp_session_run_1_node_delegate",
+    runId: "run_1",
+    checkpointId: "checkpoint_1",
+    delegationName: "teacher_review",
+    agentRef: "openclaw.geometry-reviewer",
+    status: "pending",
+    outputArtifactIds: [],
+    createdAt: "2026-04-08T00:00:00.000Z",
+    updatedAt: "2026-04-08T00:00:00.000Z"
+  }
+];
+
 describe("RunConsole", () => {
   it("updates checkpoint UI and shows the latest draft with canvas evidence and child runs", () => {
     const pendingMarkup = renderToStaticMarkup(
@@ -123,7 +138,8 @@ describe("RunConsole", () => {
         events,
         checkpoints: [pendingCheckpoint],
         artifacts,
-        childRuns
+        childRuns,
+        acpSessions
       })
     );
     const resolvedMarkup = renderToStaticMarkup(
@@ -145,7 +161,14 @@ describe("RunConsole", () => {
         ],
         checkpoints: [resolvedCheckpoint],
         artifacts,
-        childRuns
+        childRuns,
+        acpSessions: [
+          {
+            ...acpSessions[0],
+            status: "completed",
+            outputArtifactIds: ["artifact_acp_1"]
+          }
+        ]
       })
     );
 
@@ -154,6 +177,10 @@ describe("RunConsole", () => {
     expect(resolvedMarkup).toContain("暂无待处理 checkpoint");
     expect(resolvedMarkup).toContain("修正版草案");
     expect(resolvedMarkup).toContain("scene_1");
+    expect(pendingMarkup).toContain("ACP Sessions");
+    expect(pendingMarkup).toContain("teacher_review");
+    expect(pendingMarkup).toContain("openclaw.geometry-reviewer");
+    expect(resolvedMarkup).toContain("completed");
     expect(resolvedMarkup).toContain("Subagents");
     expect(resolvedMarkup).toContain("run_child_1");
     expect(resolvedMarkup).toContain("platform_geometry_quick_draft");

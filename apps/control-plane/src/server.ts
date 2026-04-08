@@ -5,6 +5,8 @@ import Fastify, { type FastifyInstance } from "fastify";
 import {
   type ControlPlaneServices,
   createControlPlaneServices} from "./control-plane-context";
+import { registerAcpSessionsRoutes } from "./routes/acp-sessions";
+import { registerAdminBundlesRoutes } from "./routes/admin-bundles";
 import { registerAdminCheckpointsRoutes } from "./routes/admin-checkpoints";
 import { registerAdminEvalsRoutes } from "./routes/admin-evals";
 import { registerAdminMemoryRoutes } from "./routes/admin-memory";
@@ -29,6 +31,7 @@ export const buildServer = (
   const services = createControlPlaneServices(overrides);
 
   registerAdminRunsRoutes(app, services);
+  registerAdminBundlesRoutes(app, services);
   registerAdminToolsRoutes(app, services);
   registerAdminMemoryRoutes(app, services);
   registerAdminCheckpointsRoutes(app, services);
@@ -40,6 +43,7 @@ export const buildServer = (
   registerRunProfilesRoutes(app, services);
   registerRunsRoutes(app, services);
   registerCheckpointsRoutes(app, services);
+  registerAcpSessionsRoutes(app, services);
   registerStreamRoutes(app, services);
   registerBrowserSessionsRoutes(app, services);
 

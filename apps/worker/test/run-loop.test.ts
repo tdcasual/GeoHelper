@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { createPlatformRuntimeContext } from "@geohelper/agent-core";
 import { createGeometryDomainPackage } from "@geohelper/agent-domain-geometry";
@@ -16,6 +17,30 @@ import {
   createRunLoop,
   type WorkerToolRegistration
 } from "../src/run-loop";
+
+const geometryBundleDir = path.resolve(
+  fileURLToPath(new URL("../../../agents/geometry-solver", import.meta.url))
+);
+
+const createTestBundleMetadata = () => ({
+  bundleId: "geometry_solver",
+  schemaVersion: "2",
+  rootDir: geometryBundleDir,
+  workspaceBootstrapFiles: [
+    "workspace/AGENTS.md",
+    "workspace/IDENTITY.md",
+    "workspace/USER.md",
+    "workspace/TOOLS.md",
+    "workspace/MEMORY.md",
+    "workspace/STANDING_ORDERS.md"
+  ],
+  hostRequirements: ["workspace.scene.read", "workspace.scene.write"],
+  promptAssetPaths: [
+    "prompts/planner.md",
+    "prompts/executor.md",
+    "prompts/synthesizer.md"
+  ]
+});
 
 const createRun = (overrides: Partial<Run> = {}) => ({
   id: "run_1",
@@ -66,14 +91,12 @@ const createTestPlatformRuntime = (input: {
         id: "geometry_solver",
         name: "Geometry Solver",
         description: "Test agent",
-        workflowId: input.workflowId,
-        toolNames: Object.keys(input.tools ?? {}),
-        evaluatorNames: Object.keys(input.evaluators ?? {}),
         defaultBudget: {
           maxModelCalls: 6,
           maxToolCalls: 8,
           maxDurationMs: 120000
-        }
+        },
+        bundle: createTestBundleMetadata()
       }
     },
     runProfiles: {
@@ -121,6 +144,13 @@ const createTestTool = (
   name,
   kind
 });
+
+interface CapturedRuntimeContext {
+  artifactIds: string[];
+  memoryIds: string[];
+  toolNames: string[];
+  bundleId: string | null;
+}
 
 describe("worker run loop", () => {
   it("claims queued runs in FIFO order", () => {
@@ -314,20 +344,29 @@ describe("worker run loop", () => {
     expect(resolved.map((checkpoint) => checkpoint.id)).toEqual([
       pendingCheckpoint!.id
     ]);
-    expect(run?.outputArtifactIds).toEqual(["artifact_browser_tool_result_run_1_node_browser_tool"]);
-    expect(artifacts).toEqual([
-      expect.objectContaining({
-        id: "artifact_browser_tool_result_run_1_node_browser_tool",
-        kind: "tool_result",
-        inlineData: {
-          artifactId: "artifact_tool_1"
-        },
-        metadata: expect.objectContaining({
-          toolName: "scene.apply_command_batch",
-          sourceCheckpointId: pendingCheckpoint!.id
-        })
-      })
+    expect(run?.outputArtifactIds).toEqual([
+      "artifact_browser_tool_result_run_1_node_browser_tool",
+      "artifact_response_run_1_node_finish"
     ]);
+    expect(artifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "artifact_browser_tool_result_run_1_node_browser_tool",
+          kind: "tool_result",
+          inlineData: {
+            artifactId: "artifact_tool_1"
+          },
+          metadata: expect.objectContaining({
+            toolName: "scene.apply_command_batch",
+            sourceCheckpointId: pendingCheckpoint!.id
+          })
+        }),
+        expect.objectContaining({
+          id: "artifact_response_run_1_node_finish",
+          kind: "response"
+        })
+      ])
+    );
   });
 
   it("resumes a checkpointed run after sqlite store reopen", async () => {
@@ -518,15 +557,9 @@ describe("worker run loop", () => {
     expect(run?.status).toBe("completed");
   });
 
-  it("assembles store-backed context for intelligence drivers", async () => {
+  it("assembles bundle-aware context for intelligence drivers", async () => {
     const store = createMemoryAgentStore();
-    let capturedContext:
-      | {
-          artifactIds: string[];
-          memoryIds: string[];
-          toolNames: string[];
-        }
-      | undefined;
+    let capturedContext: CapturedRuntimeContext | undefined;
 
     await store.artifacts.writeArtifact({
       id: "artifact_context_input",
@@ -590,11 +623,13 @@ describe("worker run loop", () => {
         drivers: {
           planner: {
             execute: async ({ context }) => {
-              capturedContext = {
+              const nextCapturedContext: CapturedRuntimeContext = {
                 artifactIds: context.artifacts.map((artifact) => artifact.id),
                 memoryIds: context.memories.map((memory) => memory.id),
-                toolNames: context.toolCatalog.map((tool) => tool.name)
+                toolNames: context.toolCatalog.map((tool) => tool.name),
+                bundleId: context.bundle?.manifest.id ?? null
               };
+              capturedContext = nextCapturedContext;
 
               return {
                 type: "continue"
@@ -611,9 +646,10 @@ describe("worker run loop", () => {
 
     expect(result?.status).toBe("completed");
     expect(capturedContext).toEqual({
-      artifactIds: ["artifact_context_input"],
+      artifactIds: [],
       memoryIds: ["memory_context_thread"],
-      toolNames: ["scene.read_state"]
+      toolNames: ["scene.read_state"],
+      bundleId: "geometry_solver"
     });
   });
 

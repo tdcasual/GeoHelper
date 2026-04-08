@@ -11,12 +11,9 @@ describe("geometry domain package", () => {
     const agent = domain.agents.geometry_solver;
 
     expect(agent).toBeDefined();
-    expect(agent?.workflowId).toBe("wf_geometry_solver");
-    expect(agent?.toolNames).toEqual([
-      "scene.read_state",
-      "scene.apply_command_batch"
-    ]);
-    expect(agent?.evaluatorNames).toEqual(["teacher_readiness"]);
+    expect(agent).not.toHaveProperty("workflowId");
+    expect(agent).not.toHaveProperty("toolNames");
+    expect(agent).not.toHaveProperty("evaluatorNames");
     expect(agent?.bundle).toMatchObject({
       bundleId: "geometry_solver",
       schemaVersion: "2"
@@ -67,14 +64,34 @@ describe("geometry domain package", () => {
     const bootstrap = createGeometryPlatformBootstrap();
 
     expect(bootstrap.agents.geometry_solver.id).toBe("geometry_solver");
+    expect(bootstrap.agents.geometry_reviewer.id).toBe("geometry_reviewer");
     expect(bootstrap.runProfiles.platform_geometry_standard.workflowId).toBe(
       "wf_geometry_solver"
+    );
+    expect(bootstrap.runProfiles.platform_geometry_review.workflowId).toBe(
+      "wf_geometry_reviewer"
     );
     expect(
       bootstrap.runProfileMap.get("platform_geometry_standard")
     ).toEqual(bootstrap.runProfiles.platform_geometry_standard);
     expect(bootstrap.tools["scene.read_state"]).toBeDefined();
     expect(bootstrap.evaluators.teacher_readiness).toBeDefined();
+  });
+
+  it("registers a second bundle-backed reviewer agent", () => {
+    const bootstrap = createGeometryPlatformBootstrap();
+    const reviewer = bootstrap.agents.geometry_reviewer;
+
+    expect(reviewer).toMatchObject({
+      id: "geometry_reviewer"
+    });
+    expect(reviewer).not.toHaveProperty("workflowId");
+    expect(reviewer).not.toHaveProperty("toolNames");
+    expect(reviewer).not.toHaveProperty("evaluatorNames");
+    expect(reviewer.bundle).toMatchObject({
+      bundleId: "geometry_reviewer",
+      schemaVersion: "2"
+    });
   });
 
   it("creates a tool_result artifact when applying a geometry command batch", async () => {

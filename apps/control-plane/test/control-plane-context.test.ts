@@ -1,13 +1,13 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   createPlatformRuntimeContext,
   type PlatformRuntimeContext
 } from "@geohelper/agent-core";
 import {
-  createGeometryDomainPackage,
   createGeometryPlatformBootstrap
 } from "@geohelper/agent-domain-geometry";
 import type { PlatformAgentDefinition } from "@geohelper/agent-protocol";
@@ -18,6 +18,30 @@ import {
   createControlPlaneStoreFromEnv
 } from "../src/control-plane-context";
 
+const geometryBundleDir = path.resolve(
+  fileURLToPath(new URL("../../../agents/geometry-solver", import.meta.url))
+);
+
+const createTestBundleMetadata = () => ({
+  bundleId: "geometry_solver",
+  schemaVersion: "2",
+  rootDir: geometryBundleDir,
+  workspaceBootstrapFiles: [
+    "workspace/AGENTS.md",
+    "workspace/IDENTITY.md",
+    "workspace/USER.md",
+    "workspace/TOOLS.md",
+    "workspace/MEMORY.md",
+    "workspace/STANDING_ORDERS.md"
+  ],
+  hostRequirements: ["workspace.scene.read", "workspace.scene.write"],
+  promptAssetPaths: [
+    "prompts/planner.md",
+    "prompts/executor.md",
+    "prompts/synthesizer.md"
+  ]
+});
+
 const createTestPlatformRuntime = () =>
   createPlatformRuntimeContext({
     agents: {
@@ -25,14 +49,12 @@ const createTestPlatformRuntime = () =>
         id: "geometry_solver",
         name: "Geometry Solver",
         description: "Test agent",
-        workflowId: "wf_basic",
-        toolNames: [],
-        evaluatorNames: [],
         defaultBudget: {
           maxModelCalls: 6,
           maxToolCalls: 8,
           maxDurationMs: 120000
-        }
+        },
+        bundle: createTestBundleMetadata()
       }
     },
     runProfiles: {
@@ -105,16 +127,19 @@ const createTestPlatformRuntime = () =>
 describe("control-plane context", () => {
   it("seeds default run profiles from the shared geometry domain registry", () => {
     const services = createControlPlaneServices();
-    const geometryDomain = createGeometryDomainPackage();
+    const geometryBootstrap = createGeometryPlatformBootstrap();
 
     expect([...services.runProfiles.keys()]).toEqual(
-      Object.keys(geometryDomain.runProfiles)
+      Object.keys(geometryBootstrap.runProfiles)
     );
     expect(services.runProfiles.get("platform_geometry_standard")).toEqual(
-      geometryDomain.runProfiles.platform_geometry_standard
+      geometryBootstrap.runProfiles.platform_geometry_standard
     );
     expect(services.runProfiles.get("platform_geometry_quick_draft")).toEqual(
-      geometryDomain.runProfiles.platform_geometry_quick_draft
+      geometryBootstrap.runProfiles.platform_geometry_quick_draft
+    );
+    expect(services.runProfiles.get("platform_geometry_review")).toEqual(
+      geometryBootstrap.runProfiles.platform_geometry_review
     );
   });
 

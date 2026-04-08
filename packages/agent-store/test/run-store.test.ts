@@ -462,6 +462,148 @@ describe("agent store", () => {
     }
   });
 
+  it("persists checkpoint metadata across sqlite store reopen", async () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "geohelper-agent-store-"));
+    const databasePath = path.join(tempDir, "agent-store.sqlite");
+
+    try {
+      const store = createSqliteAgentStore({
+        path: databasePath
+      });
+
+      await store.runs.createRun({
+        id: "run_sqlite_checkpoint_metadata",
+        threadId: "thread_sqlite_checkpoint_metadata",
+        profileId: "platform_geometry_standard",
+        status: "waiting_for_checkpoint",
+        inputArtifactIds: [],
+        outputArtifactIds: [],
+        budget: {
+          maxModelCalls: 4,
+          maxToolCalls: 8,
+          maxDurationMs: 60_000
+        },
+        createdAt: "2026-04-08T00:00:00.000Z",
+        updatedAt: "2026-04-08T00:00:00.000Z"
+      });
+
+      await store.checkpoints.upsertCheckpoint({
+        id: "checkpoint_sqlite_metadata_1",
+        runId: "run_sqlite_checkpoint_metadata",
+        nodeId: "node_delegate",
+        kind: "human_input",
+        status: "pending",
+        title: "Await ACP delegation",
+        prompt: "Resolve ACP delegation to continue.",
+        metadata: {
+          delegationMode: "acp-agent",
+          delegationName: "teacher_review",
+          agentRef: "openclaw.geometry-reviewer"
+        },
+        createdAt: "2026-04-08T00:00:00.000Z"
+      });
+
+      const reopened = createSqliteAgentStore({
+        path: databasePath
+      });
+
+      expect(
+        await reopened.checkpoints.getCheckpoint("checkpoint_sqlite_metadata_1")
+      ).toEqual(
+        expect.objectContaining({
+          metadata: {
+            delegationMode: "acp-agent",
+            delegationName: "teacher_review",
+            agentRef: "openclaw.geometry-reviewer"
+          }
+        })
+      );
+    } finally {
+      rmSync(tempDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
+
+  it("persists acp sessions across sqlite store reopen", async () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "geohelper-agent-store-"));
+    const databasePath = path.join(tempDir, "agent-store.sqlite");
+
+    try {
+      const store = createSqliteAgentStore({
+        path: databasePath
+      });
+
+      await store.runs.createRun({
+        id: "run_sqlite_acp_session",
+        threadId: "thread_sqlite_acp_session",
+        profileId: "platform_geometry_standard",
+        status: "waiting_for_checkpoint",
+        inputArtifactIds: [],
+        outputArtifactIds: [],
+        budget: {
+          maxModelCalls: 4,
+          maxToolCalls: 8,
+          maxDurationMs: 60_000
+        },
+        createdAt: "2026-04-08T00:00:00.000Z",
+        updatedAt: "2026-04-08T00:00:00.000Z"
+      });
+      await store.checkpoints.upsertCheckpoint({
+        id: "checkpoint_sqlite_acp_session_1",
+        runId: "run_sqlite_acp_session",
+        nodeId: "node_delegate",
+        kind: "human_input",
+        status: "pending",
+        title: "Await ACP delegation",
+        prompt: "Resolve ACP delegation to continue.",
+        metadata: {
+          delegationMode: "acp-agent"
+        },
+        createdAt: "2026-04-08T00:00:00.000Z"
+      });
+
+      await store.acpSessions.upsertSession({
+        id: "acp_session_sqlite_1",
+        runId: "run_sqlite_acp_session",
+        checkpointId: "checkpoint_sqlite_acp_session_1",
+        delegationName: "teacher_review",
+        agentRef: "openclaw.geometry-reviewer",
+        status: "pending",
+        outputArtifactIds: [],
+        claimedBy: "executor_geometry_reviewer",
+        claimedAt: "2026-04-08T00:00:06.000Z",
+        claimExpiresAt: "2026-04-08T00:05:06.000Z",
+        createdAt: "2026-04-08T00:00:05.000Z",
+        updatedAt: "2026-04-08T00:00:05.000Z"
+      });
+
+      const reopened = createSqliteAgentStore({
+        path: databasePath
+      });
+
+      expect(await reopened.acpSessions.getSession("acp_session_sqlite_1")).toEqual(
+        expect.objectContaining({
+          runId: "run_sqlite_acp_session",
+          checkpointId: "checkpoint_sqlite_acp_session_1",
+          delegationName: "teacher_review",
+          agentRef: "openclaw.geometry-reviewer",
+          status: "pending",
+          outputArtifactIds: [],
+          claimedBy: "executor_geometry_reviewer",
+          claimedAt: "2026-04-08T00:00:06.000Z",
+          claimExpiresAt: "2026-04-08T00:05:06.000Z"
+        })
+      );
+    } finally {
+      rmSync(tempDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
+
   it("filters child runs by parentRunId after sqlite store reopen", async () => {
     const tempDir = mkdtempSync(path.join(tmpdir(), "geohelper-agent-store-"));
     const databasePath = path.join(tempDir, "agent-store.sqlite");
