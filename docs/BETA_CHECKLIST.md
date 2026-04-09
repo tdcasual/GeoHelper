@@ -28,6 +28,12 @@ Updated: 2026-03-31
 - Localhost staging candidate live evidence passed on 2026-03-19 against `http://127.0.0.1:8787`, with artifacts under `output/ops/2026-03-19T17-50-10-local-staging/`: live `pnpm smoke:gateway-runtime`, live `pnpm smoke:gateway-backup-restore`, live `pnpm ops:gateway:scheduled`, `/api/v1/health`, `/api/v1/ready`, `/admin/version`, `/admin/metrics`, and backup restore evidence.
 - Shared staging / external live evidence is still pending if release sign-off requires a non-localhost gateway target and real operator credentials. Required environment for that remaining pass: `GATEWAY_URL=https://<gateway-domain>` and `ADMIN_METRICS_TOKEN=<admin-token>`.
 
+### Release-Candidate Shared-Staging Evidence
+
+- Shared-staging / external live evidence is now a first-class release phase. Each shared-staging run must connect to the real `GATEWAY_URL` and `CONTROL_PLANE_URL`, log in with `PRESET_TOKEN`, and use `ADMIN_METRICS_TOKEN` when the admin surfaces and bundle audit traces are protected.
+- The release-candidate command sequence is: `pnpm smoke:gateway-runtime`, `pnpm smoke:gateway-backup-restore`, `pnpm smoke:platform-run-remote`, `pnpm ops:gateway:scheduled`, and finally `pnpm ops:release-candidate:live`. The final pipeline writes `output/ops/<timestamp>/release-candidate-summary.json`, which captures `gatewayRuntime`, `backupRestore`, `platformRun`, `scheduledVerify`, published artifact URLs, and the portable-bundle audit details that reference `rehearsedExtractionCandidate`, `verifyImport`, and `extractionBlockers`.
+- Operators must note the exact execution date, the staging domains, and the artifact directory inside this checklist entry. If a pass is blocked (missing credentials, publishing failures, or failing thresholds), the blocker must be documented instead of leaving the record blank so the next ship-bearing run can start from a clean slate.
+
 ## Environment Variables
 
 ### Web (`apps/web`)

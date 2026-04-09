@@ -10,7 +10,7 @@ describe("deploy docs", () => {
     expect(txt).toContain("latest");
     expect(txt).toContain("fallback");
     expect(txt).toContain("vendor/geogebra/manifest.json");
-    expect(txt).toContain("auto-publishes the gateway image to GHCR");
+    expect(txt).toContain("auto-publishes both images to GHCR after successful `main` CI using the built-in repository token with `packages: write`");
     expect(txt).toContain("successful `main` CI");
     expect(txt).toContain("runtime deployment remains manual");
     expect(txt).toContain("ghcr.io/<owner>/geohelper-gateway:staging");
@@ -33,8 +33,15 @@ describe("deploy docs", () => {
     expect(txt).toContain("ordinary retained history and protected retained snapshots are bounded separately");
     expect(txt).toContain("new protect requests fail explicitly when protected capacity is full");
     expect(txt).toContain("/admin/backups/history/<snapshot-id>/protect");
-    expect(txt).toContain("legacy compile route has already been removed");
-    expect(readme).toContain("GitHub Actions auto-publishes the gateway image to GHCR");
+    expect(txt).toContain("CONTROL_PLANE_URL");
+    expect(txt).toContain("pnpm smoke:platform-run-remote");
+    expect(txt).toContain("pnpm ops:release-candidate:live");
+    expect(txt).toContain("release-candidate-summary.json");
+    expect(txt).toContain("rehearsedExtractionCandidate");
+    expect(txt).toContain("verifyImport");
+    expect(txt).toContain("extractionBlockers");
+    expect(readme).toContain("GitHub Actions auto-publishes both the gateway and control-plane images to GHCR after successful `main` CI");
     expect(readme).toContain("gateway runtime deployment remains manual");
+    expect(readme).toContain("pnpm smoke:platform-run-remote");
   });
 });

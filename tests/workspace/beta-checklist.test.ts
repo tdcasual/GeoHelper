@@ -28,5 +28,13 @@ describe("beta checklist docs", () => {
     expect(txt).toContain("new protect requests fail explicitly when protected capacity is full");
     expect(txt).toContain("manual metadata operation");
     expect(txt).toContain("does not imply import or restore");
+    expect(txt).toContain("Release-Candidate Shared-Staging Evidence");
+    expect(txt).toContain("pnpm smoke:platform-run-remote");
+    expect(txt).toContain("release-candidate-summary.json");
+    expect(txt).toContain("GATEWAY_URL");
+    expect(txt).toContain("CONTROL_PLANE_URL");
+    expect(txt).toContain("PRESET_TOKEN");
+    expect(txt).toContain("ADMIN_METRICS_TOKEN");
+    expect(txt).toContain("shared-staging");
   });
 });
