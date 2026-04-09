@@ -17,6 +17,8 @@ export interface OpenClawCompatibilityReport {
   bundleId: string;
   schemaVersion: string;
   recommendedImportMode: "portable" | "portable-with-host-bindings";
+  rehearsedExtractionCandidate: boolean;
+  extractionBlockers: string[];
   requiredOpenClawCapabilities: string[];
   fullyPortableTools: string[];
   hostBoundTools: string[];
@@ -26,6 +28,10 @@ export interface OpenClawCompatibilityReport {
   degradedBehaviors: string[];
   notes: string[];
 }
+
+const REHEARSED_EXTRACTION_CANDIDATE_BUNDLE_IDS = new Set([
+  "geometry_reviewer"
+]);
 
 const unique = (values: string[]): string[] => [...new Set(values)];
 
@@ -70,6 +76,7 @@ export const createOpenClawCompatibilityReport = (
   const requiredOpenClawCapabilities = unique([
     ...bundle.manifest.hostRequirements
   ]);
+  const extractionBlockers = [...requiredOpenClawCapabilities];
   const degradedBehaviors = [
     ...hostBoundTools.map(
       (toolName) =>
@@ -88,6 +95,10 @@ export const createOpenClawCompatibilityReport = (
       hostBoundTools.length > 0 || hostServiceDelegations.length > 0
         ? "portable-with-host-bindings"
         : "portable",
+    rehearsedExtractionCandidate: REHEARSED_EXTRACTION_CANDIDATE_BUNDLE_IDS.has(
+      bundle.manifest.id
+    ),
+    extractionBlockers,
     requiredOpenClawCapabilities,
     fullyPortableTools,
     hostBoundTools,

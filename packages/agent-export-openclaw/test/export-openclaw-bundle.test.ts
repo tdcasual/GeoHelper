@@ -48,6 +48,8 @@ describe("openclaw bundle exporter", () => {
       ) as {
         recommendedImportMode: string;
         hostBoundTools: string[];
+        rehearsedExtractionCandidate: boolean;
+        extractionBlockers: string[];
       };
       const exportedWorkspace = readFileSync(
         path.join(outputDir, "workspace/AGENTS.md"),
@@ -63,6 +65,11 @@ describe("openclaw bundle exporter", () => {
       expect(exportedReport.recommendedImportMode).toBe(
         "portable-with-host-bindings"
       );
+      expect(exportedReport.rehearsedExtractionCandidate).toBe(false);
+      expect(exportedReport.extractionBlockers).toEqual([
+        "workspace.scene.read",
+        "workspace.scene.write"
+      ]);
       expect(exportedReport.hostBoundTools).toContain(
         "scene.apply_command_batch"
       );
@@ -80,6 +87,11 @@ describe("openclaw bundle exporter", () => {
       expect(smoke.thinAdapter.hostBoundTools).toContain(
         "scene.apply_command_batch"
       );
+      expect(smoke.extractionBlockers).toEqual([
+        "workspace.scene.read",
+        "workspace.scene.write"
+      ]);
+      expect(smoke.cleanExternalMoveReady).toBe(false);
     } finally {
       rmSync(outputDir, {
         recursive: true,
@@ -190,9 +202,25 @@ describe("openclaw bundle exporter", () => {
       const payload = JSON.parse(run.stdout) as {
         bundleId: string;
         outputDir: string;
+        audit?: {
+          bundleId: string;
+          rehearsedExtractionCandidate: boolean;
+          extractionBlockers: string[];
+          verifyImport: {
+            bundleId: string;
+            workflowId: string;
+            cleanExternalMoveReady: boolean;
+            extractionBlockers: string[];
+          } | null;
+        };
         smoke?: {
           bundleId: string;
           workflowId: string;
+          cleanExternalMoveReady: boolean;
+          extractionBlockers: string[];
+          compatibility: {
+            rehearsedExtractionCandidate: boolean;
+          };
           thinAdapter: {
             requiresHostBindings: boolean;
             recommendedImportMode: string;
@@ -204,9 +232,25 @@ describe("openclaw bundle exporter", () => {
         bundleId: "geometry_reviewer",
         outputDir,
         reportPath: path.join(outputDir, "export-report.json"),
+        audit: {
+          bundleId: "geometry_reviewer",
+          rehearsedExtractionCandidate: true,
+          extractionBlockers: [],
+          verifyImport: {
+            bundleId: "geometry_reviewer",
+            workflowId: "wf_geometry_reviewer",
+            cleanExternalMoveReady: true,
+            extractionBlockers: []
+          }
+        },
         smoke: expect.objectContaining({
           bundleId: "geometry_reviewer",
           workflowId: "wf_geometry_reviewer",
+          cleanExternalMoveReady: true,
+          extractionBlockers: [],
+          compatibility: expect.objectContaining({
+            rehearsedExtractionCandidate: true
+          }),
           thinAdapter: expect.objectContaining({
             requiresHostBindings: false,
             recommendedImportMode: "portable"
@@ -315,11 +359,55 @@ describe("openclaw bundle exporter", () => {
           serviceRef: "host.geometry-review"
         }
       ]);
+      expect(smokeResult.extractionBlockers).toEqual([
+        "workspace.scene.read",
+        "workspace.scene.write"
+      ]);
+      expect(smokeResult.cleanExternalMoveReady).toBe(false);
     } finally {
       rmSync(sourceDir, {
         recursive: true,
         force: true
       });
+      rmSync(outputDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
+
+  it("marks the reviewer bundle as the rehearsed extraction candidate in export-report.json", () => {
+    const outputDir = mkdtempSync(
+      path.join(os.tmpdir(), "geohelper-openclaw-reviewer-candidate-")
+    );
+
+    try {
+      const bundle = loadPortableAgentBundleFromFs(
+        path.resolve(
+          fileURLToPath(new URL("../../../agents/geometry-reviewer", import.meta.url))
+        )
+      );
+      exportOpenClawBundleToFs({
+        bundle,
+        outputDir
+      });
+
+      const exportedReport = JSON.parse(
+        readFileSync(path.join(outputDir, "export-report.json"), "utf8")
+      ) as {
+        bundleId: string;
+        rehearsedExtractionCandidate: boolean;
+        extractionBlockers: string[];
+      };
+
+      expect(exportedReport).toEqual(
+        expect.objectContaining({
+          bundleId: "geometry_reviewer",
+          rehearsedExtractionCandidate: true,
+          extractionBlockers: []
+        })
+      );
+    } finally {
       rmSync(outputDir, {
         recursive: true,
         force: true

@@ -25,6 +25,8 @@ export interface OpenClawSmokeImportResult {
   exportedEvaluatorNames: string[];
   delegationModes: string[];
   compatibility: OpenClawCompatibilityReport;
+  cleanExternalMoveReady: boolean;
+  extractionBlockers: string[];
   thinAdapter: {
     requiresHostBindings: boolean;
     hostBoundTools: string[];
@@ -136,6 +138,10 @@ export const smokeImportOpenClawWorkspace = (input: {
     exportedEvaluatorNames: evaluators.map((evaluator) => evaluator.name),
     delegationModes,
     compatibility,
+    cleanExternalMoveReady:
+      compatibility.recommendedImportMode === "portable" &&
+      compatibility.extractionBlockers.length === 0,
+    extractionBlockers: compatibility.extractionBlockers,
     thinAdapter: {
       requiresHostBindings: compatibility.recommendedImportMode === "portable-with-host-bindings",
       hostBoundTools: compatibility.hostBoundTools,

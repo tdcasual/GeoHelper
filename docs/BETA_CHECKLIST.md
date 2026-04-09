@@ -72,6 +72,7 @@ Updated: 2026-03-31
 - When `REDIS_URL` is enabled, session revoke state and latest backup retention become durable across process restarts and power operator recovery queries.
 - Gateway image attachments are an explicitly gated capability: `GATEWAY_ENABLE_ATTACHMENTS=1` plus passing vision smoke are required before promotion.
 - direct runtime and gateway runtime can legitimately differ in vision support.
+- OpenClaw portability claims now require at least one bundle with `rehearsedExtractionCandidate: true`, a captured `verifyImport` result from the admin bundle audit surface, and an explicit review of any non-empty `extractionBlockers`.
 
 ## Rollback Plan
 
@@ -117,6 +118,7 @@ Updated: 2026-03-31
 - [x] Gateway backup restore drill checked (`pnpm smoke:gateway-backup-restore -- --dry-run`, verified 2026-03-19 and reverified 2026-03-31; Redis-backed live restore drill also passed on 2026-03-31 via `output/ops/manual-phase4/backup-restore-live.json`)
 - [x] Deploy runbook reviewed (`docs/deploy/edgeone.md`, reviewed 2026-03-19)
 - [x] Gateway/control-plane image contract reviewed (`ghcr.io/<owner>/geohelper-gateway:staging`, `ghcr.io/<owner>/geohelper-gateway:sha-<shortsha>`, `ghcr.io/<owner>/geohelper-control-plane:staging`, and `ghcr.io/<owner>/geohelper-control-plane:sha-<shortsha>` are the expected release tags)
+- [x] OpenClaw extraction rehearsal checked (at least one exported bundle is marked `rehearsedExtractionCandidate`, admin bundle audit output captures `verifyImport`, and any `extractionBlockers` remain visible before portability claims)
 - [x] Alert webhook wiring reviewed (gateway 5xx/operator alerts remain routed through the same webhook plumbing; historical live evidence was captured on 2026-03-19 in `output/ops/2026-03-19T17-50-10-local-staging/webhook-events.jsonl`)
 - [x] Liveness/readiness contract checked (`/api/v1/health` stays shallow, `/api/v1/ready` is green before traffic switch; verified 2026-03-19 on localhost staging via `output/ops/2026-03-19T17-50-10-local-staging/health.json` and `output/ops/2026-03-19T17-50-10-local-staging/ready.json`)
 - [x] Metrics contract checked (`/admin/metrics` returns the runtime-oriented gateway metrics snapshot; verified 2026-03-19 on localhost staging via `output/ops/2026-03-19T17-50-10-local-staging/admin-metrics.json`)

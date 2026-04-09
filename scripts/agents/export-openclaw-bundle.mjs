@@ -46,6 +46,20 @@ console.log(
       bundleId: result.report.bundleId,
       outputDir: result.outputDir,
       reportPath: path.join(result.outputDir, "export-report.json"),
+      audit: {
+        bundleId: result.report.bundleId,
+        rehearsedExtractionCandidate:
+          result.report.rehearsedExtractionCandidate,
+        extractionBlockers: result.report.extractionBlockers,
+        verifyImport: smoke
+          ? {
+              bundleId: smoke.bundleId,
+              workflowId: smoke.workflowId,
+              cleanExternalMoveReady: smoke.cleanExternalMoveReady,
+              extractionBlockers: smoke.extractionBlockers
+            }
+          : null
+      },
       ...(smoke
         ? {
             smoke

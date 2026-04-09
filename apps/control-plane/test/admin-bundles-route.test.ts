@@ -26,7 +26,9 @@ describe("control-plane admin bundle routes", () => {
           openClawCompatibility: expect.objectContaining({
             recommendedImportMode: "portable-with-host-bindings",
             hostBoundTools: ["scene.apply_command_batch"],
-            fullyPortableTools: ["scene.read_state"]
+            fullyPortableTools: ["scene.read_state"],
+            rehearsedExtractionCandidate: false,
+            extractionBlockers: ["workspace.scene.read", "workspace.scene.write"]
           })
         }),
         expect.objectContaining({
@@ -38,7 +40,9 @@ describe("control-plane admin bundle routes", () => {
             recommendedImportMode: "portable",
             hostBoundTools: [],
             hostServiceDelegations: [],
-            acpAgentDelegations: []
+            acpAgentDelegations: [],
+            rehearsedExtractionCandidate: true,
+            extractionBlockers: []
           })
         })
       ])
@@ -66,7 +70,13 @@ describe("control-plane admin bundle routes", () => {
           agentId: "geometry_solver",
           bundleId: "geometry_solver",
           outputDir
-        })
+        }),
+        audit: {
+          bundleId: "geometry_solver",
+          rehearsedExtractionCandidate: false,
+          extractionBlockers: ["workspace.scene.read", "workspace.scene.write"],
+          verifyImport: null
+        }
       });
 
       const report = JSON.parse(
@@ -74,12 +84,16 @@ describe("control-plane admin bundle routes", () => {
       ) as {
         bundleId: string;
         recommendedImportMode: string;
+        extractionBlockers: string[];
+        rehearsedExtractionCandidate: boolean;
       };
 
       expect(report).toEqual(
         expect.objectContaining({
           bundleId: "geometry_solver",
-          recommendedImportMode: "portable-with-host-bindings"
+          recommendedImportMode: "portable-with-host-bindings",
+          extractionBlockers: ["workspace.scene.read", "workspace.scene.write"],
+          rehearsedExtractionCandidate: false
         })
       );
     } finally {
@@ -113,7 +127,9 @@ describe("control-plane admin bundle routes", () => {
           bundleId: "geometry_reviewer",
           outputDir,
           report: expect.objectContaining({
-            recommendedImportMode: "portable"
+            recommendedImportMode: "portable",
+            rehearsedExtractionCandidate: true,
+            extractionBlockers: []
           })
         }),
         smoke: expect.objectContaining({
@@ -127,10 +143,25 @@ describe("control-plane admin bundle routes", () => {
           ],
           exportedToolNames: [],
           exportedEvaluatorNames: [],
+          cleanExternalMoveReady: true,
+          extractionBlockers: [],
+          compatibility: expect.objectContaining({
+            rehearsedExtractionCandidate: true
+          }),
           thinAdapter: expect.objectContaining({
             requiresHostBindings: false,
             recommendedImportMode: "portable",
             hostBoundTools: []
+          })
+        }),
+        audit: expect.objectContaining({
+          bundleId: "geometry_reviewer",
+          rehearsedExtractionCandidate: true,
+          extractionBlockers: [],
+          verifyImport: expect.objectContaining({
+            bundleId: "geometry_reviewer",
+            cleanExternalMoveReady: true,
+            extractionBlockers: []
           })
         })
       });

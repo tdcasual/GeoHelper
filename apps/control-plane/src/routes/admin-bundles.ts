@@ -42,6 +42,20 @@ export const registerAdminBundlesRoutes = (
           outputDir: result.outputDir,
           report: result.report
         },
+        audit: {
+          bundleId: result.bundleId,
+          rehearsedExtractionCandidate:
+            result.report.rehearsedExtractionCandidate,
+          extractionBlockers: result.report.extractionBlockers,
+          verifyImport: smoke
+            ? {
+                bundleId: smoke.bundleId,
+                workflowId: smoke.workflowId,
+                cleanExternalMoveReady: smoke.cleanExternalMoveReady,
+                extractionBlockers: smoke.extractionBlockers
+              }
+            : null
+        },
         ...(smoke
           ? {
               smoke

@@ -278,6 +278,34 @@ ADMIN_METRICS_TOKEN=<admin-token> \
 pnpm smoke:gateway-runtime
 ```
 
+## H. OpenClaw Extraction Rehearsal
+
+Before claiming the platform is portable, rehearse at least one real bundle extraction and keep the resulting audit data:
+
+```bash
+pnpm exec tsx scripts/agents/export-openclaw-bundle.mjs \
+  geometry-reviewer \
+  exports/openclaw/geometry-reviewer \
+  --verify-import
+```
+
+The script now emits an `audit` object alongside the exported smoke payload. Review:
+
+- `rehearsedExtractionCandidate`: whether this bundle is the current operator-selected rehearsal candidate
+- `verifyImport`: whether the exported workspace re-imported successfully
+- `extractionBlockers`: the exact host-bound capabilities still preventing a clean external move
+
+You can surface the same information through the control-plane admin route:
+
+```bash
+curl -fsS -X POST \
+  -H "content-type: application/json" \
+  --data '{"verifyImport":true}' \
+  "https://<control-plane-domain>/admin/bundles/geometry_reviewer/export-openclaw"
+```
+
+Do not call the platform cleanly portable until at least one candidate bundle has a successful `verifyImport` result and any remaining `extractionBlockers` have been explicitly reviewed.
+
 Live platform-run smoke:
 
 ```bash
