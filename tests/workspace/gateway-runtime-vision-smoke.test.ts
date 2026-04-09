@@ -140,6 +140,30 @@ describe("gateway runtime platform smoke", () => {
       dry_run: true,
       gateway_url: null,
       control_plane_url: null,
+      gateway_probes: [
+        {
+          name: "GET /api/v1/health",
+          method: "GET",
+          path: "/api/v1/health"
+        },
+        {
+          name: "GET /api/v1/ready",
+          method: "GET",
+          path: "/api/v1/ready"
+        }
+      ],
+      control_plane_probes: [
+        {
+          name: "GET /api/v3/health",
+          method: "GET",
+          path: "/api/v3/health"
+        },
+        {
+          name: "GET /api/v3/ready",
+          method: "GET",
+          path: "/api/v3/ready"
+        }
+      ],
       checks: [
         {
           name: "GET /api/v1/health",
@@ -382,12 +406,35 @@ describe("gateway runtime platform smoke", () => {
       dry_run: boolean;
       gateway_url: string;
       control_plane_url: string;
+      gateway_probes: Array<Record<string, unknown>>;
+      control_plane_probes: Array<Record<string, unknown>>;
       checks: Array<Record<string, unknown>>;
     };
 
     expect(payload.dry_run).toBe(false);
     expect(payload.gateway_url).toBe("https://gateway.example.com");
     expect(payload.control_plane_url).toBe("https://gateway.example.com");
+    expect(payload.gateway_probes).toEqual([
+      {
+        name: "GET /api/v1/health",
+        ok: true
+      },
+      {
+        name: "GET /api/v1/ready",
+        ok: true
+      }
+    ]);
+    expect(payload.control_plane_probes).toEqual([
+      {
+        name: "GET /api/v3/health",
+        ok: true
+      },
+      {
+        name: "GET /api/v3/ready",
+        ok: true,
+        execution_mode: "inline_worker_loop"
+      }
+    ]);
     expect(payload.checks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

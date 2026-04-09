@@ -69,15 +69,28 @@ const buildNotifyPayload = ({
   status,
   verify,
   publishedArtifacts
-}) => ({
-  run_label: runLabel,
-  deployment,
-  status,
-  failure_reasons: Array.isArray(verify.failure_reasons)
-    ? verify.failure_reasons
-    : [],
-  ...(publishedArtifacts ? { published_artifacts: publishedArtifacts } : {})
-});
+}) => {
+  const gatewayProbes = Array.isArray(verify.gateway_probes)
+    ? verify.gateway_probes
+    : [];
+  const controlPlaneProbes = Array.isArray(verify.control_plane_probes)
+    ? verify.control_plane_probes
+    : [];
+
+  return {
+    run_label: runLabel,
+    deployment,
+    status,
+    failure_reasons: Array.isArray(verify.failure_reasons)
+      ? verify.failure_reasons
+      : [],
+    ...(gatewayProbes.length > 0 ? { gateway_probes: gatewayProbes } : {}),
+    ...(controlPlaneProbes.length > 0
+      ? { control_plane_probes: controlPlaneProbes }
+      : {}),
+    ...(publishedArtifacts ? { published_artifacts: publishedArtifacts } : {})
+  };
+};
 
 export async function runScheduledGatewayVerify({
   argv = process.argv.slice(2),

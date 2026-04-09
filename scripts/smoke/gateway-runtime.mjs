@@ -2,6 +2,14 @@
 
 const DEFAULT_THREAD_TITLE = "Gateway runtime smoke";
 const DEFAULT_PROFILE_ID = "platform_geometry_standard";
+const GATEWAY_PROBE_NAMES = new Set([
+  "GET /api/v1/health",
+  "GET /api/v1/ready"
+]);
+const CONTROL_PLANE_PROBE_NAMES = new Set([
+  "GET /api/v3/health",
+  "GET /api/v3/ready"
+]);
 
 export function parseArgs(argv) {
   const parsed = {};
@@ -131,6 +139,9 @@ export function buildGatewayRuntimeChecks(env = process.env) {
 
   return checks;
 }
+
+const extractProbeChecks = (checks, probeNames) =>
+  checks.filter((check) => probeNames.has(check.name));
 
 const normalizeBaseUrl = (value) => String(value ?? "").replace(/\/+$/, "");
 
@@ -602,6 +613,11 @@ export async function runGatewayRuntimeSmoke({
           dry_run: true,
           gateway_url: gatewayUrl || null,
           control_plane_url: controlPlaneUrl || null,
+          gateway_probes: extractProbeChecks(checks, GATEWAY_PROBE_NAMES),
+          control_plane_probes: extractProbeChecks(
+            checks,
+            CONTROL_PLANE_PROBE_NAMES
+          ),
           checks
         },
         null,
@@ -632,6 +648,11 @@ export async function runGatewayRuntimeSmoke({
         dry_run: false,
         gateway_url: gatewayUrl,
         control_plane_url: controlPlaneUrl,
+        gateway_probes: extractProbeChecks(results, GATEWAY_PROBE_NAMES),
+        control_plane_probes: extractProbeChecks(
+          results,
+          CONTROL_PLANE_PROBE_NAMES
+        ),
         checks: results
       },
       null,

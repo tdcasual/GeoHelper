@@ -54,6 +54,7 @@ Updated: 2026-03-31
 
 - `/api/v1/health` is liveness-only; use `/api/v1/ready` as the dependency-aware deploy gate before switching traffic.
 - `pnpm ops:gateway:scheduled` is the recurring post-deploy entrypoint; it composes verify, artifact publish, and notify behind one stable cron command, and live runs can publish JSON evidence for each run.
+- Ops summaries now surface both `gateway_probes` and `control_plane_probes`; `GET /api/v3/ready` is a first-class release blocker even when gateway probes remain green.
 - When `OPS_BENCH_MIN_SUCCESS_RATE` or `OPS_BENCH_MAX_P95_MS` is configured, threshold failures are release blockers and must stop promotion. Failed gateway backup restore drills are release blockers too. When a deployment intends to support image input, vision smoke failures block promotion as well.
 - Published artifact URLs from scheduled runs are the post-deploy evidence source of truth.
 - `/admin/version`, `/admin/metrics`, and `/admin/backups/*` share the same `x-admin-token` gate; `/admin/version` remains the release identity source of truth and backup routes expose latest snapshot metadata for recovery workflows.

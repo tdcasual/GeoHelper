@@ -82,6 +82,8 @@ const parseJsonMaybe = (value) => {
   }
 };
 
+const asProbeList = (value) => (Array.isArray(value) ? value : []);
+
 const buildDryRunPayload = (step) => {
   if (step.artifactName === "smoke") {
     return {
@@ -209,6 +211,8 @@ export async function runGatewayOpsChecks({
     output_dir: outputDir,
     status,
     failure_reasons: thresholdOutcome.failureReasons,
+    gateway_probes: asProbeList(smokePayload?.gateway_probes),
+    control_plane_probes: asProbeList(smokePayload?.control_plane_probes),
     steps: results
   };
   const summaryFile = await writeJsonArtifact(outputDir, "summary", summary);

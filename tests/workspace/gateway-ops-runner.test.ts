@@ -107,6 +107,77 @@ describe("gateway ops runner", () => {
     });
   });
 
+  it("surfaces gateway and control-plane probe outcomes in the ops summary", () => {
+    const tmpRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "geohelper-ops-runner-summary-")
+    );
+    const artifactRoot = path.join(tmpRoot, "ops-output");
+    const stamp = "2026-04-09T14-55-00Z";
+
+    const run = spawnSync(
+      "node",
+      ["scripts/ops/run-gateway-ops-checks.mjs"],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          OPS_OUTPUT_ROOT: artifactRoot,
+          OPS_ARTIFACT_STAMP: stamp,
+          OPS_USE_MOCK_RESULTS: "1",
+          OPS_MOCK_SMOKE_JSON: JSON.stringify({
+            dry_run: false,
+            checks: [
+              { name: "GET /api/v1/health", ok: true },
+              { name: "GET /api/v1/ready", ok: true },
+              { name: "GET /api/v3/health", ok: true },
+              {
+                name: "GET /api/v3/ready",
+                ok: true,
+                execution_mode: "inline_worker_loop"
+              }
+            ],
+            gateway_probes: [
+              { name: "GET /api/v1/health", ok: true },
+              { name: "GET /api/v1/ready", ok: true }
+            ],
+            control_plane_probes: [
+              { name: "GET /api/v3/health", ok: true },
+              {
+                name: "GET /api/v3/ready",
+                ok: true,
+                execution_mode: "inline_worker_loop"
+              }
+            ]
+          }),
+          OPS_MOCK_BENCHMARK_JSON: JSON.stringify({
+            dry_run: false,
+            success_rate: 1,
+            by_domain: {}
+          })
+        }
+      }
+    );
+
+    expect(run.status).toBe(0);
+    const payload = JSON.parse(run.stdout.trim()) as {
+      gateway_probes: Array<Record<string, unknown>>;
+      control_plane_probes: Array<Record<string, unknown>>;
+    };
+
+    expect(payload.gateway_probes).toEqual([
+      { name: "GET /api/v1/health", ok: true },
+      { name: "GET /api/v1/ready", ok: true }
+    ]);
+    expect(payload.control_plane_probes).toEqual([
+      { name: "GET /api/v3/health", ok: true },
+      {
+        name: "GET /api/v3/ready",
+        ok: true,
+        execution_mode: "inline_worker_loop"
+      }
+    ]);
+  });
+
 
   it("fails the summary when smoke or benchmark thresholds are violated", () => {
     const tmpRoot = fs.mkdtempSync(
@@ -161,6 +232,61 @@ describe("gateway ops runner", () => {
       "benchmark_success_rate_below_threshold",
       "benchmark_p95_latency_above_threshold"
     ]);
+  });
+
+  it("fails when control-plane readiness is red even if gateway probes are green", () => {
+    const tmpRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "geohelper-ops-runner-control-plane-thresholds-")
+    );
+    const artifactRoot = path.join(tmpRoot, "ops-output");
+    const stamp = "2026-04-09T15-00-00Z";
+
+    const run = spawnSync(
+      "node",
+      ["scripts/ops/run-gateway-ops-checks.mjs"],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          OPS_OUTPUT_ROOT: artifactRoot,
+          OPS_ARTIFACT_STAMP: stamp,
+          OPS_USE_MOCK_RESULTS: "1",
+          OPS_MOCK_SMOKE_JSON: JSON.stringify({
+            dry_run: false,
+            checks: [
+              { name: "GET /api/v1/health", ok: true },
+              { name: "GET /api/v1/ready", ok: true },
+              { name: "GET /api/v3/health", ok: true },
+              { name: "GET /api/v3/ready", ok: false }
+            ],
+            gateway_probes: [
+              { name: "GET /api/v1/health", ok: true },
+              { name: "GET /api/v1/ready", ok: true }
+            ],
+            control_plane_probes: [
+              { name: "GET /api/v3/health", ok: true },
+              { name: "GET /api/v3/ready", ok: false }
+            ]
+          }),
+          OPS_MOCK_BENCHMARK_JSON: JSON.stringify({
+            dry_run: false,
+            success_rate: 1,
+            by_domain: {
+              "2d": { p95_latency_ms: 300 }
+            }
+          })
+        }
+      }
+    );
+
+    expect(run.status).toBe(1);
+    const payload = JSON.parse(run.stdout.trim()) as {
+      status: string;
+      failure_reasons: string[];
+    };
+
+    expect(payload.status).toBe("failed");
+    expect(payload.failure_reasons).toContain("control_plane_readiness_failed");
   });
 
 });

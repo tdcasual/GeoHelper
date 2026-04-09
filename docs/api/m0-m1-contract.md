@@ -173,6 +173,8 @@ Gateway 仍负责单租户备份与恢复，备份信封格式如下：
 }
 ```
 
+运维 smoke / scheduled summary 会单独暴露 `control_plane_probes`，至少包含 `GET /api/v3/health` 与 `GET /api/v3/ready`。其中 `GET /api/v3/ready` 变红时，发布阈值必须直接阻断，即使 gateway `/api/v1/health` 与 `/api/v1/ready` 仍然为绿。
+
 ### GET /api/v3/run-profiles
 
 响应：
