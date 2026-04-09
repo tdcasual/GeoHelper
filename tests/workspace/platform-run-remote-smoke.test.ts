@@ -35,10 +35,7 @@ describe("remote platform-run smoke", () => {
     };
     expect(packageJson.scripts?.["smoke:platform-run-remote"]).toBeDefined();
 
-    const checks = buildPlatformRunRemoteChecks({
-      ...process.env,
-      PRESET_TOKEN: "preset-token"
-    });
+    const checks = buildPlatformRunRemoteChecks();
 
     expect(checks).toEqual([
       {
