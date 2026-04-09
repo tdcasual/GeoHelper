@@ -17,6 +17,7 @@ Endpoints:
 
 - Web: `http://localhost:4173`
 - Gateway: `http://localhost:8787`
+- Control plane: `http://localhost:4310`
 
 Stop stack:
 
@@ -83,7 +84,7 @@ EDGEONE_API_TOKEN=<token> \
 bash scripts/deploy/edgeone-deploy.sh
 ```
 
-GitHub Actions auto-publishes the gateway image to GHCR after successful `main` CI, but web deploy is still intentionally manual.
+GitHub Actions auto-publishes the gateway and control-plane images to GHCR after successful `main` CI, but web deploy is still intentionally manual.
 Deploy web manually from local or your own CI pipeline.
 
 Secrets expected in repo settings:
@@ -91,31 +92,42 @@ Secrets expected in repo settings:
 - `EDGEONE_PROJECT_NAME`
 - `EDGEONE_API_TOKEN`
 - `STAGING_GATEWAY_URL`
+- `STAGING_CONTROL_PLANE_URL`
 - Bootstrap helper:
 
 ```bash
 bash scripts/deploy/configure-release-secrets.sh --repo <owner/repo>
 ```
 
-## D. Gateway Staging Deploy
+## D. Gateway And Control-Plane Staging Deploy
 
-Gateway is packaged as container image:
+The runtime staging topology is explicit: `web + gateway + control-plane`.
+
+Gateway image:
 
 - image: `ghcr.io/<owner>/geohelper-gateway:staging`
 - immutable tag: `ghcr.io/<owner>/geohelper-gateway:sha-<shortsha>`
 
-Build a local staging image from the repo root with:
+Control-plane image:
+
+- image: `ghcr.io/<owner>/geohelper-control-plane:staging`
+- immutable tag: `ghcr.io/<owner>/geohelper-control-plane:sha-<shortsha>`
+
+Build local staging images from the repo root with:
 
 ```bash
 pnpm docker:gateway:build
+pnpm docker:control-plane:build
 ```
 
-GitHub Actions auto-publishes the gateway image to GHCR after successful `main` CI using the built-in repository token with `packages: write`.
+GitHub Actions auto-publishes both images to GHCR after successful `main` CI using the built-in repository token with `packages: write`.
 Gateway runtime deployment remains manual.
+control-plane runtime deployment remains manual.
 
-Optional deploy hook secret:
+Optional deploy hook secrets:
 
 - `GATEWAY_STAGING_DEPLOY_HOOK_URL`
+- `CONTROL_PLANE_STAGING_DEPLOY_HOOK_URL`
 
 ## E. Runtime Environment for Gateway
 
@@ -153,7 +165,14 @@ Self-hosted retention policy:
 - new protect requests fail explicitly when protected capacity is full
 - settings-side protect/unprotect is a manual metadata operation that does not imply import or restore
 
-## F. Post-deploy Verification
+## F. Runtime Environment for Control Plane
+
+- `PORT`
+- optional: `GEOHELPER_AGENT_STORE_SQLITE_PATH` (shared durable ledger path for multi-process/local staging setups)
+
+The default image runs the control plane with its inline worker loop enabled. If you split execution onto a standalone worker, point both processes at the same durable agent store before promotion.
+
+## G. Post-deploy Verification
 
 ```bash
 curl -fsS https://<gateway-domain>/api/v1/health

@@ -63,9 +63,13 @@ pnpm bench:quality -- --dry-run
 
 ## Deploy Notes
 
-- Gateway 镜像仍通过 `pnpm docker:gateway:build` 构建
-- GitHub Actions auto-publishes the gateway image to GHCR after successful `main` CI
+- Staging/production 拓扑固定为 `web + gateway + control-plane`；standalone worker 只在需要拆分执行面时额外部署
+- Gateway 镜像通过 `pnpm docker:gateway:build` 构建，control-plane 镜像通过 `pnpm docker:control-plane:build` 构建
+- GitHub Actions auto-publishes both the gateway and control-plane images to GHCR after successful `main` CI
+- Gateway image tags: `ghcr.io/<owner>/geohelper-gateway:staging` and `ghcr.io/<owner>/geohelper-gateway:sha-<shortsha>`
+- Control-plane image tags: `ghcr.io/<owner>/geohelper-control-plane:staging` and `ghcr.io/<owner>/geohelper-control-plane:sha-<shortsha>`
 - gateway runtime deployment remains manual even when image publishing is automated
+- control-plane runtime deployment remains manual even when image publishing is automated
 - `VITE_GATEWAY_URL` 用于前端的网关侧登录与备份配置
 - `VITE_CONTROL_PLANE_URL` 用于前端的 `/api/v3` 与 `/admin/bundles` control-plane 入口；留空时回退到 `VITE_GATEWAY_URL`
 - 默认拓扑下 control plane 自带 inline worker loop；如果要拆分执行面，再额外部署 standalone worker

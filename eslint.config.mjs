@@ -2,6 +2,7 @@ import js from "@eslint/js";
 import tsEslintPlugin from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
+import * as yamlParser from "yaml-eslint-parser";
 
 const nodeGlobals = {
   Buffer: "readonly",
@@ -78,5 +79,12 @@ export default [
     rules: {
       "@typescript-eslint/no-unused-vars": "off"
     }
+  },
+  {
+    files: ["**/*.{yml,yaml}"],
+    languageOptions: {
+      parser: yamlParser
+    },
+    rules: {}
   }
 ];

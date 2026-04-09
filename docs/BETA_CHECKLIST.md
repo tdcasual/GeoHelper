@@ -7,6 +7,7 @@ Updated: 2026-03-31
 
 - Internal callers now use the platform control plane surfaces: `POST /api/v3/threads`, `POST /api/v3/threads/:threadId/runs`, and `GET /api/v3/runs/:runId/stream`.
 - Gateway remains active for health, Official token, backup, metrics, and version endpoints; legacy compile routes are no longer part of the active runtime boundary.
+- Release topology is explicit: `web + gateway + control-plane`, with standalone worker remaining an optional scale-out surface instead of a required baseline service.
 - Demo/export/presentation work and any backend expansion beyond the current self-hosted gateway + control plane stack (with optional standalone worker) stay out of scope for this release gate.
 
 ## Release Evidence
@@ -58,6 +59,7 @@ Updated: 2026-03-31
 - `/admin/version`, `/admin/metrics`, and `/admin/backups/*` share the same `x-admin-token` gate; `/admin/version` remains the release identity source of truth and backup routes expose latest snapshot metadata for recovery workflows.
 - `x-trace-id` remains the gateway-side correlation key across responses, logs, and alert payloads.
 - `REDIS_URL` remains the only supported shared fast-state dependency in Gateway V4; no SQL or extra backend datastore is required in this roadmap.
+- Gateway and control-plane images publish independently to GHCR and both must keep a mutable `:staging` tag plus immutable `:sha-<shortsha>` tag available for promotion and rollback.
 - Web lightweight cloud sync remains snapshot-based; no SQL or full cloud history backend is required, startup freshness checks are metadata-only, and delayed upload is opt-in and never auto-restores.
 - ordinary retained history and protected retained snapshots are bounded separately via `BACKUP_MAX_HISTORY` and `BACKUP_MAX_PROTECTED`.
 - protected snapshots do not auto-expire, and new protect requests fail explicitly when protected capacity is full.
@@ -113,6 +115,7 @@ Updated: 2026-03-31
 - [x] Gateway runtime smoke checked (`pnpm smoke:gateway-runtime -- --dry-run`, verified 2026-03-19 and reverified 2026-03-31; Redis-backed live run also passed on 2026-03-31 via `output/ops/manual-phase4/smoke-live.json`)
 - [x] Gateway backup restore drill checked (`pnpm smoke:gateway-backup-restore -- --dry-run`, verified 2026-03-19 and reverified 2026-03-31; Redis-backed live restore drill also passed on 2026-03-31 via `output/ops/manual-phase4/backup-restore-live.json`)
 - [x] Deploy runbook reviewed (`docs/deploy/edgeone.md`, reviewed 2026-03-19)
+- [x] Gateway/control-plane image contract reviewed (`ghcr.io/<owner>/geohelper-gateway:staging`, `ghcr.io/<owner>/geohelper-gateway:sha-<shortsha>`, `ghcr.io/<owner>/geohelper-control-plane:staging`, and `ghcr.io/<owner>/geohelper-control-plane:sha-<shortsha>` are the expected release tags)
 - [x] Alert webhook wiring reviewed (gateway 5xx/operator alerts remain routed through the same webhook plumbing; historical live evidence was captured on 2026-03-19 in `output/ops/2026-03-19T17-50-10-local-staging/webhook-events.jsonl`)
 - [x] Liveness/readiness contract checked (`/api/v1/health` stays shallow, `/api/v1/ready` is green before traffic switch; verified 2026-03-19 on localhost staging via `output/ops/2026-03-19T17-50-10-local-staging/health.json` and `output/ops/2026-03-19T17-50-10-local-staging/ready.json`)
 - [x] Metrics contract checked (`/admin/metrics` returns the runtime-oriented gateway metrics snapshot; verified 2026-03-19 on localhost staging via `output/ops/2026-03-19T17-50-10-local-staging/admin-metrics.json`)

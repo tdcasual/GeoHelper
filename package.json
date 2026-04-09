@@ -19,16 +19,17 @@
     "verify:geogebra-self-hosted": "node scripts/geogebra/assert-no-external.mjs",
     "audit:ui:expanded": "node scripts/ui/run-expanded-audit.mjs",
     "docker:gateway:build": "docker build --build-arg GEOHELPER_BUILD_SHA=$(git rev-parse --short=12 HEAD) --build-arg GEOHELPER_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) --build-context repo=. --file apps/gateway/Dockerfile --tag geohelper-gateway:local apps/gateway",
+    "docker:control-plane:build": "docker build --build-arg GEOHELPER_BUILD_SHA=$(git rev-parse --short=12 HEAD) --build-arg GEOHELPER_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) --file apps/control-plane/Dockerfile --tag geohelper-control-plane:local .",
     "smoke:gateway-runtime": "node scripts/smoke/gateway-runtime.mjs",
     "ops:gateway:verify": "node scripts/ops/run-gateway-ops-checks.mjs",
     "ops:gateway:scheduled": "node scripts/ops/run-scheduled-gateway-verify.mjs",
     "smoke:gateway-backup-restore": "node scripts/smoke/gateway-backup-restore.mjs"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@geohelper/agent-core": "workspace:*",
     "@geohelper/agent-protocol": "workspace:*",
     "@geohelper/browser-bridge": "workspace:*",
-    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.56.1",
     "@types/node": "^24.11.0",
     "@typescript-eslint/eslint-plugin": "^8.57.0",
@@ -37,7 +38,8 @@
     "eslint": "^10.0.3",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "yaml-eslint-parser": "^2.0.0"
   },
   "packageManager": "pnpm@10.29.3",
   "dependencies": {
