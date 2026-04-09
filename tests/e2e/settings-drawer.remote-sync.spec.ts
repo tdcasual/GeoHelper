@@ -10,6 +10,7 @@ import {
 test("remote backup sync status stays metadata-only until user explicitly imports", async ({
   page
 }) => {
+  await page.setViewportSize({ width: 1600, height: 960 });
   await seedGatewayRemoteBackupSettingsOnce(page);
 
   await page.route(
@@ -155,7 +156,10 @@ test("remote backup sync status stays metadata-only until user explicitly import
   );
 
   await openWorkspace(page);
+  await expect(page.getByTestId("workspace-dialog-rail")).toBeVisible();
+  await expect(page.getByRole("button", { name: "设置" })).toBeVisible();
   await saveGatewayAdminToken(page);
+  await expect(page.getByTestId("settings-modal")).toBeVisible();
   await page.getByRole("button", { name: "检查云端状态" }).click();
 
   await expect(page.getByText("同步状态：云端较新")).toBeVisible();
@@ -218,6 +222,7 @@ test("remote backup sync status stays metadata-only until user explicitly import
 test("remote backup upload defaults to guarded writes and only force-overwrites after explicit danger action", async ({
   page
 }) => {
+  await page.setViewportSize({ width: 1600, height: 960 });
   await seedGatewayRemoteBackupSettings(page);
 
   let guardedCalls = 0;

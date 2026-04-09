@@ -161,9 +161,29 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
     });
   });
 
+  await page.route(
+    "**/api/v3/delegation-sessions?runId=run_platform_1",
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+          "access-control-allow-origin": "*"
+        },
+        body: JSON.stringify({
+          sessions: []
+        })
+      });
+    }
+  );
+
   await openWorkspace(page);
   await page.getByPlaceholder("例如：过点A和B作垂直平分线").fill("画一个圆");
   await page.getByRole("button", { name: "发送" }).click();
+
+  const historyToggle = page.getByTestId("history-toggle-button");
+  const dialogRail = page.getByTestId("workspace-dialog-rail");
+  const dialogRailBoxBeforeToggle = await dialogRail.boundingBox();
 
   await expect(page.getByTestId("run-console")).toBeVisible();
   await expect(page.getByTestId("run-console")).toContainText("run_platform_1");
@@ -183,4 +203,20 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
   );
   await expect(page.getByTestId("artifact-viewer")).toContainText("修正版草案");
   await expect(page.getByTestId("artifact-viewer")).toContainText("scene_1");
+
+  await historyToggle.click();
+  await expect(page.getByTestId("conversation-sidebar")).toBeVisible();
+  await expect(page.getByTestId("run-console")).toBeVisible();
+
+  const dialogRailBoxAfterToggle = await dialogRail.boundingBox();
+  expect(dialogRailBoxBeforeToggle).not.toBeNull();
+  expect(dialogRailBoxAfterToggle).not.toBeNull();
+
+  if (!dialogRailBoxBeforeToggle || !dialogRailBoxAfterToggle) {
+    return;
+  }
+
+  expect(
+    Math.abs(dialogRailBoxAfterToggle.width - dialogRailBoxBeforeToggle.width)
+  ).toBeLessThanOrEqual(4);
 });

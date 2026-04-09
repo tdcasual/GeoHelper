@@ -20,6 +20,7 @@ const setOfficialSnapshot = () => {
 test("opens token dialog automatically when official session expires", async ({
   page
 }) => {
+  await page.setViewportSize({ width: 1600, height: 960 });
   await page.addInitScript(setOfficialSnapshot);
 
   await page.route("**/api/v3/threads", async (route) => {
@@ -44,11 +45,17 @@ test("opens token dialog automatically when official session expires", async ({
 
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByTestId("session-warning")).toBeVisible();
+
+  const warningInsideDialogRail = await page.getByTestId("session-warning").evaluate(
+    (node) => Boolean(node.closest("[data-testid='workspace-dialog-rail']"))
+  );
+  expect(warningInsideDialogRail).toBe(true);
 });
 
 test("logout button revokes official session and clears local login state", async ({
   page
 }) => {
+  await page.setViewportSize({ width: 1600, height: 960 });
   await page.addInitScript(setOfficialSnapshot);
   let revokeCalled = false;
 
@@ -72,4 +79,7 @@ test("logout button revokes official session and clears local login state", asyn
 
   await expect.poll(() => revokeCalled).toBe(true);
   await expect(page.getByTestId("session-warning")).toBeVisible();
+  await expect(page.getByTestId("workspace-dialog-rail")).toContainText(
+    "官方模式未登录或会话已过期，请输入 Token"
+  );
 });
