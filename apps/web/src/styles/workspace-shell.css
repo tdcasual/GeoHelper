@@ -386,18 +386,45 @@
   overflow: hidden;
 }
 
-.workspace-shell:not(.compact-viewport) .chat-panel {
-  width: clamp(440px, 34vw, 620px);
-  flex: 0 0 clamp(440px, 34vw, 620px);
-  min-width: 440px;
-  padding: 14px 16px 16px 12px;
-  border-left: 1px solid rgba(183, 157, 121, 0.26);
-  background:
-    linear-gradient(180deg, rgba(248, 242, 233, 0.92), rgba(243, 236, 226, 0.98)),
-    var(--studio-paper);
+.workspace-desktop-layout {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
+
+.workspace-canvas-rail {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.workspace-shell:not(.compact-viewport) .chat-panel {
+  width: clamp(440px, 36vw, 600px);
+  flex: 0 0 clamp(440px, 36vw, 600px);
+  min-width: 440px;
+  padding: 16px 16px 16px 10px;
+  border-left: 1px solid rgba(183, 157, 121, 0.22);
+  background: transparent;
+}
+
+.workspace-shell:not(.compact-viewport) .workspace-canvas-rail .canvas-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 16px 10px 16px 16px;
+}
+
+.workspace-conversation-shell {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
 .workspace-shell:not(.compact-viewport) .chat-shell {
   overflow: hidden;
+  flex: 1;
   border: 1px solid rgba(183, 157, 121, 0.24);
   border-radius: 28px;
   background:
@@ -405,6 +432,17 @@
     var(--studio-paper-elevated);
   box-shadow: var(--studio-shadow-soft);
 }
+
+.workspace-history-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.workspace-history-overlay .history-drawer {
+  pointer-events: auto;
+}
+
 .workspace-shell:not(.compact-viewport) .history-drawer-open {
   border-right: 1px solid rgba(183, 157, 121, 0.2);
 }
@@ -431,18 +469,25 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   padding: 18px;
-  border-left: 1px solid rgba(183, 157, 121, 0.18);
   background:
     linear-gradient(180deg, rgba(255, 252, 246, 0.96), rgba(248, 242, 232, 0.92)),
     var(--studio-paper-elevated);
 }
 
+.workspace-conversation-header {
+  display: flex;
+  align-items: center;
+  min-height: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(183, 157, 121, 0.18);
+}
+
 .workspace-dialog-intake {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .studio-input-panel {

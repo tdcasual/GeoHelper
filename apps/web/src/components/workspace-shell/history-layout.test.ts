@@ -14,4 +14,16 @@ describe("workspace history layout", () => {
       desktopHistoryOverlay: true
     });
   });
+
+  it("keeps desktop history in overlay mode even when the chat shell is wide", () => {
+    expect(
+      resolveHistoryDrawerLayout({
+        compactViewport: false,
+        chatShellWidth: 960,
+        historyDrawerWidth: 280
+      })
+    ).toMatchObject({
+      desktopHistoryOverlay: true
+    });
+  });
 });

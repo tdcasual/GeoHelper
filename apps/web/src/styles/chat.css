@@ -24,10 +24,10 @@
 
 .chat-shell.history-overlay-mode .history-drawer {
   position: absolute;
-  top: 52px;
-  left: 10px;
-  bottom: 10px;
-  max-width: calc(100% - 20px);
+  top: 16px;
+  left: 16px;
+  bottom: 16px;
+  max-width: min(320px, calc(100% - 32px));
   z-index: 14;
   overflow: visible;
 }
@@ -43,7 +43,7 @@
 .chat-shell.history-overlay-mode .conversation-sidebar {
   width: 100%;
   height: 100%;
-  border-radius: 14px;
+  border-radius: 20px;
   box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
 }
 
@@ -648,4 +648,3 @@
   color: inherit;
   word-break: break-word;
 }
-

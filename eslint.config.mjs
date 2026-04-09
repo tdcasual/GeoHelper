@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import css from "@eslint/css";
 import tsEslintPlugin from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
@@ -85,6 +86,14 @@ export default [
     languageOptions: {
       parser: yamlParser
     },
+    rules: {}
+  },
+  {
+    files: ["**/*.css"],
+    plugins: {
+      css
+    },
+    language: "css/css",
     rules: {}
   }
 ];

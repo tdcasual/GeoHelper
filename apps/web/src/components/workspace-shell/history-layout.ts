@@ -1,4 +1,3 @@
-const MINIMUM_DESKTOP_CHAT_WIDTH_FOR_INLINE_HISTORY = 240;
 const MINIMUM_DESKTOP_HISTORY_DRAWER_WIDTH = 220;
 const MAX_HISTORY_DRAWER_WIDTH = 420;
 
@@ -25,13 +24,8 @@ export const resolveHistoryDrawerLayout = ({
   historyDrawerVisible = true,
   historyDrawerWidth
 }: HistoryDrawerLayoutInput): HistoryDrawerLayout => {
-  const desktopHistoryOverlay =
-    !compactViewport &&
-    chatShellWidth > 0 &&
-    chatShellWidth - Math.min(historyDrawerWidth, MAX_HISTORY_DRAWER_WIDTH) <
-      MINIMUM_DESKTOP_CHAT_WIDTH_FOR_INLINE_HISTORY;
-  const desktopHistoryFullOverlay =
-    desktopHistoryOverlay && chatShellWidth >= 520;
+  const desktopHistoryOverlay = !compactViewport;
+  const desktopHistoryFullOverlay = false;
 
   let historyDrawerMaxWidth = MAX_HISTORY_DRAWER_WIDTH;
   if (chatShellWidth > 0) {
@@ -41,7 +35,7 @@ export const resolveHistoryDrawerLayout = ({
       const proportionalMax = Math.floor(chatShellWidth * 0.45);
       const maxInlineWidth = Math.max(
         MINIMUM_DESKTOP_HISTORY_DRAWER_WIDTH,
-        chatShellWidth - MINIMUM_DESKTOP_CHAT_WIDTH_FOR_INLINE_HISTORY
+        chatShellWidth - 48
       );
       historyDrawerMaxWidth = Math.min(
         MAX_HISTORY_DRAWER_WIDTH,

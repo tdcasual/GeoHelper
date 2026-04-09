@@ -102,79 +102,112 @@ export const WorkspaceDesktopLayout = ({
   activeFocusUncertaintyId,
   chatMessagesProps
 }: WorkspaceDesktopLayoutProps) => (
-  <>
-    <CanvasPanel
-      key={canvasMountKey}
-      profile={canvasProfile}
-      visible={canvasVisible}
-      focusNotice={canvasFocusNotice}
-    />
+  <section
+    className="workspace-desktop-layout"
+    data-testid="workspace-desktop-layout"
+  >
+    <div className="workspace-canvas-rail" data-testid="workspace-canvas-rail">
+      <CanvasPanel
+        key={canvasMountKey}
+        profile={canvasProfile}
+        visible={canvasVisible}
+        focusNotice={canvasFocusNotice}
+      />
+    </div>
     <ChatPanel visible={chatVisible}>
       <div
-        ref={chatShellRef}
-        className={`chat-shell${desktopHistoryOverlay ? " history-overlay-mode" : ""}`}
+        className="workspace-conversation-shell"
+        data-testid="workspace-conversation-shell"
       >
         <div
-          className={`history-drawer${historyDrawerVisible ? " history-drawer-open" : ""}`}
-          style={historyDrawerStyle}
+          ref={chatShellRef}
+          className={`chat-shell${desktopHistoryOverlay ? " history-overlay-mode" : ""}`}
         >
-          {historyDrawerVisible ? (
-            <aside className="conversation-sidebar" data-testid="conversation-sidebar">
-              <WorkspaceConversationSidebar {...conversationSidebarProps} />
-            </aside>
-          ) : null}
           <div
-            className="history-resizer"
-            data-testid="history-resizer"
-            hidden={!historyDrawerVisible}
-            onPointerDown={onHistoryResizeStart}
-          />
-        </div>
-        <section className="workspace-dialog-rail" data-testid="workspace-dialog-rail">
-          <div className="workspace-dialog-intake">
-            <TeacherTemplateLibrary
-              open={templateLibraryOpen}
-              templates={templateLibraryTemplates}
-              onApply={onApplyTemplateLibrary}
-              onClose={onCloseTemplateLibrary}
-            />
-            <StudioInputPanel
-              mode={desktopInputMode}
-              onModeChange={onDesktopInputModeChange}
-              currentConversationTitle={currentConversationTitle}
-              recentConversations={recentConversations}
-              recentTemplates={recentTemplates}
-              onContinueCurrent={onContinueCurrent}
-              onSelectConversation={onSelectConversation}
-              onApplyTemplate={onApplyContinueTemplate}
-              onOpenTemplateLibrary={onOpenTemplateLibrary}
-              headerSlot={<WorkspaceChatHeader {...chatHeaderProps} />}
-              composerSlot={null}
-            />
-          </div>
-          <div className="workspace-dialog-thread">
-            <WorkspaceChatMessages {...chatMessagesProps} />
-          </div>
-          <div className="workspace-dialog-result-shell">
-            <div className="workspace-dialog-result-header">
-              <h3>最新执行</h3>
-              <span>当前回合的结果摘要、待确认项与下一步动作。</span>
+            className="workspace-history-overlay"
+            data-testid="workspace-history-overlay"
+          >
+            <div
+              className={`history-drawer${
+                historyDrawerVisible ? " history-drawer-open" : ""
+              }`}
+              style={historyDrawerStyle}
+            >
+              {historyDrawerVisible ? (
+                <aside
+                  className="conversation-sidebar"
+                  data-testid="conversation-sidebar"
+                >
+                  <WorkspaceConversationSidebar {...conversationSidebarProps} />
+                </aside>
+              ) : null}
+              {!desktopHistoryOverlay ? (
+                <div
+                  className="history-resizer"
+                  data-testid="history-resizer"
+                  hidden={!historyDrawerVisible}
+                  onPointerDown={onHistoryResizeStart}
+                />
+              ) : null}
             </div>
-            <StudioResultPanel
-              message={latestAssistantMessage}
-              onAction={onStudioResultAction}
-              onRetry={onRetryLatestPrompt}
-              onConfirmUncertainty={onConfirmLatestUncertainty}
-              onRepairUncertainty={onRepairLatestUncertainty}
-              onFocusUncertainty={onFocusLatestUncertainty}
-              activeUncertaintyId={activeFocusUncertaintyId}
-            />
           </div>
-          <div className="workspace-dialog-composer">
-            <WorkspaceChatComposer {...chatComposerProps} />
-          </div>
-        </section>
+          <section
+            className="workspace-dialog-rail"
+            data-testid="workspace-dialog-rail"
+          >
+            <div className="workspace-conversation-header">
+              <WorkspaceChatHeader {...chatHeaderProps} />
+            </div>
+            {templateLibraryOpen || chatMessagesProps.messages.length === 0 ? (
+              <div className="workspace-dialog-intake">
+                <TeacherTemplateLibrary
+                  open={templateLibraryOpen}
+                  templates={templateLibraryTemplates}
+                  onApply={onApplyTemplateLibrary}
+                  onClose={onCloseTemplateLibrary}
+                />
+                <StudioInputPanel
+                  mode={desktopInputMode}
+                  onModeChange={onDesktopInputModeChange}
+                  currentConversationTitle={currentConversationTitle}
+                  recentConversations={recentConversations}
+                  recentTemplates={recentTemplates}
+                  onContinueCurrent={onContinueCurrent}
+                  onSelectConversation={onSelectConversation}
+                  onApplyTemplate={onApplyContinueTemplate}
+                  onOpenTemplateLibrary={onOpenTemplateLibrary}
+                  headerSlot={null}
+                  composerSlot={null}
+                />
+              </div>
+            ) : null}
+            <div
+              className="workspace-dialog-thread"
+              data-testid="workspace-dialog-thread"
+            >
+              <WorkspaceChatMessages {...chatMessagesProps} />
+            </div>
+            <div className="workspace-dialog-result-shell">
+              <div className="workspace-dialog-result-header">
+                <h3>最新执行</h3>
+                <span>当前回合的结果摘要、待确认项与下一步动作。</span>
+              </div>
+              <StudioResultPanel
+                message={latestAssistantMessage}
+                onAction={onStudioResultAction}
+                onRetry={onRetryLatestPrompt}
+                onConfirmUncertainty={onConfirmLatestUncertainty}
+                onRepairUncertainty={onRepairLatestUncertainty}
+                onFocusUncertainty={onFocusLatestUncertainty}
+                activeUncertaintyId={activeFocusUncertaintyId}
+              />
+            </div>
+            <div className="workspace-dialog-composer">
+              <WorkspaceChatComposer {...chatComposerProps} />
+            </div>
+          </section>
+        </div>
       </div>
     </ChatPanel>
-  </>
+  </section>
 );
