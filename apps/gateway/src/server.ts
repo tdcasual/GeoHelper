@@ -12,7 +12,6 @@ import {
   GatewayBackupStore
 } from "./services/backup-store";
 import { createGatewayBuildInfo, GatewayBuildInfo } from "./services/build-info";
-import { buildTraceId } from "./services/compile-events";
 import {
   createRedisKvClient,
   KvClient
@@ -45,6 +44,8 @@ export interface GatewayServices {
   backupStore: GatewayBackupStore;
   kvClient?: KvClient;
 }
+
+const buildGatewayTraceId = (requestId: string): string => `tr_${requestId}`;
 
 export const buildServer = (
   envOverrides: Partial<NodeJS.ProcessEnv> = {},
@@ -107,7 +108,7 @@ export const buildServer = (
   }
 
   app.addHook("onRequest", async (request, reply) => {
-    reply.header("x-trace-id", buildTraceId(request.id));
+    reply.header("x-trace-id", buildGatewayTraceId(request.id));
   });
 
   app.addHook("onResponse", async (request, reply) => {
@@ -119,7 +120,7 @@ export const buildServer = (
 
     if (reply.statusCode >= 500) {
       await sendAlert(config.alertWebhookUrl, {
-        traceId: buildTraceId(request.id),
+        traceId: buildGatewayTraceId(request.id),
         path: request.url,
         method: request.method,
         statusCode: reply.statusCode

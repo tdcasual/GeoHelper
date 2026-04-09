@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 const usage = `Usage:
-  acp-executor-bridge.mjs claim-next <base-url> <executor-id> [--agent-ref <ref>] [--service-ref <ref>] [--ttl-seconds <n>]
-  acp-executor-bridge.mjs heartbeat <base-url> <session-id> <executor-id> [--ttl-seconds <n>]
-  acp-executor-bridge.mjs release <base-url> <session-id> <executor-id>
-  acp-executor-bridge.mjs submit-result <base-url> <session-id> <executor-id> --status <completed|failed> [--result-json <json>] [--artifacts-json <json>]`;
+  delegation-executor-bridge.mjs claim-next <base-url> <executor-id> [--agent-ref <ref>] [--service-ref <ref>] [--ttl-seconds <n>]
+  delegation-executor-bridge.mjs heartbeat <base-url> <session-id> <executor-id> [--ttl-seconds <n>]
+  delegation-executor-bridge.mjs release <base-url> <session-id> <executor-id>
+  delegation-executor-bridge.mjs submit-result <base-url> <session-id> <executor-id> --status <completed|failed> [--result-json <json>] [--artifacts-json <json>]`;
 
 const fail = (message, details) => {
   console.error(message);
@@ -110,7 +110,7 @@ const main = async () => {
       const [baseUrl, executorId, ...flagArgs] = args;
       const flags = parseFlags(flagArgs);
 
-      await requestJson(baseUrl, "/api/v3/acp-sessions/claim", {
+      await requestJson(baseUrl, "/api/v3/delegation-sessions/claim", {
         executorId,
         ...(flags["agent-ref"] ? { agentRef: flags["agent-ref"] } : {}),
         ...(flags["service-ref"] ? { serviceRef: flags["service-ref"] } : {}),
@@ -131,7 +131,7 @@ const main = async () => {
 
       await requestJson(
         baseUrl,
-        `/api/v3/acp-sessions/${encodeURIComponent(sessionId)}/heartbeat`,
+        `/api/v3/delegation-sessions/${encodeURIComponent(sessionId)}/heartbeat`,
         {
           executorId,
           ...(flags["ttl-seconds"]
@@ -151,7 +151,7 @@ const main = async () => {
 
       await requestJson(
         baseUrl,
-        `/api/v3/acp-sessions/${encodeURIComponent(sessionId)}/release`,
+        `/api/v3/delegation-sessions/${encodeURIComponent(sessionId)}/release`,
         {
           executorId
         }
@@ -185,7 +185,7 @@ const main = async () => {
 
       await requestJson(
         baseUrl,
-        `/api/v3/acp-sessions/${encodeURIComponent(sessionId)}/result`,
+        `/api/v3/delegation-sessions/${encodeURIComponent(sessionId)}/result`,
         {
           executorId,
           status: flags.status,

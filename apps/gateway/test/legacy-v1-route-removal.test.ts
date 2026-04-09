@@ -8,8 +8,8 @@ import { buildServer } from "../src/server";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
-describe("legacy compile route removal", () => {
-  it("does not register the legacy compile route and returns 404 for v1", async () => {
+describe("legacy v1 route removal", () => {
+  it("does not register the legacy v1 route and returns 404", async () => {
     const serverSource = await readFile(
       path.resolve(currentDir, "../src/server.ts"),
       "utf8"

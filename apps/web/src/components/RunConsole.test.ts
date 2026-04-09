@@ -4,7 +4,7 @@ import type {
   Run,
   RunEvent
 } from "@geohelper/agent-protocol";
-import type { AcpSessionRecord } from "@geohelper/agent-store";
+import type { DelegationSessionRecord } from "@geohelper/agent-store";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -116,9 +116,9 @@ const childRuns: Run[] = [
   }
 ];
 
-const acpSessions: AcpSessionRecord[] = [
+const delegationSessions: DelegationSessionRecord[] = [
   {
-    id: "acp_session_run_1_node_delegate",
+    id: "delegation_session_run_1_node_delegate",
     runId: "run_1",
     checkpointId: "checkpoint_1",
     delegationName: "teacher_review",
@@ -127,6 +127,18 @@ const acpSessions: AcpSessionRecord[] = [
     outputArtifactIds: [],
     createdAt: "2026-04-08T00:00:00.000Z",
     updatedAt: "2026-04-08T00:00:00.000Z"
+  },
+  {
+    id: "delegation_session_run_1_node_host_delegate",
+    runId: "run_1",
+    checkpointId: "checkpoint_1",
+    delegationName: "host_review",
+    agentRef: "",
+    serviceRef: "host.geometry-review",
+    status: "pending",
+    outputArtifactIds: [],
+    createdAt: "2026-04-08T00:00:10.000Z",
+    updatedAt: "2026-04-08T00:00:10.000Z"
   }
 ];
 
@@ -139,7 +151,7 @@ describe("RunConsole", () => {
         checkpoints: [pendingCheckpoint],
         artifacts,
         childRuns,
-        acpSessions
+        delegationSessions
       })
     );
     const resolvedMarkup = renderToStaticMarkup(
@@ -162,9 +174,9 @@ describe("RunConsole", () => {
         checkpoints: [resolvedCheckpoint],
         artifacts,
         childRuns,
-        acpSessions: [
+        delegationSessions: [
           {
-            ...acpSessions[0],
+            ...delegationSessions[0],
             status: "completed",
             outputArtifactIds: ["artifact_acp_1"]
           }
@@ -177,9 +189,13 @@ describe("RunConsole", () => {
     expect(resolvedMarkup).toContain("暂无待处理 checkpoint");
     expect(resolvedMarkup).toContain("修正版草案");
     expect(resolvedMarkup).toContain("scene_1");
-    expect(pendingMarkup).toContain("ACP Sessions");
+    expect(pendingMarkup).toContain("Delegation Sessions");
     expect(pendingMarkup).toContain("teacher_review");
     expect(pendingMarkup).toContain("openclaw.geometry-reviewer");
+    expect(pendingMarkup).toContain("ACP Agent");
+    expect(pendingMarkup).toContain("host_review");
+    expect(pendingMarkup).toContain("host.geometry-review");
+    expect(pendingMarkup).toContain("Host Service");
     expect(resolvedMarkup).toContain("completed");
     expect(resolvedMarkup).toContain("Subagents");
     expect(resolvedMarkup).toContain("run_child_1");

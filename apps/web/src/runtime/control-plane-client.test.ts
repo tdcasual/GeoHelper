@@ -121,12 +121,12 @@ describe("control-plane-client", () => {
     );
   });
 
-  it("lists ACP sessions for a run", async () => {
+  it("lists delegation sessions for a run", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
       createJsonResponse({
         sessions: [
           {
-            id: "acp_session_run_1_node_delegate",
+            id: "delegation_session_run_1_node_delegate",
             runId: "run_1",
             checkpointId: "checkpoint_1",
             delegationName: "teacher_review",
@@ -145,19 +145,74 @@ describe("control-plane-client", () => {
       fetchImpl: fetchMock as typeof fetch
     });
 
-    const result = await client.listAcpSessions({
+    const result = await client.listDelegationSessions({
       runId: "run_1"
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://control-plane.example.com/api/v3/acp-sessions?runId=run_1",
+      "https://control-plane.example.com/api/v3/delegation-sessions?runId=run_1",
       undefined
     );
     expect(result).toEqual([
       expect.objectContaining({
-        id: "acp_session_run_1_node_delegate",
+        id: "delegation_session_run_1_node_delegate",
         runId: "run_1",
         delegationName: "teacher_review"
+      })
+    ]);
+  });
+
+  it("lists portable bundle audit records from the control plane admin surface", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      createJsonResponse({
+        bundles: [
+          {
+            agentId: "geometry_solver",
+            bundleId: "geometry_solver",
+            rootDir: "/repo/agents/geometry-solver",
+            schemaVersion: "2",
+            hostRequirements: ["workspace.scene.read", "workspace.scene.write"],
+            workspaceBootstrapFiles: ["workspace/AGENTS.md"],
+            promptAssetPaths: ["prompts/planner.md"],
+            openClawCompatibility: {
+              bundleId: "geometry_solver",
+              schemaVersion: "2",
+              recommendedImportMode: "portable-with-host-bindings",
+              requiredOpenClawCapabilities: [
+                "workspace.scene.read",
+                "workspace.scene.write"
+              ],
+              fullyPortableTools: ["scene.read_state"],
+              hostBoundTools: ["scene.apply_command_batch"],
+              nativeSubagentDelegations: [],
+              acpAgentDelegations: [],
+              hostServiceDelegations: [],
+              degradedBehaviors: [],
+              notes: []
+            }
+          }
+        ]
+      })
+    );
+
+    const client = createControlPlaneClient({
+      baseUrl: "https://control-plane.example.com",
+      fetchImpl: fetchMock as typeof fetch
+    });
+
+    const result = await client.listBundles();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://control-plane.example.com/admin/bundles",
+      undefined
+    );
+    expect(result).toEqual([
+      expect.objectContaining({
+        agentId: "geometry_solver",
+        openClawCompatibility: expect.objectContaining({
+          recommendedImportMode: "portable-with-host-bindings",
+          hostBoundTools: ["scene.apply_command_batch"]
+        })
       })
     ]);
   });

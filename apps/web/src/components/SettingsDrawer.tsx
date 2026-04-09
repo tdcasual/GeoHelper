@@ -83,6 +83,9 @@ export const SettingsDrawer = ({
   const platformRunProfileCatalog = useSettingsStore(
     (state) => state.platformRunProfileCatalog
   );
+  const platformBundleCatalog = useSettingsStore(
+    (state) => state.platformBundleCatalog
+  );
   const byokPresets = useSettingsStore((state) => state.byokPresets);
   const officialPresets = useSettingsStore((state) => state.officialPresets);
   const defaultByokPresetId = useSettingsStore(
@@ -349,6 +352,7 @@ export const SettingsDrawer = ({
                 defaultPlatformAgentProfileId={defaultPlatformAgentProfileId}
                 runtimeProfiles={runtimeProfiles}
                 platformRunProfileCatalog={platformRunProfileCatalog}
+                platformBundleCatalog={platformBundleCatalog}
                 selectedRuntimeId={selectedRuntimeId}
                 runtimeDraft={runtimeDraft}
                 savingRuntime={savingRuntime}

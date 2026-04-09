@@ -10,7 +10,9 @@ RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
 ARG VITE_GATEWAY_URL
+ARG VITE_CONTROL_PLANE_URL
 ENV VITE_GATEWAY_URL=${VITE_GATEWAY_URL}
+ENV VITE_CONTROL_PLANE_URL=${VITE_CONTROL_PLANE_URL}
 COPY . .
 RUN pnpm --filter @geohelper/web build
 

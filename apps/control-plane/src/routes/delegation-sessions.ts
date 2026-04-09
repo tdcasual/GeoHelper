@@ -3,7 +3,7 @@ import {
   CheckpointSchema,
   type Run
 } from "@geohelper/agent-protocol";
-import type { AcpSessionRecord } from "@geohelper/agent-store";
+import type { DelegationSessionRecord } from "@geohelper/agent-store";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
@@ -12,7 +12,7 @@ import {
   type ControlPlaneServices
 } from "../control-plane-context";
 
-const ListAcpSessionsQuerySchema = z.object({
+const ListDelegationSessionsQuerySchema = z.object({
   runId: z.string().min(1).optional(),
   status: z.enum(["pending", "completed", "failed", "cancelled"]).optional(),
   agentRef: z.string().min(1).optional(),
@@ -20,19 +20,19 @@ const ListAcpSessionsQuerySchema = z.object({
   claimedBy: z.string().min(1).optional()
 });
 
-const ClaimAcpSessionBodySchema = z.object({
+const ClaimDelegationSessionBodySchema = z.object({
   executorId: z.string().min(1),
   agentRef: z.string().min(1).optional(),
   serviceRef: z.string().min(1).optional(),
   ttlSeconds: z.number().int().positive().max(3600).optional()
 });
 
-const UpdateAcpSessionClaimBodySchema = z.object({
+const UpdateDelegationSessionClaimBodySchema = z.object({
   executorId: z.string().min(1),
   ttlSeconds: z.number().int().positive().max(3600).optional()
 });
 
-const AcpArtifactBodySchema = z.discriminatedUnion("storage", [
+const DelegationArtifactBodySchema = z.discriminatedUnion("storage", [
   z.object({
     kind: ArtifactKindSchema,
     contentType: z.string().min(1),
@@ -49,11 +49,11 @@ const AcpArtifactBodySchema = z.discriminatedUnion("storage", [
   })
 ]);
 
-const SubmitAcpSessionResultBodySchema = z.object({
+const SubmitDelegationSessionResultBodySchema = z.object({
   executorId: z.string().min(1).optional(),
   status: z.enum(["completed", "failed"]),
   result: z.unknown().optional(),
-  artifacts: z.array(AcpArtifactBodySchema).default([])
+  artifacts: z.array(DelegationArtifactBodySchema).default([])
 });
 
 const DEFAULT_CLAIM_TTL_SECONDS = 300;
@@ -74,7 +74,7 @@ const isClaimActive = (
       session.claimExpiresAt > now
   );
 
-const serializeAcpSession = <
+const serializeDelegationSession = <
   T extends {
     claimedBy?: string;
     claimedAt?: string;
@@ -91,9 +91,9 @@ const serializeAcpSession = <
 
 const hydrateSession = async (
   services: ControlPlaneServices,
-  session: AcpSessionRecord
+  session: DelegationSessionRecord
 ) =>
-  serializeAcpSession({
+  serializeDelegationSession({
     ...session,
     run: await services.store.runs.getRun(session.runId),
     checkpoint: await services.store.checkpoints.getCheckpoint(session.checkpointId)
@@ -104,7 +104,7 @@ const mergeArtifactIds = (
   nextArtifactIds: string[]
 ): string[] => [...new Set([...existingArtifactIds, ...nextArtifactIds])];
 
-const buildAcpArtifactId = (sessionId: string, index: number): string =>
+const buildDelegationArtifactId = (sessionId: string, index: number): string =>
   `artifact_${sessionId}_${index + 1}`;
 
 const persistRun = async (
@@ -114,13 +114,13 @@ const persistRun = async (
   await services.store.runs.createRun(run);
 };
 
-export const registerAcpSessionsRoutes = (
+export const registerDelegationSessionsRoutes = (
   app: FastifyInstance,
   services: ControlPlaneServices
 ): void => {
-  app.get("/api/v3/acp-sessions", async (request) => {
-    const query = ListAcpSessionsQuerySchema.parse(request.query);
-    const sessions = await services.store.acpSessions.listSessions(query);
+  app.get("/api/v3/delegation-sessions", async (request) => {
+    const query = ListDelegationSessionsQuerySchema.parse(request.query);
+    const sessions = await services.store.delegationSessions.listSessions(query);
     const hydrated = await Promise.all(sessions.map((session) => hydrateSession(services, session)));
 
     return {
@@ -128,12 +128,12 @@ export const registerAcpSessionsRoutes = (
     };
   });
 
-  app.post("/api/v3/acp-sessions/claim", async (request) => {
-    const body = ClaimAcpSessionBodySchema.parse(request.body);
+  app.post("/api/v3/delegation-sessions/claim", async (request) => {
+    const body = ClaimDelegationSessionBodySchema.parse(request.body);
     const now = services.now();
     const ttlSeconds = body.ttlSeconds ?? DEFAULT_CLAIM_TTL_SECONDS;
     const session = (
-      await services.store.acpSessions.listSessions({
+      await services.store.delegationSessions.listSessions({
         status: "pending",
         agentRef: body.agentRef,
         serviceRef: body.serviceRef
@@ -155,7 +155,7 @@ export const registerAcpSessionsRoutes = (
       updatedAt: now
     };
 
-    await services.store.acpSessions.upsertSession(claimedSession);
+    await services.store.delegationSessions.upsertSession(claimedSession);
 
     return {
       claimed: true,
@@ -163,17 +163,17 @@ export const registerAcpSessionsRoutes = (
     };
   });
 
-  app.get("/api/v3/acp-sessions/:sessionId", async (request, reply) => {
+  app.get("/api/v3/delegation-sessions/:sessionId", async (request, reply) => {
     const params = z
       .object({
         sessionId: z.string().min(1)
       })
       .parse(request.params);
-    const session = await services.store.acpSessions.getSession(params.sessionId);
+    const session = await services.store.delegationSessions.getSession(params.sessionId);
 
     if (!session) {
       return reply.code(404).send({
-        error: "acp_session_not_found"
+        error: "delegation_session_not_found"
       });
     }
 
@@ -182,24 +182,24 @@ export const registerAcpSessionsRoutes = (
     };
   });
 
-  app.post("/api/v3/acp-sessions/:sessionId/heartbeat", async (request, reply) => {
+  app.post("/api/v3/delegation-sessions/:sessionId/heartbeat", async (request, reply) => {
     const params = z
       .object({
         sessionId: z.string().min(1)
       })
       .parse(request.params);
-    const body = UpdateAcpSessionClaimBodySchema.parse(request.body);
-    const session = await services.store.acpSessions.getSession(params.sessionId);
+    const body = UpdateDelegationSessionClaimBodySchema.parse(request.body);
+    const session = await services.store.delegationSessions.getSession(params.sessionId);
 
     if (!session) {
       return reply.code(404).send({
-        error: "acp_session_not_found"
+        error: "delegation_session_not_found"
       });
     }
 
     if (session.status !== "pending" || session.claimedBy !== body.executorId) {
       return reply.code(409).send({
-        error: "acp_session_claim_not_owned"
+        error: "delegation_session_claim_not_owned"
       });
     }
 
@@ -213,31 +213,31 @@ export const registerAcpSessionsRoutes = (
       updatedAt: now
     };
 
-    await services.store.acpSessions.upsertSession(updatedSession);
+    await services.store.delegationSessions.upsertSession(updatedSession);
 
     return {
       session: await hydrateSession(services, updatedSession)
     };
   });
 
-  app.post("/api/v3/acp-sessions/:sessionId/release", async (request, reply) => {
+  app.post("/api/v3/delegation-sessions/:sessionId/release", async (request, reply) => {
     const params = z
       .object({
         sessionId: z.string().min(1)
       })
       .parse(request.params);
-    const body = UpdateAcpSessionClaimBodySchema.parse(request.body);
-    const session = await services.store.acpSessions.getSession(params.sessionId);
+    const body = UpdateDelegationSessionClaimBodySchema.parse(request.body);
+    const session = await services.store.delegationSessions.getSession(params.sessionId);
 
     if (!session) {
       return reply.code(404).send({
-        error: "acp_session_not_found"
+        error: "delegation_session_not_found"
       });
     }
 
     if (session.status !== "pending" || session.claimedBy !== body.executorId) {
       return reply.code(409).send({
-        error: "acp_session_claim_not_owned"
+        error: "delegation_session_claim_not_owned"
       });
     }
 
@@ -249,37 +249,37 @@ export const registerAcpSessionsRoutes = (
       updatedAt: services.now()
     };
 
-    await services.store.acpSessions.upsertSession(updatedSession);
+    await services.store.delegationSessions.upsertSession(updatedSession);
 
     return {
       session: await hydrateSession(services, updatedSession)
     };
   });
 
-  app.post("/api/v3/acp-sessions/:sessionId/result", async (request, reply) => {
+  app.post("/api/v3/delegation-sessions/:sessionId/result", async (request, reply) => {
     const params = z
       .object({
         sessionId: z.string().min(1)
       })
       .parse(request.params);
-    const body = SubmitAcpSessionResultBodySchema.parse(request.body);
-    const session = await services.store.acpSessions.getSession(params.sessionId);
+    const body = SubmitDelegationSessionResultBodySchema.parse(request.body);
+    const session = await services.store.delegationSessions.getSession(params.sessionId);
 
     if (!session) {
       return reply.code(404).send({
-        error: "acp_session_not_found"
+        error: "delegation_session_not_found"
       });
     }
 
     if (session.status !== "pending") {
       return reply.code(409).send({
-        error: "acp_session_not_pending"
+        error: "delegation_session_not_pending"
       });
     }
 
     if (session.claimedBy && body.executorId !== session.claimedBy) {
       return reply.code(409).send({
-        error: "acp_session_claim_mismatch"
+        error: "delegation_session_claim_mismatch"
       });
     }
 
@@ -290,7 +290,7 @@ export const registerAcpSessionsRoutes = (
 
     if (!run || !checkpoint || checkpoint.status !== "pending") {
       return reply.code(409).send({
-        error: "acp_session_checkpoint_not_available"
+        error: "delegation_session_checkpoint_not_available"
       });
     }
 
@@ -298,7 +298,7 @@ export const registerAcpSessionsRoutes = (
     const outputArtifactIds: string[] = [];
 
     for (const [index, artifactInput] of body.artifacts.entries()) {
-      const artifactId = buildAcpArtifactId(session.id, index);
+      const artifactId = buildDelegationArtifactId(session.id, index);
       outputArtifactIds.push(artifactId);
       await services.store.artifacts.writeArtifact({
         id: artifactId,
@@ -311,6 +311,7 @@ export const registerAcpSessionsRoutes = (
           sessionId: session.id,
           delegationName: session.delegationName,
           agentRef: session.agentRef,
+          serviceRef: session.serviceRef,
           sourceCheckpointId: session.checkpointId
         },
         createdAt: now,
@@ -344,10 +345,11 @@ export const registerAcpSessionsRoutes = (
       resolvedAt: now
     };
 
-    await services.store.acpSessions.upsertSession(updatedSession);
-    await appendRunEvent(services, run.id, "acp.result.recorded", {
+    await services.store.delegationSessions.upsertSession(updatedSession);
+    await appendRunEvent(services, run.id, "delegation.result.recorded", {
       sessionId: session.id,
       delegationName: session.delegationName,
+      serviceRef: session.serviceRef,
       status: body.status,
       artifactIds: outputArtifactIds
     });
@@ -358,6 +360,7 @@ export const registerAcpSessionsRoutes = (
       response: {
         status: body.status,
         sessionId: session.id,
+        serviceRef: session.serviceRef,
         artifactIds: outputArtifactIds,
         result: body.result
       },
@@ -370,7 +373,8 @@ export const registerAcpSessionsRoutes = (
       await appendRunEvent(services, run.id, "run.failed", {
         reason: "subagent_failed",
         sessionId: session.id,
-        delegationName: session.delegationName
+        delegationName: session.delegationName,
+        serviceRef: session.serviceRef
       });
       await persistRun(services, {
         ...run,

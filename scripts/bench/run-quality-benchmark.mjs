@@ -62,6 +62,11 @@ const controlPlaneUrl = normalizeBaseUrl(
   args["control-plane-url"] ?? process.env.CONTROL_PLANE_URL ?? DEFAULT_CONTROL_PLANE_URL
 );
 
+const ready = await fetchJson(`${controlPlaneUrl}/api/v3/ready`);
+if (!ready?.ready) {
+  throw new Error("control_plane_not_ready");
+}
+
 const startedAt = Date.now();
 const results = [];
 

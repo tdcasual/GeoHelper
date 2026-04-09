@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -163,6 +163,163 @@ describe("openclaw bundle exporter", () => {
         "scene.apply_command_batch"
       );
     } finally {
+      rmSync(outputDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
+
+  it("supports inline smoke verification from the export script for the reviewer bundle", () => {
+    const outputDir = mkdtempSync(
+      path.join(os.tmpdir(), "geohelper-openclaw-reviewer-export-")
+    );
+
+    try {
+      const run = spawnSync(
+        tsxPath,
+        [exportScriptPath, "geometry-reviewer", outputDir, "--verify-import"],
+        {
+          cwd: repoRoot,
+          encoding: "utf8"
+        }
+      );
+
+      expect(run.status).toBe(0);
+
+      const payload = JSON.parse(run.stdout) as {
+        bundleId: string;
+        outputDir: string;
+        smoke?: {
+          bundleId: string;
+          workflowId: string;
+          thinAdapter: {
+            requiresHostBindings: boolean;
+            recommendedImportMode: string;
+          };
+        };
+      };
+
+      expect(payload).toEqual({
+        bundleId: "geometry_reviewer",
+        outputDir,
+        reportPath: path.join(outputDir, "export-report.json"),
+        smoke: expect.objectContaining({
+          bundleId: "geometry_reviewer",
+          workflowId: "wf_geometry_reviewer",
+          thinAdapter: expect.objectContaining({
+            requiresHostBindings: false,
+            recommendedImportMode: "portable"
+          })
+        })
+      });
+    } finally {
+      rmSync(outputDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
+
+  it("reports delegation portability requirements for exported bundles", () => {
+    const sourceDir = mkdtempSync(
+      path.join(os.tmpdir(), "geohelper-openclaw-delegation-source-")
+    );
+    const outputDir = mkdtempSync(
+      path.join(os.tmpdir(), "geohelper-openclaw-delegation-export-")
+    );
+
+    try {
+      cpSync(geometryBundleDir, sourceDir, {
+        recursive: true
+      });
+      writeFileSync(
+        path.join(sourceDir, "delegations/subagents.json"),
+        JSON.stringify(
+          {
+            delegations: [
+              {
+                name: "portable_reviewer",
+                mode: "native-subagent",
+                agentRef: "geometry-reviewer",
+                awaitCompletion: true
+              },
+              {
+                name: "external_research",
+                mode: "acp-agent",
+                agentRef: "openclaw.geometry-reviewer",
+                awaitCompletion: true
+              },
+              {
+                name: "host_geometry_review",
+                mode: "host-service",
+                serviceRef: "host.geometry-review",
+                awaitCompletion: true
+              }
+            ]
+          },
+          null,
+          2
+        )
+      );
+
+      const bundle = loadPortableAgentBundleFromFs(sourceDir);
+      const result = exportOpenClawBundleToFs({
+        bundle,
+        outputDir
+      });
+      const smokeResult = smokeImportOpenClawWorkspace({
+        workspaceDir: outputDir
+      });
+
+      expect(result.report.recommendedImportMode).toBe(
+        "portable-with-host-bindings"
+      );
+      expect(result.report.nativeSubagentDelegations).toEqual([
+        {
+          name: "portable_reviewer",
+          agentRef: "geometry-reviewer"
+        }
+      ]);
+      expect(result.report.acpAgentDelegations).toEqual([
+        {
+          name: "external_research",
+          agentRef: "openclaw.geometry-reviewer"
+        }
+      ]);
+      expect(result.report.hostServiceDelegations).toEqual([
+        {
+          name: "host_geometry_review",
+          serviceRef: "host.geometry-review"
+        }
+      ]);
+      expect(result.report.degradedBehaviors).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining("host_geometry_review")
+        ])
+      );
+      expect(result.report.notes).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining("ACP agent delegations")
+        ])
+      );
+      expect(smokeResult.thinAdapter.acpAgentDelegations).toEqual([
+        {
+          name: "external_research",
+          agentRef: "openclaw.geometry-reviewer"
+        }
+      ]);
+      expect(smokeResult.thinAdapter.hostServiceDelegations).toEqual([
+        {
+          name: "host_geometry_review",
+          serviceRef: "host.geometry-review"
+        }
+      ]);
+    } finally {
+      rmSync(sourceDir, {
+        recursive: true,
+        force: true
+      });
       rmSync(outputDir, {
         recursive: true,
         force: true

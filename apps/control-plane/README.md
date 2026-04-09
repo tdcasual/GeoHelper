@@ -8,6 +8,13 @@ Run the control plane with its default inline worker loop:
 pnpm --filter @geohelper/control-plane start
 ```
 
+Health probes:
+
+```bash
+curl -fsS http://localhost:4310/api/v3/health
+curl -fsS http://localhost:4310/api/v3/ready
+```
+
 ## Durable SQLite ledger
 
 Point both processes at the same SQLite ledger to keep runs, checkpoints, dispatches,

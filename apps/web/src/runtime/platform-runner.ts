@@ -26,7 +26,7 @@ export const submitPromptToPlatform = async (
   request: RuntimeRunRequest
 ): Promise<RuntimeRunResponse> => {
   const client = createControlPlaneClient({
-    baseUrl: request.baseUrl
+    baseUrl: request.controlPlaneBaseUrl
   });
   const threadState = threadStore.getState();
   const existingThreadId =
@@ -46,13 +46,13 @@ export const submitPromptToPlatform = async (
     profileId: request.platformRunProfile.id
   });
   const snapshot = await client.streamRun(run.id);
-  const acpSessions = await client.listAcpSessions({
+  const delegationSessions = await client.listDelegationSessions({
     runId: run.id
   });
 
   return {
     trace_id: run.id,
     run_snapshot: buildFallbackSnapshot(snapshot),
-    acpSessions
+    delegationSessions
   };
 };

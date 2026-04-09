@@ -167,6 +167,16 @@ describe("gateway runtime platform smoke", () => {
           path: "/api/v1/auth/token/revoke"
         },
         {
+          name: "GET /api/v3/health",
+          method: "GET",
+          path: "/api/v3/health"
+        },
+        {
+          name: "GET /api/v3/ready",
+          method: "GET",
+          path: "/api/v3/ready"
+        },
+        {
           name: "POST /api/v3/threads",
           method: "POST",
           path: "/api/v3/threads"
@@ -243,6 +253,20 @@ describe("gateway runtime platform smoke", () => {
       }
       if (url.endsWith("/api/v1/auth/token/revoke")) {
         return jsonResponse({ revoked: true });
+      }
+      if (url.endsWith("/api/v3/health")) {
+        return jsonResponse({
+          status: "ok",
+          service: "control-plane"
+        });
+      }
+      if (url.endsWith("/api/v3/ready")) {
+        return jsonResponse({
+          ready: true,
+          service: "control-plane",
+          executionMode: "inline_worker_loop",
+          dependencies: []
+        });
       }
       if (url.endsWith("/api/v3/threads")) {
         return jsonResponse({
@@ -370,6 +394,15 @@ describe("gateway runtime platform smoke", () => {
           name: "GET /admin/version",
           ok: true,
           attachments_enabled: false
+        }),
+        expect.objectContaining({
+          name: "GET /api/v3/health",
+          ok: true
+        }),
+        expect.objectContaining({
+          name: "GET /api/v3/ready",
+          ok: true,
+          execution_mode: "inline_worker_loop"
         }),
         expect.objectContaining({
           name: "POST /api/v3/threads",

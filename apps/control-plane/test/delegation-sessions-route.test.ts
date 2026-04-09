@@ -34,9 +34,9 @@ const geometryBundleDir = path.resolve(
 const repoRoot = path.resolve(
   fileURLToPath(new URL("../../..", import.meta.url))
 );
-const acpExecutorBridgeScriptPath = path.join(
+const delegationExecutorBridgeScriptPath = path.join(
   repoRoot,
-  "scripts/agents/acp-executor-bridge.mjs"
+  "scripts/agents/delegation-executor-bridge.mjs"
 );
 
 const runBridgeScript = async (
@@ -94,7 +94,7 @@ const createDelegationBundleDir = (
   delegationConfig: PortableDelegationConfig
 ): string => {
   const tempDir = mkdtempSync(
-    path.join(os.tmpdir(), "geohelper-control-plane-acp-bundle-")
+    path.join(os.tmpdir(), "geohelper-control-plane-delegation-bundle-")
   );
 
   cpSync(geometryBundleDir, tempDir, {
@@ -108,7 +108,7 @@ const createDelegationBundleDir = (
   return tempDir;
 };
 
-const createAcpPlatformRuntime = (bundleDir: string) =>
+const createDelegationPlatformRuntime = (bundleDir: string) =>
   createPlatformRuntimeContext<
     PlatformAgentDefinition,
     ControlPlaneToolRegistration,
@@ -118,7 +118,7 @@ const createAcpPlatformRuntime = (bundleDir: string) =>
       geometry_solver: {
         id: "geometry_solver",
         name: "Geometry Solver",
-        description: "ACP test agent",
+        description: "Delegation test agent",
         defaultBudget: {
           maxModelCalls: 6,
           maxToolCalls: 8,
@@ -131,7 +131,7 @@ const createAcpPlatformRuntime = (bundleDir: string) =>
       profile_parent: {
         id: "profile_parent",
         name: "Parent profile",
-        description: "Delegates to ACP",
+        description: "Delegates externally",
         agentId: "geometry_solver",
         workflowId: "wf_parent",
         defaultBudget: {
@@ -147,7 +147,7 @@ const createAcpPlatformRuntime = (bundleDir: string) =>
         {
           id: "profile_parent",
           name: "Parent profile",
-          description: "Delegates to ACP",
+          description: "Delegates externally",
           agentId: "geometry_solver",
           workflowId: "wf_parent",
           defaultBudget: {
@@ -187,12 +187,12 @@ const createAcpPlatformRuntime = (bundleDir: string) =>
     evaluators: {}
   });
 
-const startAcpRun = async (app: ReturnType<typeof buildServer>) => {
+const startDelegationRun = async (app: ReturnType<typeof buildServer>) => {
   await app.inject({
     method: "POST",
     url: "/api/v3/threads",
     payload: {
-      title: "ACP thread"
+      title: "Delegation thread"
     }
   });
 
@@ -206,8 +206,8 @@ const startAcpRun = async (app: ReturnType<typeof buildServer>) => {
   });
 };
 
-describe("control-plane acp session routes", () => {
-  it("lists pending ACP sessions for external harness pickup", async () => {
+describe("control-plane delegation session routes", () => {
+  it("lists pending delegation sessions for external harness pickup", async () => {
     const store = createMemoryAgentStore();
     const bundleDir = createDelegationBundleDir({
       delegations: [
@@ -223,22 +223,22 @@ describe("control-plane acp session routes", () => {
     try {
       const app = buildServer({
         store,
-        platformRuntime: createAcpPlatformRuntime(bundleDir),
+        platformRuntime: createDelegationPlatformRuntime(bundleDir),
         now: () => "2026-04-08T00:00:00.000Z"
       });
 
-      await startAcpRun(app);
+      await startDelegationRun(app);
 
       const res = await app.inject({
         method: "GET",
-        url: "/api/v3/acp-sessions?status=pending"
+        url: "/api/v3/delegation-sessions?status=pending"
       });
 
       expect(res.statusCode).toBe(200);
       expect(JSON.parse(res.payload)).toEqual({
         sessions: [
           expect.objectContaining({
-            id: "acp_session_run_1_node_delegate",
+            id: "delegation_session_run_1_node_delegate",
             runId: "run_1",
             checkpointId: expect.any(String),
             delegationName: "teacher_review",
@@ -250,7 +250,7 @@ describe("control-plane acp session routes", () => {
             }),
             checkpoint: expect.objectContaining({
               status: "pending",
-              prompt: "Resolve ACP delegation teacher_review to continue the run."
+              prompt: "Resolve agent delegation teacher_review to continue the run."
             })
           })
         ]
@@ -263,7 +263,86 @@ describe("control-plane acp session routes", () => {
     }
   });
 
-  it("records ACP result artifacts and resumes the parent run", async () => {
+  it("lists and claims pending host-service sessions by serviceRef", async () => {
+    const store = createMemoryAgentStore();
+    const bundleDir = createDelegationBundleDir({
+      delegations: [
+        {
+          name: "teacher_review",
+          mode: "host-service",
+          serviceRef: "host.geometry-review",
+          awaitCompletion: true
+        }
+      ]
+    });
+
+    try {
+      const app = buildServer({
+        store,
+        platformRuntime: createDelegationPlatformRuntime(bundleDir),
+        now: () => "2026-04-08T00:00:00.000Z"
+      });
+
+      await startDelegationRun(app);
+
+      const listRes = await app.inject({
+        method: "GET",
+        url: "/api/v3/delegation-sessions?status=pending&serviceRef=host.geometry-review"
+      });
+
+      expect(listRes.statusCode).toBe(200);
+      expect(JSON.parse(listRes.payload)).toEqual({
+        sessions: [
+          expect.objectContaining({
+            id: "delegation_session_run_1_node_delegate",
+            runId: "run_1",
+            checkpointId: expect.any(String),
+            delegationName: "teacher_review",
+            agentRef: "",
+            serviceRef: "host.geometry-review",
+            status: "pending",
+            run: expect.objectContaining({
+              id: "run_1",
+              status: "waiting_for_checkpoint"
+            }),
+            checkpoint: expect.objectContaining({
+              status: "pending",
+              prompt: "Resolve host delegation teacher_review to continue the run."
+            })
+          })
+        ]
+      });
+
+      const claimRes = await app.inject({
+        method: "POST",
+        url: "/api/v3/delegation-sessions/claim",
+        payload: {
+          executorId: "executor_host_geometry_review",
+          serviceRef: "host.geometry-review",
+          ttlSeconds: 300
+        }
+      });
+
+      expect(claimRes.statusCode).toBe(200);
+      expect(JSON.parse(claimRes.payload)).toEqual({
+        claimed: true,
+        session: expect.objectContaining({
+          id: "delegation_session_run_1_node_delegate",
+          serviceRef: "host.geometry-review",
+          claimedBy: "executor_host_geometry_review",
+          claimedAt: "2026-04-08T00:00:00.000Z",
+          claimExpiresAt: "2026-04-08T00:05:00.000Z"
+        })
+      });
+    } finally {
+      rmSync(bundleDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
+
+  it("records agent delegation result artifacts and resumes the parent run", async () => {
     const store = createMemoryAgentStore();
     const bundleDir = createDelegationBundleDir({
       delegations: [
@@ -279,15 +358,15 @@ describe("control-plane acp session routes", () => {
     try {
       const app = buildServer({
         store,
-        platformRuntime: createAcpPlatformRuntime(bundleDir),
+        platformRuntime: createDelegationPlatformRuntime(bundleDir),
         now: () => "2026-04-08T00:00:00.000Z"
       });
 
-      await startAcpRun(app);
+      await startDelegationRun(app);
 
       const res = await app.inject({
         method: "POST",
-        url: "/api/v3/acp-sessions/acp_session_run_1_node_delegate/result",
+        url: "/api/v3/delegation-sessions/delegation_session_run_1_node_delegate/result",
         payload: {
           status: "completed",
           result: {
@@ -313,33 +392,109 @@ describe("control-plane acp session routes", () => {
       expect(JSON.parse(res.payload)).toEqual({
         accepted: true,
         session: expect.objectContaining({
-          id: "acp_session_run_1_node_delegate",
+          id: "delegation_session_run_1_node_delegate",
           status: "completed",
-          outputArtifactIds: ["artifact_acp_session_run_1_node_delegate_1"]
+          outputArtifactIds: ["artifact_delegation_session_run_1_node_delegate_1"]
         })
       });
 
-      expect(await store.acpSessions.getSession("acp_session_run_1_node_delegate")).toEqual(
+      expect(await store.delegationSessions.getSession("delegation_session_run_1_node_delegate")).toEqual(
         expect.objectContaining({
           status: "completed",
-          outputArtifactIds: ["artifact_acp_session_run_1_node_delegate_1"]
+          outputArtifactIds: ["artifact_delegation_session_run_1_node_delegate_1"]
         })
       );
       expect(await store.runs.getRun("run_1")).toEqual(
         expect.objectContaining({
           status: "completed",
-          inputArtifactIds: ["artifact_acp_session_run_1_node_delegate_1"],
+          inputArtifactIds: ["artifact_delegation_session_run_1_node_delegate_1"],
           outputArtifactIds: ["artifact_response_run_1_node_finish"]
         })
       );
-      expect(await store.artifacts.getArtifact("artifact_acp_session_run_1_node_delegate_1")).toEqual(
+      expect(await store.artifacts.getArtifact("artifact_delegation_session_run_1_node_delegate_1")).toEqual(
         expect.objectContaining({
           runId: "run_1",
           kind: "evaluation",
           metadata: expect.objectContaining({
-            sessionId: "acp_session_run_1_node_delegate",
+            sessionId: "delegation_session_run_1_node_delegate",
             delegationName: "teacher_review",
             agentRef: "openclaw.geometry-reviewer"
+          })
+        })
+      );
+      expect((await store.events.listRunEvents("run_1")).map((event) => event.type)).toContain(
+        "delegation.result.recorded"
+      );
+    } finally {
+      rmSync(bundleDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
+
+  it("records host-service result artifacts with serviceRef metadata and resumes the parent run", async () => {
+    const store = createMemoryAgentStore();
+    const bundleDir = createDelegationBundleDir({
+      delegations: [
+        {
+          name: "teacher_review",
+          mode: "host-service",
+          serviceRef: "host.geometry-review",
+          awaitCompletion: true
+        }
+      ]
+    });
+
+    try {
+      const app = buildServer({
+        store,
+        platformRuntime: createDelegationPlatformRuntime(bundleDir),
+        now: () => "2026-04-08T00:00:00.000Z"
+      });
+
+      await startDelegationRun(app);
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/v3/delegation-sessions/delegation_session_run_1_node_delegate/result",
+        payload: {
+          status: "completed",
+          result: {
+            summary: "Host review complete"
+          },
+          artifacts: [
+            {
+              kind: "evaluation",
+              contentType: "application/json",
+              storage: "inline",
+              inlineData: {
+                verdict: "approved"
+              },
+              metadata: {
+                rubric: "geometry-review"
+              }
+            }
+          ]
+        }
+      });
+
+      expect(res.statusCode).toBe(202);
+      expect(await store.runs.getRun("run_1")).toEqual(
+        expect.objectContaining({
+          status: "completed",
+          inputArtifactIds: ["artifact_delegation_session_run_1_node_delegate_1"],
+          outputArtifactIds: ["artifact_response_run_1_node_finish"]
+        })
+      );
+      expect(await store.artifacts.getArtifact("artifact_delegation_session_run_1_node_delegate_1")).toEqual(
+        expect.objectContaining({
+          runId: "run_1",
+          kind: "evaluation",
+          metadata: expect.objectContaining({
+            sessionId: "delegation_session_run_1_node_delegate",
+            delegationName: "teacher_review",
+            serviceRef: "host.geometry-review"
           })
         })
       );
@@ -351,7 +506,7 @@ describe("control-plane acp session routes", () => {
     }
   });
 
-  it("marks the parent run failed when an ACP session reports failure", async () => {
+  it("marks the parent run failed when a delegation session reports failure", async () => {
     const store = createMemoryAgentStore();
     const bundleDir = createDelegationBundleDir({
       delegations: [
@@ -367,26 +522,26 @@ describe("control-plane acp session routes", () => {
     try {
       const app = buildServer({
         store,
-        platformRuntime: createAcpPlatformRuntime(bundleDir),
+        platformRuntime: createDelegationPlatformRuntime(bundleDir),
         now: () => "2026-04-08T00:00:00.000Z"
       });
 
-      await startAcpRun(app);
+      await startDelegationRun(app);
 
       const res = await app.inject({
         method: "POST",
-        url: "/api/v3/acp-sessions/acp_session_run_1_node_delegate/result",
+        url: "/api/v3/delegation-sessions/delegation_session_run_1_node_delegate/result",
         payload: {
           status: "failed",
           result: {
-            message: "Upstream ACP agent failed"
+            message: "Upstream agent delegation failed"
           },
           artifacts: []
         }
       });
 
       expect(res.statusCode).toBe(202);
-      expect(await store.acpSessions.getSession("acp_session_run_1_node_delegate")).toEqual(
+      expect(await store.delegationSessions.getSession("delegation_session_run_1_node_delegate")).toEqual(
         expect.objectContaining({
           status: "failed",
           outputArtifactIds: []
@@ -397,6 +552,9 @@ describe("control-plane acp session routes", () => {
           status: "failed"
         })
       );
+      expect((await store.events.listRunEvents("run_1")).map((event) => event.type)).toEqual(
+        expect.arrayContaining(["delegation.result.recorded", "run.failed"])
+      );
     } finally {
       rmSync(bundleDir, {
         recursive: true,
@@ -405,7 +563,7 @@ describe("control-plane acp session routes", () => {
     }
   });
 
-  it("claims, heartbeats, and releases ACP sessions for an external executor", async () => {
+  it("claims, heartbeats, and releases delegation sessions for an external executor", async () => {
     const store = createMemoryAgentStore();
     const bundleDir = createDelegationBundleDir({
       delegations: [
@@ -422,15 +580,15 @@ describe("control-plane acp session routes", () => {
     try {
       const app = buildServer({
         store,
-        platformRuntime: createAcpPlatformRuntime(bundleDir),
+        platformRuntime: createDelegationPlatformRuntime(bundleDir),
         now: () => currentTime
       });
 
-      await startAcpRun(app);
+      await startDelegationRun(app);
 
       const claimRes = await app.inject({
         method: "POST",
-        url: "/api/v3/acp-sessions/claim",
+        url: "/api/v3/delegation-sessions/claim",
         payload: {
           executorId: "executor_geometry_reviewer",
           agentRef: "openclaw.geometry-reviewer",
@@ -442,7 +600,7 @@ describe("control-plane acp session routes", () => {
       expect(JSON.parse(claimRes.payload)).toEqual({
         claimed: true,
         session: expect.objectContaining({
-          id: "acp_session_run_1_node_delegate",
+          id: "delegation_session_run_1_node_delegate",
           claimedBy: "executor_geometry_reviewer",
           claimedAt: "2026-04-08T00:00:00.000Z",
           claimExpiresAt: "2026-04-08T00:05:00.000Z"
@@ -451,7 +609,7 @@ describe("control-plane acp session routes", () => {
 
       const secondClaim = await app.inject({
         method: "POST",
-        url: "/api/v3/acp-sessions/claim",
+        url: "/api/v3/delegation-sessions/claim",
         payload: {
           executorId: "executor_other",
           agentRef: "openclaw.geometry-reviewer",
@@ -468,7 +626,7 @@ describe("control-plane acp session routes", () => {
       currentTime = "2026-04-08T00:01:00.000Z";
       const heartbeatRes = await app.inject({
         method: "POST",
-        url: "/api/v3/acp-sessions/acp_session_run_1_node_delegate/heartbeat",
+        url: "/api/v3/delegation-sessions/delegation_session_run_1_node_delegate/heartbeat",
         payload: {
           executorId: "executor_geometry_reviewer",
           ttlSeconds: 300
@@ -478,7 +636,7 @@ describe("control-plane acp session routes", () => {
       expect(heartbeatRes.statusCode).toBe(200);
       expect(JSON.parse(heartbeatRes.payload)).toEqual({
         session: expect.objectContaining({
-          id: "acp_session_run_1_node_delegate",
+          id: "delegation_session_run_1_node_delegate",
           claimedBy: "executor_geometry_reviewer",
           claimExpiresAt: "2026-04-08T00:06:00.000Z"
         })
@@ -487,7 +645,7 @@ describe("control-plane acp session routes", () => {
       currentTime = "2026-04-08T00:02:00.000Z";
       const releaseRes = await app.inject({
         method: "POST",
-        url: "/api/v3/acp-sessions/acp_session_run_1_node_delegate/release",
+        url: "/api/v3/delegation-sessions/delegation_session_run_1_node_delegate/release",
         payload: {
           executorId: "executor_geometry_reviewer"
         }
@@ -496,7 +654,7 @@ describe("control-plane acp session routes", () => {
       expect(releaseRes.statusCode).toBe(200);
       expect(JSON.parse(releaseRes.payload)).toEqual({
         session: expect.objectContaining({
-          id: "acp_session_run_1_node_delegate",
+          id: "delegation_session_run_1_node_delegate",
           claimedBy: null,
           claimedAt: null,
           claimExpiresAt: null
@@ -510,7 +668,7 @@ describe("control-plane acp session routes", () => {
     }
   });
 
-  it("rejects ACP result submission from a non-owner while a claim is active", async () => {
+  it("rejects delegation result submission from a non-owner while a claim is active", async () => {
     const store = createMemoryAgentStore();
     const bundleDir = createDelegationBundleDir({
       delegations: [
@@ -526,14 +684,14 @@ describe("control-plane acp session routes", () => {
     try {
       const app = buildServer({
         store,
-        platformRuntime: createAcpPlatformRuntime(bundleDir),
+        platformRuntime: createDelegationPlatformRuntime(bundleDir),
         now: () => "2026-04-08T00:00:00.000Z"
       });
 
-      await startAcpRun(app);
+      await startDelegationRun(app);
       await app.inject({
         method: "POST",
-        url: "/api/v3/acp-sessions/claim",
+        url: "/api/v3/delegation-sessions/claim",
         payload: {
           executorId: "executor_geometry_reviewer",
           agentRef: "openclaw.geometry-reviewer",
@@ -543,7 +701,7 @@ describe("control-plane acp session routes", () => {
 
       const mismatchRes = await app.inject({
         method: "POST",
-        url: "/api/v3/acp-sessions/acp_session_run_1_node_delegate/result",
+        url: "/api/v3/delegation-sessions/delegation_session_run_1_node_delegate/result",
         payload: {
           executorId: "executor_other",
           status: "completed",
@@ -556,7 +714,7 @@ describe("control-plane acp session routes", () => {
 
       expect(mismatchRes.statusCode).toBe(409);
       expect(JSON.parse(mismatchRes.payload)).toEqual({
-        error: "acp_session_claim_mismatch"
+        error: "delegation_session_claim_mismatch"
       });
     } finally {
       rmSync(bundleDir, {
@@ -566,7 +724,7 @@ describe("control-plane acp session routes", () => {
     }
   });
 
-  it("drives claim, heartbeat, and release through the ACP executor bridge script", async () => {
+  it("drives claim, heartbeat, and release through the delegation executor bridge script", async () => {
     const store = createMemoryAgentStore();
     const bundleDir = createDelegationBundleDir({
       delegations: [
@@ -582,7 +740,7 @@ describe("control-plane acp session routes", () => {
     try {
       const app = buildServer({
         store,
-        platformRuntime: createAcpPlatformRuntime(bundleDir),
+        platformRuntime: createDelegationPlatformRuntime(bundleDir),
         now: () => "2026-04-08T00:00:00.000Z"
       });
       const baseUrl = await app.listen({
@@ -591,10 +749,10 @@ describe("control-plane acp session routes", () => {
       });
 
       try {
-        await startAcpRun(app);
+        await startDelegationRun(app);
 
         const claimRun = await runBridgeScript([
-          acpExecutorBridgeScriptPath,
+          delegationExecutorBridgeScriptPath,
           "claim-next",
           baseUrl,
           "executor_geometry_reviewer",
@@ -606,16 +764,16 @@ describe("control-plane acp session routes", () => {
         expect(JSON.parse(claimRun.stdout)).toEqual({
           claimed: true,
           session: expect.objectContaining({
-            id: "acp_session_run_1_node_delegate",
+            id: "delegation_session_run_1_node_delegate",
             claimedBy: "executor_geometry_reviewer"
           })
         });
 
         const heartbeatRun = await runBridgeScript([
-          acpExecutorBridgeScriptPath,
+          delegationExecutorBridgeScriptPath,
           "heartbeat",
           baseUrl,
-          "acp_session_run_1_node_delegate",
+          "delegation_session_run_1_node_delegate",
           "executor_geometry_reviewer",
           "--ttl-seconds",
           "120"
@@ -624,23 +782,23 @@ describe("control-plane acp session routes", () => {
         expect(heartbeatRun.status).toBe(0);
         expect(JSON.parse(heartbeatRun.stdout)).toEqual({
           session: expect.objectContaining({
-            id: "acp_session_run_1_node_delegate",
+            id: "delegation_session_run_1_node_delegate",
             claimedBy: "executor_geometry_reviewer"
           })
         });
 
         const releaseRun = await runBridgeScript([
-          acpExecutorBridgeScriptPath,
+          delegationExecutorBridgeScriptPath,
           "release",
           baseUrl,
-          "acp_session_run_1_node_delegate",
+          "delegation_session_run_1_node_delegate",
           "executor_geometry_reviewer"
         ]);
 
         expect(releaseRun.status).toBe(0);
         expect(JSON.parse(releaseRun.stdout)).toEqual({
           session: expect.objectContaining({
-            id: "acp_session_run_1_node_delegate",
+            id: "delegation_session_run_1_node_delegate",
             claimedBy: null
           })
         });
@@ -655,7 +813,7 @@ describe("control-plane acp session routes", () => {
     }
   });
 
-  it("submits an ACP result through the executor bridge script", async () => {
+  it("submits a delegation result through the executor bridge script", async () => {
     const store = createMemoryAgentStore();
     const bundleDir = createDelegationBundleDir({
       delegations: [
@@ -671,7 +829,7 @@ describe("control-plane acp session routes", () => {
     try {
       const app = buildServer({
         store,
-        platformRuntime: createAcpPlatformRuntime(bundleDir),
+        platformRuntime: createDelegationPlatformRuntime(bundleDir),
         now: () => "2026-04-08T00:00:00.000Z"
       });
       const baseUrl = await app.listen({
@@ -680,10 +838,10 @@ describe("control-plane acp session routes", () => {
       });
 
       try {
-        await startAcpRun(app);
+        await startDelegationRun(app);
 
         const claimRun = await runBridgeScript([
-          acpExecutorBridgeScriptPath,
+          delegationExecutorBridgeScriptPath,
           "claim-next",
           baseUrl,
           "executor_geometry_reviewer",
@@ -694,10 +852,10 @@ describe("control-plane acp session routes", () => {
         expect(claimRun.status).toBe(0);
 
         const submitRun = await runBridgeScript([
-          acpExecutorBridgeScriptPath,
+          delegationExecutorBridgeScriptPath,
           "submit-result",
           baseUrl,
-          "acp_session_run_1_node_delegate",
+          "delegation_session_run_1_node_delegate",
           "executor_geometry_reviewer",
           "--status",
           "completed",
@@ -713,7 +871,7 @@ describe("control-plane acp session routes", () => {
         expect(JSON.parse(submitRun.stdout)).toEqual({
           accepted: true,
           session: expect.objectContaining({
-            id: "acp_session_run_1_node_delegate",
+            id: "delegation_session_run_1_node_delegate",
             status: "completed"
           })
         });

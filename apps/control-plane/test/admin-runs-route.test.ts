@@ -175,8 +175,8 @@ describe("control-plane admin routes", () => {
       store
     });
 
-    await store.acpSessions.upsertSession({
-      id: "acp_session_run_1_node_delegate",
+    await store.delegationSessions.upsertSession({
+      id: "delegation_session_run_1_node_delegate",
       runId: "run_1",
       checkpointId: "checkpoint_run_1",
       delegationName: "teacher_review",
@@ -192,8 +192,8 @@ describe("control-plane admin routes", () => {
       nodeId: "node_delegate",
       kind: "human_input",
       status: "pending",
-      title: "Await ACP delegation",
-      prompt: "Resolve ACP delegation teacher_review to continue the run.",
+      title: "Await agent delegation",
+      prompt: "Resolve agent delegation teacher_review to continue the run.",
       createdAt: "2026-04-04T00:00:35.000Z"
     });
 
@@ -228,9 +228,9 @@ describe("control-plane admin routes", () => {
           id: "checkpoint_run_1"
         })
       ],
-      acpSessions: [
+      delegationSessions: [
         expect.objectContaining({
-          id: "acp_session_run_1_node_delegate",
+          id: "delegation_session_run_1_node_delegate",
           delegationName: "teacher_review",
           agentRef: "openclaw.geometry-reviewer"
         })

@@ -10,7 +10,7 @@ import type {
   ConversationThread
 } from "./chat-store";
 import type { SceneTransaction } from "./scene-store";
-import type { CompileRuntimeOptions } from "./settings-store";
+import type { RunRuntimeOptions } from "./settings-store";
 
 export const ATTACHMENT_CAPABILITY_MESSAGE =
   "当前运行时或模型未开启图片能力，请切换到支持图片的运行时或模型后重试。";
@@ -36,7 +36,7 @@ export type ChatSendGuard =
       openSettings: true;
     };
 
-export const buildCompileContext = (input: {
+export const buildRunContext = (input: {
   conversation: ConversationThread | undefined;
   sceneTransactions: SceneTransaction[];
 }) => ({
@@ -54,7 +54,7 @@ export const buildCompileContext = (input: {
 
 export const resolveChatSendGuard = (input: {
   mode: ChatMode;
-  runtime: Partial<CompileRuntimeOptions>;
+  runtime: Partial<RunRuntimeOptions>;
   attachments: ChatAttachment[];
 }): ChatSendGuard | null => {
   const supportsOfficial =

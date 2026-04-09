@@ -1,10 +1,12 @@
-import type { ChatMode, RuntimeTarget } from "../../runtime/types";
+import type { ChatMode } from "../../runtime/types";
 import type { SecretService } from "../../services/secure-secret";
+import { normalizeRuntimeEndpointUrl } from "../runtime-profiles";
 import type {
   ByokPreset,
   OfficialPreset,
   RuntimeProfile,
-  SettingsStoreState
+  SettingsStoreState,
+  UpsertRuntimeProfileInput
 } from "../settings-store";
 
 type SettingsSet = (
@@ -71,24 +73,29 @@ export const sanitizePresetNumeric = <
 export const createRuntimeAndPresetActions = (
   deps: RuntimeAndPresetSliceDeps
 ) => ({
-  upsertRuntimeProfile: (input: {
-    id?: string;
-    name: string;
-    target: RuntimeTarget;
-    baseUrl: string;
-  }) => {
+  upsertRuntimeProfile: (input: UpsertRuntimeProfileInput) => {
     const id = input.id ?? `runtime_${makeId()}`;
     deps.set((state) => {
       const existing = state.runtimeProfiles.find((item) => item.id === id);
-      const merged: RuntimeProfile = {
-        id,
-        name:
-          input.name.trim() ||
-          (input.target === "gateway" ? "Gateway" : "Direct BYOK"),
-        target: input.target,
-        baseUrl: input.baseUrl.trim().replace(/\/+$/, ""),
-        updatedAt: Date.now()
-      };
+      const merged: RuntimeProfile =
+        input.target === "gateway"
+          ? {
+              id,
+              name: input.name.trim() || "Gateway",
+              target: "gateway",
+              gatewayBaseUrl: normalizeRuntimeEndpointUrl(input.gatewayBaseUrl),
+              controlPlaneBaseUrl: normalizeRuntimeEndpointUrl(
+                input.controlPlaneBaseUrl
+              ),
+              updatedAt: Date.now()
+            }
+          : {
+              id,
+              name: input.name.trim() || "Direct BYOK",
+              target: "direct",
+              providerBaseUrl: normalizeRuntimeEndpointUrl(input.providerBaseUrl),
+              updatedAt: Date.now()
+            };
       const runtimeProfiles = existing
         ? state.runtimeProfiles.map((item) => (item.id === id ? merged : item))
         : [merged, ...state.runtimeProfiles];

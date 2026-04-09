@@ -8,7 +8,8 @@ const ExportBundleParamsSchema = z.object({
 });
 
 const ExportBundleBodySchema = z.object({
-  outputDir: z.string().min(1).optional()
+  outputDir: z.string().min(1).optional(),
+  verifyImport: z.boolean().optional()
 });
 
 export const registerAdminBundlesRoutes = (
@@ -28,6 +29,11 @@ export const registerAdminBundlesRoutes = (
         agentId: params.agentId,
         outputDir: body.outputDir
       });
+      const smoke = body.verifyImport
+        ? services.smokeImportOpenClawExport({
+            outputDir: result.outputDir
+          })
+        : null;
 
       return {
         export: {
@@ -35,7 +41,12 @@ export const registerAdminBundlesRoutes = (
           bundleId: result.bundleId,
           outputDir: result.outputDir,
           report: result.report
-        }
+        },
+        ...(smoke
+          ? {
+              smoke
+            }
+          : {})
       };
     } catch (error) {
       if (error instanceof Error && error.message === `bundle_not_found:${params.agentId}`) {

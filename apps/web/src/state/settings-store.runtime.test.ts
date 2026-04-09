@@ -7,7 +7,7 @@ import { browserSecretService } from "../services/secure-secret";
 import {
   createSettingsStore,
   inferModelSupportsVision,
-  resolveCompileRuntimeOptions,
+  resolveRunRuntimeOptions,
   resolveRuntimeCapabilitiesForModel,
   settingsStore
 } from "./settings-store";
@@ -68,8 +68,12 @@ describe("settings-store runtime", () => {
     expect(inferModelSupportsVision("gpt-4.1-mini")).toBe(false);
   });
 
-  it("resolves runtime compile options with gateway capabilities", async () => {
-    vi.stubEnv("VITE_GATEWAY_URL", "https://gateway-capable.example.com");
+  it("resolves runtime run options with gateway capabilities", async () => {
+    vi.stubEnv("VITE_GATEWAY_URL", "https://gateway.example.com");
+    vi.stubEnv(
+      "VITE_CONTROL_PLANE_URL",
+      "https://control-plane.example.com"
+    );
     const originalState = settingsStore.getState();
 
     try {
@@ -77,17 +81,21 @@ describe("settings-store runtime", () => {
         id: "runtime_gateway",
         name: "Gateway",
         target: "gateway",
-        baseUrl: "https://gateway-capable.example.com"
+        gatewayBaseUrl: "https://gateway.example.com",
+        controlPlaneBaseUrl: "https://control-plane.example.com"
       });
       settingsStore.getState().setDefaultRuntimeProfile("runtime_gateway");
 
-      const options = await resolveCompileRuntimeOptions({
+      const options = await resolveRunRuntimeOptions({
         conversationId: "conv_1",
         mode: "official"
       });
 
       expect(options.runtimeTarget).toBe("gateway");
-      expect(options.runtimeBaseUrl).toBe("https://gateway-capable.example.com");
+      expect(options.gatewayBaseUrl).toBe("https://gateway.example.com");
+      expect(options.controlPlaneBaseUrl).toBe(
+        "https://control-plane.example.com"
+      );
       expect(options.runtimeCapabilities.supportsOfficialAuth).toBe(true);
       expect(options.runtimeCapabilities.supportsVision).toBe(false);
     } finally {
@@ -96,38 +104,74 @@ describe("settings-store runtime", () => {
   });
 
   it("refreshes platform run profiles from control plane and heals a missing selection", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
-      createJsonResponse({
-        catalog: {
-          runProfiles: [
-            {
-              id: "platform_remote_geometry_pro",
-              name: "远端几何增强",
-              description: "control-plane 下发的增强版本",
-              agentId: "geometry_solver",
-              workflowId: "wf_geometry_solver",
-              defaultBudget: {
-                maxModelCalls: 9,
-                maxToolCalls: 12,
-                maxDurationMs: 180000
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          catalog: {
+            runProfiles: [
+              {
+                id: "platform_remote_geometry_pro",
+                name: "远端几何增强",
+                description: "control-plane 下发的增强版本",
+                agentId: "geometry_solver",
+                workflowId: "wf_geometry_solver",
+                defaultBudget: {
+                  maxModelCalls: 9,
+                  maxToolCalls: 12,
+                  maxDurationMs: 180000
+                }
+              },
+              {
+                id: "platform_remote_geometry_fast",
+                name: "远端快速版",
+                description: "control-plane 下发的快速版本",
+                agentId: "geometry_solver",
+                workflowId: "wf_geometry_solver",
+                defaultBudget: {
+                  maxModelCalls: 4,
+                  maxToolCalls: 5,
+                  maxDurationMs: 90000
+                }
               }
-            },
+            ]
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          bundles: [
             {
-              id: "platform_remote_geometry_fast",
-              name: "远端快速版",
-              description: "control-plane 下发的快速版本",
               agentId: "geometry_solver",
-              workflowId: "wf_geometry_solver",
-              defaultBudget: {
-                maxModelCalls: 4,
-                maxToolCalls: 5,
-                maxDurationMs: 90000
+              bundleId: "geometry_solver",
+              rootDir: "/repo/agents/geometry-solver",
+              schemaVersion: "2",
+              hostRequirements: [
+                "workspace.scene.read",
+                "workspace.scene.write"
+              ],
+              workspaceBootstrapFiles: ["workspace/AGENTS.md"],
+              promptAssetPaths: ["prompts/planner.md"],
+              openClawCompatibility: {
+                bundleId: "geometry_solver",
+                schemaVersion: "2",
+                recommendedImportMode: "portable-with-host-bindings",
+                requiredOpenClawCapabilities: [
+                  "workspace.scene.read",
+                  "workspace.scene.write"
+                ],
+                fullyPortableTools: ["scene.read_state"],
+                hostBoundTools: ["scene.apply_command_batch"],
+                nativeSubagentDelegations: [],
+                acpAgentDelegations: [],
+                hostServiceDelegations: [],
+                degradedBehaviors: [],
+                notes: []
               }
             }
           ]
-        }
-      })
-    );
+        })
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const store = createSettingsStore();
@@ -135,7 +179,8 @@ describe("settings-store runtime", () => {
       id: "runtime_gateway",
       name: "Gateway",
       target: "gateway",
-      baseUrl: "https://control-plane.example.com"
+      gatewayBaseUrl: "https://gateway.example.com",
+      controlPlaneBaseUrl: "https://control-plane.example.com"
     });
     store.getState().setDefaultRuntimeProfile("runtime_gateway");
     store
@@ -146,6 +191,10 @@ describe("settings-store runtime", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "https://control-plane.example.com/api/v3/platform/catalog",
+      undefined
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://control-plane.example.com/admin/bundles",
       undefined
     );
     expect(store.getState().platformRunProfileCatalog).toEqual(
@@ -166,6 +215,21 @@ describe("settings-store runtime", () => {
     expect(store.getState().defaultPlatformAgentProfileId).toBe(
       "platform_remote_geometry_pro"
     );
+    expect(store.getState().platformBundleCatalog).toEqual(
+      expect.objectContaining({
+        source: "control_plane",
+        status: "ready",
+        error: null,
+        bundles: [
+          expect.objectContaining({
+            agentId: "geometry_solver",
+            openClawCompatibility: expect.objectContaining({
+              recommendedImportMode: "portable-with-host-bindings"
+            })
+          })
+        ]
+      })
+    );
   });
 
   it("falls back to the local platform run profile catalog when refresh fails", async () => {
@@ -179,7 +243,8 @@ describe("settings-store runtime", () => {
       id: "runtime_gateway",
       name: "Gateway",
       target: "gateway",
-      baseUrl: "https://control-plane.example.com"
+      gatewayBaseUrl: "https://gateway.example.com",
+      controlPlaneBaseUrl: "https://control-plane.example.com"
     });
     store.getState().setDefaultRuntimeProfile("runtime_gateway");
 
@@ -195,7 +260,7 @@ describe("settings-store runtime", () => {
     );
   });
 
-  it("keeps resolveCompileRuntimeOptions facade wiring store state updates", async () => {
+  it("keeps resolveRunRuntimeOptions facade wiring store state updates", async () => {
     const originalLocalStorage = globalThis.localStorage;
     const originalState = settingsStore.getState();
     Object.defineProperty(globalThis, "localStorage", {
@@ -227,7 +292,7 @@ describe("settings-store runtime", () => {
     settingsStore.getState().clearDebugEvents();
 
     try {
-      const options = await resolveCompileRuntimeOptions({
+      const options = await resolveRunRuntimeOptions({
         conversationId: "conv_1",
         mode: "byok"
       });
@@ -258,5 +323,6 @@ describe("settings-store runtime", () => {
       "utf-8"
     );
     expect(code).not.toContain("process.env.VITE_GATEWAY_URL");
+    expect(code).not.toContain("process.env.VITE_CONTROL_PLANE_URL");
   });
 });

@@ -389,7 +389,13 @@ export const registerAdminRoutes = (
       return reply;
     }
 
-    return reply.send(getGatewayMetricsSnapshot(deps.metricsStore));
+    return reply.send(
+      getGatewayMetricsSnapshot({
+        store: deps.metricsStore,
+        config,
+        buildInfo: deps.buildInfo
+      })
+    );
   });
 
   app.get("/admin/version", async (request, reply) => {

@@ -12,7 +12,7 @@ const directProfile = {
   id: "runtime_direct",
   name: "Direct BYOK",
   target: "direct" as const,
-  baseUrl: "",
+  providerBaseUrl: "",
   updatedAt: 1
 };
 
@@ -20,7 +20,8 @@ const gatewayProfile = {
   id: "runtime_gateway",
   name: "Gateway",
   target: "gateway" as const,
-  baseUrl: "https://gateway.example.com",
+  gatewayBaseUrl: "https://gateway.example.com",
+  controlPlaneBaseUrl: "https://control-plane.example.com",
   updatedAt: 2
 };
 

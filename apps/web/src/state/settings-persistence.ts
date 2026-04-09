@@ -3,18 +3,19 @@ import {
 } from "../runtime/platform-run-profiles";
 import type { EncryptedSecret } from "../services/secure-secret";
 import { persistSettingsSnapshotToIndexedDb } from "../storage/indexed-sync";
+import type { RuntimeProfile } from "./runtime-profiles";
+import { normalizeRuntimeEndpointUrl } from "./runtime-profiles";
 import type {
   ByokPreset,
   DebugEvent,
   ExperimentFlags,
   OfficialPreset,
   RemoteBackupSyncPreferences,
-  RuntimeProfile,
   SessionOverride
 } from "./settings-store";
 
 export interface PersistedSettingsSnapshot {
-  schemaVersion: 3;
+  schemaVersion: 4;
   defaultMode: "byok" | "official";
   runtimeProfiles: RuntimeProfile[];
   defaultRuntimeProfileId: string;
@@ -48,12 +49,14 @@ const clampRetryAttempts = (value: unknown): number => {
   return Math.min(5, Math.max(0, numericValue));
 };
 
-const readGatewayBaseUrlFromEnv = (): string => {
-  const viteGatewayUrl =
+const readRuntimeUrlFromEnv = (
+  key: "VITE_GATEWAY_URL" | "VITE_CONTROL_PLANE_URL"
+): string => {
+  const viteValue =
     typeof import.meta !== "undefined" && import.meta.env
-      ? import.meta.env.VITE_GATEWAY_URL
+      ? import.meta.env[key]
       : undefined;
-  const processGatewayUrl =
+  const processValue =
     typeof globalThis !== "undefined" &&
     "process" in globalThis &&
     (
@@ -61,14 +64,16 @@ const readGatewayBaseUrlFromEnv = (): string => {
         process?: {
           env?: {
             VITE_GATEWAY_URL?: string;
+            VITE_CONTROL_PLANE_URL?: string;
           };
         };
       }
-    ).process?.env?.VITE_GATEWAY_URL;
+    ).process?.env?.[key];
 
-  const rawValue = viteGatewayUrl ?? processGatewayUrl;
-  const normalized = typeof rawValue === "string" ? rawValue : "";
-  return normalized.trim().replace(/\/+$/, "");
+  const rawValue = viteValue ?? processValue;
+  return normalizeRuntimeEndpointUrl(
+    typeof rawValue === "string" ? rawValue : ""
+  );
 };
 
 const createDefaultRemoteBackupSyncPreferences =
@@ -81,19 +86,22 @@ const createDefaultRuntimeProfiles = (): {
   defaultRuntimeProfileId: string;
 } => {
   const now = Date.now();
-  const gatewayBaseUrl = readGatewayBaseUrlFromEnv();
+  const gatewayBaseUrl = readRuntimeUrlFromEnv("VITE_GATEWAY_URL");
+  const controlPlaneBaseUrl =
+    readRuntimeUrlFromEnv("VITE_CONTROL_PLANE_URL") || gatewayBaseUrl;
   const gatewayProfile: RuntimeProfile = {
     id: "runtime_gateway",
     name: "Gateway",
     target: "gateway",
-    baseUrl: gatewayBaseUrl,
+    gatewayBaseUrl,
+    controlPlaneBaseUrl,
     updatedAt: now
   };
   const directProfile: RuntimeProfile = {
     id: "runtime_direct",
     name: "Direct BYOK",
     target: "direct",
-    baseUrl: "",
+    providerBaseUrl: "",
     updatedAt: now
   };
 
@@ -164,7 +172,7 @@ const createDefaultSettingsSnapshot = (): PersistedSettingsSnapshot => {
   const byok = createDefaultByokPreset();
   const official = createDefaultOfficialPreset();
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     defaultMode: "byok",
     runtimeProfiles: runtime.runtimeProfiles,
     defaultRuntimeProfileId: runtime.defaultRuntimeProfileId,
@@ -189,23 +197,59 @@ const normalizeSettingsSnapshot = (
   const fallback = createDefaultSettingsSnapshot();
   const runtimeProfiles =
     Array.isArray(raw?.runtimeProfiles) && raw.runtimeProfiles.length > 0
-      ? raw.runtimeProfiles
-          .map((item): RuntimeProfile => ({
-            id: String(item.id ?? ""),
-            name:
+      ? ((raw.runtimeProfiles as unknown) as Array<Record<string, unknown>>)
+          .map((item): RuntimeProfile => {
+            const target = item.target === "gateway" ? "gateway" : "direct";
+            const id = String(item.id ?? "");
+            const name =
               typeof item.name === "string" && item.name.trim()
                 ? item.name
-                : item.target === "gateway"
+                : target === "gateway"
                   ? "Gateway"
-                  : "Direct BYOK",
-            target: item.target === "gateway" ? "gateway" : "direct",
-            baseUrl:
-              typeof item.baseUrl === "string"
-                ? item.baseUrl.trim().replace(/\/+$/, "")
-                : "",
-            updatedAt:
-              typeof item.updatedAt === "number" ? item.updatedAt : Date.now()
-          }))
+                  : "Direct BYOK";
+            const updatedAt =
+              typeof item.updatedAt === "number" ? item.updatedAt : Date.now();
+
+            if (target === "gateway") {
+              const gatewayBaseUrl = normalizeRuntimeEndpointUrl(
+                typeof item.gatewayBaseUrl === "string"
+                  ? item.gatewayBaseUrl
+                  : typeof item.baseUrl === "string"
+                    ? item.baseUrl
+                    : ""
+              );
+              const controlPlaneBaseUrl = normalizeRuntimeEndpointUrl(
+                typeof item.controlPlaneBaseUrl === "string"
+                  ? item.controlPlaneBaseUrl
+                  : typeof item.baseUrl === "string"
+                    ? item.baseUrl
+                    : gatewayBaseUrl
+              );
+
+              return {
+                id,
+                name,
+                target,
+                gatewayBaseUrl,
+                controlPlaneBaseUrl,
+                updatedAt
+              };
+            }
+
+            return {
+              id,
+              name,
+              target,
+              providerBaseUrl: normalizeRuntimeEndpointUrl(
+                typeof item.providerBaseUrl === "string"
+                  ? item.providerBaseUrl
+                  : typeof item.baseUrl === "string"
+                    ? item.baseUrl
+                    : ""
+              ),
+              updatedAt
+            };
+          })
           .filter((item) => item.id.length > 0)
       : fallback.runtimeProfiles;
   const byokPresets =
@@ -240,7 +284,7 @@ const normalizeSettingsSnapshot = (
       : fallback.defaultPlatformAgentProfileId;
 
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     defaultMode: raw?.defaultMode === "official" ? "official" : "byok",
     runtimeProfiles,
     defaultRuntimeProfileId,

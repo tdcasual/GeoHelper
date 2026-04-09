@@ -108,6 +108,21 @@ describe("quality benchmark runner", () => {
           body: body ? JSON.parse(body) : {}
         });
 
+        if (req.url === "/api/v3/ready") {
+          res.writeHead(200, {
+            "content-type": "application/json"
+          });
+          res.end(
+            JSON.stringify({
+              ready: true,
+              service: "control-plane",
+              executionMode: "inline_worker_loop",
+              dependencies: []
+            })
+          );
+          return;
+        }
+
         if (req.url === "/api/v3/threads") {
           res.writeHead(201, {
             "content-type": "application/json"
@@ -221,6 +236,11 @@ describe("quality benchmark runner", () => {
       expect(run.status).toBe(0);
       expect(run.stderr).toBe("");
       expect(requests).toEqual([
+        {
+          method: "GET",
+          url: "/api/v3/ready",
+          body: {}
+        },
         {
           method: "POST",
           url: "/api/v3/threads",

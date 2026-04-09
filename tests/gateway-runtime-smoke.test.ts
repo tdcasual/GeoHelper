@@ -57,6 +57,16 @@ describe("gateway runtime smoke script", () => {
         path: "/api/v1/auth/token/revoke"
       },
       {
+        name: "GET /api/v3/health",
+        method: "GET",
+        path: "/api/v3/health"
+      },
+      {
+        name: "GET /api/v3/ready",
+        method: "GET",
+        path: "/api/v3/ready"
+      },
+      {
         name: "POST /api/v3/threads",
         method: "POST",
         path: "/api/v3/threads"

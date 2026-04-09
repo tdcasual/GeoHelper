@@ -14,7 +14,7 @@ if docker_usable; then
   docker compose -f docker-compose.staging.yml down --remove-orphans
 fi
 
-for file in "$STAGING_DIR/gateway.pid" "$STAGING_DIR/web.pid"; do
+for file in "$STAGING_DIR/gateway.pid" "$STAGING_DIR/control-plane.pid" "$STAGING_DIR/web.pid"; do
   if [[ -f "$file" ]]; then
     pid="$(cat "$file")"
     if kill -0 "$pid" >/dev/null 2>&1; then

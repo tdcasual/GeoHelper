@@ -98,7 +98,7 @@ create table if not exists browser_sessions (
   foreign key (run_id) references runs(id) on delete cascade
 );
 
-create table if not exists acp_sessions (
+create table if not exists delegation_sessions (
   id text primary key,
   run_id text not null,
   checkpoint_id text not null,
@@ -148,14 +148,14 @@ create index if not exists idx_run_dispatches_worker_id_claimed_at
 create index if not exists idx_browser_sessions_run_id_created_at
   on browser_sessions(run_id, created_at);
 
-create index if not exists idx_acp_sessions_run_id_created_at
-  on acp_sessions(run_id, created_at);
+create index if not exists idx_delegation_sessions_run_id_created_at
+  on delegation_sessions(run_id, created_at);
 
-create index if not exists idx_acp_sessions_status_created_at
-  on acp_sessions(status, created_at);
+create index if not exists idx_delegation_sessions_status_created_at
+  on delegation_sessions(status, created_at);
 
-create index if not exists idx_acp_sessions_agent_ref_status_created_at
-  on acp_sessions(agent_ref, status, created_at);
+create index if not exists idx_delegation_sessions_agent_ref_status_created_at
+  on delegation_sessions(agent_ref, status, created_at);
 
-create index if not exists idx_acp_sessions_claimed_by_claim_expires_at
-  on acp_sessions(claimed_by, claim_expires_at);
+create index if not exists idx_delegation_sessions_claimed_by_claim_expires_at
+  on delegation_sessions(claimed_by, claim_expires_at);

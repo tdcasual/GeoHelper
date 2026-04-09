@@ -3,9 +3,11 @@ import path from "node:path";
 import { createPlatformRuntimeContext, type PlatformRuntimeContext } from "@geohelper/agent-core";
 import { createGeometryPlatformBootstrap } from "@geohelper/agent-domain-geometry";
 import {
+  createOpenClawCompatibilityReportFromBundleDir,
   exportOpenClawBundleFromBundleDir,
-  type ExportOpenClawBundleResult
-} from "@geohelper/agent-export-openclaw";
+  type ExportOpenClawBundleResult,
+  type OpenClawCompatibilityReport,
+  smokeImportOpenClawWorkspace} from "@geohelper/agent-export-openclaw";
 import type {
   Checkpoint,
   CheckpointStatus,
@@ -36,6 +38,7 @@ export interface RegisteredPortableBundle {
   hostRequirements: string[];
   workspaceBootstrapFiles: string[];
   promptAssetPaths: string[];
+  openClawCompatibility: OpenClawCompatibilityReport;
 }
 
 export interface ControlPlaneServices {
@@ -46,6 +49,7 @@ export interface ControlPlaneServices {
     unknown
   >;
   runProfiles: Map<string, PlatformRunProfile>;
+  executionMode: "inline_worker_loop" | "custom";
   now: () => string;
   buildThreadId: () => string;
   buildRunId: () => string;
@@ -69,6 +73,9 @@ export interface ControlPlaneServices {
     agentId: string;
     bundleId: string;
   };
+  smokeImportOpenClawExport: (input: {
+    outputDir: string;
+  }) => ReturnType<typeof smokeImportOpenClawWorkspace>;
 }
 
 export const DEFAULT_RUN_BUDGET: RunBudget = {
@@ -107,7 +114,10 @@ const listRegisteredBundles = (
           schemaVersion: agent.bundle.schemaVersion,
           hostRequirements: [...agent.bundle.hostRequirements],
           workspaceBootstrapFiles: [...agent.bundle.workspaceBootstrapFiles],
-          promptAssetPaths: [...agent.bundle.promptAssetPaths]
+          promptAssetPaths: [...agent.bundle.promptAssetPaths],
+          openClawCompatibility: createOpenClawCompatibilityReportFromBundleDir({
+            bundleDir: agent.bundle.rootDir
+          })
         }
       ];
     })
@@ -220,10 +230,25 @@ export const createControlPlaneServices = (
       };
     });
 
+  const smokeImportOpenClawExport =
+    overrides.smokeImportOpenClawExport ??
+    (({ outputDir }: { outputDir: string }) =>
+      smokeImportOpenClawWorkspace({
+        workspaceDir: outputDir
+      }));
+  const executionMode =
+    overrides.executionMode ??
+    (overrides.processRun ||
+    overrides.resumeRunFromCheckpoint ||
+    overrides.resumeRunFromBrowserTool
+      ? "custom"
+      : "inline_worker_loop");
+
   return {
     store,
     platformRuntime,
     runProfiles: overrides.runProfiles ?? platformRuntime.runProfiles,
+    executionMode,
     now: overrides.now ?? (() => new Date().toISOString()),
     buildThreadId: overrides.buildThreadId ?? createIdFactory("thread"),
     buildRunId: overrides.buildRunId ?? createIdFactory("run"),
@@ -233,7 +258,8 @@ export const createControlPlaneServices = (
     resumeRunFromCheckpoint,
     resumeRunFromBrowserTool,
     listBundles,
-    exportBundleToOpenClaw
+    exportBundleToOpenClaw,
+    smokeImportOpenClawExport
   };
 };
 

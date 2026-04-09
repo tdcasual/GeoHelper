@@ -54,7 +54,8 @@ Required env vars:
 
 - `EDGEONE_PROJECT_NAME`
 - `EDGEONE_API_TOKEN`
-- optional: `VITE_GATEWAY_URL` (when omitted, web runs in Direct BYOK-first mode)
+- optional: `VITE_GATEWAY_URL` (gateway login and backup surface)
+- optional: `VITE_CONTROL_PLANE_URL` (platform `/api/v3` and bundle catalog surface; defaults to `VITE_GATEWAY_URL` when omitted)
 - optional: `EDGEONE_ENVIRONMENT` (default `preview`)
 - Template file: `.env.release.example`
 
@@ -67,6 +68,7 @@ pnpm verify:geogebra-self-hosted
 EDGEONE_PROJECT_NAME=<project> \
 EDGEONE_API_TOKEN=<token> \
 VITE_GATEWAY_URL=https://<staging-gateway-domain> \
+VITE_CONTROL_PLANE_URL=https://<staging-control-plane-domain> \
 bash scripts/deploy/edgeone-deploy.sh
 ```
 
@@ -122,23 +124,12 @@ Optional deploy hook secret:
 - `APP_SECRET` (required in production)
 - optional: `SESSION_SECRET`
 - `SESSION_TTL_SECONDS`
-- `LITELLM_ENDPOINT` (required in production)
-- `LITELLM_API_KEY` (required for authenticated upstreams)
-- `LITELLM_MODEL`
-- optional: `LITELLM_FALLBACK_ENDPOINT`
-- optional: `LITELLM_FALLBACK_API_KEY`
-- optional: `LITELLM_FALLBACK_MODEL`
-- `RATE_LIMIT_MAX`
-- `RATE_LIMIT_WINDOW_MS`
-- optional: `REDIS_URL` (recommended for multi-instance shared revoke/rate-limit state)
-- optional: `ALERT_WEBHOOK_URL` (receives compact JSON with `traceId`, `finalStatus`, build identity, and redacted upstream target metadata)
-- optional: `COMPILE_MAX_IN_FLIGHT` (default `4`)
-- optional: `COMPILE_TIMEOUT_MS` (default `30000`)
-- optional: `ADMIN_METRICS_TOKEN` (protects `/admin/version`, `/admin/metrics`, and `/admin/compile-events`)
+- optional: `REDIS_URL` (recommended for multi-instance shared revoke/backup state)
+- optional: `ALERT_WEBHOOK_URL` (receives compact JSON with `traceId`, request path/method, and build identity context on gateway failures)
+- optional: `ADMIN_METRICS_TOKEN` (protects `/admin/version`, `/admin/metrics`, and `/admin/backups/*`)
 - optional: `BACKUP_MAX_HISTORY` (default `10`, bounds ordinary retained snapshot history)
 - optional: `BACKUP_MAX_PROTECTED` (default `20`, bounds retained protected snapshots)
 - optional: `GATEWAY_ENABLE_ATTACHMENTS=1` (explicitly enables gateway image attachments; `/admin/version` will then advertise `attachments_enabled: true`)
-- optional: `COST_PER_REQUEST_USD`
 - optional: `OPS_BENCH_MIN_SUCCESS_RATE`
 - optional: `OPS_BENCH_MAX_P95_MS`
 - Template file: `.env.release.example`
@@ -149,7 +140,7 @@ You can sync gateway/web deploy secrets from local env vars with:
 bash scripts/deploy/configure-release-secrets.sh --repo <owner/repo>
 ```
 
-Production gateway startup validates `APP_SECRET` and `LITELLM_ENDPOINT` before listening. `/api/v1/health` stays liveness-only, while `/api/v1/ready` is the deploy gate that should be green before traffic shifts. When `REDIS_URL` is set, session revoke, fixed-window rate limits, compile event retention, and the single-tenant latest backup slot/history are shared across instances. `REDIS_URL` remains the only supported shared fast-state dependency for Gateway V4; without it, backup storage falls back to process memory and is not restart-safe. Every response also includes `x-trace-id` (compile responses include matching `trace_id`) so operator alerts, smoke runs, `/admin/compile-events`, and `/admin/traces/:traceId` can be joined on the same trace handle. `/admin/version` is the release identity source of truth for deploy drift checks. Per-instance compile protection is controlled by `COMPILE_MAX_IN_FLIGHT` and `COMPILE_TIMEOUT_MS`, returning `GATEWAY_BUSY` or `COMPILE_TIMEOUT` before a stuck upstream can monopolize the runtime.
+Production gateway startup validates `APP_SECRET` before listening. `/api/v1/health` stays liveness-only, while `/api/v1/ready` is the deploy gate that should be green before traffic shifts. When `REDIS_URL` is set, session revoke state and the single-tenant latest backup slot/history are shared across instances. `REDIS_URL` remains the only supported shared fast-state dependency for Gateway V4; without it, backup storage falls back to process memory and is not restart-safe. Every gateway response also includes `x-trace-id` so operator alerts, logs, and smoke runs can correlate the same request. `/admin/version` is the release identity source of truth for deploy drift checks.
 
 Web-side lightweight cloud sync is also available for personal self-hosted deployments, but it remains snapshot-based. Treat metadata-only startup freshness checks as advisory only: the browser does not download full backups during normal startup, delayed upload stays opt-in, and the app never auto-restores remote data. browser sync defaults to guarded writes, force overwrite requires an explicit danger action, and the unconditional admin latest write remains available for operator/manual recovery. Retained remote snapshot history can be inspected explicitly, selected historical snapshots can be fetched by `snapshot_id`, and blocked/conflict states should be resolved through explicit selected-snapshot pull/import or explicit overwrite. No SQL or full cloud history backend is required for this path; the gateway only needs the existing latest-backup surface plus compare metadata.
 
@@ -167,25 +158,21 @@ Self-hosted retention policy:
 ```bash
 curl -fsS https://<gateway-domain>/api/v1/health
 curl -fsS https://<gateway-domain>/api/v1/ready
+curl -fsS https://<control-plane-domain>/api/v3/health
+curl -fsS https://<control-plane-domain>/api/v3/ready
 ```
 
-Use `/api/v1/health` for shallow liveness and `/api/v1/ready` for dependency-aware readiness before switching traffic.
+Use `/api/v1/health` for shallow gateway liveness, `/api/v1/ready` for dependency-aware gateway readiness, `/api/v3/health` for shallow control-plane liveness, and `/api/v3/ready` to confirm the control-plane registry and store are ready before switching traffic.
 
-If `ADMIN_METRICS_TOKEN` is enabled, verify recent operator events after one smoke compile and use returned trace ids to jump into logs quickly. With `REDIS_URL` configured, these records should also survive gateway restarts:
+If `ADMIN_METRICS_TOKEN` is enabled, verify gateway build identity and metrics visibility:
 
 ```bash
 curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
-  "https://<gateway-domain>/admin/compile-events?limit=20"
-```
+  "https://<gateway-domain>/admin/version"
 
-Use a trace id from that feed to inspect the full operator event timeline for one compile:
-
-```bash
 curl -fsS -H "x-admin-token: <ADMIN_METRICS_TOKEN>" \
-  "https://<gateway-domain>/admin/traces/<trace-id>"
+  "https://<gateway-domain>/admin/metrics"
 ```
-
-The legacy compile route has already been removed. Active run traffic now goes through the control plane `thread -> run -> stream` surfaces, while historical cutover notes remain archived in `docs/deploy/legacy-compile-external-consumer-checklist.md`.
 
 Verify the running gateway build identity when investigating deploy drift:
 
@@ -262,22 +249,21 @@ SMOKE_GATEWAY_IDENTITY_JSON='{"attachments_enabled":true}' \
 pnpm smoke:gateway-runtime -- --dry-run
 ```
 
-Gateway runtime live smoke (recommended after deploy; validates `/admin/version`, one compile trace, `/admin/compile-events`, and `/admin/metrics` when admin auth is configured). If `/admin/version` advertises `attachments_enabled: true`, the smoke also runs one synthetic attachment compile and that vision smoke becomes a release gate for image-input deployments:
+Gateway runtime live smoke (recommended after deploy; validates gateway health/auth, control-plane `thread -> run -> stream` surfaces, and `/admin/version` when admin auth is configured). If `/admin/version` advertises `attachments_enabled: true`, the smoke also checks the advertised capability in the smoke output:
 
 ```bash
 GATEWAY_URL=https://<gateway-domain> \
+CONTROL_PLANE_URL=https://<control-plane-domain> \
 PRESET_TOKEN=<preset-token> \
 ADMIN_METRICS_TOKEN=<admin-token> \
 pnpm smoke:gateway-runtime
 ```
 
-Live model smoke (requires real LiteLLM credentials):
+Live platform-run smoke:
 
 ```bash
-LITELLM_ENDPOINT=<endpoint> \
-LITELLM_API_KEY=<key> \
 PRESET_TOKEN=<preset-token> \
-pnpm smoke:live-model
+pnpm smoke:platform-run-live
 ```
 
 Then open the web staging URL and verify:
@@ -285,8 +271,8 @@ Then open the web staging URL and verify:
 - chat panel hide/show works
 - runtime switch works (`Gateway` / `Direct BYOK`)
 - official mode is available only when gateway runtime is configured
-- compile pipeline returns rendered result
-- compile responses include `x-trace-id` / `trace_id` for debugging
+- platform run returns rendered result
+- gateway responses include `x-trace-id` for debugging
 - lightweight cloud sync settings stay snapshot-based, metadata-only startup freshness checks do not trigger full restore, browser sync defaults to guarded writes, force overwrite requires an explicit danger action, and delayed upload never auto-restores
 - `vendor/geogebra/manifest.json` is present in the deployed static assets
 - page resources do not request `geogebra.org`

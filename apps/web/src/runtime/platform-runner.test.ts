@@ -65,6 +65,7 @@ describe("platform-runner", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await submitPromptToPlatform({
+      controlPlaneBaseUrl: "https://control-plane.example.com",
       conversationId: "conv_1",
       message: "快速草稿",
       mode: "byok",
@@ -79,8 +80,8 @@ describe("platform-runner", () => {
       inputArtifactIds: [],
     });
     expect(fetchMock.mock.calls[3]?.[0]).toContain(
-      "/api/v3/acp-sessions?runId=run_1"
+      "/api/v3/delegation-sessions?runId=run_1"
     );
-    expect(result.acpSessions).toEqual([]);
+    expect(result.delegationSessions).toEqual([]);
   });
 });

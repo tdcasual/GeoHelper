@@ -107,13 +107,31 @@ export const PortableArtifactOutputContractSchema = z.object({
   ).default([])
 });
 
-export const PortableDelegationEntrySchema = z.object({
-  name: z.string().min(1),
-  mode: z.enum(["native-subagent", "acp-agent", "host-service"]),
-  agentRef: z.string().min(1).optional(),
-  serviceRef: z.string().min(1).optional(),
-  awaitCompletion: z.boolean().default(true)
-});
+export const PortableDelegationEntrySchema = z
+  .object({
+    name: z.string().min(1),
+    mode: z.enum(["native-subagent", "acp-agent", "host-service"]),
+    agentRef: z.string().min(1).optional(),
+    serviceRef: z.string().min(1).optional(),
+    awaitCompletion: z.boolean().default(true)
+  })
+  .superRefine((value, ctx) => {
+    if (value.mode === "host-service" && !value.serviceRef) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["serviceRef"],
+        message: "host-service delegations require serviceRef"
+      });
+    }
+
+    if (value.mode !== "host-service" && !value.agentRef) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["agentRef"],
+        message: `${value.mode} delegations require agentRef`
+      });
+    }
+  });
 
 export const PortableDelegationConfigSchema = z.object({
   delegations: z.array(PortableDelegationEntrySchema).default([])

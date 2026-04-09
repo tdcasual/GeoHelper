@@ -7,14 +7,14 @@ import { createChatStore } from "./chat-store";
 import { sceneStore } from "./scene-store";
 import { settingsStore } from "./settings-store";
 
-const createCompileResponse = (
+const createRunResponse = (
   overrides: Parameters<typeof createRuntimeRunResponseFixture>[0] = {}
 ) => createRuntimeRunResponseFixture(overrides);
 
 describe("chat-store", () => {
-  it("stores compile result and appends assistant message", async () => {
-    const compile = vi.fn().mockResolvedValue(
-      createCompileResponse({
+  it("stores run result and appends assistant message", async () => {
+    const submitPrompt = vi.fn().mockResolvedValue(
+      createRunResponse({
         run: {
           id: "run_store"
         },
@@ -42,7 +42,7 @@ describe("chat-store", () => {
         ]
       })
     );
-    const store = createChatStore({ compile });
+    const store = createChatStore({ submitPrompt });
 
     await store.getState().send("画一个圆");
 
@@ -53,8 +53,8 @@ describe("chat-store", () => {
   });
 
   it("dispatches proof-assist follow-up prompts as explicit user requests", async () => {
-    const compile = vi.fn().mockResolvedValue(createCompileResponse());
-    const store = createChatStore({ compile });
+    const submitPrompt = vi.fn().mockResolvedValue(createRunResponse());
+    const store = createChatStore({ submitPrompt });
 
     await store
       .getState()
@@ -62,7 +62,7 @@ describe("chat-store", () => {
 
     expect(store.getState().messages[0]?.role).toBe("user");
     expect(store.getState().messages[0]?.content).toContain("补辅助线");
-    expect(compile).toHaveBeenCalledWith(
+    expect(submitPrompt).toHaveBeenCalledWith(
       expect.objectContaining({
         message: "请基于当前图形补辅助线，并说明每条辅助线的作用。"
       })
@@ -70,18 +70,18 @@ describe("chat-store", () => {
   });
 
   it("ignores empty proof-assist follow-up prompts", async () => {
-    const compile = vi.fn();
-    const store = createChatStore({ compile });
+    const submitPrompt = vi.fn();
+    const store = createChatStore({ submitPrompt });
 
     await store.getState().sendFollowUpPrompt("   ");
 
-    expect(compile).not.toHaveBeenCalled();
+    expect(submitPrompt).not.toHaveBeenCalled();
     expect(store.getState().messages).toEqual([]);
   });
 
   it("marks reauth required when official session expires", async () => {
     settingsStore.getState().setDefaultRuntimeProfile("runtime_gateway");
-    const compile = vi
+    const submitPrompt = vi
       .fn()
       .mockRejectedValue(
         new RuntimeApiError(
@@ -90,7 +90,7 @@ describe("chat-store", () => {
           401
         )
       );
-    const store = createChatStore({ compile });
+    const store = createChatStore({ submitPrompt });
     store.getState().setMode("official");
     store.getState().setSessionToken("expired-token");
 
@@ -103,8 +103,8 @@ describe("chat-store", () => {
   });
 
   it("isolates messages between conversations when switching", async () => {
-    const compile = vi.fn().mockResolvedValue(createCompileResponse());
-    const store = createChatStore({ compile });
+    const submitPrompt = vi.fn().mockResolvedValue(createRunResponse());
+    const store = createChatStore({ submitPrompt });
 
     const firstConversationId = store.getState().activeConversationId;
     expect(firstConversationId).toEqual(expect.any(String));
@@ -123,11 +123,11 @@ describe("chat-store", () => {
     );
   });
 
-  it("stores image attachments on user messages and forwards them to compile", async () => {
-    const compile = vi.fn().mockResolvedValue(createCompileResponse());
-    const resolveCompileOptions = vi.fn().mockResolvedValue({
+  it("stores image attachments on user messages and forwards them to prompt submission", async () => {
+    const submitPrompt = vi.fn().mockResolvedValue(createRunResponse());
+    const resolveRunOptions = vi.fn().mockResolvedValue({
       runtimeTarget: "direct",
-      runtimeBaseUrl: "https://openrouter.ai/api/v1",
+      providerBaseUrl: "https://openrouter.ai/api/v1",
       runtimeCapabilities: {
         supportsOfficialAuth: false,
         supportsVision: true,
@@ -139,7 +139,7 @@ describe("chat-store", () => {
       retryAttempts: 0,
       extraHeaders: {}
     });
-    const store = createChatStore({ compile, resolveCompileOptions });
+    const store = createChatStore({ submitPrompt, resolveRunOptions });
     const attachments = [
       {
         id: "img_1",
@@ -161,14 +161,15 @@ describe("chat-store", () => {
       .getState()
       .messages.find((message) => message.role === "user");
     expect(userMessage?.attachments).toEqual(attachments);
-    expect(compile.mock.calls[0]?.[0]?.attachments).toEqual(attachments);
+    expect(submitPrompt.mock.calls[0]?.[0]?.attachments).toEqual(attachments);
   });
 
-  it("forwards the resolved platform run profile into compile calls", async () => {
-    const compile = vi.fn().mockResolvedValue(createCompileResponse());
-    const resolveCompileOptions = vi.fn().mockResolvedValue({
+  it("forwards the resolved platform run profile into prompt submission", async () => {
+    const submitPrompt = vi.fn().mockResolvedValue(createRunResponse());
+    const resolveRunOptions = vi.fn().mockResolvedValue({
       runtimeTarget: "gateway",
-      runtimeBaseUrl: "https://gateway.example.com",
+      gatewayBaseUrl: "https://gateway.example.com",
+      controlPlaneBaseUrl: "https://control-plane.example.com",
       runtimeCapabilities: {
         supportsOfficialAuth: true,
         supportsVision: false,
@@ -181,13 +182,13 @@ describe("chat-store", () => {
       platformRunProfile: getPlatformRunProfile("platform_geometry_quick_draft")
     });
     const store = createChatStore({
-      compile,
-      resolveCompileOptions
+      submitPrompt,
+      resolveRunOptions
     });
 
     await store.getState().send("先出一个快速草稿");
 
-    expect(compile).toHaveBeenCalledWith(
+    expect(submitPrompt).toHaveBeenCalledWith(
       expect.objectContaining({
         platformRunProfile: getPlatformRunProfile(
           "platform_geometry_quick_draft"
@@ -196,12 +197,12 @@ describe("chat-store", () => {
     );
   });
 
-  it("retries compile when runtime options enable retries", async () => {
-    const compile = vi
+  it("retries prompt submission when runtime options enable retries", async () => {
+    const submitPrompt = vi
       .fn()
       .mockRejectedValueOnce(new Error("network"))
-      .mockResolvedValue(createCompileResponse());
-    const resolveCompileOptions = vi.fn().mockResolvedValue({
+      .mockResolvedValue(createRunResponse());
+    const resolveRunOptions = vi.fn().mockResolvedValue({
       model: "gpt-4o-mini",
       byokEndpoint: "https://openrouter.ai/api/v1",
       byokKey: "sk-test",
@@ -210,15 +211,15 @@ describe("chat-store", () => {
       extraHeaders: {}
     });
     const store = createChatStore({
-      compile,
-      resolveCompileOptions,
+      submitPrompt,
+      resolveRunOptions,
       logEvent: vi.fn()
     });
 
     await store.getState().send("画一个圆");
 
-    expect(resolveCompileOptions).toHaveBeenCalledTimes(1);
-    expect(compile).toHaveBeenCalledTimes(2);
+    expect(resolveRunOptions).toHaveBeenCalledTimes(1);
+    expect(submitPrompt).toHaveBeenCalledTimes(2);
     expect(store.getState().messages.at(-1)?.role).toBe("assistant");
   });
 
@@ -226,8 +227,8 @@ describe("chat-store", () => {
     settingsStore.getState().setDrawerOpen(false);
     settingsStore.getState().setByokRuntimeIssue(null);
 
-    const compile = vi.fn();
-    const resolveCompileOptions = vi.fn().mockResolvedValue({
+    const submitPrompt = vi.fn();
+    const resolveRunOptions = vi.fn().mockResolvedValue({
       model: "gpt-4o-mini",
       retryAttempts: 0,
       extraHeaders: {},
@@ -239,14 +240,14 @@ describe("chat-store", () => {
       }
     });
     const store = createChatStore({
-      compile,
-      resolveCompileOptions,
+      submitPrompt,
+      resolveRunOptions,
       logEvent: vi.fn()
     });
 
     await store.getState().send("画一个圆");
 
-    expect(compile).not.toHaveBeenCalled();
+    expect(submitPrompt).not.toHaveBeenCalled();
     expect(store.getState().messages.at(-1)?.content).toContain("BYOK 密钥不可用");
     expect(settingsStore.getState().drawerOpen).toBe(true);
 
@@ -254,7 +255,7 @@ describe("chat-store", () => {
     settingsStore.getState().setByokRuntimeIssue(null);
   });
 
-  it("includes recent conversation and scene context in compile request", async () => {
+  it("includes recent conversation and scene context in run request", async () => {
     sceneStore.getState().clearHistory();
     sceneStore.getState().recordTransaction({
       version: "1.0",
@@ -265,13 +266,13 @@ describe("chat-store", () => {
       explanations: []
     });
 
-    const compile = vi.fn().mockResolvedValue(createCompileResponse());
-    const store = createChatStore({ compile });
+    const submitPrompt = vi.fn().mockResolvedValue(createRunResponse());
+    const store = createChatStore({ submitPrompt });
 
     await store.getState().send("先画一个圆");
     await store.getState().send("再加一条切线");
 
-    const latestCall = compile.mock.calls.at(-1)?.[0] as {
+    const latestCall = submitPrompt.mock.calls.at(-1)?.[0] as {
       context?: {
         recentMessages?: Array<{ role: "user" | "assistant"; content: string }>;
         sceneTransactions?: Array<{
@@ -293,11 +294,12 @@ describe("chat-store", () => {
     sceneStore.getState().clearHistory();
   });
 
-  it("blocks attachment sends before compile when runtime capability disables vision", async () => {
-    const compile = vi.fn();
-    const resolveCompileOptions = vi.fn().mockResolvedValue({
+  it("blocks attachment sends before prompt submission when runtime capability disables vision", async () => {
+    const submitPrompt = vi.fn();
+    const resolveRunOptions = vi.fn().mockResolvedValue({
       runtimeTarget: "gateway",
-      runtimeBaseUrl: "https://gateway.example.com",
+      gatewayBaseUrl: "https://gateway.example.com",
+      controlPlaneBaseUrl: "https://control-plane.example.com",
       runtimeCapabilities: {
         supportsOfficialAuth: true,
         supportsVision: false,
@@ -310,8 +312,8 @@ describe("chat-store", () => {
       extraHeaders: {}
     });
     const store = createChatStore({
-      compile,
-      resolveCompileOptions,
+      submitPrompt,
+      resolveRunOptions,
       logEvent: vi.fn()
     });
 
@@ -330,15 +332,15 @@ describe("chat-store", () => {
       ]
     } as never);
 
-    expect(compile).not.toHaveBeenCalled();
+    expect(submitPrompt).not.toHaveBeenCalled();
     expect(store.getState().messages.at(-1)?.content).toContain("图片能力");
   });
 
-  it("skips compile when runtime does not support official mode", async () => {
-    const compile = vi.fn();
-    const resolveCompileOptions = vi.fn().mockResolvedValue({
+  it("skips prompt submission when runtime does not support official mode", async () => {
+    const submitPrompt = vi.fn();
+    const resolveRunOptions = vi.fn().mockResolvedValue({
       runtimeTarget: "direct",
-      runtimeBaseUrl: undefined,
+      providerBaseUrl: undefined,
       runtimeCapabilities: {
         supportsOfficialAuth: false,
         supportsVision: true,
@@ -351,15 +353,15 @@ describe("chat-store", () => {
       extraHeaders: {}
     });
     const store = createChatStore({
-      compile,
-      resolveCompileOptions,
+      submitPrompt,
+      resolveRunOptions,
       logEvent: vi.fn()
     });
     store.getState().setMode("official");
 
     await store.getState().send("画一个圆");
 
-    expect(compile).not.toHaveBeenCalled();
+    expect(submitPrompt).not.toHaveBeenCalled();
     expect(store.getState().messages.at(-1)?.content).toContain(
       "不支持 Official 模式"
     );

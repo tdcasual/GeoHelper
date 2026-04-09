@@ -7,17 +7,17 @@ import type {
   RunEvent
 } from "@geohelper/agent-protocol";
 
-import type {
-  AcpSessionRecord,
-  AcpSessionRepo,
-  AcpSessionStatus
-} from "./repos/acp-session-repo";
 import type { ArtifactRepo } from "./repos/artifact-repo";
 import type {
   BrowserSessionRecord,
   BrowserSessionRepo
 } from "./repos/browser-session-repo";
 import type { CheckpointRepo } from "./repos/checkpoint-repo";
+import type {
+  DelegationSessionRecord,
+  DelegationSessionRepo,
+  DelegationSessionStatus
+} from "./repos/delegation-session-repo";
 import type {
   ClaimNextDispatchInput,
   DispatchRepo,
@@ -90,7 +90,7 @@ export interface AgentStore {
   dispatches: DispatchRepo;
   engineStates: EngineStateRepo;
   threads: ThreadRepo;
-  acpSessions: AcpSessionRepo;
+  delegationSessions: DelegationSessionRepo;
   browserSessions: BrowserSessionRepo;
   loadRunSnapshot: (runId: string) => AgentStoreResult<RunSnapshot | null>;
 }
@@ -104,7 +104,7 @@ export const createMemoryAgentStore = (): AgentStore => {
   const runDispatches: RunDispatch[] = [];
   const engineStates = new Map<string, WorkflowEngineStateRecord>();
   const threads = new Map<string, AgentThread>();
-  const acpSessions = new Map<string, AcpSessionRecord>();
+  const delegationSessions = new Map<string, DelegationSessionRecord>();
   const browserSessions = new Map<string, BrowserSessionRecord>();
   let dispatchCount = 0;
 
@@ -234,13 +234,13 @@ export const createMemoryAgentStore = (): AgentStore => {
     listThreads: () => [...threads.values()].sort(byCreatedAt)
   };
 
-  const acpSessionRepo: AcpSessionRepo = {
+  const delegationSessionRepo: DelegationSessionRepo = {
     upsertSession: (session) => {
-      acpSessions.set(session.id, session);
+      delegationSessions.set(session.id, session);
     },
-    getSession: (sessionId) => acpSessions.get(sessionId) ?? null,
+    getSession: (sessionId) => delegationSessions.get(sessionId) ?? null,
     listSessions: (filter = {}) =>
-      [...acpSessions.values()]
+      [...delegationSessions.values()]
         .filter((session) => {
           if (filter.runId && session.runId !== filter.runId) {
             return false;
@@ -248,7 +248,7 @@ export const createMemoryAgentStore = (): AgentStore => {
 
           if (
             filter.status &&
-            (session.status as AcpSessionStatus) !== filter.status
+            (session.status as DelegationSessionStatus) !== filter.status
           ) {
             return false;
           }
@@ -269,7 +269,7 @@ export const createMemoryAgentStore = (): AgentStore => {
         })
         .sort(byCreatedAt),
     deleteSession: (sessionId) => {
-      acpSessions.delete(sessionId);
+      delegationSessions.delete(sessionId);
     }
   };
 
@@ -292,7 +292,7 @@ export const createMemoryAgentStore = (): AgentStore => {
     dispatches: dispatchRepo,
     engineStates: engineStateRepo,
     threads: threadRepo,
-    acpSessions: acpSessionRepo,
+    delegationSessions: delegationSessionRepo,
     browserSessions: browserSessionRepo,
     loadRunSnapshot: async (runId) => {
       const run = await runRepo.getRun(runId);
@@ -314,10 +314,10 @@ export const createMemoryAgentStore = (): AgentStore => {
   };
 };
 
-export type * from "./repos/acp-session-repo";
 export type * from "./repos/artifact-repo";
 export type * from "./repos/browser-session-repo";
 export type * from "./repos/checkpoint-repo";
+export type * from "./repos/delegation-session-repo";
 export type * from "./repos/dispatch-repo";
 export type * from "./repos/engine-state-repo";
 export type * from "./repos/event-repo";

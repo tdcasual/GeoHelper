@@ -30,6 +30,8 @@ export interface OpenClawSmokeImportResult {
     hostBoundTools: string[];
     requiredOpenClawCapabilities: string[];
     recommendedImportMode: OpenClawCompatibilityReport["recommendedImportMode"];
+    acpAgentDelegations: OpenClawCompatibilityReport["acpAgentDelegations"];
+    hostServiceDelegations: OpenClawCompatibilityReport["hostServiceDelegations"];
   };
 }
 
@@ -138,7 +140,9 @@ export const smokeImportOpenClawWorkspace = (input: {
       requiresHostBindings: compatibility.recommendedImportMode === "portable-with-host-bindings",
       hostBoundTools: compatibility.hostBoundTools,
       requiredOpenClawCapabilities: compatibility.requiredOpenClawCapabilities,
-      recommendedImportMode: compatibility.recommendedImportMode
+      recommendedImportMode: compatibility.recommendedImportMode,
+      acpAgentDelegations: compatibility.acpAgentDelegations,
+      hostServiceDelegations: compatibility.hostServiceDelegations
     }
   };
 };

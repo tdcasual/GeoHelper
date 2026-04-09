@@ -6,20 +6,9 @@ export interface GatewayConfig {
   appSecret: string;
   sessionSecret: string;
   sessionTtlSeconds: number;
-  rateLimitMax: number;
-  rateLimitWindowMs: number;
   redisUrl?: string;
-  litellmEndpoint?: string;
-  litellmApiKey?: string;
-  litellmModel: string;
-  litellmFallbackEndpoint?: string;
-  litellmFallbackApiKey?: string;
-  litellmFallbackModel?: string;
   alertWebhookUrl?: string;
   adminMetricsToken?: string;
-  costPerRequestUsd: number;
-  compileMaxInFlight: number;
-  compileTimeoutMs: number;
   backupMaxHistory: number;
   backupMaxProtected: number;
   attachmentsEnabled: boolean;
@@ -45,21 +34,12 @@ export const loadConfig = (
   if (isProduction && !env.APP_SECRET?.trim()) {
     throw new Error("APP_SECRET_REQUIRED");
   }
-
-  if (isProduction && !env.LITELLM_ENDPOINT?.trim()) {
-    throw new Error("LITELLM_ENDPOINT_REQUIRED");
-  }
   const portFromEnv = Number(env.PORT ?? 8787);
   const port = Number.isNaN(portFromEnv) ? 8787 : portFromEnv;
   const sessionTtlFromEnv = Number(env.SESSION_TTL_SECONDS ?? 1800);
   const sessionTtlSeconds = Number.isNaN(sessionTtlFromEnv)
     ? 1800
     : sessionTtlFromEnv;
-  const rateLimitMaxFromEnv = Number(env.RATE_LIMIT_MAX ?? 120);
-  const rateLimitWindowFromEnv = Number(env.RATE_LIMIT_WINDOW_MS ?? 60_000);
-  const costPerRequestFromEnv = Number(env.COST_PER_REQUEST_USD ?? 0);
-  const compileMaxInFlightFromEnv = Number(env.COMPILE_MAX_IN_FLIGHT ?? 4);
-  const compileTimeoutFromEnv = Number(env.COMPILE_TIMEOUT_MS ?? 30000);
   const backupMaxHistoryFromEnv = Number(env.BACKUP_MAX_HISTORY ?? 10);
   const backupMaxProtectedFromEnv = Number(env.BACKUP_MAX_PROTECTED ?? 20);
   const appSecret = env.APP_SECRET ?? "geohelper-dev-app-secret";
@@ -72,28 +52,9 @@ export const loadConfig = (
     appSecret,
     sessionSecret,
     sessionTtlSeconds,
-    rateLimitMax: Number.isNaN(rateLimitMaxFromEnv) ? 120 : rateLimitMaxFromEnv,
-    rateLimitWindowMs: Number.isNaN(rateLimitWindowFromEnv)
-      ? 60_000
-      : rateLimitWindowFromEnv,
     redisUrl: env.REDIS_URL?.trim() || undefined,
-    litellmEndpoint: env.LITELLM_ENDPOINT?.trim() || undefined,
-    litellmApiKey: env.LITELLM_API_KEY?.trim() || undefined,
-    litellmModel: env.LITELLM_MODEL?.trim() || "gpt-4o-mini",
-    litellmFallbackEndpoint: env.LITELLM_FALLBACK_ENDPOINT?.trim() || undefined,
-    litellmFallbackApiKey: env.LITELLM_FALLBACK_API_KEY?.trim() || undefined,
-    litellmFallbackModel: env.LITELLM_FALLBACK_MODEL?.trim() || undefined,
     alertWebhookUrl: env.ALERT_WEBHOOK_URL,
     adminMetricsToken: env.ADMIN_METRICS_TOKEN,
-    costPerRequestUsd: Number.isNaN(costPerRequestFromEnv)
-      ? 0
-      : Math.max(0, costPerRequestFromEnv),
-    compileMaxInFlight: Number.isNaN(compileMaxInFlightFromEnv)
-      ? 4
-      : Math.max(1, Math.floor(compileMaxInFlightFromEnv)),
-    compileTimeoutMs: Number.isNaN(compileTimeoutFromEnv)
-      ? 30000
-      : Math.max(10, Math.floor(compileTimeoutFromEnv)),
     backupMaxHistory: Number.isNaN(backupMaxHistoryFromEnv)
       ? 10
       : Math.max(1, Math.floor(backupMaxHistoryFromEnv)),

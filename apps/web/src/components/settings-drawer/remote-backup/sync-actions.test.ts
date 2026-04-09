@@ -58,7 +58,8 @@ describe("remote-backup sync actions", () => {
           id: "gateway",
           name: "Gateway",
           target: "gateway",
-          baseUrl: "https://gateway.example.com",
+          gatewayBaseUrl: "https://gateway.example.com",
+          controlPlaneBaseUrl: "https://control-plane.example.com",
           updatedAt: 1
         },
         check: { enabled: true, reason: null },

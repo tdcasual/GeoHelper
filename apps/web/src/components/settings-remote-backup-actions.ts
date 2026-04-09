@@ -1,5 +1,8 @@
 import type { RuntimeBackupMetadata } from "../runtime/types";
-import type { RuntimeProfile } from "../state/settings-store";
+import {
+  getRuntimeGatewayBaseUrl,
+  type RuntimeProfile
+} from "../state/runtime-profiles";
 
 export interface RemoteBackupActionStatus {
   enabled: boolean;
@@ -26,7 +29,7 @@ const ADMIN_TOKEN_REQUIRED = "请先保存网关管理员令牌";
 const PULL_BACKUP_REQUIRED = "请先从网关拉取最新备份";
 
 const hasUsableGatewayBaseUrl = (profile: RuntimeProfile): boolean =>
-  profile.target === "gateway" && profile.baseUrl.trim().length > 0;
+  profile.target === "gateway" && getRuntimeGatewayBaseUrl(profile).length > 0;
 
 const pickGatewayProfile = (
   runtimeProfiles: RuntimeProfile[],

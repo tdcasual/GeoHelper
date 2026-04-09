@@ -16,10 +16,13 @@ fi
 
 ENVIRONMENT="${EDGEONE_ENVIRONMENT:-preview}"
 VITE_GATEWAY_URL="${VITE_GATEWAY_URL:-}"
+VITE_CONTROL_PLANE_URL="${VITE_CONTROL_PLANE_URL:-}"
 
 corepack enable
 pnpm install --frozen-lockfile
-VITE_GATEWAY_URL="$VITE_GATEWAY_URL" pnpm build:web
+VITE_GATEWAY_URL="$VITE_GATEWAY_URL" \
+VITE_CONTROL_PLANE_URL="$VITE_CONTROL_PLANE_URL" \
+pnpm build:web
 
 pnpm dlx edgeone pages deploy \
   --project-name "$EDGEONE_PROJECT_NAME" \

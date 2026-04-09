@@ -1,6 +1,11 @@
 import type { PlatformRunProfile } from "@geohelper/agent-protocol";
 
 import { platformRunProfiles } from "../runtime/platform-run-profiles";
+import {
+  getRuntimeControlPlaneBaseUrl,
+  isGatewayRuntimeProfile,
+  type RuntimeProfile
+} from "./runtime-profiles";
 
 export type PlatformRunProfileCatalogSource = "local" | "control_plane";
 export type PlatformRunProfileCatalogStatus = "idle" | "loading" | "ready" | "error";
@@ -11,12 +16,6 @@ export interface PlatformRunProfileCatalogState {
   status: PlatformRunProfileCatalogStatus;
   error: string | null;
   lastFetchedAt: string | null;
-}
-
-interface RuntimeProfileLike {
-  id: string;
-  target: "gateway" | "direct";
-  baseUrl: string;
 }
 
 const cloneProfile = (profile: PlatformRunProfile): PlatformRunProfile => ({
@@ -40,19 +39,19 @@ export const createPlatformRunProfileCatalogState = (
   ...overrides
 });
 
-export const resolvePlatformRunProfileCatalogGateway = (input: {
-  runtimeProfiles: RuntimeProfileLike[];
+export const resolvePlatformRunProfileCatalogControlPlane = (input: {
+  runtimeProfiles: RuntimeProfile[];
   defaultRuntimeProfileId: string;
 }): { baseUrl: string } | null => {
   const runtimeProfile = input.runtimeProfiles.find(
     (item) => item.id === input.defaultRuntimeProfileId
   );
 
-  if (!runtimeProfile || runtimeProfile.target !== "gateway") {
+  if (!isGatewayRuntimeProfile(runtimeProfile)) {
     return null;
   }
 
-  const baseUrl = runtimeProfile.baseUrl.trim();
+  const baseUrl = getRuntimeControlPlaneBaseUrl(runtimeProfile);
   if (!baseUrl) {
     return null;
   }

@@ -3,17 +3,25 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { exportOpenClawBundleFromBundleDir } from "../../packages/agent-export-openclaw/src/export-openclaw-bundle.ts";
+import {
+  exportOpenClawBundleFromBundleDir,
+  smokeImportOpenClawWorkspace
+} from "../../packages/agent-export-openclaw/src/index.ts";
 
 const repoRoot = path.resolve(
   fileURLToPath(new URL("../..", import.meta.url))
 );
 
-const bundleIdArg = process.argv[2]?.trim();
-const outputDirArg = process.argv[3]?.trim();
+const args = process.argv.slice(2);
+const verifyImport = args.includes("--verify-import");
+const positionalArgs = args.filter((arg) => arg !== "--verify-import");
+const bundleIdArg = positionalArgs[0]?.trim();
+const outputDirArg = positionalArgs[1]?.trim();
 
 if (!bundleIdArg) {
-  console.error("Usage: export-openclaw-bundle.mjs <bundle-id> [output-dir]");
+  console.error(
+    "Usage: export-openclaw-bundle.mjs <bundle-id> [output-dir] [--verify-import]"
+  );
   process.exit(1);
 }
 
@@ -26,13 +34,23 @@ const result = exportOpenClawBundleFromBundleDir({
   bundleDir,
   outputDir
 });
+const smoke = verifyImport
+  ? smokeImportOpenClawWorkspace({
+      workspaceDir: result.outputDir
+    })
+  : null;
 
 console.log(
   JSON.stringify(
     {
       bundleId: result.report.bundleId,
       outputDir: result.outputDir,
-      reportPath: path.join(result.outputDir, "export-report.json")
+      reportPath: path.join(result.outputDir, "export-report.json"),
+      ...(smoke
+        ? {
+            smoke
+          }
+        : {})
     },
     null,
     2

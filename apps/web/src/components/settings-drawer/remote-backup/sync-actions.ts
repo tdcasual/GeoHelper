@@ -16,6 +16,7 @@ import type {
   RuntimeBackupMetadata,
   RuntimeBuildIdentity
 } from "../../../runtime/types";
+import { getRuntimeGatewayBaseUrl } from "../../../state/runtime-profiles";
 import type {
   RemoteBackupSyncResultInput,
   RemoteBackupSyncState
@@ -152,9 +153,12 @@ export const createRemoteBackupSyncActions = (deps: RemoteBackupSyncActionDeps) 
       const localSummary =
         deps.remoteBackupSync.lastComparison?.local_snapshot.summary ??
         createComparableSummaryFromBackupEnvelope(envelope);
+      const gatewayBaseUrl = getRuntimeGatewayBaseUrl(
+        deps.remoteBackupActions.gatewayProfile
+      );
       if (mode === "guarded") {
         const guardedResponse = await uploadGatewayBackupGuarded({
-          baseUrl: deps.remoteBackupActions.gatewayProfile.baseUrl,
+          baseUrl: gatewayBaseUrl,
           adminToken,
           envelope,
           expectedRemoteSnapshotId:
@@ -164,7 +168,7 @@ export const createRemoteBackupSyncActions = (deps: RemoteBackupSyncActionDeps) 
 
         if (guardedResponse.guarded_write === "conflict") {
           const historyResponse = await fetchGatewayBackupHistory({
-            baseUrl: deps.remoteBackupActions.gatewayProfile.baseUrl,
+            baseUrl: gatewayBaseUrl,
             adminToken,
             limit: 5
           }).catch(() => ({
@@ -209,7 +213,7 @@ export const createRemoteBackupSyncActions = (deps: RemoteBackupSyncActionDeps) 
       }
 
       const response = await uploadGatewayBackup({
-        baseUrl: deps.remoteBackupActions.gatewayProfile.baseUrl,
+        baseUrl: gatewayBaseUrl,
         adminToken,
         envelope
       });
@@ -253,14 +257,17 @@ export const createRemoteBackupSyncActions = (deps: RemoteBackupSyncActionDeps) 
       const backup = await deps.loadBackupModule();
       const envelope = await backup.exportCurrentAppBackupEnvelope();
       const localSummary = createComparableSummaryFromBackupEnvelope(envelope);
+      const gatewayBaseUrl = getRuntimeGatewayBaseUrl(
+        deps.remoteBackupActions.gatewayProfile
+      );
       const [historyResponse, comparison] = await Promise.all([
         fetchGatewayBackupHistory({
-          baseUrl: deps.remoteBackupActions.gatewayProfile.baseUrl,
+          baseUrl: gatewayBaseUrl,
           adminToken,
           limit: 5
         }),
         compareGatewayBackup({
-          baseUrl: deps.remoteBackupActions.gatewayProfile.baseUrl,
+          baseUrl: gatewayBaseUrl,
           adminToken,
           localSummary
         })
@@ -304,8 +311,11 @@ export const createRemoteBackupSyncActions = (deps: RemoteBackupSyncActionDeps) 
       const localSummary =
         deps.remoteBackupSync.lastComparison?.local_snapshot.summary ??
         createComparableSummaryFromBackupEnvelope(envelope);
+      const gatewayBaseUrl = getRuntimeGatewayBaseUrl(
+        deps.remoteBackupActions.gatewayProfile
+      );
       const response = await downloadGatewayBackup({
-        baseUrl: deps.remoteBackupActions.gatewayProfile.baseUrl,
+        baseUrl: gatewayBaseUrl,
         adminToken,
         snapshotId
       });
@@ -352,8 +362,11 @@ export const createRemoteBackupSyncActions = (deps: RemoteBackupSyncActionDeps) 
       }
 
       if (action === "protect") {
+        const gatewayBaseUrl = getRuntimeGatewayBaseUrl(
+          deps.remoteBackupActions.gatewayProfile
+        );
         const response = await protectGatewayBackupSnapshot({
-          baseUrl: deps.remoteBackupActions.gatewayProfile.baseUrl,
+          baseUrl: gatewayBaseUrl,
           adminToken,
           snapshotId: deps.selectedRemoteHistoryBackup.snapshot_id
         });
@@ -381,8 +394,11 @@ export const createRemoteBackupSyncActions = (deps: RemoteBackupSyncActionDeps) 
         return;
       }
 
+      const gatewayBaseUrl = getRuntimeGatewayBaseUrl(
+        deps.remoteBackupActions.gatewayProfile
+      );
       const response = await unprotectGatewayBackupSnapshot({
-        baseUrl: deps.remoteBackupActions.gatewayProfile.baseUrl,
+        baseUrl: gatewayBaseUrl,
         adminToken,
         snapshotId: deps.selectedRemoteHistoryBackup.snapshot_id
       });

@@ -84,7 +84,8 @@ describe("remote-backup derived state", () => {
           id: "gateway",
           name: "Gateway",
           target: "gateway",
-          baseUrl: "https://gateway.example.com",
+          gatewayBaseUrl: "https://gateway.example.com",
+          controlPlaneBaseUrl: "https://control-plane.example.com",
           updatedAt: 1
         }
       ],

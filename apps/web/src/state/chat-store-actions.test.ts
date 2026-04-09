@@ -25,8 +25,8 @@ const createBaseState = (): ChatStoreState => ({
 });
 
 const createDeps = (): ChatStoreDeps => ({
-  compile: vi.fn(),
-  resolveCompileOptions: vi.fn(),
+  submitPrompt: vi.fn(),
+  resolveRunOptions: vi.fn(),
   logEvent: vi.fn(),
   recordRunSnapshot: vi.fn()
 });
@@ -86,11 +86,11 @@ describe("chat-store actions", () => {
     );
   });
 
-  it("appends structured compile results when send succeeds", async () => {
+  it("appends structured run results when send succeeds", async () => {
     const harness = createActionHarness(
       {},
       {
-        resolveCompileOptions: vi.fn(async () => ({
+        resolveRunOptions: vi.fn(async () => ({
           runtimeTarget: "direct" as const,
           runtimeCapabilities: {
             supportsOfficialAuth: false,
@@ -103,7 +103,7 @@ describe("chat-store actions", () => {
           retryAttempts: 0,
           extraHeaders: {}
         })),
-        compile: vi.fn(async () => ({
+        submitPrompt: vi.fn(async () => ({
           ...createRuntimeRunResponseFixture({
             run: {
               id: "run_send"
@@ -157,12 +157,12 @@ describe("chat-store actions", () => {
     expect(harness.saveState).toHaveBeenCalled();
   });
 
-  it("records ACP sessions together with the run snapshot", async () => {
+  it("records delegation sessions together with the run snapshot", async () => {
     const recordRunSnapshot = vi.fn();
     const harness = createActionHarness(
       {},
       {
-        resolveCompileOptions: vi.fn(async () => ({
+        resolveRunOptions: vi.fn(async () => ({
           runtimeTarget: "direct" as const,
           runtimeCapabilities: {
             supportsOfficialAuth: false,
@@ -175,14 +175,14 @@ describe("chat-store actions", () => {
           retryAttempts: 0,
           extraHeaders: {}
         })),
-        compile: vi.fn(async () =>
+        submitPrompt: vi.fn(async () =>
           createRuntimeRunResponseFixture({
             run: {
               id: "run_acp_surface"
             },
-            acpSessions: [
+            delegationSessions: [
               {
-                id: "acp_session_run_acp_surface_node_delegate",
+                id: "delegation_session_run_acp_surface_node_delegate",
                 runId: "run_acp_surface",
                 checkpointId: "checkpoint_1",
                 delegationName: "teacher_review",
@@ -208,9 +208,9 @@ describe("chat-store actions", () => {
           id: "run_acp_surface"
         })
       }),
-      acpSessions: [
+      delegationSessions: [
         expect.objectContaining({
-          id: "acp_session_run_acp_surface_node_delegate",
+          id: "delegation_session_run_acp_surface_node_delegate",
           status: "pending"
         })
       ]

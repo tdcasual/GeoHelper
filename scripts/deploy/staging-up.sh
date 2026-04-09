@@ -15,17 +15,19 @@ start_local_fallback() {
   echo "[staging] docker unavailable, using local fallback"
   pnpm install --frozen-lockfile
   VITE_GATEWAY_URL="${VITE_GATEWAY_URL:-http://localhost:8787}" \
+  VITE_CONTROL_PLANE_URL="${VITE_CONTROL_PLANE_URL:-http://localhost:4310}" \
     pnpm build:web
 
   PRESET_TOKEN="${PRESET_TOKEN:-geohelper-staging-token}" \
   APP_SECRET="${APP_SECRET:-geohelper-staging-app-secret}" \
   SESSION_SECRET="${SESSION_SECRET:-}" \
   SESSION_TTL_SECONDS="${SESSION_TTL_SECONDS:-1800}" \
-  LITELLM_ENDPOINT="${LITELLM_ENDPOINT:-}" \
-  LITELLM_API_KEY="${LITELLM_API_KEY:-}" \
-  LITELLM_MODEL="${LITELLM_MODEL:-gpt-4o-mini}" \
   nohup pnpm --filter @geohelper/gateway start >"$STAGING_DIR/gateway.log" 2>&1 &
   echo $! >"$STAGING_DIR/gateway.pid"
+
+  PORT="${CONTROL_PLANE_PORT:-4310}" \
+  nohup pnpm --filter @geohelper/control-plane start >"$STAGING_DIR/control-plane.log" 2>&1 &
+  echo $! >"$STAGING_DIR/control-plane.pid"
 
   nohup pnpm --filter @geohelper/web preview --host 0.0.0.0 --port 4173 >"$STAGING_DIR/web.log" 2>&1 &
   echo $! >"$STAGING_DIR/web.pid"
@@ -48,5 +50,17 @@ done
 
 curl -fsS http://localhost:8787/api/v1/health | cat
 
+echo "[staging] waiting for control-plane health"
+for i in {1..40}; do
+  if curl -fsS http://localhost:4310/api/v3/health >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+
+curl -fsS http://localhost:4310/api/v3/health | cat
+curl -fsS http://localhost:4310/api/v3/ready | cat
+
 echo "[staging] web: http://localhost:4173"
 echo "[staging] gateway: http://localhost:8787"
+echo "[staging] control-plane: http://localhost:4310"

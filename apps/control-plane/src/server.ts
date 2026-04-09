@@ -5,7 +5,6 @@ import Fastify, { type FastifyInstance } from "fastify";
 import {
   type ControlPlaneServices,
   createControlPlaneServices} from "./control-plane-context";
-import { registerAcpSessionsRoutes } from "./routes/acp-sessions";
 import { registerAdminBundlesRoutes } from "./routes/admin-bundles";
 import { registerAdminCheckpointsRoutes } from "./routes/admin-checkpoints";
 import { registerAdminEvalsRoutes } from "./routes/admin-evals";
@@ -15,6 +14,8 @@ import { registerAdminToolsRoutes } from "./routes/admin-tools";
 import { registerArtifactsRoutes } from "./routes/artifacts";
 import { registerBrowserSessionsRoutes } from "./routes/browser-sessions";
 import { registerCheckpointsRoutes } from "./routes/checkpoints";
+import { registerDelegationSessionsRoutes } from "./routes/delegation-sessions";
+import { registerHealthRoutes } from "./routes/health";
 import { registerPlatformCatalogRoutes } from "./routes/platform-catalog";
 import { registerRunProfilesRoutes } from "./routes/run-profiles";
 import { registerRunsRoutes } from "./routes/runs";
@@ -30,6 +31,7 @@ export const buildServer = (
   });
   const services = createControlPlaneServices(overrides);
 
+  registerHealthRoutes(app, services);
   registerAdminRunsRoutes(app, services);
   registerAdminBundlesRoutes(app, services);
   registerAdminToolsRoutes(app, services);
@@ -43,7 +45,7 @@ export const buildServer = (
   registerRunProfilesRoutes(app, services);
   registerRunsRoutes(app, services);
   registerCheckpointsRoutes(app, services);
-  registerAcpSessionsRoutes(app, services);
+  registerDelegationSessionsRoutes(app, services);
   registerStreamRoutes(app, services);
   registerBrowserSessionsRoutes(app, services);
 

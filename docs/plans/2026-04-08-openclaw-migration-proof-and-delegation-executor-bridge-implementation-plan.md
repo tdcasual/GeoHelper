@@ -1,10 +1,10 @@
-# OpenClaw Migration Proof And ACP Executor Bridge Implementation Plan
+# OpenClaw Migration Proof And Delegation Executor Bridge Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Prove that a portable GeoHelper agent bundle can be moved into an OpenClaw-style workspace with only a thin adapter, then add a real ACP external executor bridge with claim lifecycle semantics, and finally prepare the work for commit.
+**Goal:** Prove that a portable GeoHelper agent bundle can be moved into an OpenClaw-style workspace with only a thin adapter, then add a real external delegation executor bridge with claim lifecycle semantics, and finally prepare the work for commit.
 
-**Architecture:** Extend the exporter with a smoke-import validator that reads only the exported OpenClaw-friendly workspace and produces an adapter-surface report. In parallel, upgrade ACP sessions from “list + submit result” to a true external executor bridge by persisting claim metadata and exposing claim / heartbeat / release semantics before result submission. This keeps GeoHelper as the host runtime while making the migration and external-execution boundary explicit and testable.
+**Architecture:** Extend the exporter with a smoke-import validator that reads only the exported OpenClaw-friendly workspace and produces an adapter-surface report. In parallel, upgrade delegation sessions from “list + submit result” to a true external executor bridge by persisting claim metadata and exposing claim / heartbeat / release semantics before result submission. This keeps GeoHelper as the host runtime while making the migration and external-execution boundary explicit and testable.
 
 **Tech Stack:** TypeScript, Node.js, Fastify, SQLite, Vitest, existing GeoHelper control-plane / worker / agent-store / agent-export-openclaw packages
 
@@ -45,21 +45,21 @@ Run: `pnpm --filter @geohelper/agent-export-openclaw test -- test/export-opencla
 
 Expected: PASS
 
-## Task 2: Add ACP external executor claim lifecycle
+## Task 2: Add delegation external executor claim lifecycle
 
 **Files:**
-- Modify: `packages/agent-store/src/repos/acp-session-repo.ts`
+- Modify: `packages/agent-store/src/repos/delegation-session-repo.ts`
 - Modify: `packages/agent-store/src/schema.sql`
 - Modify: `packages/agent-store/src/index.ts`
 - Modify: `packages/agent-store/src/sqlite-store.ts`
 - Modify: `packages/agent-store/test/run-store.test.ts`
-- Modify: `apps/control-plane/src/routes/acp-sessions.ts`
-- Modify: `apps/control-plane/test/acp-sessions-route.test.ts`
+- Modify: `apps/control-plane/src/routes/delegation-sessions.ts`
+- Modify: `apps/control-plane/test/delegation-sessions-route.test.ts`
 
 **Step 1: Write the failing tests**
 
 Cover:
-- external executors can claim the next eligible ACP session
+- external executors can claim the next eligible delegation session
 - claimed sessions cannot be double-claimed while the lease is active
 - executors can heartbeat or release a claim
 - result submission respects claim ownership when a claim exists
@@ -69,14 +69,14 @@ Cover:
 
 Run:
 - `pnpm --filter @geohelper/agent-store test -- test/run-store.test.ts`
-- `pnpm --filter @geohelper/control-plane test -- test/acp-sessions-route.test.ts`
+- `pnpm --filter @geohelper/control-plane test -- test/delegation-sessions-route.test.ts`
 
-Expected: FAIL because ACP sessions currently have no claim lifecycle state.
+Expected: FAIL because delegation sessions currently have no claim lifecycle state.
 
 **Step 3: Implement the bridge**
 
 Add:
-- ACP session claim fields such as `claimedBy`, `claimedAt`, and `claimExpiresAt`
+- delegation session claim fields such as `claimedBy`, `claimedAt`, and `claimExpiresAt`
 - route(s) for claim / heartbeat / release
 - result submission validation against active claim ownership
 
@@ -84,16 +84,16 @@ Add:
 
 Run:
 - `pnpm --filter @geohelper/agent-store test -- test/run-store.test.ts`
-- `pnpm --filter @geohelper/control-plane test -- test/acp-sessions-route.test.ts`
+- `pnpm --filter @geohelper/control-plane test -- test/delegation-sessions-route.test.ts`
 
 Expected: PASS
 
 ## Task 3: Add an executor-side bridge script
 
 **Files:**
-- Create: `scripts/agents/acp-executor-bridge.mjs`
+- Create: `scripts/agents/delegation-executor-bridge.mjs`
 - Optional modify: `apps/control-plane/src/control-plane-context.ts`
-- Optional tests near `apps/control-plane/test/acp-sessions-route.test.ts` or exporter tests
+- Optional tests near `apps/control-plane/test/delegation-sessions-route.test.ts` or exporter tests
 
 **Step 1: Write the failing test**
 
@@ -106,7 +106,7 @@ Cover:
 
 Run an appropriate targeted test command for the added test file.
 
-Expected: FAIL because the bridge script does not exist yet.
+Expected: FAIL because the delegation bridge script does not exist yet.
 
 **Step 3: Implement the minimal executor bridge**
 
@@ -149,4 +149,4 @@ Add this plan to `docs/plans/README.md`.
 
 **Step 4: Prepare commit**
 
-Summarize the migration proof, ACP bridge changes, and verification evidence before staging.
+Summarize the migration proof, delegation bridge changes, and verification evidence before staging.

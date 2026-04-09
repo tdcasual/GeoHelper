@@ -4,14 +4,16 @@ import type {
   Run,
   RunEvent
 } from "@geohelper/agent-protocol";
-import type { AcpSessionRecord } from "@geohelper/agent-store";
+import type { DelegationSessionRecord } from "@geohelper/agent-store";
+
+import { presentDelegationSession } from "../delegation-session-presenter";
 
 interface RunTimelinePageProps {
   run: Run;
   events: RunEvent[];
   childRuns: Run[];
   checkpoints: Checkpoint[];
-  acpSessions: AcpSessionRecord[];
+  delegationSessions: DelegationSessionRecord[];
   memoryEntries: MemoryEntry[];
 }
 
@@ -28,7 +30,7 @@ export const RunTimelinePage = ({
   events,
   childRuns,
   checkpoints,
-  acpSessions,
+  delegationSessions,
   memoryEntries
 }: RunTimelinePageProps) => (
   <section className="admin-run-timeline-page" data-testid="admin-run-timeline">
@@ -77,15 +79,20 @@ export const RunTimelinePage = ({
     </section>
 
     <section>
-      <h3>ACP Sessions</h3>
+      <h3>Delegation Sessions</h3>
       <ul>
-        {acpSessions.map((session) => (
-          <li key={session.id}>
-            <span>{session.delegationName}</span>
-            <span>{session.agentRef}</span>
-            <span>{session.status}</span>
-          </li>
-        ))}
+        {delegationSessions.map((session) => {
+          const presentation = presentDelegationSession(session);
+
+          return (
+            <li key={session.id}>
+              <span>{session.delegationName}</span>
+              <span>{presentation.heading}</span>
+              <span>{presentation.target}</span>
+              <span>{session.status}</span>
+            </li>
+          );
+        })}
       </ul>
     </section>
 

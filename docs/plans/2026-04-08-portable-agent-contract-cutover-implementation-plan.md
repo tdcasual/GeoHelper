@@ -83,7 +83,7 @@ Expected: PASS
 **Files:**
 - Modify: `apps/control-plane/test/control-plane-context.test.ts`
 - Modify: `apps/control-plane/test/platform-catalog-route.test.ts`
-- Modify: `apps/control-plane/test/acp-sessions-route.test.ts`
+- Modify: `apps/control-plane/test/delegation-sessions-route.test.ts`
 - Modify: `apps/control-plane/test/checkpoints-route.test.ts`
 - Modify: `apps/worker/test/run-loop.test.ts`
 - Modify: `apps/worker/test/run-loop-subagent.test.ts`
@@ -96,7 +96,7 @@ Update fixtures so agent definitions stop including deprecated per-agent executi
 **Step 2: Run the failing tests**
 
 Run:
-- `pnpm --filter @geohelper/control-plane test -- test/control-plane-context.test.ts test/platform-catalog-route.test.ts test/acp-sessions-route.test.ts test/checkpoints-route.test.ts`
+- `pnpm --filter @geohelper/control-plane test -- test/control-plane-context.test.ts test/platform-catalog-route.test.ts test/delegation-sessions-route.test.ts test/checkpoints-route.test.ts`
 - `pnpm --filter @geohelper/worker test -- test/run-loop.test.ts test/run-loop-subagent.test.ts`
 
 Expected: FAIL because test fixtures still assume the old agent shape.

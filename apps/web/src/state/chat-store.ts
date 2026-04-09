@@ -1,4 +1,4 @@
-import type { AcpSessionRecord } from "@geohelper/agent-store";
+import type { DelegationSessionRecord } from "@geohelper/agent-store";
 import type { RunSnapshot } from "@geohelper/agent-store";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
@@ -13,7 +13,6 @@ import type {
   RuntimeTarget
 } from "../runtime/types";
 import { ensureRemoteSyncStartupCheck } from "../storage/remote-sync";
-import { acpSessionStore } from "./acp-session-store";
 import { artifactStore } from "./artifact-store";
 import type { PersistedChatSnapshot } from "./chat-persistence";
 import { loadChatSnapshot, saveChatSnapshot } from "./chat-persistence";
@@ -27,11 +26,12 @@ import type {
 } from "./chat-store-helpers";
 import { toPersistedChatSnapshot } from "./chat-store-helpers";
 import { checkpointStore } from "./checkpoint-store";
+import { delegationSessionStore } from "./delegation-session-store";
 import { runStore } from "./run-store";
 import {
   appendDebugEventIfEnabled,
-  CompileRuntimeOptions,
-  resolveCompileRuntimeOptions
+  resolveRunRuntimeOptions,
+  RunRuntimeOptions
 } from "./settings-store";
 
 export type ChatAttachment = RuntimeAttachment;
@@ -88,14 +88,14 @@ export interface ChatStoreState {
 }
 
 export interface ChatStoreDeps {
-  compile: (input: {
+  submitPrompt: (input: {
     conversationId: string;
     message: string;
     platformRunProfile: PlatformRunProfile;
     attachments?: ChatAttachment[];
     mode: ChatMode;
     runtimeTarget?: RuntimeTarget;
-    runtimeBaseUrl?: string;
+    controlPlaneBaseUrl?: string;
     sessionToken: string | null;
     model?: string;
     byokEndpoint?: string;
@@ -114,23 +114,23 @@ export interface ChatStoreDeps {
       }>;
     };
   }) => Promise<RuntimeRunResponse>;
-  resolveCompileOptions: (input: {
+  resolveRunOptions: (input: {
     conversationId: string;
     mode: ChatMode;
-  }) => Promise<CompileRuntimeOptions>;
+  }) => Promise<RunRuntimeOptions>;
   logEvent: (event: { level: "info" | "error"; message: string }) => void;
   recordRunSnapshot: (input: {
     messageId: string;
     snapshot: RunSnapshot;
-    acpSessions?: AcpSessionRecord[];
+    delegationSessions?: DelegationSessionRecord[];
   }) => void;
 }
 
 const defaultDeps: ChatStoreDeps = {
-  compile: ({
+  submitPrompt: ({
     conversationId,
     message,
-    runtimeBaseUrl,
+    controlPlaneBaseUrl,
     sessionToken,
     model,
     byokEndpoint,
@@ -143,7 +143,7 @@ const defaultDeps: ChatStoreDeps = {
     mode
   }) =>
     submitPromptToPlatform({
-      baseUrl: runtimeBaseUrl,
+      controlPlaneBaseUrl,
       conversationId,
       message,
       platformRunProfile,
@@ -157,17 +157,17 @@ const defaultDeps: ChatStoreDeps = {
       context,
       sessionToken: sessionToken ?? undefined
     } satisfies RuntimeRunRequest),
-  resolveCompileOptions: ({ conversationId, mode }) =>
-    resolveCompileRuntimeOptions({
+  resolveRunOptions: ({ conversationId, mode }) =>
+    resolveRunRuntimeOptions({
       conversationId,
       mode
     }),
   logEvent: (event) => appendDebugEventIfEnabled(event),
-  recordRunSnapshot: ({ snapshot, acpSessions = [] }) => {
+  recordRunSnapshot: ({ snapshot, delegationSessions = [] }) => {
     runStore.getState().applyStreamSnapshot(snapshot);
     checkpointStore.getState().applyRunSnapshot(snapshot);
     artifactStore.getState().applyRunSnapshot(snapshot);
-    acpSessionStore.getState().applySessions(acpSessions);
+    delegationSessionStore.getState().applySessions(delegationSessions);
   }
 };
 

@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getPlatformRunProfile } from "../runtime/platform-run-profiles";
 import {
-  buildCompileRuntimeOptions,
+  buildRunRuntimeOptions,
   maybeAppendDebugEvent
 } from "./settings-runtime-resolver";
 import type { DebugEvent } from "./settings-store";
@@ -18,6 +18,10 @@ const createDebugEvent = (
 });
 
 describe("settings-runtime-resolver", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("builds byok runtime options and surfaces decrypt failures", async () => {
     const secretService = {
       encrypt: async (value: string) => ({
@@ -49,11 +53,11 @@ describe("settings-runtime-resolver", () => {
       id: "runtime_direct",
       name: "Direct BYOK",
       target: "direct",
-      baseUrl: "https://direct.example.com"
+      providerBaseUrl: "https://direct.example.com"
     });
     store.getState().setDefaultRuntimeProfile("runtime_direct");
 
-    const result = await buildCompileRuntimeOptions({
+    const result = await buildRunRuntimeOptions({
       state: store.getState(),
       conversationId: "conv_1",
       mode: "byok",
@@ -70,11 +74,12 @@ describe("settings-runtime-resolver", () => {
     expect(result.byokEndpoint).toBe("https://openrouter.ai/api/v1");
     expect(result.byokRuntimeIssue?.code).toBe("BYOK_KEY_DECRYPT_FAILED");
     expect(result.byokKey).toBeUndefined();
+    expect(result.providerBaseUrl).toBe("https://direct.example.com");
   });
 
-  it("does not emit legacy compile client flags into active runtime headers", async () => {
+  it("does not emit legacy route client flags into active runtime headers", async () => {
     const store = createSettingsStore();
-    const result = await buildCompileRuntimeOptions({
+    const result = await buildRunRuntimeOptions({
       state: store.getState(),
       conversationId: "conv_1",
       mode: "byok",
@@ -90,13 +95,13 @@ describe("settings-runtime-resolver", () => {
     expect(result.extraHeaders).toEqual({});
   });
 
-  it("resolves the selected platform run profile into compile options", async () => {
+  it("resolves the selected platform run profile into run options", async () => {
     const store = createSettingsStore();
     store
       .getState()
       .setDefaultPlatformAgentProfile("platform_geometry_quick_draft");
 
-    const result = await buildCompileRuntimeOptions({
+    const result = await buildRunRuntimeOptions({
       state: store.getState(),
       conversationId: "conv_1",
       mode: "official",
@@ -121,12 +126,19 @@ describe("settings-runtime-resolver", () => {
 
   it("prefers the remote control-plane run profile catalog for gateway runtimes", async () => {
     const store = createSettingsStore();
+    store.getState().upsertRuntimeProfile({
+      id: "runtime_gateway",
+      name: "Gateway",
+      target: "gateway",
+      gatewayBaseUrl: "https://gateway.example.com",
+      controlPlaneBaseUrl: "https://control-plane.example.com"
+    });
     store.getState().setDefaultRuntimeProfile("runtime_gateway");
     store
       .getState()
       .setDefaultPlatformAgentProfile("platform_geometry_quick_draft");
 
-    const result = await buildCompileRuntimeOptions({
+    const result = await buildRunRuntimeOptions({
       state: store.getState(),
       conversationId: "conv_1",
       mode: "official",
@@ -176,6 +188,75 @@ describe("settings-runtime-resolver", () => {
         }
       })
     );
+    expect(result.gatewayBaseUrl).toBe("https://gateway.example.com");
+    expect(result.controlPlaneBaseUrl).toBe(
+      "https://control-plane.example.com"
+    );
+  });
+
+  it("falls back to the gateway url when control-plane url is blank", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            catalog: {
+              runProfiles: [
+                {
+                  id: "platform_geometry_standard",
+                  name: "远端标准",
+                  description: "来自 gateway fallback",
+                  agentId: "geometry_solver",
+                  workflowId: "wf_geometry_solver",
+                  defaultBudget: {
+                    maxModelCalls: 6,
+                    maxToolCalls: 8,
+                    maxDurationMs: 120000
+                  }
+                }
+              ]
+            }
+          }),
+          {
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        )
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const store = createSettingsStore();
+    store.getState().upsertRuntimeProfile({
+      id: "runtime_gateway",
+      name: "Gateway",
+      target: "gateway",
+      gatewayBaseUrl: "https://gateway.example.com",
+      controlPlaneBaseUrl: ""
+    });
+    store.getState().setDefaultRuntimeProfile("runtime_gateway");
+    store
+      .getState()
+      .setDefaultPlatformAgentProfile("platform_geometry_standard");
+
+    const result = await buildRunRuntimeOptions({
+      state: store.getState(),
+      conversationId: "conv_1",
+      mode: "official",
+      resolveCapabilities: async () => ({
+        supportsOfficialAuth: true,
+        supportsVision: false,
+        supportsAgentSteps: true,
+        supportsServerMetrics: true,
+        supportsRateLimitHeaders: true
+      })
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://gateway.example.com/api/v3/platform/catalog",
+      undefined
+    );
+    expect(result.controlPlaneBaseUrl).toBe("https://gateway.example.com");
   });
 
   it("falls back to the local run profile when the remote catalog lookup fails", async () => {
@@ -185,7 +266,7 @@ describe("settings-runtime-resolver", () => {
       .getState()
       .setDefaultPlatformAgentProfile("platform_geometry_quick_draft");
 
-    const result = await buildCompileRuntimeOptions({
+    const result = await buildRunRuntimeOptions({
       state: store.getState(),
       conversationId: "conv_1",
       mode: "official",
@@ -213,7 +294,7 @@ describe("settings-runtime-resolver", () => {
       .getState()
       .setDefaultPlatformAgentProfile("platform_geometry_quick_draft");
 
-    const result = await buildCompileRuntimeOptions({
+    const result = await buildRunRuntimeOptions({
       state: store.getState(),
       conversationId: "conv_1",
       mode: "official",

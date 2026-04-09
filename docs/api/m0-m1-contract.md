@@ -91,10 +91,15 @@ GeoHelper 现已拆成两个活跃服务：
 ```json
 {
   "started_at": "2026-04-04T00:00:00.000Z",
-  "compile": {
-    "total_requests": 0,
-    "success": 0,
-    "failed": 0
+  "gateway": {
+    "official_auth_enabled": true,
+    "admin_token_enabled": true,
+    "alert_webhook_enabled": false,
+    "redis_enabled": true,
+    "backup_storage": "redis",
+    "session_revocation_storage": "redis",
+    "attachments_enabled": false,
+    "trace_header_name": "x-trace-id"
   }
 }
 ```
@@ -131,6 +136,42 @@ Gateway 仍负责单租户备份与恢复，备份信封格式如下：
 - `POST /admin/backups/compare`
 
 ## Control Plane
+
+### GET /api/v3/health
+
+```json
+{
+  "status": "ok",
+  "service": "control-plane",
+  "time": "2026-04-09T10:00:00.000Z"
+}
+```
+
+### GET /api/v3/ready
+
+```json
+{
+  "ready": true,
+  "service": "control-plane",
+  "time": "2026-04-09T10:00:00.000Z",
+  "executionMode": "inline_worker_loop",
+  "dependencies": [
+    {
+      "name": "agent_store",
+      "status": "ok"
+    },
+    {
+      "name": "runtime_registry",
+      "status": "ok",
+      "details": {
+        "runProfileCount": 3,
+        "agentCount": 2,
+        "workflowCount": 2
+      }
+    }
+  ]
+}
+```
 
 ### GET /api/v3/run-profiles
 

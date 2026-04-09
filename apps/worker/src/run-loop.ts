@@ -79,8 +79,8 @@ const buildRunEventId = (runId: string, sequence: number): string =>
 const buildSubagentRunId = (parentRunId: string, nodeId: string): string =>
   `run_child_${parentRunId}_${nodeId}`;
 
-const buildAcpSessionId = (runId: string, nodeId: string): string =>
-  `acp_session_${runId}_${nodeId}`;
+const buildDelegationSessionId = (runId: string, nodeId: string): string =>
+  `delegation_session_${runId}_${nodeId}`;
 
 const parseInputArtifactIds = (value: unknown): string[] | null => {
   if (!Array.isArray(value)) {
@@ -221,28 +221,38 @@ const createSubagentHandler = (
     };
   }
 
-  if (delegation.value.mode === "acp-agent") {
+  if (
+    delegation.value.mode === "acp-agent" ||
+    delegation.value.mode === "host-service"
+  ) {
     const createdAt = now();
+    const delegationSessionId = buildDelegationSessionId(run.id, node.id);
     const checkpoint = CheckpointSchema.parse({
       id: buildCheckpointId(),
       runId: run.id,
       nodeId: node.id,
       kind: "human_input",
       status: "pending",
-      title: `Await ACP delegation: ${delegation.value.name}`,
-      prompt: `Resolve ACP delegation ${delegation.value.name} to continue the run.`,
+      title:
+        delegation.value.mode === "acp-agent"
+          ? `Await agent delegation: ${delegation.value.name}`
+          : `Await host delegation: ${delegation.value.name}`,
+      prompt:
+        delegation.value.mode === "acp-agent"
+          ? `Resolve agent delegation ${delegation.value.name} to continue the run.`
+          : `Resolve host delegation ${delegation.value.name} to continue the run.`,
       metadata: {
         delegationMode: delegation.value.mode,
         delegationName: delegation.value.name,
         agentRef: delegation.value.agentRef,
         serviceRef: delegation.value.serviceRef,
-        acpSessionId: buildAcpSessionId(run.id, node.id)
+        delegationSessionId
       },
       createdAt
     });
 
-    await store.acpSessions.upsertSession({
-      id: buildAcpSessionId(run.id, node.id),
+    await store.delegationSessions.upsertSession({
+      id: delegationSessionId,
       runId: run.id,
       checkpointId: checkpoint.id,
       delegationName: delegation.value.name,
@@ -257,28 +267,6 @@ const createSubagentHandler = (
     return {
       type: "checkpoint",
       checkpoint
-    };
-  }
-
-  if (delegation.value.mode === "host-service") {
-    return {
-      type: "checkpoint",
-      checkpoint: CheckpointSchema.parse({
-        id: buildCheckpointId(),
-        runId: run.id,
-        nodeId: node.id,
-        kind: "human_input",
-        status: "pending",
-        title: `Await host delegation: ${delegation.value.name}`,
-        prompt: `Resolve host delegation ${delegation.value.name} to continue the run.`,
-        metadata: {
-          delegationMode: delegation.value.mode,
-          delegationName: delegation.value.name,
-          agentRef: delegation.value.agentRef,
-          serviceRef: delegation.value.serviceRef
-        },
-        createdAt: now()
-      })
     };
   }
 

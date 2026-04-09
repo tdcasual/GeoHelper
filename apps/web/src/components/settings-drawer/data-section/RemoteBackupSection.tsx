@@ -1,3 +1,4 @@
+import { getRuntimeGatewayBaseUrl } from "../../../state/runtime-profiles";
 import {
   formatRemoteBackupRestoreWarning,
   resolveRemoteBackupHistoryBadgePresentation,
@@ -112,7 +113,7 @@ export const RemoteBackupSection = ({
     </label>
     <p className="settings-hint">
       {remoteBackupActions.gatewayProfile
-        ? `远端网关：${remoteBackupActions.gatewayProfile.name}（${remoteBackupActions.gatewayProfile.baseUrl}）`
+        ? `远端网关：${remoteBackupActions.gatewayProfile.name}（${getRuntimeGatewayBaseUrl(remoteBackupActions.gatewayProfile)}）`
         : remoteBackupActions.upload.reason}
     </p>
     <p className="settings-hint">

@@ -4,18 +4,18 @@ import type {
   Run,
   RunEvent
 } from "@geohelper/agent-protocol";
-import type { AcpSessionRecord } from "@geohelper/agent-store";
+import type { DelegationSessionRecord } from "@geohelper/agent-store";
 
-import type { AcpSessionStoreState } from "../../state/acp-session-store";
 import type { ArtifactStoreState } from "../../state/artifact-store";
 import type { CheckpointStoreState } from "../../state/checkpoint-store";
+import type { DelegationSessionStoreState } from "../../state/delegation-session-store";
 import type { RunStoreState } from "../../state/run-store";
 
 const EMPTY_RUN_EVENTS: RunEvent[] = [];
 const EMPTY_RUNS: Run[] = [];
 const EMPTY_RUN_CHECKPOINTS: Checkpoint[] = [];
 const EMPTY_RUN_ARTIFACTS: Artifact[] = [];
-const EMPTY_ACP_SESSIONS: AcpSessionRecord[] = [];
+const EMPTY_ACP_SESSIONS: DelegationSessionRecord[] = [];
 
 export const selectLatestRun = (state: RunStoreState): Run | null =>
   state.latestRunId ? state.runsById[state.latestRunId] ?? null : null;
@@ -43,8 +43,8 @@ export const selectArtifactsForRun = (
 ): Artifact[] =>
   runId ? state.artifactsByRunId[runId] ?? EMPTY_RUN_ARTIFACTS : EMPTY_RUN_ARTIFACTS;
 
-export const selectAcpSessionsForRun = (
-  state: AcpSessionStoreState,
+export const selectDelegationSessionsForRun = (
+  state: DelegationSessionStoreState,
   runId: string | null
-): AcpSessionRecord[] =>
+): DelegationSessionRecord[] =>
   runId ? state.sessionsByRunId[runId] ?? EMPTY_ACP_SESSIONS : EMPTY_ACP_SESSIONS;

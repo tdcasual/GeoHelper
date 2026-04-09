@@ -4,8 +4,9 @@ This directory stores dated design and implementation documents.
 
 Current active execution track:
 
-- Platform agent rewrite: design + implementation docs dated `2026-04-03`
-- Release-cutover validation: use the platform rewrite docs together with [`../BETA_CHECKLIST.md`](../BETA_CHECKLIST.md)
+- Portable agent contract cutover + delegation executor bridge: implementation docs dated `2026-04-07` to `2026-04-08`
+- Post-cutover closure + release parity: [`2026-04-09-post-cutover-closure-implementation-plan.md`](./2026-04-09-post-cutover-closure-implementation-plan.md)
+- Release-cutover validation: use the portable-agent cutover docs together with [`../BETA_CHECKLIST.md`](../BETA_CHECKLIST.md)
 
 ## Topic Navigation
 
@@ -17,10 +18,11 @@ Use this section when you know the problem domain first and only then want the r
 - Platform agent rewrite: [`2026-04-03-platform-agent-rewrite-design.md`](./2026-04-03-platform-agent-rewrite-design.md), [`2026-04-03-platform-agent-rewrite-implementation-plan.md`](./2026-04-03-platform-agent-rewrite-implementation-plan.md)
 - OpenClaw-portable agent spec v2: [`2026-04-07-openclaw-portable-agent-spec-v2-design.md`](./2026-04-07-openclaw-portable-agent-spec-v2-design.md), [`2026-04-07-openclaw-portable-agent-spec-v2-implementation-plan.md`](./2026-04-07-openclaw-portable-agent-spec-v2-implementation-plan.md)
 - OpenClaw-portable agent phase 2: [`2026-04-07-openclaw-portable-agent-phase2-implementation-plan.md`](./2026-04-07-openclaw-portable-agent-phase2-implementation-plan.md)
-- ACP external delegation: [`2026-04-08-acp-agent-external-delegation-implementation-plan.md`](./2026-04-08-acp-agent-external-delegation-implementation-plan.md)
-- Web ACP session surface: [`2026-04-08-web-acp-session-surface-implementation-plan.md`](./2026-04-08-web-acp-session-surface-implementation-plan.md)
+- Delegation session external executor lifecycle: [`2026-04-08-delegation-session-external-executor-implementation-plan.md`](./2026-04-08-delegation-session-external-executor-implementation-plan.md)
+- Web delegation session surface: [`2026-04-08-web-delegation-session-surface-implementation-plan.md`](./2026-04-08-web-delegation-session-surface-implementation-plan.md)
 - Portable agent contract cutover: [`2026-04-08-portable-agent-contract-cutover-implementation-plan.md`](./2026-04-08-portable-agent-contract-cutover-implementation-plan.md)
-- OpenClaw migration proof + ACP executor bridge: [`2026-04-08-openclaw-migration-proof-and-acp-executor-bridge-implementation-plan.md`](./2026-04-08-openclaw-migration-proof-and-acp-executor-bridge-implementation-plan.md)
+- OpenClaw migration proof + delegation executor bridge: [`2026-04-08-openclaw-migration-proof-and-delegation-executor-bridge-implementation-plan.md`](./2026-04-08-openclaw-migration-proof-and-delegation-executor-bridge-implementation-plan.md)
+- Post-cutover closure: [`2026-04-09-post-cutover-closure-implementation-plan.md`](./2026-04-09-post-cutover-closure-implementation-plan.md)
 - M4 release closure: [`2026-03-19-m4-release-closure-implementation-plan.md`](./2026-03-19-m4-release-closure-implementation-plan.md)
 - Current branch closure execution: [`2026-03-31-project-phase-plan.md`](./2026-03-31-project-phase-plan.md)
 

@@ -3,6 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 import { loginWithRuntime, revokeRuntimeSession } from "../../runtime/runtime-service";
 import { type ChatMode, runtimeCapabilitiesByTarget } from "../../runtime/types";
 import { useChatStore } from "../../state/chat-store";
+import {
+  getRuntimeGatewayBaseUrl,
+  getRuntimeProviderBaseUrl
+} from "../../state/runtime-profiles";
 import { useSettingsStore } from "../../state/settings-store";
 
 interface UseWorkspaceRuntimeSessionInput {
@@ -49,7 +53,11 @@ export const useWorkspaceRuntimeSession = ({
     [defaultRuntimeProfileId, runtimeProfiles]
   );
   const runtimeTarget = activeRuntimeProfile?.target ?? "direct";
-  const runtimeBaseUrl = activeRuntimeProfile?.baseUrl || undefined;
+  const gatewayBaseUrl = getRuntimeGatewayBaseUrl(activeRuntimeProfile) || undefined;
+  const providerBaseUrl =
+    getRuntimeProviderBaseUrl(activeRuntimeProfile) || undefined;
+  const runtimeBaseUrl =
+    runtimeTarget === "gateway" ? gatewayBaseUrl : providerBaseUrl;
   const runtimeSupportsOfficial =
     runtimeCapabilitiesByTarget[runtimeTarget].supportsOfficialAuth;
   const activeRuntimeLabel = `运行时：${
@@ -91,7 +99,7 @@ export const useWorkspaceRuntimeSession = ({
     try {
       await revokeRuntimeSession({
         target: runtimeTarget,
-        baseUrl: runtimeBaseUrl,
+        baseUrl: gatewayBaseUrl,
         sessionToken
       });
     } catch {
@@ -104,7 +112,7 @@ export const useWorkspaceRuntimeSession = ({
   const submitToken = async (token: string) => {
     const result = await loginWithRuntime({
       target: runtimeTarget,
-      baseUrl: runtimeBaseUrl,
+      baseUrl: gatewayBaseUrl,
       token,
       deviceId
     });

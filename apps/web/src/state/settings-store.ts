@@ -17,16 +17,22 @@ import {
   SecretService
 } from "../services/secure-secret";
 import {
+  createPlatformBundleCatalogState,
+  type PlatformBundleCatalogState
+} from "./platform-bundle-catalog";
+import {
   createPlatformRunProfileCatalogState,
   type PlatformRunProfileCatalogState,
-  resolvePlatformRunProfileCatalogGateway} from "./platform-run-profile-catalog";
+  resolvePlatformRunProfileCatalogControlPlane
+} from "./platform-run-profile-catalog";
+import type { RuntimeProfile, UpsertRuntimeProfileInput } from "./runtime-profiles";
 import type { PersistedSettingsSnapshot } from "./settings-persistence";
 import {
   loadSettingsSnapshot,
   saveSettingsSnapshot
 } from "./settings-persistence";
 import {
-  buildCompileRuntimeOptions,
+  buildRunRuntimeOptions,
   maybeAppendDebugEvent,
   resolveRuntimeProfileSelection
 } from "./settings-runtime-resolver";
@@ -106,16 +112,9 @@ export interface RemoteBackupSyncResultInput {
   checkedAt?: string;
 }
 
-export interface RuntimeProfile {
-  id: string;
-  name: string;
-  target: RuntimeTarget;
-  baseUrl: string;
-  updatedAt: number;
-}
-
 export interface SettingsStoreState extends PersistedSettingsSnapshot {
   platformRunProfileCatalog: PlatformRunProfileCatalogState;
+  platformBundleCatalog: PlatformBundleCatalogState;
   drawerOpen: boolean;
   byokRuntimeIssue: ByokRuntimeIssue | null;
   remoteBackupSyncPreferences: RemoteBackupSyncPreferences;
@@ -128,12 +127,7 @@ export interface SettingsStoreState extends PersistedSettingsSnapshot {
   setRemoteBackupSyncResult: (input: RemoteBackupSyncResultInput) => void;
   setRemoteBackupSyncError: (message: string) => void;
   applyRemoteBackupSnapshotUpdate: (backup: RuntimeBackupMetadata) => void;
-  upsertRuntimeProfile: (input: {
-    id?: string;
-    name: string;
-    target: RuntimeTarget;
-    baseUrl: string;
-  }) => string;
+  upsertRuntimeProfile: (input: UpsertRuntimeProfileInput) => string;
   setDefaultRuntimeProfile: (id: string) => void;
   setDefaultPlatformAgentProfile: (id: string) => void;
   refreshPlatformRunProfiles: () => Promise<void>;
@@ -175,9 +169,11 @@ export interface SettingsStoreState extends PersistedSettingsSnapshot {
   clearStoredSecrets: () => Promise<void>;
 }
 
-export interface CompileRuntimeOptions {
+export interface RunRuntimeOptions {
   runtimeTarget: RuntimeTarget;
-  runtimeBaseUrl?: string;
+  gatewayBaseUrl?: string;
+  controlPlaneBaseUrl?: string;
+  providerBaseUrl?: string;
   runtimeCapabilities: RuntimeCapabilities;
   platformRunProfile: PlatformRunProfile;
   model?: string;
@@ -208,7 +204,7 @@ export const createSettingsStore = (
     }
   ) => {
     saveSettingsSnapshot({
-      schemaVersion: 3,
+      schemaVersion: 4,
       defaultMode: state.defaultMode,
       runtimeProfiles: state.runtimeProfiles,
       defaultRuntimeProfileId: state.defaultRuntimeProfileId,
@@ -229,6 +225,7 @@ export const createSettingsStore = (
   return createStore<SettingsStoreState>((set, get) => ({
     ...initial,
     platformRunProfileCatalog: createPlatformRunProfileCatalogState(),
+    platformBundleCatalog: createPlatformBundleCatalogState(),
     drawerOpen: false,
     byokRuntimeIssue: null,
     remoteBackupSync: createInitialRemoteBackupSyncState(),
@@ -256,18 +253,27 @@ export const createSettingsStore = (
           ...state.platformRunProfileCatalog,
           status: "loading",
           error: null
+        },
+        platformBundleCatalog: {
+          ...state.platformBundleCatalog,
+          status: "loading",
+          error: null
         }
       }));
 
       const refreshedAt = new Date().toISOString();
-      const gateway = resolvePlatformRunProfileCatalogGateway({
+      const controlPlane = resolvePlatformRunProfileCatalogControlPlane({
         runtimeProfiles: get().runtimeProfiles,
         defaultRuntimeProfileId: get().defaultRuntimeProfileId
       });
 
-      if (!gateway) {
+      if (!controlPlane) {
         set(() => ({
           platformRunProfileCatalog: createPlatformRunProfileCatalogState({
+            status: "ready",
+            lastFetchedAt: refreshedAt
+          }),
+          platformBundleCatalog: createPlatformBundleCatalogState({
             status: "ready",
             lastFetchedAt: refreshedAt
           })
@@ -276,9 +282,13 @@ export const createSettingsStore = (
       }
 
       try {
-        const profiles = await createControlPlaneClient({
-          baseUrl: gateway.baseUrl
-        }).listRunProfiles();
+        const client = createControlPlaneClient({
+          baseUrl: controlPlane.baseUrl
+        });
+        const [profiles, bundles] = await Promise.all([
+          client.listRunProfiles(),
+          client.listBundles()
+        ]);
 
         if (profiles.length === 0) {
           throw new Error("control-plane 未返回可用的平台链路");
@@ -307,6 +317,13 @@ export const createSettingsStore = (
               status: "ready",
               error: null,
               lastFetchedAt: refreshedAt
+            }),
+            platformBundleCatalog: createPlatformBundleCatalogState({
+              bundles,
+              source: "control_plane",
+              status: "ready",
+              error: null,
+              lastFetchedAt: refreshedAt
             })
           };
         });
@@ -318,6 +335,14 @@ export const createSettingsStore = (
               error instanceof Error
                 ? error.message
                 : "platform run profile catalog refresh failed",
+            lastFetchedAt: refreshedAt
+          }),
+          platformBundleCatalog: createPlatformBundleCatalogState({
+            status: "error",
+            error:
+              error instanceof Error
+                ? error.message
+                : "platform bundle catalog refresh failed",
             lastFetchedAt: refreshedAt
           })
         }));
@@ -343,6 +368,7 @@ const applySettingsSnapshotToStore = (
     defaultRuntimeProfileId: snapshot.defaultRuntimeProfileId,
     defaultPlatformAgentProfileId: snapshot.defaultPlatformAgentProfileId,
     platformRunProfileCatalog: state.platformRunProfileCatalog,
+    platformBundleCatalog: state.platformBundleCatalog,
     byokPresets: snapshot.byokPresets,
     officialPresets: snapshot.officialPresets,
     defaultByokPresetId: snapshot.defaultByokPresetId,
@@ -370,6 +396,12 @@ export const useSettingsStore = <T>(
 ): T => useStore(settingsStore, selector);
 
 export { inferModelSupportsVision, resolveRuntimeCapabilitiesForModel } from "../runtime/types";
+export type {
+  DirectRuntimeProfile,
+  GatewayRuntimeProfile,
+  RuntimeProfile,
+  UpsertRuntimeProfileInput
+} from "./runtime-profiles";
 export { SETTINGS_KEY } from "./settings-persistence";
 
 export const resolveRuntimeProfile = (): {
@@ -377,12 +409,12 @@ export const resolveRuntimeProfile = (): {
   capabilities: RuntimeCapabilities;
 } => resolveRuntimeProfileSelection(settingsStore.getState());
 
-export const resolveCompileRuntimeOptions = async (params: {
+export const resolveRunRuntimeOptions = async (params: {
   conversationId: string;
   mode: ChatMode;
-}): Promise<CompileRuntimeOptions> => {
+}): Promise<RunRuntimeOptions> => {
   const state = settingsStore.getState();
-  const resolved = await buildCompileRuntimeOptions({
+  const resolved = await buildRunRuntimeOptions({
     state,
     conversationId: params.conversationId,
     mode: params.mode
@@ -409,9 +441,9 @@ export const resolveCompileRuntimeOptions = async (params: {
   const {
     resolvedByokPresetId: _resolvedByokPresetId,
     didResolveByokKey: _didResolveByokKey,
-    ...compileOptions
+    ...runOptions
   } = resolved;
-  return compileOptions;
+  return runOptions;
 };
 
 export const appendDebugEventIfEnabled = (event: {

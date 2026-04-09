@@ -493,8 +493,8 @@ describe("agent store", () => {
         nodeId: "node_delegate",
         kind: "human_input",
         status: "pending",
-        title: "Await ACP delegation",
-        prompt: "Resolve ACP delegation to continue.",
+        title: "Await agent delegation",
+        prompt: "Resolve agent delegation to continue.",
         metadata: {
           delegationMode: "acp-agent",
           delegationName: "teacher_review",
@@ -526,7 +526,7 @@ describe("agent store", () => {
     }
   });
 
-  it("persists acp sessions across sqlite store reopen", async () => {
+  it("persists delegation sessions across sqlite store reopen", async () => {
     const tempDir = mkdtempSync(path.join(tmpdir(), "geohelper-agent-store-"));
     const databasePath = path.join(tempDir, "agent-store.sqlite");
 
@@ -536,8 +536,8 @@ describe("agent store", () => {
       });
 
       await store.runs.createRun({
-        id: "run_sqlite_acp_session",
-        threadId: "thread_sqlite_acp_session",
+        id: "run_sqlite_delegation_session",
+        threadId: "thread_sqlite_delegation_session",
         profileId: "platform_geometry_standard",
         status: "waiting_for_checkpoint",
         inputArtifactIds: [],
@@ -551,23 +551,23 @@ describe("agent store", () => {
         updatedAt: "2026-04-08T00:00:00.000Z"
       });
       await store.checkpoints.upsertCheckpoint({
-        id: "checkpoint_sqlite_acp_session_1",
-        runId: "run_sqlite_acp_session",
+        id: "checkpoint_sqlite_delegation_session_1",
+        runId: "run_sqlite_delegation_session",
         nodeId: "node_delegate",
         kind: "human_input",
         status: "pending",
-        title: "Await ACP delegation",
-        prompt: "Resolve ACP delegation to continue.",
+        title: "Await agent delegation",
+        prompt: "Resolve agent delegation to continue.",
         metadata: {
           delegationMode: "acp-agent"
         },
         createdAt: "2026-04-08T00:00:00.000Z"
       });
 
-      await store.acpSessions.upsertSession({
-        id: "acp_session_sqlite_1",
-        runId: "run_sqlite_acp_session",
-        checkpointId: "checkpoint_sqlite_acp_session_1",
+      await store.delegationSessions.upsertSession({
+        id: "delegation_session_sqlite_1",
+        runId: "run_sqlite_delegation_session",
+        checkpointId: "checkpoint_sqlite_delegation_session_1",
         delegationName: "teacher_review",
         agentRef: "openclaw.geometry-reviewer",
         status: "pending",
@@ -583,10 +583,10 @@ describe("agent store", () => {
         path: databasePath
       });
 
-      expect(await reopened.acpSessions.getSession("acp_session_sqlite_1")).toEqual(
+      expect(await reopened.delegationSessions.getSession("delegation_session_sqlite_1")).toEqual(
         expect.objectContaining({
-          runId: "run_sqlite_acp_session",
-          checkpointId: "checkpoint_sqlite_acp_session_1",
+          runId: "run_sqlite_delegation_session",
+          checkpointId: "checkpoint_sqlite_delegation_session_1",
           delegationName: "teacher_review",
           agentRef: "openclaw.geometry-reviewer",
           status: "pending",

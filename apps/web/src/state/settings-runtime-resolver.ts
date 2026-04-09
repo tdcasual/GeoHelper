@@ -12,10 +12,15 @@ import {
   browserSecretService,
   type SecretService
 } from "../services/secure-secret";
+import {
+  getRuntimeControlPlaneBaseUrl,
+  getRuntimeGatewayBaseUrl,
+  getRuntimeProviderBaseUrl
+} from "./runtime-profiles";
 import type {
   ByokPreset,
   ByokRuntimeIssue,
-  CompileRuntimeOptions,
+  RunRuntimeOptions,
   SettingsStoreState
 } from "./settings-store";
 
@@ -24,7 +29,7 @@ type DebugEventInput = {
   message: string;
 };
 
-interface BuildCompileRuntimeOptionsInput {
+interface BuildRunRuntimeOptionsInput {
   state: SettingsStoreState;
   conversationId: string;
   mode: ChatMode;
@@ -37,14 +42,14 @@ interface BuildCompileRuntimeOptionsInput {
   }) => Promise<RuntimeCapabilities>;
 }
 
-export interface BuildCompileRuntimeOptionsResult
-  extends CompileRuntimeOptions {
+export interface BuildRunRuntimeOptionsResult
+  extends RunRuntimeOptions {
   resolvedByokPresetId?: string;
   didResolveByokKey: boolean;
 }
 
 const buildExtraHeaders = (): Record<string, string> =>
-  // Legacy compile-route client flags are no longer emitted on the active path.
+  // Legacy route client flags are no longer emitted on the active path.
   ({});
 
 const getDefaultPreset = (
@@ -80,21 +85,21 @@ const getDefaultRuntimeProfile = (
 
 const resolvePlatformRunProfile = async ({
   runtimeTarget,
-  runtimeBaseUrl,
+  controlPlaneBaseUrl,
   selectedProfileId,
   listRunProfiles
 }: {
   runtimeTarget: "gateway" | "direct";
-  runtimeBaseUrl?: string;
+  controlPlaneBaseUrl?: string;
   selectedProfileId: string;
   listRunProfiles?: () => Promise<PlatformRunProfile[]>;
 }): Promise<PlatformRunProfile> => {
   const localProfile = getPlatformRunProfile(selectedProfileId);
   const resolveRemoteProfiles =
     listRunProfiles ??
-    (runtimeBaseUrl
+    (controlPlaneBaseUrl
       ? createControlPlaneClient({
-          baseUrl: runtimeBaseUrl
+          baseUrl: controlPlaneBaseUrl
         }).listRunProfiles
       : undefined);
 
@@ -133,11 +138,14 @@ export const resolveRuntimeProfileSelection = (
   };
 };
 
-export const buildCompileRuntimeOptions = async (
-  input: BuildCompileRuntimeOptionsInput
-): Promise<BuildCompileRuntimeOptionsResult> => {
+export const buildRunRuntimeOptions = async (
+  input: BuildRunRuntimeOptionsInput
+): Promise<BuildRunRuntimeOptionsResult> => {
   const runtimeProfile = getDefaultRuntimeProfile(input.state);
-  const runtimeBaseUrl = runtimeProfile.baseUrl || undefined;
+  const gatewayBaseUrl = getRuntimeGatewayBaseUrl(runtimeProfile) || undefined;
+  const controlPlaneBaseUrl =
+    getRuntimeControlPlaneBaseUrl(runtimeProfile) || undefined;
+  const providerBaseUrl = getRuntimeProviderBaseUrl(runtimeProfile) || undefined;
   const preset = getDefaultPreset(input.mode, input.state);
   const session = input.state.sessionOverrides[input.conversationId] ?? {};
   const activeModel = session.model ?? preset.model;
@@ -146,12 +154,12 @@ export const buildCompileRuntimeOptions = async (
   const [runtimeCapabilities, platformRunProfile] = await Promise.all([
     resolveCapabilities({
       target: runtimeProfile.target,
-      baseUrl: runtimeBaseUrl,
+      baseUrl: providerBaseUrl ?? gatewayBaseUrl,
       model: activeModel
     }),
     resolvePlatformRunProfile({
       runtimeTarget: runtimeProfile.target,
-      runtimeBaseUrl,
+      controlPlaneBaseUrl,
       selectedProfileId: input.state.defaultPlatformAgentProfileId,
       listRunProfiles: input.listRunProfiles
     })
@@ -167,7 +175,7 @@ export const buildCompileRuntimeOptions = async (
     const byokPreset = preset as ByokPreset;
     resolvedByokPresetId = byokPreset.id;
     if (runtimeProfile.target === "direct") {
-      byokEndpoint = byokPreset.endpoint || runtimeBaseUrl;
+      byokEndpoint = byokPreset.endpoint || providerBaseUrl;
     } else {
       byokEndpoint = byokPreset.endpoint || undefined;
     }
@@ -191,7 +199,9 @@ export const buildCompileRuntimeOptions = async (
 
   return {
     runtimeTarget: runtimeProfile.target,
-    runtimeBaseUrl,
+    gatewayBaseUrl,
+    controlPlaneBaseUrl,
+    providerBaseUrl,
     runtimeCapabilities,
     platformRunProfile,
     model: activeModel,

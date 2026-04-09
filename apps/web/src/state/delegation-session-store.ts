@@ -1,21 +1,21 @@
-import type { AcpSessionRecord } from "@geohelper/agent-store";
+import type { DelegationSessionRecord } from "@geohelper/agent-store";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 
 const sortSessionsByCreatedAt = (
-  sessions: AcpSessionRecord[]
-): AcpSessionRecord[] =>
+  sessions: DelegationSessionRecord[]
+): DelegationSessionRecord[] =>
   [...sessions].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
 
-export interface AcpSessionStoreState {
-  sessionsById: Record<string, AcpSessionRecord>;
-  sessionsByRunId: Record<string, AcpSessionRecord[]>;
-  applySessions: (sessions: AcpSessionRecord[]) => void;
+export interface DelegationSessionStoreState {
+  sessionsById: Record<string, DelegationSessionRecord>;
+  sessionsByRunId: Record<string, DelegationSessionRecord[]>;
+  applySessions: (sessions: DelegationSessionRecord[]) => void;
   clear: () => void;
 }
 
-export const createAcpSessionStore = () =>
-  createStore<AcpSessionStoreState>((set) => ({
+export const createDelegationSessionStore = () =>
+  createStore<DelegationSessionStoreState>((set) => ({
     sessionsById: {},
     sessionsByRunId: {},
     applySessions: (sessions) =>
@@ -47,8 +47,8 @@ export const createAcpSessionStore = () =>
     })
   }));
 
-export const acpSessionStore = createAcpSessionStore();
+export const delegationSessionStore = createDelegationSessionStore();
 
-export const useAcpSessionStore = <T>(
-  selector: (state: AcpSessionStoreState) => T
-): T => useStore(acpSessionStore, selector);
+export const useDelegationSessionStore = <T>(
+  selector: (state: DelegationSessionStoreState) => T
+): T => useStore(delegationSessionStore, selector);

@@ -1,5 +1,5 @@
 import type { PlatformRunProfile } from "@geohelper/agent-protocol";
-import type { AcpSessionRecord, RunSnapshot } from "@geohelper/agent-store";
+import type { DelegationSessionRecord, RunSnapshot } from "@geohelper/agent-store";
 import type { RuntimeAttachment } from "@geohelper/protocol";
 
 import type { BackupEnvelope } from "../storage/backup";
@@ -24,6 +24,41 @@ export interface RuntimeCapabilities {
 
 export type { RuntimeAttachment };
 export type { PlatformRunProfile } from "@geohelper/agent-protocol";
+
+export interface RuntimeNamedAgentDelegation {
+  name: string;
+  agentRef: string;
+}
+
+export interface RuntimeNamedHostServiceDelegation {
+  name: string;
+  serviceRef: string;
+}
+
+export interface OpenClawCompatibilityPreview {
+  bundleId: string;
+  schemaVersion: string;
+  recommendedImportMode: "portable" | "portable-with-host-bindings";
+  requiredOpenClawCapabilities: string[];
+  fullyPortableTools: string[];
+  hostBoundTools: string[];
+  nativeSubagentDelegations: RuntimeNamedAgentDelegation[];
+  acpAgentDelegations: RuntimeNamedAgentDelegation[];
+  hostServiceDelegations: RuntimeNamedHostServiceDelegation[];
+  degradedBehaviors: string[];
+  notes: string[];
+}
+
+export interface PortableBundleCatalogEntry {
+  agentId: string;
+  bundleId: string;
+  rootDir: string;
+  schemaVersion: string;
+  hostRequirements: string[];
+  workspaceBootstrapFiles: string[];
+  promptAssetPaths: string[];
+  openClawCompatibility: OpenClawCompatibilityPreview;
+}
 
 export const runtimeCapabilitiesByTarget: Record<
   RuntimeTarget,
@@ -84,7 +119,7 @@ export const resolveRuntimeCapabilitiesForModel = (params: {
 };
 
 export interface RuntimeRunRequest {
-  baseUrl?: string;
+  controlPlaneBaseUrl?: string;
   message: string;
   mode: ChatMode;
   conversationId: string;
@@ -112,7 +147,7 @@ export interface RuntimeRunRequest {
 export interface RuntimeRunResponse {
   trace_id?: string;
   run_snapshot: RunSnapshot;
-  acpSessions: AcpSessionRecord[];
+  delegationSessions: DelegationSessionRecord[];
 }
 
 export interface RuntimeLoginRequest {

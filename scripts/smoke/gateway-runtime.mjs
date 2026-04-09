@@ -74,6 +74,16 @@ export function buildGatewayRuntimeChecks(env = process.env) {
   }
 
   checks.push({
+    name: "GET /api/v3/health",
+    method: "GET",
+    path: "/api/v3/health"
+  });
+  checks.push({
+    name: "GET /api/v3/ready",
+    method: "GET",
+    path: "/api/v3/ready"
+  });
+  checks.push({
     name: "POST /api/v3/threads",
     method: "POST",
     path: "/api/v3/threads"
@@ -323,6 +333,38 @@ const runLiveChecks = async ({
       ok: true
     });
   }
+
+  const { body: controlPlaneHealthBody } = await fetchJson(
+    fetchImpl,
+    `${controlPlaneUrl}/api/v3/health`,
+    undefined,
+    "control-plane health"
+  );
+  if (controlPlaneHealthBody?.status !== "ok") {
+    throw new Error("control-plane health failed: unexpected payload");
+  }
+  checks.push({
+    name: "GET /api/v3/health",
+    ok: true
+  });
+
+  const { body: controlPlaneReadyBody } = await fetchJson(
+    fetchImpl,
+    `${controlPlaneUrl}/api/v3/ready`,
+    undefined,
+    "control-plane ready"
+  );
+  if (!controlPlaneReadyBody?.ready) {
+    throw new Error("control-plane ready failed: control-plane is not ready");
+  }
+  checks.push({
+    name: "GET /api/v3/ready",
+    ok: true,
+    execution_mode:
+      typeof controlPlaneReadyBody.executionMode === "string"
+        ? controlPlaneReadyBody.executionMode
+        : null
+  });
 
   const { body: threadBody } = await fetchJson(
     fetchImpl,

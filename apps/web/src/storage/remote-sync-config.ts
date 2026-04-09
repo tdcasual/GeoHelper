@@ -1,3 +1,4 @@
+import { getRuntimeGatewayBaseUrl } from "../state/runtime-profiles";
 import type {
   RemoteBackupSyncMode,
   RemoteBackupSyncResultInput
@@ -23,18 +24,17 @@ export const getDefaultGatewayBaseUrl = (): string | null => {
     (profile) =>
       profile.id === state.defaultRuntimeProfileId &&
       profile.target === "gateway" &&
-      profile.baseUrl.trim().length > 0
+      getRuntimeGatewayBaseUrl(profile).length > 0
   );
   if (preferred) {
-    return preferred.baseUrl.trim();
+    return getRuntimeGatewayBaseUrl(preferred);
   }
 
-  return (
-    state.runtimeProfiles.find(
-      (profile) =>
-        profile.target === "gateway" && profile.baseUrl.trim().length > 0
-    )?.baseUrl.trim() ?? null
+  const fallback = state.runtimeProfiles.find(
+    (profile) =>
+      profile.target === "gateway" && getRuntimeGatewayBaseUrl(profile).length > 0
   );
+  return fallback ? getRuntimeGatewayBaseUrl(fallback) : null;
 };
 
 export const toComparableSummary = (

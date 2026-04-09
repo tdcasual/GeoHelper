@@ -93,12 +93,17 @@ const normalizePresetList = (
     .filter((item) => item.id.length > 0);
 };
 
-const readGatewayBaseUrlFromEnv = (): string => {
-  const viteGatewayUrl =
+const normalizeUrl = (value?: string): string =>
+  (value ?? "").trim().replace(/\/+$/, "");
+
+const readRuntimeUrlFromEnv = (
+  key: "VITE_GATEWAY_URL" | "VITE_CONTROL_PLANE_URL"
+): string => {
+  const viteValue =
     typeof import.meta !== "undefined" && import.meta.env
-      ? import.meta.env.VITE_GATEWAY_URL
+      ? import.meta.env[key]
       : undefined;
-  const processGatewayUrl =
+  const processValue =
     typeof globalThis !== "undefined" &&
     "process" in globalThis &&
     (
@@ -106,13 +111,13 @@ const readGatewayBaseUrlFromEnv = (): string => {
         process?: {
           env?: {
             VITE_GATEWAY_URL?: string;
+            VITE_CONTROL_PLANE_URL?: string;
           };
         };
       }
-    ).process?.env?.VITE_GATEWAY_URL;
-  const rawValue = viteGatewayUrl ?? processGatewayUrl;
-  const normalized = typeof rawValue === "string" ? rawValue : "";
-  return normalized.trim().replace(/\/+$/, "");
+    ).process?.env?.[key];
+  const rawValue = viteValue ?? processValue;
+  return normalizeUrl(typeof rawValue === "string" ? rawValue : "");
 };
 
 const buildDefaultRuntimeProfiles = (): {
@@ -120,27 +125,28 @@ const buildDefaultRuntimeProfiles = (): {
   defaultRuntimeProfileId: string;
 } => {
   const now = Date.now();
-  const gatewayBaseUrl = readGatewayBaseUrlFromEnv();
+  const gatewayBaseUrl = readRuntimeUrlFromEnv("VITE_GATEWAY_URL");
+  const controlPlaneBaseUrl =
+    readRuntimeUrlFromEnv("VITE_CONTROL_PLANE_URL") || gatewayBaseUrl;
   const gatewayProfile = {
     id: "runtime_gateway",
     name: "Gateway",
     target: "gateway",
-    baseUrl: gatewayBaseUrl,
+    gatewayBaseUrl,
+    controlPlaneBaseUrl,
     updatedAt: now
   };
   const directProfile = {
     id: "runtime_direct",
     name: "Direct BYOK",
     target: "direct",
-    baseUrl: "",
+    providerBaseUrl: "",
     updatedAt: now
   };
 
   return {
     runtimeProfiles: [gatewayProfile, directProfile],
-    defaultRuntimeProfileId: gatewayBaseUrl
-      ? gatewayProfile.id
-      : directProfile.id
+    defaultRuntimeProfileId: gatewayProfile.id
   };
 };
 
@@ -210,22 +216,55 @@ const migrateSettingsSnapshot = (
       ? raw.runtimeProfiles
           .map((item) => asObject(item))
           .filter((item): item is Record<string, unknown> => Boolean(item))
-          .map((item) => ({
-            id: String(item.id ?? ""),
-            name:
+          .map((item) => {
+            const target = item.target === "gateway" ? "gateway" : "direct";
+            const id = String(item.id ?? "");
+            const name =
               typeof item.name === "string" && item.name.trim()
                 ? item.name
-                : item.target === "gateway"
+                : target === "gateway"
                   ? "Gateway"
-                  : "Direct BYOK",
-            target: item.target === "gateway" ? "gateway" : "direct",
-            baseUrl:
-              typeof item.baseUrl === "string"
-                ? item.baseUrl.trim().replace(/\/+$/, "")
-                : "",
-            updatedAt:
-              typeof item.updatedAt === "number" ? item.updatedAt : Date.now()
-          }))
+                  : "Direct BYOK";
+            const updatedAt =
+              typeof item.updatedAt === "number" ? item.updatedAt : Date.now();
+
+            if (target === "gateway") {
+              return {
+                id,
+                name,
+                target,
+                gatewayBaseUrl: normalizeUrl(
+                  typeof item.gatewayBaseUrl === "string"
+                    ? item.gatewayBaseUrl
+                    : typeof item.baseUrl === "string"
+                      ? item.baseUrl
+                      : ""
+                ),
+                controlPlaneBaseUrl: normalizeUrl(
+                  typeof item.controlPlaneBaseUrl === "string"
+                    ? item.controlPlaneBaseUrl
+                    : typeof item.baseUrl === "string"
+                      ? item.baseUrl
+                      : ""
+                ),
+                updatedAt
+              };
+            }
+
+            return {
+              id,
+              name,
+              target,
+              providerBaseUrl: normalizeUrl(
+                typeof item.providerBaseUrl === "string"
+                  ? item.providerBaseUrl
+                  : typeof item.baseUrl === "string"
+                    ? item.baseUrl
+                    : ""
+              ),
+              updatedAt
+            };
+          })
           .filter((item) => item.id.length > 0)
       : runtimeDefaults.runtimeProfiles;
   const defaultRuntimeProfileId =
@@ -239,7 +278,7 @@ const migrateSettingsSnapshot = (
         : (runtimeProfiles[0]?.id ?? "runtime_direct");
 
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     defaultMode: raw.defaultMode === "official" ? "official" : "byok",
     runtimeProfiles,
     defaultRuntimeProfileId,

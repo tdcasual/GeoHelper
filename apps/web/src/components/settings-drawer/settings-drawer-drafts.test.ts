@@ -26,12 +26,29 @@ describe("settings drawer drafts", () => {
         id: "gateway-a",
         name: "Gateway A",
         target: "gateway",
-        baseUrl: "https://gateway.example.com",
+        gatewayBaseUrl: "https://gateway.example.com",
+        controlPlaneBaseUrl: "https://control-plane.example.com",
         updatedAt: 1
       })
     ).toMatchObject({
       id: "gateway-a",
-      target: "gateway"
+      target: "gateway",
+      gatewayBaseUrl: "https://gateway.example.com",
+      controlPlaneBaseUrl: "https://control-plane.example.com"
+    });
+
+    expect(
+      fromRuntimeProfile({
+        id: "direct-a",
+        name: "Direct A",
+        target: "direct",
+        providerBaseUrl: "https://openrouter.ai/api/v1",
+        updatedAt: 1
+      })
+    ).toMatchObject({
+      id: "direct-a",
+      target: "direct",
+      providerBaseUrl: "https://openrouter.ai/api/v1"
     });
 
     expect(

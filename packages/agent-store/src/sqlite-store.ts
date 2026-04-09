@@ -14,16 +14,16 @@ import {
   RunEventSchema,
   RunSchema} from "@geohelper/agent-protocol";
 
-import type {
-  AcpSessionRecord,
-  AcpSessionRepo
-} from "./repos/acp-session-repo";
 import type { ArtifactRepo } from "./repos/artifact-repo";
 import type {
   BrowserSessionRecord,
   BrowserSessionRepo
 } from "./repos/browser-session-repo";
 import type { CheckpointRepo } from "./repos/checkpoint-repo";
+import type {
+  DelegationSessionRecord,
+  DelegationSessionRepo
+} from "./repos/delegation-session-repo";
 import type {
   ClaimNextDispatchInput,
   DispatchRepo
@@ -58,7 +58,7 @@ interface SqliteAgentStore {
   dispatches: DispatchRepo;
   engineStates: EngineStateRepo;
   threads: ThreadRepo;
-  acpSessions: AcpSessionRepo;
+  delegationSessions: DelegationSessionRepo;
   browserSessions: BrowserSessionRepo;
   loadRunSnapshot: (runId: string) => AgentStoreResult<RunSnapshot | null>;
 }
@@ -160,14 +160,14 @@ interface BrowserSessionRow {
   created_at: string;
 }
 
-interface AcpSessionRow {
+interface DelegationSessionRow {
   id: string;
   run_id: string;
   checkpoint_id: string;
   delegation_name: string;
   agent_ref: string;
   service_ref: string | null;
-  status: AcpSessionRecord["status"];
+  status: DelegationSessionRecord["status"];
   output_artifact_ids_json: string;
   result_json: string | null;
   claimed_by: string | null;
@@ -371,28 +371,28 @@ const ensureCheckpointMetadataSchema = (database: DatabaseSync): void => {
   `);
 };
 
-const ensureAcpSessionClaimSchema = (database: DatabaseSync): void => {
+const ensureDelegationSessionClaimSchema = (database: DatabaseSync): void => {
   const columns = readRows<TableInfoRow>(
-    database.prepare("pragma table_info(acp_sessions)").all()
+    database.prepare("pragma table_info(delegation_sessions)").all()
   );
 
   if (!columns.some((column) => column.name === "claimed_by")) {
     database.exec(`
-      alter table acp_sessions
+      alter table delegation_sessions
       add column claimed_by text
     `);
   }
 
   if (!columns.some((column) => column.name === "claimed_at")) {
     database.exec(`
-      alter table acp_sessions
+      alter table delegation_sessions
       add column claimed_at text
     `);
   }
 
   if (!columns.some((column) => column.name === "claim_expires_at")) {
     database.exec(`
-      alter table acp_sessions
+      alter table delegation_sessions
       add column claim_expires_at text
     `);
   }
@@ -413,7 +413,7 @@ const mapBrowserSessionRow = (
   createdAt: row.created_at
 });
 
-const mapAcpSessionRow = (row: AcpSessionRow): AcpSessionRecord => ({
+const mapDelegationSessionRow = (row: DelegationSessionRow): DelegationSessionRecord => ({
   id: row.id,
   runId: row.run_id,
   checkpointId: row.checkpoint_id,
@@ -469,7 +469,7 @@ export const createSqliteAgentStore = ({
   database.exec(SCHEMA_SQL);
   ensureCheckpointMetadataSchema(database);
   ensureWorkflowEngineStateSchema(database);
-  ensureAcpSessionClaimSchema(database);
+  ensureDelegationSessionClaimSchema(database);
 
   const upsertRunStatement = database.prepare(`
     insert into runs (
@@ -838,8 +838,8 @@ export const createSqliteAgentStore = ({
     delete from browser_sessions
     where id = ?
   `);
-  const upsertAcpSessionStatement = database.prepare(`
-    insert into acp_sessions (
+  const upsertDelegationSessionStatement = database.prepare(`
+    insert into delegation_sessions (
       id,
       run_id,
       checkpoint_id,
@@ -872,7 +872,7 @@ export const createSqliteAgentStore = ({
       updated_at = excluded.updated_at,
       resolved_at = excluded.resolved_at
   `);
-  const getAcpSessionStatement = database.prepare(`
+  const getDelegationSessionStatement = database.prepare(`
     select
       id,
       run_id,
@@ -889,10 +889,10 @@ export const createSqliteAgentStore = ({
       created_at,
       updated_at,
       resolved_at
-    from acp_sessions
+    from delegation_sessions
     where id = ?
   `);
-  const listAcpSessionsStatement = database.prepare(`
+  const listDelegationSessionsStatement = database.prepare(`
     select
       id,
       run_id,
@@ -909,11 +909,11 @@ export const createSqliteAgentStore = ({
       created_at,
       updated_at,
       resolved_at
-    from acp_sessions
+    from delegation_sessions
     order by created_at asc
   `);
-  const deleteAcpSessionStatement = database.prepare(`
-    delete from acp_sessions
+  const deleteDelegationSessionStatement = database.prepare(`
+    delete from delegation_sessions
     where id = ?
   `);
 
@@ -1123,9 +1123,9 @@ export const createSqliteAgentStore = ({
     listThreads: () => readRows<ThreadRow>(listThreadsStatement.all()).map(mapThreadRow)
   };
 
-  const acpSessionRepo: AcpSessionRepo = {
+  const delegationSessionRepo: DelegationSessionRepo = {
     upsertSession: (session) => {
-      upsertAcpSessionStatement.run(
+      upsertDelegationSessionStatement.run(
         session.id,
         session.runId,
         session.checkpointId,
@@ -1144,13 +1144,13 @@ export const createSqliteAgentStore = ({
       );
     },
     getSession: (sessionId) => {
-      const row = getAcpSessionStatement.get(sessionId) as AcpSessionRow | undefined;
+      const row = getDelegationSessionStatement.get(sessionId) as DelegationSessionRow | undefined;
 
-      return row ? mapAcpSessionRow(row) : null;
+      return row ? mapDelegationSessionRow(row) : null;
     },
     listSessions: (filter = {}) =>
-      readRows<AcpSessionRow>(listAcpSessionsStatement.all())
-        .map(mapAcpSessionRow)
+      readRows<DelegationSessionRow>(listDelegationSessionsStatement.all())
+        .map(mapDelegationSessionRow)
         .filter((session) => {
           if (filter.runId && session.runId !== filter.runId) {
             return false;
@@ -1175,7 +1175,7 @@ export const createSqliteAgentStore = ({
           return true;
         }),
     deleteSession: (sessionId) => {
-      deleteAcpSessionStatement.run(sessionId);
+      deleteDelegationSessionStatement.run(sessionId);
     }
   };
 
@@ -1209,7 +1209,7 @@ export const createSqliteAgentStore = ({
     dispatches: dispatchRepo,
     engineStates: engineStateRepo,
     threads: threadRepo,
-    acpSessions: acpSessionRepo,
+    delegationSessions: delegationSessionRepo,
     browserSessions: browserSessionRepo,
     loadRunSnapshot: async (runId): Promise<RunSnapshot | null> => {
       const run = await runRepo.getRun(runId);

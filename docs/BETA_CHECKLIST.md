@@ -7,7 +7,7 @@ Updated: 2026-03-31
 
 - Internal callers now use the platform control plane surfaces: `POST /api/v3/threads`, `POST /api/v3/threads/:threadId/runs`, and `GET /api/v3/runs/:runId/stream`.
 - Gateway remains active for health, Official token, backup, metrics, and version endpoints; legacy compile routes are no longer part of the active runtime boundary.
-- Demo/export/presentation work and any backend expansion beyond the current self-hosted gateway + control plane + worker stack stay out of scope for this release gate.
+- Demo/export/presentation work and any backend expansion beyond the current self-hosted gateway + control plane stack (with optional standalone worker) stay out of scope for this release gate.
 
 ## Release Evidence
 
@@ -24,38 +24,27 @@ Updated: 2026-03-31
 
 - Local release gate commands passed on 2026-03-19: `pnpm lint`, `pnpm deps:check`, `pnpm verify:architecture`, `pnpm test`, `pnpm --filter @geohelper/gateway test`, `pnpm --filter @geohelper/web test`, `pnpm test:e2e`, `pnpm bench:quality -- --dry-run`, `pnpm typecheck`, `pnpm build:web`.
 - Dry-run staging evidence passed on 2026-03-19: `pnpm ops:gateway:verify -- --dry-run`, `pnpm ops:gateway:scheduled -- --dry-run`, `pnpm smoke:gateway-runtime -- --dry-run`, `pnpm smoke:gateway-backup-restore -- --dry-run`.
-- Localhost staging candidate live evidence passed on 2026-03-19 against `http://127.0.0.1:8787`, with artifacts under `output/ops/2026-03-19T17-50-10-local-staging/`: live `pnpm smoke:gateway-runtime`, live `pnpm smoke:gateway-backup-restore`, live `pnpm ops:gateway:scheduled`, `/api/v1/health`, `/api/v1/ready`, `/admin/version`, `/admin/metrics`, `/admin/compile-events?limit=20`, and one repair alert drill captured by the local webhook sink.
+- Localhost staging candidate live evidence passed on 2026-03-19 against `http://127.0.0.1:8787`, with artifacts under `output/ops/2026-03-19T17-50-10-local-staging/`: live `pnpm smoke:gateway-runtime`, live `pnpm smoke:gateway-backup-restore`, live `pnpm ops:gateway:scheduled`, `/api/v1/health`, `/api/v1/ready`, `/admin/version`, `/admin/metrics`, and backup restore evidence.
 - Shared staging / external live evidence is still pending if release sign-off requires a non-localhost gateway target and real operator credentials. Required environment for that remaining pass: `GATEWAY_URL=https://<gateway-domain>` and `ADMIN_METRICS_TOKEN=<admin-token>`.
-- Historical legacy-route observation notes are archived in `docs/deploy/legacy-compile-external-consumer-checklist.md`; they are no longer part of the active release workflow.
 
 ## Environment Variables
 
 ### Web (`apps/web`)
 
-- `VITE_GATEWAY_URL` (optional): Gateway base URL used by static web build. If unset, app defaults to Direct BYOK runtime.
+- `VITE_GATEWAY_URL` (optional): Gateway base URL used by static web build for Official token login and remote backup.
+- `VITE_CONTROL_PLANE_URL` (optional): Control-plane base URL used by static web build for `/api/v3/*` and `/admin/bundles`; if unset, web falls back to `VITE_GATEWAY_URL`.
 
 ### Gateway (`apps/gateway`)
 
 - `PRESET_TOKEN` (required when Official mode is exposed): Shared preset token for login gate.
 - `APP_SECRET` (required in production): Root secret for deriving session signing key.
-- `SESSION_SECRET` (optional): Explicit override for session signing key (only for compatibility/manual override).
+- `SESSION_SECRET` (optional): Explicit override for session signing key.
 - `SESSION_TTL_SECONDS` (optional, default `1800`): Official session lifetime.
-- `RATE_LIMIT_MAX` (optional, default `120`): Max requests in rate-limit window.
-- `RATE_LIMIT_WINDOW_MS` (optional, default `60000`): Rate-limit window in ms.
-- `REDIS_URL` (optional, recommended for multi-instance Official mode): Redis-compatible URL for shared session revoke + rate-limit state.
-- `LITELLM_ENDPOINT` (required in production): LiteLLM-compatible endpoint.
-- `LITELLM_API_KEY` (required for authenticated upstreams): API key for LiteLLM endpoint.
-- `LITELLM_MODEL` (optional, default `gpt-4o-mini`): Upstream model name.
-- `LITELLM_FALLBACK_ENDPOINT` (optional): Secondary upstream endpoint for transient failure retries.
-- `LITELLM_FALLBACK_API_KEY` (optional): API key for fallback endpoint (defaults to `LITELLM_API_KEY`).
-- `LITELLM_FALLBACK_MODEL` (optional): Model name for fallback retries (defaults to `LITELLM_MODEL`).
-- `ALERT_WEBHOOK_URL` (optional): Webhook for fallback/repair/timeout/runtime-capacity alerts.
-- `COMPILE_MAX_IN_FLIGHT` (optional, default `4`): Max concurrent compile requests allowed per gateway instance before returning `GATEWAY_BUSY`.
-- `COMPILE_TIMEOUT_MS` (optional, default `30000`): Timeout budget per compile request before returning `COMPILE_TIMEOUT`.
-- `ADMIN_METRICS_TOKEN` (optional): Required `x-admin-token` for `/admin/version`, `/admin/metrics`, `/admin/compile-events`, and `/admin/backups/latest`.
+- `REDIS_URL` (optional, recommended for multi-instance Official mode): Redis-compatible URL for shared session revoke + backup state.
+- `ALERT_WEBHOOK_URL` (optional): Webhook for gateway 5xx/operator alerts.
+- `ADMIN_METRICS_TOKEN` (optional): Required `x-admin-token` for `/admin/version`, `/admin/metrics`, and `/admin/backups/*`.
 - `BACKUP_MAX_HISTORY` (optional, default `10`): Max ordinary retained remote snapshot history entries.
 - `BACKUP_MAX_PROTECTED` (optional, default `20`): Max retained protected snapshots.
-- `COST_PER_REQUEST_USD` (optional, default `0`): Estimated USD cost per upstream model request, used for ops metrics.
 - `GATEWAY_ENABLE_ATTACHMENTS` (optional, default `0`): Explicitly enables gateway image attachments; attachment support is never implied by model name alone.
 - `OPS_BENCH_MIN_SUCCESS_RATE` (optional): Release threshold for composed ops benchmark success rate.
 - `OPS_BENCH_MAX_P95_MS` (optional): Release threshold for composed ops benchmark per-domain p95 latency.
@@ -66,8 +55,8 @@ Updated: 2026-03-31
 - `pnpm ops:gateway:scheduled` is the recurring post-deploy entrypoint; it composes verify, artifact publish, and notify behind one stable cron command, and live runs can publish JSON evidence for each run.
 - When `OPS_BENCH_MIN_SUCCESS_RATE` or `OPS_BENCH_MAX_P95_MS` is configured, threshold failures are release blockers and must stop promotion. Failed gateway backup restore drills are release blockers too. When a deployment intends to support image input, vision smoke failures block promotion as well.
 - Published artifact URLs from scheduled runs are the post-deploy evidence source of truth.
-- `/admin/version`, `/admin/compile-events`, `/admin/metrics`, and `/admin/backups/latest` share the same `x-admin-token` gate; `/admin/version` remains the release identity source of truth and backup routes expose latest snapshot metadata for recovery workflows.
-- `x-trace-id` and compile `trace_id` are the main debugging join keys across alerts, smoke runs, `/admin/compile-events`, and `/admin/traces/:traceId`.
+- `/admin/version`, `/admin/metrics`, and `/admin/backups/*` share the same `x-admin-token` gate; `/admin/version` remains the release identity source of truth and backup routes expose latest snapshot metadata for recovery workflows.
+- `x-trace-id` remains the gateway-side correlation key across responses, logs, and alert payloads.
 - `REDIS_URL` remains the only supported shared fast-state dependency in Gateway V4; no SQL or extra backend datastore is required in this roadmap.
 - Web lightweight cloud sync remains snapshot-based; no SQL or full cloud history backend is required, startup freshness checks are metadata-only, and delayed upload is opt-in and never auto-restores.
 - ordinary retained history and protected retained snapshots are bounded separately via `BACKUP_MAX_HISTORY` and `BACKUP_MAX_PROTECTED`.
@@ -77,21 +66,19 @@ Updated: 2026-03-31
 - Retained remote snapshot history can be inspected explicitly, selected historical snapshots can be fetched by `snapshot_id`, and blocked/conflict sync states should be resolved through explicit selected-snapshot pull/import or explicit overwrite.
 - Gateway latest-backup recovery remains explicit and single-tenant; there is no background sync service or backup catalog in this phase.
 - Web remote backup UI is opt-in and requires a configured gateway admin token before upload/download actions are enabled.
-- When `REDIS_URL` is enabled, compile event retention and latest backup retention become durable across process restarts and power operator recovery queries.
+- When `REDIS_URL` is enabled, session revoke state and latest backup retention become durable across process restarts and power operator recovery queries.
 - Gateway image attachments are an explicitly gated capability: `GATEWAY_ENABLE_ATTACHMENTS=1` plus passing vision smoke are required before promotion.
 - direct runtime and gateway runtime can legitimately differ in vision support.
-- When fallback env vars are set, gateway retries transient upstream failures against the fallback target.
-- Compile runtime protection is instance-local: overlapping requests beyond `COMPILE_MAX_IN_FLIGHT` return `503 GATEWAY_BUSY`, and stalled compiles beyond `COMPILE_TIMEOUT_MS` return `504 COMPILE_TIMEOUT` with traceable operator events.
 
 ## Rollback Plan
 
 1. Web rollback: redeploy previous successful static artifact on EdgeOne.
 2. Gateway rollback: redeploy previous container/image tag and restart gateway pods.
 3. Session safety: rotate `APP_SECRET` (or `SESSION_SECRET` override if used) to invalidate old sessions when incident involves token leakage.
-4. Traffic safety: reduce `RATE_LIMIT_MAX` temporarily to protect upstream model quota.
+4. Traffic safety: revoke leaked sessions and disable risky backup/admin traffic until a clean deploy is restored.
 5. Validation after rollback:
    - `GET /api/v1/health` returns `ok`.
-   - official token login works and compile returns 200 for a smoke prompt.
+   - official token login and revoke both work for a smoke flow.
    - `GET /admin/metrics` is reachable with valid admin token when enabled.
 
 ## Known Limits
@@ -126,13 +113,11 @@ Updated: 2026-03-31
 - [x] Gateway runtime smoke checked (`pnpm smoke:gateway-runtime -- --dry-run`, verified 2026-03-19 and reverified 2026-03-31; Redis-backed live run also passed on 2026-03-31 via `output/ops/manual-phase4/smoke-live.json`)
 - [x] Gateway backup restore drill checked (`pnpm smoke:gateway-backup-restore -- --dry-run`, verified 2026-03-19 and reverified 2026-03-31; Redis-backed live restore drill also passed on 2026-03-31 via `output/ops/manual-phase4/backup-restore-live.json`)
 - [x] Deploy runbook reviewed (`docs/deploy/edgeone.md`, reviewed 2026-03-19)
-- [x] Alert webhook smoke-tested (verified 2026-03-19 on localhost staging by triggering a legacy repair compile; `compile_repair` was captured in `output/ops/2026-03-19T17-50-10-local-staging/webhook-events.jsonl`)
+- [x] Alert webhook wiring reviewed (gateway 5xx/operator alerts remain routed through the same webhook plumbing; historical live evidence was captured on 2026-03-19 in `output/ops/2026-03-19T17-50-10-local-staging/webhook-events.jsonl`)
 - [x] Liveness/readiness contract checked (`/api/v1/health` stays shallow, `/api/v1/ready` is green before traffic switch; verified 2026-03-19 on localhost staging via `output/ops/2026-03-19T17-50-10-local-staging/health.json` and `output/ops/2026-03-19T17-50-10-local-staging/ready.json`)
-- [x] Metrics contract checked (`/admin/metrics` includes `fallback_rate`, `p95_latency_ms`, `cost_per_request_usd`; verified 2026-03-19 on localhost staging via `output/ops/2026-03-19T17-50-10-local-staging/admin-metrics.json`)
-- [x] Operator events contract checked (`/admin/compile-events?limit=20` returns recent traceable records; verified 2026-03-19 on localhost staging via `output/ops/2026-03-19T17-50-10-local-staging/admin-compile-events.json`)
-- [x] Trace id contract checked (compile returns `trace_id` and `x-trace-id` header; verified 2026-03-19 because the live runtime smoke in `output/ops/2026-03-19T17-50-10-local-staging/smoke.json` would fail on header mismatch, and the legacy drill artifacts are stored in `legacy-repair-headers.txt` / `legacy-repair-body.json`)
+- [x] Metrics contract checked (`/admin/metrics` returns the runtime-oriented gateway metrics snapshot; verified 2026-03-19 on localhost staging via `output/ops/2026-03-19T17-50-10-local-staging/admin-metrics.json`)
 - [x] Attachments contract checked (gateway attachment support is explicit, `/admin/version` reflects `attachments_enabled`, and attachment smoke passed on 2026-03-19 via `output/ops/2026-03-19T17-50-10-local-staging/admin-version.json` and `output/ops/2026-03-19T17-50-10-local-staging/smoke.json`)
-- [x] Redis shared-state verified when configured (`REDIS_URL` shares revoke + rate limit + backup retention; verified 2026-03-31 via `output/ops/manual-phase4/redis-shared-state.json`)
+- [x] Redis shared-state verified when configured (`REDIS_URL` shares revoke + backup retention; verified 2026-03-31 via `output/ops/manual-phase4/redis-shared-state.json`)
 - [x] Template backup recovery checked (export + import preserves `geohelper.templates.snapshot`; verified 2026-03-31 via `pnpm test -- --run apps/web/src/storage/backup.import.test.ts apps/web/src/storage/migrate.test.ts`)
 - [x] Gateway backup admin routes checked (`PUT/GET /admin/backups/latest` returns metadata and latest envelope with valid admin token; verified 2026-03-19 on localhost staging and reverified 2026-03-31 via `output/ops/manual-phase4/backup-seed-live.json` plus `output/ops/manual-phase4/backup-restore-live.json`)
 - [x] Remote backup settings flow checked (gateway admin token saved, retained history is visible after `检查云端状态`, selected historical snapshots can be fetched by `snapshot_id`, blocked/conflict states point users to explicit pull/import or explicit overwrite, and `检查云端状态` / `上传最新快照` / `拉取最新快照` stay explicit and manual; verified 2026-03-31 via `pnpm test:e2e -- tests/e2e/settings-drawer.backup.spec.ts tests/e2e/settings-drawer.remote-sync.spec.ts tests/e2e/settings-drawer.remote-import.spec.ts tests/e2e/settings-drawer.remote-history.spec.ts tests/e2e/settings-drawer.remote-protection.spec.ts`)

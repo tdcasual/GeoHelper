@@ -445,7 +445,7 @@ describe("worker run loop subagent handling", () => {
             profile_parent: {
               id: "profile_parent",
               name: "Parent profile",
-              description: "Delegates to ACP",
+              description: "Delegates externally",
               agentId: "geometry_solver",
               workflowId: "wf_parent",
               defaultBudget: {
@@ -461,7 +461,7 @@ describe("worker run loop subagent handling", () => {
               {
                 id: "profile_parent",
                 name: "Parent profile",
-                description: "Delegates to ACP",
+                description: "Delegates externally",
                 agentId: "geometry_solver",
                 workflowId: "wf_parent",
                 defaultBudget: {
@@ -506,7 +506,7 @@ describe("worker run loop subagent handling", () => {
 
       const result = await loop.tick();
       const checkpoints = await store.checkpoints.listCheckpointsByStatus("pending");
-      const acpSessions = await store.acpSessions.listSessions({
+      const delegationSessions = await store.delegationSessions.listSessions({
         status: "pending"
       });
       const childRuns = await store.runs.listRuns({
@@ -515,9 +515,9 @@ describe("worker run loop subagent handling", () => {
 
       expect(result?.status).toBe("waiting_for_checkpoint");
       expect(childRuns).toEqual([]);
-      expect(acpSessions).toEqual([
+      expect(delegationSessions).toEqual([
         expect.objectContaining({
-          id: "acp_session_run_parent_node_delegate",
+          id: "delegation_session_run_parent_node_delegate",
           runId: "run_parent",
           checkpointId: expect.any(String),
           delegationName: "teacher_review",
@@ -529,10 +529,152 @@ describe("worker run loop subagent handling", () => {
       expect(checkpoints).toEqual([
         expect.objectContaining({
           kind: "human_input",
+          title: "Await agent delegation: teacher_review",
+          prompt: "Resolve agent delegation teacher_review to continue the run.",
           metadata: expect.objectContaining({
             delegationMode: "acp-agent",
             delegationName: "teacher_review",
             agentRef: "openclaw.geometry-reviewer"
+          })
+        })
+      ]);
+    } finally {
+      rmSync(bundleDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
+
+  it("routes host-service delegations into claimable sessions instead of child runs", async () => {
+    const store = createMemoryAgentStore();
+    const bundleDir = createDelegationBundleDir({
+      delegations: [
+        {
+          name: "teacher_review",
+          mode: "host-service",
+          serviceRef: "host.geometry-review",
+          awaitCompletion: true
+        }
+      ]
+    });
+
+    try {
+      await store.runs.createRun(createRun());
+
+      const loop = createRunLoop({
+        store,
+        platformRuntime: createPlatformRuntimeContext({
+          agents: {
+            geometry_solver: {
+              id: "geometry_solver",
+              name: "Geometry Solver",
+              description: "Test agent",
+              defaultBudget: {
+                maxModelCalls: 6,
+                maxToolCalls: 8,
+                maxDurationMs: 120000
+              },
+              bundle: createTestBundleMetadata(bundleDir)
+            }
+          },
+          runProfiles: {
+            profile_parent: {
+              id: "profile_parent",
+              name: "Parent profile",
+              description: "Delegates to host service",
+              agentId: "geometry_solver",
+              workflowId: "wf_parent",
+              defaultBudget: {
+                maxModelCalls: 6,
+                maxToolCalls: 8,
+                maxDurationMs: 120000
+              }
+            }
+          },
+          runProfileMap: new Map([
+            [
+              "profile_parent",
+              {
+                id: "profile_parent",
+                name: "Parent profile",
+                description: "Delegates to host service",
+                agentId: "geometry_solver",
+                workflowId: "wf_parent",
+                defaultBudget: {
+                  maxModelCalls: 6,
+                  maxToolCalls: 8,
+                  maxDurationMs: 120000
+                }
+              }
+            ]
+          ]),
+          workflows: {
+            wf_parent: {
+              id: "wf_parent",
+              version: 1,
+              entryNodeId: "node_delegate",
+              nodes: [
+                {
+                  id: "node_delegate",
+                  kind: "subagent",
+                  name: "Delegate to host service",
+                  config: {
+                    delegation: "teacher_review"
+                  },
+                  next: ["node_finish"]
+                },
+                {
+                  id: "node_finish",
+                  kind: "synthesizer",
+                  name: "Finish",
+                  config: {},
+                  next: []
+                }
+              ]
+            }
+          },
+          tools: {},
+          evaluators: {}
+        })
+      });
+
+      loop.enqueue("run_parent");
+
+      const result = await loop.tick();
+      const checkpoints = await store.checkpoints.listCheckpointsByStatus("pending");
+      const delegationSessions = await store.delegationSessions.listSessions({
+        status: "pending",
+        serviceRef: "host.geometry-review"
+      });
+      const childRuns = await store.runs.listRuns({
+        parentRunId: "run_parent"
+      });
+
+      expect(result?.status).toBe("waiting_for_checkpoint");
+      expect(childRuns).toEqual([]);
+      expect(delegationSessions).toEqual([
+        expect.objectContaining({
+          id: "delegation_session_run_parent_node_delegate",
+          runId: "run_parent",
+          checkpointId: expect.any(String),
+          delegationName: "teacher_review",
+          agentRef: "",
+          serviceRef: "host.geometry-review",
+          status: "pending",
+          outputArtifactIds: []
+        })
+      ]);
+      expect(checkpoints).toEqual([
+        expect.objectContaining({
+          kind: "human_input",
+          title: "Await host delegation: teacher_review",
+          prompt: "Resolve host delegation teacher_review to continue the run.",
+          metadata: expect.objectContaining({
+            delegationMode: "host-service",
+            delegationName: "teacher_review",
+            serviceRef: "host.geometry-review",
+            delegationSessionId: "delegation_session_run_parent_node_delegate"
           })
         })
       ]);

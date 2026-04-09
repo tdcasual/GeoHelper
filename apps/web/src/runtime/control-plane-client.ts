@@ -3,17 +3,19 @@ import type {
   Checkpoint,
   PlatformRunProfile
 } from "@geohelper/agent-protocol";
-import type { AcpSessionRecord, RunSnapshot } from "@geohelper/agent-store";
+import type { DelegationSessionRecord, RunSnapshot } from "@geohelper/agent-store";
 
 import type { PlatformThread } from "../state/thread-store";
 import { buildRunStreamUrl, parseRunStreamPayload } from "./control-plane-stream";
 import { RuntimeApiError } from "./runtime-service";
+import type { PortableBundleCatalogEntry } from "./types";
 
 export interface ControlPlaneClient {
   createThread: (input: { title: string }) => Promise<PlatformThread>;
   getThread: (threadId: string) => Promise<PlatformThread>;
   getArtifact: (artifactId: string) => Promise<Artifact>;
   listRunProfiles: () => Promise<PlatformRunProfile[]>;
+  listBundles: () => Promise<PortableBundleCatalogEntry[]>;
   startRun: (input: {
     threadId: string;
     profileId: string;
@@ -25,10 +27,10 @@ export interface ControlPlaneClient {
       afterSequence?: number;
     }
   ) => Promise<RunSnapshot>;
-  listAcpSessions: (options?: {
+  listDelegationSessions: (options?: {
     runId?: string;
-    status?: AcpSessionRecord["status"];
-  }) => Promise<AcpSessionRecord[]>;
+    status?: DelegationSessionRecord["status"];
+  }) => Promise<DelegationSessionRecord[]>;
   resolveCheckpoint: (
     checkpointId: string,
     response: unknown
@@ -157,6 +159,12 @@ export const createControlPlaneClient = ({
       }>(fetchImpl, `${resolvedBaseUrl}/api/v3/platform/catalog`);
       return payload.catalog.runProfiles;
     },
+    listBundles: async () => {
+      const payload = await requestJson<{
+        bundles: PortableBundleCatalogEntry[];
+      }>(fetchImpl, `${resolvedBaseUrl}/admin/bundles`);
+      return payload.bundles;
+    },
     startRun: async ({
       threadId,
       profileId,
@@ -193,12 +201,12 @@ export const createControlPlaneClient = ({
         )
       );
     },
-    listAcpSessions: async (options = {}) => {
+    listDelegationSessions: async (options = {}) => {
       const payload = await requestJson<{
-        sessions: AcpSessionRecord[];
+        sessions: DelegationSessionRecord[];
       }>(
         fetchImpl,
-        `${resolvedBaseUrl}/api/v3/acp-sessions${buildQueryString({
+        `${resolvedBaseUrl}/api/v3/delegation-sessions${buildQueryString({
           runId: options.runId,
           status: options.status
         })}`

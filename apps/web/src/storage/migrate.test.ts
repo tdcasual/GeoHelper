@@ -85,7 +85,7 @@ describe("migrate", () => {
     expect(chatSnapshot.conversations.length).toBe(1);
     expect(chatSnapshot.activeConversationId).toBe(chatSnapshot.conversations[0].id);
     expect(chatSnapshot.messages[0].content).toBe("legacy");
-    expect(settingsSnapshot.schemaVersion).toBe(3);
+    expect(settingsSnapshot.schemaVersion).toBe(4);
     expect(settingsSnapshot.defaultMode).toBe("official");
     expect(Array.isArray(settingsSnapshot.runtimeProfiles)).toBe(true);
     expect(typeof settingsSnapshot.defaultRuntimeProfileId).toBe("string");

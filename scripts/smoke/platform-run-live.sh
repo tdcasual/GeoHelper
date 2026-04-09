@@ -53,9 +53,14 @@ for i in {1..40}; do
 done
 
 for i in {1..40}; do
-  if curl -fsS -X POST "http://localhost:${CONTROL_PLANE_PORT}/api/v3/threads" \
-    -H 'content-type: application/json' \
-    -d '{"title":"control-plane-ready-probe"}' >/dev/null 2>&1; then
+  if curl -fsS "http://localhost:${CONTROL_PLANE_PORT}/api/v3/health" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+
+for i in {1..40}; do
+  if curl -fsS "http://localhost:${CONTROL_PLANE_PORT}/api/v3/ready" >/dev/null 2>&1; then
     break
   fi
   sleep 1

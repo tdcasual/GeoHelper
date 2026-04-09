@@ -28,7 +28,9 @@ export interface RuntimeDraft {
   id: string;
   name: string;
   target: "gateway" | "direct";
-  baseUrl: string;
+  gatewayBaseUrl: string;
+  controlPlaneBaseUrl: string;
+  providerBaseUrl: string;
 }
 
 export const fromByokPreset = (preset: ByokPreset | undefined): ByokDraft => ({
@@ -75,9 +77,22 @@ export const makeEmptyOfficialDraft = (): OfficialDraft => ({
 
 export const fromRuntimeProfile = (
   profile: RuntimeProfile | undefined
-): RuntimeDraft => ({
-  id: profile?.id ?? "runtime_direct",
-  name: profile?.name ?? "Direct BYOK",
-  target: profile?.target ?? "direct",
-  baseUrl: profile?.baseUrl ?? ""
-});
+): RuntimeDraft =>
+  profile?.target === "gateway"
+    ? {
+        id: profile.id,
+        name: profile.name,
+        target: "gateway",
+        gatewayBaseUrl: profile.gatewayBaseUrl,
+        controlPlaneBaseUrl: profile.controlPlaneBaseUrl,
+        providerBaseUrl: ""
+      }
+    : {
+        id: profile?.id ?? "runtime_direct",
+        name: profile?.name ?? "Direct BYOK",
+        target: "direct",
+        gatewayBaseUrl: "",
+        controlPlaneBaseUrl: "",
+        providerBaseUrl:
+          profile?.target === "direct" ? profile.providerBaseUrl : ""
+      };

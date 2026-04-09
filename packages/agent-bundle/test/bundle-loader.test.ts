@@ -215,4 +215,52 @@ describe("portable agent bundle loader", () => {
       });
     }
   });
+
+  it("rejects host-service delegations without serviceRef", () => {
+    const bundleDir = createFixtureBundle();
+    writeJson(path.join(bundleDir, "delegations/subagents.json"), {
+      delegations: [
+        {
+          name: "reviewer",
+          mode: "host-service",
+          awaitCompletion: true
+        }
+      ]
+    });
+
+    try {
+      expect(() => loadPortableAgentBundleFromFs(bundleDir)).toThrowError(
+        /Invalid delegation config: delegations\/subagents\.json/
+      );
+    } finally {
+      rmSync(bundleDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
+
+  it("rejects acp-agent delegations without agentRef", () => {
+    const bundleDir = createFixtureBundle();
+    writeJson(path.join(bundleDir, "delegations/subagents.json"), {
+      delegations: [
+        {
+          name: "reviewer",
+          mode: "acp-agent",
+          awaitCompletion: true
+        }
+      ]
+    });
+
+    try {
+      expect(() => loadPortableAgentBundleFromFs(bundleDir)).toThrowError(
+        /Invalid delegation config: delegations\/subagents\.json/
+      );
+    } finally {
+      rmSync(bundleDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
 });

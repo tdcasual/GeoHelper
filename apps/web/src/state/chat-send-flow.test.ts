@@ -5,13 +5,13 @@ import {
   buildAssistantMessageFromError,
   buildAssistantMessageFromGuard,
   buildAssistantMessageFromRunResult,
-  buildCompileContext,
+  buildRunContext,
   resolveChatSendGuard
 } from "./chat-send-flow";
 
 describe("chat-send-flow", () => {
   it("builds recentMessages and sceneTransactions context", () => {
-    const result = buildCompileContext({
+    const result = buildRunContext({
       conversation: {
         id: "conv_1",
         title: "Circle",

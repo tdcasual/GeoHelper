@@ -1,8 +1,12 @@
 import type { Dispatch, SetStateAction } from "react";
 
 import type { ChatMode } from "../../runtime/types";
+import type { PlatformBundleCatalogState } from "../../state/platform-bundle-catalog";
 import type { PlatformRunProfileCatalogState } from "../../state/platform-run-profile-catalog";
-import type { RuntimeProfile } from "../../state/settings-store";
+import type {
+  RuntimeProfile,
+  UpsertRuntimeProfileInput
+} from "../../state/settings-store";
 import type { RuntimeDraft } from "./settings-drawer-drafts";
 
 interface SettingsGeneralSectionProps {
@@ -12,6 +16,7 @@ interface SettingsGeneralSectionProps {
   defaultPlatformAgentProfileId: string;
   runtimeProfiles: RuntimeProfile[];
   platformRunProfileCatalog: PlatformRunProfileCatalogState;
+  platformBundleCatalog: PlatformBundleCatalogState;
   selectedRuntimeId: string;
   runtimeDraft: RuntimeDraft;
   savingRuntime: boolean;
@@ -21,12 +26,7 @@ interface SettingsGeneralSectionProps {
   setSelectedRuntimeId: Dispatch<SetStateAction<string>>;
   setRuntimeDraft: Dispatch<SetStateAction<RuntimeDraft>>;
   setSavingRuntime: Dispatch<SetStateAction<boolean>>;
-  upsertRuntimeProfile: (input: {
-    id?: string;
-    name: string;
-    target: "gateway" | "direct";
-    baseUrl: string;
-  }) => string;
+  upsertRuntimeProfile: (input: UpsertRuntimeProfileInput) => string;
   refreshPlatformRunProfiles: () => Promise<void>;
   onApplyMode: (mode: ChatMode) => void;
 }
@@ -42,6 +42,7 @@ export const SettingsGeneralSection = ({
   defaultPlatformAgentProfileId,
   runtimeProfiles,
   platformRunProfileCatalog,
+  platformBundleCatalog,
   selectedRuntimeId,
   runtimeDraft,
   savingRuntime,
@@ -75,6 +76,7 @@ export const SettingsGeneralSection = ({
         },
         ...platformRunProfileCatalog.profiles
       ];
+  const bundleCountLabel = `${platformBundleCatalog.bundles.length} bundles`;
 
   return (
     <section className="settings-section settings-section-general">
@@ -144,6 +146,54 @@ export const SettingsGeneralSection = ({
           刷新平台目录
         </button>
       </div>
+      <div className="settings-audit-panel">
+        <div className="settings-audit-panel-header">
+          <strong>Portable Bundles</strong>
+          <span className="settings-audit-count">{bundleCountLabel}</span>
+        </div>
+        {platformBundleCatalog.status === "loading" ? (
+          <p className="settings-hint">正在刷新 bundle portability 审计…</p>
+        ) : null}
+        {platformBundleCatalog.status === "error" && platformBundleCatalog.error ? (
+          <p className="settings-warning-text">
+            {`bundle 审计拉取失败：${platformBundleCatalog.error}`}
+          </p>
+        ) : null}
+        {platformBundleCatalog.status !== "loading" &&
+        platformBundleCatalog.bundles.length === 0 ? (
+          <p className="settings-hint">
+            当前 control-plane 未返回 portable bundle 审计数据。
+          </p>
+        ) : null}
+        {platformBundleCatalog.bundles.length > 0 ? (
+          <ul className="settings-bundle-list">
+            {platformBundleCatalog.bundles.map((bundle) => {
+              const hostRequirements =
+                bundle.hostRequirements.length > 0
+                  ? bundle.hostRequirements.join(", ")
+                  : "none";
+              const hostBoundTools =
+                bundle.openClawCompatibility.hostBoundTools.length > 0
+                  ? bundle.openClawCompatibility.hostBoundTools.join(", ")
+                  : "none";
+
+              return (
+                <li key={bundle.bundleId} className="settings-bundle-item">
+                  <div className="settings-bundle-row">
+                    <strong>{bundle.agentId}</strong>
+                    <span className="settings-bundle-mode">
+                      {bundle.openClawCompatibility.recommendedImportMode}
+                    </span>
+                  </div>
+                  <p className="settings-hint">{bundle.bundleId}</p>
+                  <p className="settings-hint">{`host requirements: ${hostRequirements}`}</p>
+                  <p className="settings-hint">{`host-bound tools: ${hostBoundTools}`}</p>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+      </div>
       <div className="settings-inline-actions">
         <select
           value={selectedRuntimeId}
@@ -187,35 +237,72 @@ export const SettingsGeneralSection = ({
           <option value="direct">direct</option>
         </select>
       </label>
-      <label>
-        基础地址（gateway 必填，direct 可选）
-        <input
-          placeholder={
-            runtimeDraft.target === "gateway"
-              ? "https://your-gateway-domain"
-              : "https://openrouter.ai/api/v1"
-          }
-          value={runtimeDraft.baseUrl}
-          onChange={(event) =>
-            setRuntimeDraft((prev) => ({
-              ...prev,
-              baseUrl: event.target.value
-            }))
-          }
-        />
-      </label>
+      {runtimeDraft.target === "gateway" ? (
+        <>
+          <label>
+            Gateway 地址
+            <input
+              placeholder="https://your-gateway-domain"
+              value={runtimeDraft.gatewayBaseUrl}
+              onChange={(event) =>
+                setRuntimeDraft((prev) => ({
+                  ...prev,
+                  gatewayBaseUrl: event.target.value
+                }))
+              }
+            />
+          </label>
+          <label>
+            Control Plane 地址（留空则复用 Gateway）
+            <input
+              placeholder="https://your-control-plane-domain"
+              value={runtimeDraft.controlPlaneBaseUrl}
+              onChange={(event) =>
+                setRuntimeDraft((prev) => ({
+                  ...prev,
+                  controlPlaneBaseUrl: event.target.value
+                }))
+              }
+            />
+          </label>
+        </>
+      ) : (
+        <label>
+          Provider 地址（可选）
+          <input
+            placeholder="https://openrouter.ai/api/v1"
+            value={runtimeDraft.providerBaseUrl}
+            onChange={(event) =>
+              setRuntimeDraft((prev) => ({
+                ...prev,
+                providerBaseUrl: event.target.value
+              }))
+            }
+          />
+        </label>
+      )}
       <div className="settings-inline-actions">
         <button
           type="button"
           disabled={savingRuntime}
           onClick={() => {
             setSavingRuntime(true);
-            const id = upsertRuntimeProfile({
-              id: runtimeDraft.id,
-              name: runtimeDraft.name,
-              target: runtimeDraft.target,
-              baseUrl: runtimeDraft.baseUrl
-            });
+            const id = upsertRuntimeProfile(
+              runtimeDraft.target === "gateway"
+                ? {
+                    id: runtimeDraft.id,
+                    name: runtimeDraft.name,
+                    target: "gateway",
+                    gatewayBaseUrl: runtimeDraft.gatewayBaseUrl,
+                    controlPlaneBaseUrl: runtimeDraft.controlPlaneBaseUrl
+                  }
+                : {
+                    id: runtimeDraft.id,
+                    name: runtimeDraft.name,
+                    target: "direct",
+                    providerBaseUrl: runtimeDraft.providerBaseUrl
+                  }
+            );
             setSelectedRuntimeId(id);
             setSavingRuntime(false);
           }}

@@ -3,7 +3,7 @@ import {
   buildAssistantMessageFromError,
   buildAssistantMessageFromGuard,
   buildAssistantMessageFromRunResult,
-  buildCompileContext,
+  buildRunContext,
   isOfficialSessionExpiredError,
   resolveChatSendGuard
 } from "./chat-send-flow";
@@ -245,7 +245,7 @@ export const createChatStoreActions = ({
     };
 
     try {
-      const runtime = await deps.resolveCompileOptions({
+      const runtime = await deps.resolveRunOptions({
         conversationId: targetConversationId,
         mode: get().mode
       });
@@ -277,13 +277,17 @@ export const createChatStoreActions = ({
       });
 
       let lastError: unknown;
-      let compileResult:
+      let runResult:
         | {
-            snapshot: Awaited<ReturnType<ChatStoreDeps["compile"]>>["run_snapshot"];
-            traceId: Awaited<ReturnType<ChatStoreDeps["compile"]>>["trace_id"];
-            acpSessions: Awaited<
-              ReturnType<ChatStoreDeps["compile"]>
-            >["acpSessions"];
+            snapshot: Awaited<
+              ReturnType<ChatStoreDeps["submitPrompt"]>
+            >["run_snapshot"];
+            traceId: Awaited<
+              ReturnType<ChatStoreDeps["submitPrompt"]>
+            >["trace_id"];
+            delegationSessions: Awaited<
+              ReturnType<ChatStoreDeps["submitPrompt"]>
+            >["delegationSessions"];
           }
         | undefined;
 
@@ -292,18 +296,18 @@ export const createChatStoreActions = ({
           const targetConversation = get().conversations.find(
             (item) => item.id === targetConversationId
           );
-          const context = buildCompileContext({
+          const context = buildRunContext({
             conversation: targetConversation,
             sceneTransactions: sceneStore.getState().transactions
           });
-          const response = await deps.compile({
+          const response = await deps.submitPrompt({
             conversationId: targetConversationId,
             message: normalizedInput.content,
             platformRunProfile: runtime.platformRunProfile,
             attachments: normalizedInput.attachments,
             mode: get().mode,
             runtimeTarget: runtime.runtimeTarget,
-            runtimeBaseUrl: runtime.runtimeBaseUrl,
+            controlPlaneBaseUrl: runtime.controlPlaneBaseUrl,
             sessionToken: get().sessionToken,
             model: runtime.model,
             byokEndpoint: runtime.byokEndpoint,
@@ -312,10 +316,10 @@ export const createChatStoreActions = ({
             extraHeaders: runtime.extraHeaders,
             context
           });
-          compileResult = {
+          runResult = {
             snapshot: response.run_snapshot,
             traceId: response.trace_id,
-            acpSessions: response.acpSessions
+            delegationSessions: response.delegationSessions
           };
           break;
         } catch (error) {
@@ -337,11 +341,11 @@ export const createChatStoreActions = ({
         }
       }
 
-      if (!compileResult) {
-        throw lastError ?? new Error("Compile result is empty");
+      if (!runResult) {
+        throw lastError ?? new Error("Run result is empty");
       }
 
-      const { snapshot, traceId } = compileResult;
+      const { snapshot, traceId } = runResult;
       const assistantMessage = buildAssistantMessageFromRunResult({
         id: makeId(),
         snapshot,
@@ -350,7 +354,7 @@ export const createChatStoreActions = ({
       deps.recordRunSnapshot({
         messageId: assistantMessage.id,
         snapshot,
-        acpSessions: compileResult.acpSessions
+        delegationSessions: runResult.delegationSessions
       });
 
       finishSend(assistantMessage);
