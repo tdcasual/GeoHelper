@@ -379,16 +379,21 @@ Each release candidate must execute a live validation run against the shared sta
 - `PRESET_TOKEN` (smoke login token)
 - optional `ADMIN_METRICS_TOKEN` (needed when admin surfaces are locked down)
 
-The canonical command sequence is:
+For drill-down, run the component checks in this order:
 
 ```bash
 pnpm smoke:gateway-runtime
 pnpm smoke:gateway-backup-restore
 pnpm smoke:platform-run-remote
 pnpm ops:gateway:scheduled
+```
+
+Then run the single release-gate wrapper:
+
+```bash
 pnpm ops:release-candidate:live
 ```
 
-`pnpm smoke:platform-run-remote` mirrors `platform-run-live` but against the shared staging endpoints, and `pnpm ops:release-candidate:live` orchestrates the full stack, triggers a bundle export rehearsal, and writes `output/ops/<timestamp>/release-candidate-summary.json`. That summary collects the statuses (`gatewayRuntime`, `backupRestore`, `platformRun`, `scheduledVerify`), the published artifact URLs, and the portable-bundle audit signals (`rehearsedExtractionCandidate`, `verifyImport`, `extractionBlockers`). Keep the artifact directory and run date in `docs/BETA_CHECKLIST.md` so each shared-staging pass is auditable, and let the summary plus published URLs be the single source of truth before calling the platform portable.
+`pnpm smoke:platform-run-remote` mirrors `platform-run-live` but against the shared staging endpoints. `pnpm ops:release-candidate:live` is the single release-gate wrapper around the same checks plus the bundle rehearsal, and it writes `output/ops/<timestamp>/release-candidate-summary.json`. That summary collects the statuses (`gatewayRuntime`, `backupRestore`, `platformRun`, `scheduledVerify`), the published artifact URLs, and the portable-bundle audit signals (`rehearsedExtractionCandidate`, `verifyImport`, `extractionBlockers`). Keep the artifact directory and run date in `docs/BETA_CHECKLIST.md` so each shared-staging pass is auditable, and let the summary plus published URLs be the single source of truth before calling the platform portable.
 
 Use `docs/BETA_CHECKLIST.md` as the final release gate before beta launch.

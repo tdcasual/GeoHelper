@@ -70,7 +70,7 @@ pnpm bench:quality -- --dry-run
 - Control-plane image tags: `ghcr.io/<owner>/geohelper-control-plane:staging` and `ghcr.io/<owner>/geohelper-control-plane:sha-<shortsha>`
 - gateway runtime deployment remains manual even when image publishing is automated
 - control-plane runtime deployment remains manual even when image publishing is automated
-- Release-candidate live validation now requires `GATEWAY_URL`, `CONTROL_PLANE_URL`, `PRESET_TOKEN`, and optionally `ADMIN_METRICS_TOKEN`, and runs `pnpm smoke:gateway-runtime`, `pnpm smoke:gateway-backup-restore`, `pnpm smoke:platform-run-remote`, `pnpm ops:gateway:scheduled`, and `pnpm ops:release-candidate:live`, which writes `output/ops/<timestamp>/release-candidate-summary.json` (the single source of truth for gate status, published artifact URLs, and the portable-bundle audit signals).
+- Release-candidate live validation now requires `GATEWAY_URL`, `CONTROL_PLANE_URL`, `PRESET_TOKEN`, and optionally `ADMIN_METRICS_TOKEN`. Operators can run `pnpm smoke:gateway-runtime`, `pnpm smoke:gateway-backup-restore`, `pnpm smoke:platform-run-remote`, and `pnpm ops:gateway:scheduled` individually for drill-down, but `pnpm ops:release-candidate:live` is the single release-gate wrapper around the same checks plus the bundle rehearsal. It writes `output/ops/<timestamp>/release-candidate-summary.json` as the single source of truth for gate status, published artifact URLs, and the portable-bundle audit signals.
 - `VITE_GATEWAY_URL` 用于前端的网关侧登录与备份配置
 - `VITE_CONTROL_PLANE_URL` 用于前端的 `/api/v3` 与 `/admin/bundles` control-plane 入口；留空时回退到 `VITE_GATEWAY_URL`
 - 默认拓扑下 control plane 自带 inline worker loop；如果要拆分执行面，再额外部署 standalone worker
