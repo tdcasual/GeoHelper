@@ -65,7 +65,14 @@ describe("SettingsGeneralSection", () => {
                 acpAgentDelegations: [],
                 hostServiceDelegations: [],
                 degradedBehaviors: [],
-                notes: []
+                notes: [],
+                rehearsedExtractionCandidate: false,
+                extractionBlockers: ["workspace.scene.read", "workspace.scene.write"]
+              },
+              audit: {
+                rehearsedExtractionCandidate: false,
+                extractionBlockers: ["workspace.scene.read", "workspace.scene.write"],
+                verifyImport: null
               }
             },
             {
@@ -87,7 +94,18 @@ describe("SettingsGeneralSection", () => {
                 acpAgentDelegations: [],
                 hostServiceDelegations: [],
                 degradedBehaviors: [],
-                notes: []
+                notes: [],
+                rehearsedExtractionCandidate: true,
+                extractionBlockers: []
+              },
+              audit: {
+                rehearsedExtractionCandidate: true,
+                extractionBlockers: [],
+                verifyImport: {
+                  bundleId: "geometry_reviewer",
+                  cleanExternalMoveReady: true,
+                  extractionBlockers: []
+                }
               }
             }
           ],
@@ -124,7 +142,14 @@ describe("SettingsGeneralSection", () => {
     expect(markup).toContain("geometry_solver");
     expect(markup).toContain("portable-with-host-bindings");
     expect(markup).toContain("scene.apply_command_batch");
+    expect(markup).toContain("release audit: host-review-needed");
+    expect(markup).toContain("rehearsal candidate: no");
+    expect(markup).toContain("verify import: not captured");
+    expect(markup).toContain("extraction blockers: workspace.scene.read, workspace.scene.write");
     expect(markup).toContain("geometry_reviewer");
     expect(markup).toContain("portable");
+    expect(markup).toContain("release audit: portable-ready");
+    expect(markup).toContain("rehearsal candidate: yes");
+    expect(markup).toContain("verify import: passed");
   });
 });

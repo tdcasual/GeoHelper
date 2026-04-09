@@ -188,7 +188,42 @@ describe("control-plane-client", () => {
               acpAgentDelegations: [],
               hostServiceDelegations: [],
               degradedBehaviors: [],
-              notes: []
+              notes: [],
+              rehearsedExtractionCandidate: false,
+              extractionBlockers: ["workspace.scene.read", "workspace.scene.write"]
+            }
+          },
+          {
+            agentId: "geometry_reviewer",
+            bundleId: "geometry_reviewer",
+            rootDir: "/repo/agents/geometry-reviewer",
+            schemaVersion: "2",
+            hostRequirements: [],
+            workspaceBootstrapFiles: ["workspace/AGENTS.md"],
+            promptAssetPaths: ["prompts/planner.md"],
+            openClawCompatibility: {
+              bundleId: "geometry_reviewer",
+              schemaVersion: "2",
+              recommendedImportMode: "portable",
+              requiredOpenClawCapabilities: [],
+              fullyPortableTools: [],
+              hostBoundTools: [],
+              nativeSubagentDelegations: [],
+              acpAgentDelegations: [],
+              hostServiceDelegations: [],
+              degradedBehaviors: [],
+              notes: [],
+              rehearsedExtractionCandidate: true,
+              extractionBlockers: []
+            },
+            audit: {
+              rehearsedExtractionCandidate: true,
+              extractionBlockers: [],
+              verifyImport: {
+                bundleId: "geometry_reviewer",
+                cleanExternalMoveReady: true,
+                extractionBlockers: []
+              }
             }
           }
         ]
@@ -209,9 +244,33 @@ describe("control-plane-client", () => {
     expect(result).toEqual([
       expect.objectContaining({
         agentId: "geometry_solver",
+        audit: {
+          rehearsedExtractionCandidate: false,
+          extractionBlockers: ["workspace.scene.read", "workspace.scene.write"],
+          verifyImport: null
+        },
         openClawCompatibility: expect.objectContaining({
           recommendedImportMode: "portable-with-host-bindings",
-          hostBoundTools: ["scene.apply_command_batch"]
+          hostBoundTools: ["scene.apply_command_batch"],
+          rehearsedExtractionCandidate: false,
+          extractionBlockers: ["workspace.scene.read", "workspace.scene.write"]
+        })
+      }),
+      expect.objectContaining({
+        agentId: "geometry_reviewer",
+        audit: {
+          rehearsedExtractionCandidate: true,
+          extractionBlockers: [],
+          verifyImport: {
+            bundleId: "geometry_reviewer",
+            cleanExternalMoveReady: true,
+            extractionBlockers: []
+          }
+        },
+        openClawCompatibility: expect.objectContaining({
+          recommendedImportMode: "portable",
+          rehearsedExtractionCandidate: true,
+          extractionBlockers: []
         })
       })
     ]);

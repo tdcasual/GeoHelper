@@ -115,6 +115,33 @@ const buildQueryString = (params: Record<string, string | undefined>): string =>
   return query ? `?${query}` : "";
 };
 
+const normalizeBundleCatalogEntry = (
+  bundle: PortableBundleCatalogEntry
+): PortableBundleCatalogEntry => {
+  const rehearsedExtractionCandidate = Boolean(
+    bundle.openClawCompatibility.rehearsedExtractionCandidate
+  );
+  const extractionBlockers = Array.isArray(
+    bundle.openClawCompatibility.extractionBlockers
+  )
+    ? bundle.openClawCompatibility.extractionBlockers
+    : [];
+
+  return {
+    ...bundle,
+    openClawCompatibility: {
+      ...bundle.openClawCompatibility,
+      rehearsedExtractionCandidate,
+      extractionBlockers
+    },
+    audit: bundle.audit ?? {
+      rehearsedExtractionCandidate,
+      extractionBlockers,
+      verifyImport: null
+    }
+  };
+};
+
 export const createControlPlaneClient = ({
   baseUrl = "",
   fetchImpl = fetch
@@ -163,7 +190,7 @@ export const createControlPlaneClient = ({
       const payload = await requestJson<{
         bundles: PortableBundleCatalogEntry[];
       }>(fetchImpl, `${resolvedBaseUrl}/admin/bundles`);
-      return payload.bundles;
+      return payload.bundles.map(normalizeBundleCatalogEntry);
     },
     startRun: async ({
       threadId,

@@ -47,6 +47,20 @@ export interface OpenClawCompatibilityPreview {
   hostServiceDelegations: RuntimeNamedHostServiceDelegation[];
   degradedBehaviors: string[];
   notes: string[];
+  rehearsedExtractionCandidate?: boolean;
+  extractionBlockers?: string[];
+}
+
+export interface PortableBundleVerifyImportPreview {
+  bundleId: string;
+  cleanExternalMoveReady: boolean;
+  extractionBlockers: string[];
+}
+
+export interface PortableBundleAuditPreview {
+  rehearsedExtractionCandidate: boolean;
+  extractionBlockers: string[];
+  verifyImport: PortableBundleVerifyImportPreview | null;
 }
 
 export interface PortableBundleCatalogEntry {
@@ -58,6 +72,7 @@ export interface PortableBundleCatalogEntry {
   workspaceBootstrapFiles: string[];
   promptAssetPaths: string[];
   openClawCompatibility: OpenClawCompatibilityPreview;
+  audit?: PortableBundleAuditPreview;
 }
 
 export const runtimeCapabilitiesByTarget: Record<
