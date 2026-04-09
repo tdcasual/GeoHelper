@@ -11,6 +11,7 @@
     "typecheck": "pnpm exec tsc -p apps/web/tsconfig.json --noEmit && pnpm exec tsc -p apps/gateway/tsconfig.json --noEmit && pnpm exec tsc -p apps/control-plane/tsconfig.json --noEmit && pnpm exec tsc -p apps/worker/tsconfig.json --noEmit && pnpm exec tsc -p packages/protocol/tsconfig.json --noEmit && pnpm exec tsc -p packages/browser-bridge/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-protocol/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-core/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-context/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-intelligence/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-sdk/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-host-geohelper/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-store/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-tools/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-memory/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-evals/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-domain-geometry/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-bundle/tsconfig.json --noEmit && pnpm exec tsc -p packages/agent-export-openclaw/tsconfig.json --noEmit && pnpm exec tsc -p tests/tsconfig.json --noEmit",
     "test:e2e": "pnpm geogebra:sync && playwright test",
     "smoke:platform-run-live": "bash scripts/smoke/platform-run-live.sh",
+    "smoke:platform-run-remote": "node scripts/smoke/platform-run-remote.mjs",
     "quality:hotspots": "node scripts/quality/report-hotspots.mjs",
     "quality:build-warnings": "node scripts/quality/check-build-warnings.mjs",
     "bench:quality": "node scripts/bench/run-quality-benchmark.mjs",
@@ -23,6 +24,7 @@
     "smoke:gateway-runtime": "node scripts/smoke/gateway-runtime.mjs",
     "ops:gateway:verify": "node scripts/ops/run-gateway-ops-checks.mjs",
     "ops:gateway:scheduled": "node scripts/ops/run-scheduled-gateway-verify.mjs",
+    "ops:release-candidate:live": "node scripts/ops/run-release-candidate-live-checks.mjs",
     "smoke:gateway-backup-restore": "node scripts/smoke/gateway-backup-restore.mjs"
   },
   "devDependencies": {
