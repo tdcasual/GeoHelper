@@ -36,10 +36,14 @@ export interface ControlPlaneClient {
       afterSequence?: number;
     }
   ) => Promise<RunSnapshot>;
+  cancelRun: (runId: string) => Promise<Run>;
   listDelegationSessions: (options?: {
     runId?: string;
     status?: DelegationSessionRecord["status"];
   }) => Promise<DelegationSessionRecord[]>;
+  forceReleaseDelegationSession: (
+    sessionId: string
+  ) => Promise<DelegationSessionRecord>;
   resolveCheckpoint: (
     checkpointId: string,
     response: unknown
@@ -255,6 +259,19 @@ export const createControlPlaneClient = ({
         )
       );
     },
+    cancelRun: async (runId) => {
+      const payload = await requestJson<{
+        run: Run;
+      }>(
+        fetchImpl,
+        `${resolvedBaseUrl}/api/v3/runs/${encodeURIComponent(runId)}/cancel`,
+        {
+          method: "POST"
+        }
+      );
+
+      return payload.run;
+    },
     listDelegationSessions: async (options = {}) => {
       const payload = await requestJson<{
         sessions: DelegationSessionRecord[];
@@ -267,6 +284,19 @@ export const createControlPlaneClient = ({
       );
 
       return payload.sessions;
+    },
+    forceReleaseDelegationSession: async (sessionId) => {
+      const payload = await requestJson<{
+        session: DelegationSessionRecord;
+      }>(
+        fetchImpl,
+        `${resolvedBaseUrl}/admin/delegation-sessions/${encodeURIComponent(sessionId)}/release`,
+        {
+          method: "POST"
+        }
+      );
+
+      return payload.session;
     },
     resolveCheckpoint: async (checkpointId, responsePayload) => {
       const payload = await requestJson<{

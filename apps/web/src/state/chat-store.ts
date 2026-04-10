@@ -13,7 +13,6 @@ import type {
   RuntimeTarget
 } from "../runtime/types";
 import { ensureRemoteSyncStartupCheck } from "../storage/remote-sync";
-import { artifactStore } from "./artifact-store";
 import type { PersistedChatSnapshot } from "./chat-persistence";
 import { loadChatSnapshot, saveChatSnapshot } from "./chat-persistence";
 import type {
@@ -25,9 +24,7 @@ import type {
   PersistableChatState
 } from "./chat-store-helpers";
 import { toPersistedChatSnapshot } from "./chat-store-helpers";
-import { checkpointStore } from "./checkpoint-store";
-import { delegationSessionStore } from "./delegation-session-store";
-import { runStore } from "./run-store";
+import { recordPlatformRunSnapshot } from "./platform-run-recorder";
 import {
   appendDebugEventIfEnabled,
   resolveRunRuntimeOptions,
@@ -163,12 +160,11 @@ const defaultDeps: ChatStoreDeps = {
       mode
     }),
   logEvent: (event) => appendDebugEventIfEnabled(event),
-  recordRunSnapshot: ({ snapshot, delegationSessions = [] }) => {
-    runStore.getState().applyStreamSnapshot(snapshot);
-    checkpointStore.getState().applyRunSnapshot(snapshot);
-    artifactStore.getState().applyRunSnapshot(snapshot);
-    delegationSessionStore.getState().applySessions(delegationSessions);
-  }
+  recordRunSnapshot: ({ snapshot, delegationSessions = [] }) =>
+    recordPlatformRunSnapshot({
+      snapshot,
+      delegationSessions
+    })
 };
 
 export const createChatStore = (

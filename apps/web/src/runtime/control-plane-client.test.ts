@@ -162,6 +162,91 @@ describe("control-plane-client", () => {
     ]);
   });
 
+  it("cancels a run through the control plane mutation", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      createJsonResponse({
+        run: {
+          id: "run_1",
+          threadId: "thread_1",
+          profileId: "platform_geometry_standard",
+          status: "cancelled",
+          inputArtifactIds: [],
+          outputArtifactIds: [],
+          budget: {
+            maxModelCalls: 6,
+            maxToolCalls: 8,
+            maxDurationMs: 120000
+          },
+          createdAt: "2026-04-10T00:00:00.000Z",
+          updatedAt: "2026-04-10T00:02:00.000Z"
+        }
+      })
+    );
+
+    const client = createControlPlaneClient({
+      baseUrl: "https://control-plane.example.com",
+      fetchImpl: fetchMock as typeof fetch
+    });
+
+    const result = await client.cancelRun("run_1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://control-plane.example.com/api/v3/runs/run_1/cancel",
+      {
+        method: "POST"
+      }
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: "run_1",
+        status: "cancelled"
+      })
+    );
+  });
+
+  it("force-releases a delegation session from the admin surface", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      createJsonResponse({
+        session: {
+          id: "delegation_session_run_1_node_delegate",
+          runId: "run_1",
+          checkpointId: "checkpoint_1",
+          delegationName: "teacher_review",
+          agentRef: "openclaw.geometry-reviewer",
+          status: "pending",
+          claimedBy: null,
+          claimedAt: null,
+          claimExpiresAt: null,
+          outputArtifactIds: [],
+          createdAt: "2026-04-10T00:00:00.000Z",
+          updatedAt: "2026-04-10T00:02:00.000Z"
+        }
+      })
+    );
+
+    const client = createControlPlaneClient({
+      baseUrl: "https://control-plane.example.com",
+      fetchImpl: fetchMock as typeof fetch
+    });
+
+    const result = await client.forceReleaseDelegationSession(
+      "delegation_session_run_1_node_delegate"
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://control-plane.example.com/admin/delegation-sessions/delegation_session_run_1_node_delegate/release",
+      {
+        method: "POST"
+      }
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: "delegation_session_run_1_node_delegate",
+        claimedBy: null
+      })
+    );
+  });
+
   it("lists admin runs with status filters", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
       createJsonResponse({
