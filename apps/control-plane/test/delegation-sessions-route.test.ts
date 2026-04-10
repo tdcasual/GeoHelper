@@ -825,6 +825,11 @@ describe("control-plane delegation session routes", () => {
       await startDelegationRun(app);
 
       const session = await store.delegationSessions.getSession("delegation_session_run_1_node_delegate");
+      expect(session).toBeDefined();
+
+      if (!session) {
+        throw new Error("expected delegation session fixture to exist");
+      }
 
       await store.delegationSessions.upsertSession({
         ...session,
