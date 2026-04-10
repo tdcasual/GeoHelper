@@ -15,6 +15,10 @@ export interface PlatformRunRecorderInput {
   delegationSessions?: DelegationSessionRecord[];
 }
 
+export type PlatformRunRecorder = (
+  input: PlatformRunRecorderInput
+) => void;
+
 interface PlatformRunRecorderDeps {
   runStore?: Pick<StoreApi<RunStoreState>, "getState">;
   checkpointStore?: Pick<StoreApi<CheckpointStoreState>, "getState">;
@@ -33,15 +37,17 @@ export const createPlatformRunRecorder = (
     delegationSessionStore: targetDelegationSessionStore = delegationSessionStore
   }: PlatformRunRecorderDeps = {}
 ) => {
-  return ({
+  const recordPlatformRunSnapshot: PlatformRunRecorder = ({
     snapshot,
     delegationSessions = []
-  }: PlatformRunRecorderInput): void => {
+  }) => {
     targetRunStore.getState().applyStreamSnapshot(snapshot);
     targetCheckpointStore.getState().applyRunSnapshot(snapshot);
     targetArtifactStore.getState().applyRunSnapshot(snapshot);
     targetDelegationSessionStore.getState().applySessions(delegationSessions);
   };
+
+  return recordPlatformRunSnapshot;
 };
 
 export const recordPlatformRunSnapshot = createPlatformRunRecorder();

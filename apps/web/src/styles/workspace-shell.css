@@ -1,260 +1,4 @@
-.workspace-shell {
-  min-height: 100vh;
-  height: 100dvh;
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  background:
-    linear-gradient(180deg, rgba(244, 239, 230, 0.96), rgba(240, 235, 226, 0.98)),
-    var(--studio-paper);
-}
-
-.top-bar {
-  position: relative;
-  z-index: 5;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 10px;
-  padding: 10px 16px;
-  border-bottom: 1px solid rgba(183, 157, 121, 0.26);
-  background: rgba(255, 251, 244, 0.94);
-  box-shadow: 0 10px 24px rgba(65, 53, 39, 0.06);
-}
-
-.top-bar-main {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.top-bar h1 {
-  font-size: 18px;
-  margin: 0;
-  color: var(--studio-ink);
-  letter-spacing: 0.04em;
-}
-
-.top-bar-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  min-width: 0;
-  flex-wrap: wrap;
-}
-
-.top-bar-button {
-  border-radius: 10px;
-  min-height: 34px;
-  padding: 0 12px;
-  cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease,
-    color 120ms ease;
-}
-
-.top-bar-button-secondary {
-  border: 1px solid rgba(183, 157, 121, 0.3);
-  background: rgba(255, 252, 247, 0.92);
-  color: var(--studio-accent-strong);
-}
-
-.top-bar-button-secondary:hover {
-  background: rgba(241, 229, 212, 0.92);
-}
-
-.top-bar-button-danger {
-  border: 1px solid rgba(180, 35, 24, 0.18);
-  background: rgba(255, 244, 240, 0.96);
-  color: var(--studio-danger);
-}
-
-.top-bar-button-ghost {
-  border: 1px solid rgba(183, 157, 121, 0.22);
-  background: rgba(255, 251, 244, 0.78);
-  color: #43536d;
-}
-
-.top-bar-button[disabled] {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.top-bar-overflow-menu {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid #dbe3ef;
-  border-radius: 14px;
-  background: #f8fbff;
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
-}
-
-.top-bar-overflow-menu button {
-  border: 1px solid #d3deef;
-  border-radius: 999px;
-  min-height: 34px;
-  padding: 0 14px;
-  background: #ffffff;
-  color: #1d3557;
-}
-
-.mobile-surface-switcher {
-  display: none;
-}
-
-.mobile-surface-button {
-  border: 1px solid #d7dfed;
-  border-radius: 999px;
-  min-height: 34px;
-  background: #ffffff;
-  color: #4a5b74;
-}
-
-.mobile-surface-button-active {
-  border-color: #8bb5ff;
-  background: #eaf2ff;
-  color: #18457b;
-}
-
-.workspace-shell.compact-viewport .runtime-tag {
-  display: none;
-}
-
-.workspace-shell.compact-viewport .mobile-surface-switcher {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  width: min(280px, 100%);
-}
-
-.workspace-shell.compact-viewport .top-bar-overflow-menu {
-  position: absolute;
-  top: calc(100% - 6px);
-  right: 16px;
-  z-index: 30;
-  width: min(320px, calc(100vw - 32px));
-}
-
-.workspace-shell.compact-viewport .workspace-content {
-  flex-direction: column;
-}
-
-.workspace-shell.compact-viewport .canvas-panel,
-.workspace-shell.compact-viewport .chat-panel {
-  flex: 1 1 auto;
-  width: 100%;
-  min-height: 0;
-  padding: 10px;
-}
-
-.workspace-shell.compact-viewport .chat-panel {
-  border-left: none;
-  border-top: none;
-  padding-top: 0;
-}
-
-.workspace-shell.compact-viewport .chat-shell {
-  flex: 1;
-}
-
-.workspace-shell.compact-viewport .history-resizer {
-  display: none;
-}
-
-.workspace-shell.compact-viewport .chat-body {
-  padding: 8px 0 0;
-  gap: 8px;
-}
-
-.workspace-shell.compact-viewport .chat-thread-actions {
-  gap: 6px;
-}
-
-.workspace-shell.compact-viewport .scene-transaction-count {
-  font-size: 11px;
-}
-
-.workspace-shell.compact-viewport .chat-composer {
-  gap: 6px;
-}
-
-.workspace-shell.compact-viewport .chat-composer-hint,
-.workspace-shell.compact-viewport .chat-composer-notice {
-  font-size: 11px;
-}
-
-.workspace-shell.compact-viewport .chat-composer-input-shell {
-  gap: 8px;
-  padding: 8px;
-  border-radius: 16px;
-}
-
-.workspace-shell.compact-viewport .chat-composer-input-shell textarea {
-  min-height: 44px;
-  max-height: 160px;
-  padding: 4px 0;
-}
-
-.workspace-shell.compact-viewport .chat-composer-input-shell button[type="submit"] {
-  height: 36px;
-  padding: 0 14px;
-}
-
-.workspace-shell.compact-viewport .plus-menu-button {
-  width: 32px;
-  height: 32px;
-  font-size: 18px;
-}
-
-.workspace-shell.short-viewport.compact-viewport .top-bar {
-  gap: 4px;
-  padding: 6px 10px;
-}
-
-.workspace-shell.short-viewport.compact-viewport .top-bar-main {
-  gap: 8px;
-}
-
-.workspace-shell.short-viewport.compact-viewport .top-bar h1 {
-  font-size: 15px;
-}
-
-.workspace-shell.short-viewport.compact-viewport .top-bar-actions {
-  gap: 6px;
-}
-
-.workspace-shell.short-viewport.compact-viewport .top-bar-button,
-.workspace-shell.short-viewport.compact-viewport .mode-switcher select {
-  min-height: 30px;
-  height: 30px;
-  font-size: 12px;
-}
-
-.workspace-shell.short-viewport.compact-viewport .top-bar-button {
-  padding: 0 10px;
-}
-
-.workspace-shell.short-viewport.compact-viewport .mobile-surface-switcher {
-  gap: 4px;
-  width: min(240px, 100%);
-}
-
-.workspace-shell.short-viewport.compact-viewport .mobile-surface-button {
-  min-height: 28px;
-  font-size: 12px;
-}
-
-.workspace-shell.short-viewport.compact-viewport .top-bar-overflow-menu {
-  top: calc(100% - 2px);
-}
-
-.workspace-shell.short-viewport.compact-viewport .canvas-panel,
-.workspace-shell.short-viewport.compact-viewport .chat-panel {
-  padding: 6px 10px 10px;
-}
+@import "./workspace-shell-toolbar.css";
 
 .workspace-platform-console {
   min-height: 0;
@@ -326,6 +70,28 @@
 .run-console-feedback {
   margin: 10px 0 0;
   color: var(--studio-accent-strong);
+}
+
+.run-console-sync-status,
+.admin-run-sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(183, 157, 121, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 252, 247, 0.92);
+  color: var(--studio-accent-strong);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.run-console-sync-status-error,
+.admin-run-sync-status-error {
+  border-color: rgba(180, 35, 24, 0.24);
+  background: rgba(255, 244, 240, 0.92);
+  color: var(--studio-danger);
 }
 
 .run-console-feedback-error {

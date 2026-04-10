@@ -2,12 +2,14 @@ import type { Run } from "@geohelper/agent-protocol";
 import type { DelegationSessionRecord } from "@geohelper/agent-store";
 
 import type { AdminRunTimeline } from "../../runtime/types";
+import type { AdminRunTimelineSyncState } from "../../state/admin-run-store";
 import { RunTimelinePage } from "./RunTimelinePage";
 
 interface AdminRunInspectorProps {
   runs: Run[];
   selectedRunId: string | null;
   selectedTimeline: AdminRunTimeline | null | undefined;
+  selectedTimelineSyncState?: AdminRunTimelineSyncState | null;
   loadingRuns: boolean;
   loadingTimeline: boolean;
   onReleaseDelegationSession?: (session: DelegationSessionRecord) => void;
@@ -19,6 +21,7 @@ export const AdminRunInspector = ({
   runs,
   selectedRunId,
   selectedTimeline,
+  selectedTimelineSyncState = null,
   loadingRuns,
   loadingTimeline,
   onReleaseDelegationSession,
@@ -56,9 +59,7 @@ export const AdminRunInspector = ({
       </aside>
 
       <section>
-        {loadingTimeline ? (
-          <p>Loading timeline...</p>
-        ) : selectedTimeline ? (
+        {selectedTimeline ? (
           <RunTimelinePage
             run={selectedTimeline.run}
             events={selectedTimeline.events}
@@ -68,10 +69,13 @@ export const AdminRunInspector = ({
             artifacts={selectedTimeline.artifacts}
             summary={selectedTimeline.summary}
             memoryEntries={selectedTimeline.memoryEntries}
+            syncState={selectedTimelineSyncState}
             onReleaseDelegationSession={onReleaseDelegationSession}
             releasingSessionId={releasingSessionId}
             onSelectRun={onSelectRun}
           />
+        ) : loadingTimeline ? (
+          <p>Loading timeline...</p>
         ) : (
           <p>Select a run to inspect.</p>
         )}

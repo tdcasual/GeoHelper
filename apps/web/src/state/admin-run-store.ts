@@ -8,9 +8,33 @@ import type { AdminRunTimeline } from "../runtime/types";
 const sortRunsByCreatedAt = (runs: Run[]): Run[] =>
   [...runs].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
 
+export type AdminRunTimelineSyncStatus = "idle" | "syncing" | "retrying" | "error";
+
+export interface AdminRunTimelineSyncState {
+  active: boolean;
+  status: AdminRunTimelineSyncStatus;
+  error: string | null;
+  retryCount: number;
+}
+
+const createIdleTimelineSyncState = (): AdminRunTimelineSyncState => ({
+  active: false,
+  status: "idle",
+  error: null,
+  retryCount: 0
+});
+
+const getErrorMessage = (error: unknown, runId?: string): string =>
+  error instanceof Error
+    ? error.message
+    : runId
+      ? `Failed to load admin run timeline: ${runId}`
+      : "Failed to load admin runs";
+
 export interface AdminRunStoreState {
   runs: Run[];
   timelinesByRunId: Record<string, AdminRunTimeline>;
+  timelineSyncStateByRunId: Record<string, AdminRunTimelineSyncState>;
   selectedRunId: string | null;
   loadingRuns: boolean;
   loadingTimelineByRunId: Record<string, boolean>;
@@ -20,6 +44,11 @@ export interface AdminRunStoreState {
     parentRunId?: string;
   }) => Promise<void>;
   loadTimeline: (runId: string) => Promise<void>;
+  refreshTimeline: (runId: string) => Promise<AdminRunTimeline>;
+  setTimelineSyncState: (
+    runId: string,
+    syncState: AdminRunTimelineSyncState
+  ) => void;
   selectRun: (runId: string | null) => void;
   clear: () => void;
 }
@@ -27,9 +56,10 @@ export interface AdminRunStoreState {
 export const createAdminRunStore = (
   client: Pick<ControlPlaneClient, "listAdminRuns" | "getAdminRunTimeline">
 ) =>
-  createStore<AdminRunStoreState>((set) => ({
+  createStore<AdminRunStoreState>((set, get) => ({
     runs: [],
     timelinesByRunId: {},
+    timelineSyncStateByRunId: {},
     selectedRunId: null,
     loadingRuns: false,
     loadingTimelineByRunId: {},
@@ -50,7 +80,7 @@ export const createAdminRunStore = (
       } catch (error) {
         set({
           loadingRuns: false,
-          error: error instanceof Error ? error.message : "Failed to load admin runs"
+          error: getErrorMessage(error)
         });
       }
     },
@@ -74,21 +104,68 @@ export const createAdminRunStore = (
             ...state.loadingTimelineByRunId,
             [runId]: false
           },
+          timelineSyncStateByRunId: {
+            ...state.timelineSyncStateByRunId,
+            [runId]: createIdleTimelineSyncState()
+          },
           error: null
         }));
       } catch (error) {
+        const errorMessage = getErrorMessage(error, runId);
         set((state) => ({
           loadingTimelineByRunId: {
             ...state.loadingTimelineByRunId,
             [runId]: false
           },
-          error:
-            error instanceof Error
-              ? error.message
-              : `Failed to load admin run timeline: ${runId}`
+          timelineSyncStateByRunId: {
+            ...state.timelineSyncStateByRunId,
+            [runId]: {
+              active: false,
+              status: "error",
+              error: errorMessage,
+              retryCount: 0
+            }
+          },
+          error: errorMessage
         }));
       }
     },
+    refreshTimeline: async (runId) => {
+      if (!get().timelinesByRunId[runId]) {
+        await get().loadTimeline(runId);
+        const timeline = get().timelinesByRunId[runId];
+
+        if (!timeline) {
+          throw new Error(`Failed to load admin run timeline: ${runId}`);
+        }
+
+        return timeline;
+      }
+
+      try {
+        const timeline = await client.getAdminRunTimeline(runId);
+        set((state) => ({
+          timelinesByRunId: {
+            ...state.timelinesByRunId,
+            [runId]: timeline
+          },
+          error: null
+        }));
+        return timeline;
+      } catch (error) {
+        set({
+          error: getErrorMessage(error, runId)
+        });
+        throw error;
+      }
+    },
+    setTimelineSyncState: (runId, syncState) =>
+      set((state) => ({
+        timelineSyncStateByRunId: {
+          ...state.timelineSyncStateByRunId,
+          [runId]: syncState
+        }
+      })),
     selectRun: (runId) =>
       set({
         selectedRunId: runId
@@ -97,6 +174,7 @@ export const createAdminRunStore = (
       set({
         runs: [],
         timelinesByRunId: {},
+        timelineSyncStateByRunId: {},
         selectedRunId: null,
         loadingRuns: false,
         loadingTimelineByRunId: {},

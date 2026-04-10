@@ -4,7 +4,9 @@ This directory stores dated design and implementation documents.
 
 Current active execution track:
 
+- Platform run live refresh: [`2026-04-10-platform-run-live-refresh-implementation-plan.md`](./2026-04-10-platform-run-live-refresh-implementation-plan.md)
 - Platform run operator actions: [`2026-04-10-platform-run-operator-actions-implementation-plan.md`](./2026-04-10-platform-run-operator-actions-implementation-plan.md)
+- Platform run operator actions are now the delivered baseline on `main`; this next phase keeps the console and inspector live without manual refresh cycles.
 - Platform run observability + operator control surface: [`2026-04-09-platform-run-observability-control-surface-implementation-plan.md`](./2026-04-09-platform-run-observability-control-surface-implementation-plan.md)
 - Platform run observability is now the delivered baseline on `main`; this next phase adds explicit operator actions on top of that surface.
 - Release-candidate live validation implementation is complete in-repo; shared-staging sign-off remains blocked by missing credentials recorded in [`../BETA_CHECKLIST.md`](../BETA_CHECKLIST.md)
@@ -29,6 +31,7 @@ Use this section when you know the problem domain first and only then want the r
 - Release-candidate live validation: [`2026-04-09-release-candidate-live-validation-implementation-plan.md`](./2026-04-09-release-candidate-live-validation-implementation-plan.md)
 - Platform run observability + operator control surface: [`2026-04-09-platform-run-observability-control-surface-implementation-plan.md`](./2026-04-09-platform-run-observability-control-surface-implementation-plan.md)
 - Platform run operator actions: [`2026-04-10-platform-run-operator-actions-implementation-plan.md`](./2026-04-10-platform-run-operator-actions-implementation-plan.md)
+- Platform run live refresh: [`2026-04-10-platform-run-live-refresh-implementation-plan.md`](./2026-04-10-platform-run-live-refresh-implementation-plan.md)
 - M4 release closure: [`2026-03-19-m4-release-closure-implementation-plan.md`](./2026-03-19-m4-release-closure-implementation-plan.md)
 - Current branch closure execution: [`2026-03-31-project-phase-plan.md`](./2026-03-31-project-phase-plan.md)
 

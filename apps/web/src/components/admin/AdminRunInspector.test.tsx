@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import type { AdminRunTimelineSyncState } from "../../state/admin-run-store";
 import { AdminRunInspector } from "./AdminRunInspector";
 
 const runs: Run[] = [
@@ -100,6 +101,12 @@ const delegationSessions: DelegationSessionRecord[] = [
 
 describe("AdminRunInspector", () => {
   it("renders a run list and the selected run timeline detail panel", () => {
+    const selectedTimelineSyncState: AdminRunTimelineSyncState = {
+      active: true,
+      status: "retrying",
+      error: "timeline refresh failed",
+      retryCount: 1
+    };
     const markup = renderToStaticMarkup(
       createElement(AdminRunInspector, {
         runs,
@@ -124,7 +131,8 @@ describe("AdminRunInspector", () => {
           memoryEntries
         },
         loadingRuns: false,
-        loadingTimeline: false,
+        loadingTimeline: true,
+        selectedTimelineSyncState,
         onReleaseDelegationSession: vi.fn(),
         onSelectRun: vi.fn()
       })
@@ -137,6 +145,9 @@ describe("AdminRunInspector", () => {
     expect(markup).toContain("teacher_preference");
     expect(markup).toContain("executor_geometry_reviewer");
     expect(markup).toContain("Force release claim");
+    expect(markup).toContain("Timeline refresh retrying");
+    expect(markup).toContain("timeline refresh failed");
+    expect(markup).not.toContain("Loading timeline...");
     expect(markup).toContain("data-run-id=\"run_2\"");
   });
 });

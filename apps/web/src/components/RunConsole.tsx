@@ -10,7 +10,14 @@ import { useStore } from "zustand";
 
 import { createControlPlaneClient } from "../runtime/control-plane-client";
 import type { AdminRunTimeline } from "../runtime/types";
-import { createAdminRunStore } from "../state/admin-run-store";
+import { createAdminRunLiveSyncController } from "../state/admin-run-live-sync";
+import {
+  type AdminRunTimelineSyncState,
+  createAdminRunStore} from "../state/admin-run-store";
+import {
+  createPlatformRunLiveSyncController,
+  type PlatformRunLiveSyncState
+} from "../state/platform-run-live-sync";
 import { recordPlatformRunSnapshot } from "../state/platform-run-recorder";
 import { AdminRunInspector } from "./admin/AdminRunInspector";
 import { ArtifactViewer } from "./ArtifactViewer";
@@ -32,6 +39,7 @@ interface RunConsoleProps {
   } | null;
   defaultActionNotice?: string | null;
   defaultActionError?: string | null;
+  defaultLatestRunSyncState?: PlatformRunLiveSyncState;
 }
 
 const sortRunsByCreatedAt = (runs: Run[]): Run[] =>
@@ -42,6 +50,59 @@ const isTerminalRunStatus = (status: Run["status"]): boolean =>
 
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : "Operator action failed";
+
+const DEFAULT_LATEST_RUN_SYNC_STATE: PlatformRunLiveSyncState = {
+  active: false,
+  status: "idle",
+  error: null,
+  retryCount: 0
+};
+
+const DEFAULT_TIMELINE_SYNC_STATE: AdminRunTimelineSyncState = {
+  active: false,
+  status: "idle",
+  error: null,
+  retryCount: 0
+};
+
+const buildLiveRefreshLabel = (
+  syncState: PlatformRunLiveSyncState | AdminRunTimelineSyncState | null | undefined,
+  prefix: "Live refresh" | "Timeline refresh"
+): { className: string; message: string } | null => {
+  if (!syncState) {
+    return null;
+  }
+
+  if (syncState.status === "error") {
+    return {
+      className: "run-console-sync-status run-console-sync-status-error",
+      message: `${prefix} error: ${syncState.error ?? "Unknown refresh failure"}`
+    };
+  }
+
+  if (syncState.status === "retrying") {
+    return {
+      className: "run-console-sync-status",
+      message: `${prefix} retrying: ${syncState.error ?? "Retry scheduled"}`
+    };
+  }
+
+  if (syncState.status === "syncing") {
+    return {
+      className: "run-console-sync-status",
+      message: `${prefix} syncing...`
+    };
+  }
+
+  if (syncState.active) {
+    return {
+      className: "run-console-sync-status",
+      message: `${prefix} active`
+    };
+  }
+
+  return null;
+};
 
 const buildCurrentTimeline = (input: {
   run: Run;
@@ -85,7 +146,8 @@ export const RunConsole = ({
   defaultInspectorOpen = false,
   defaultPendingAction = null,
   defaultActionNotice = null,
-  defaultActionError = null
+  defaultActionError = null,
+  defaultLatestRunSyncState = DEFAULT_LATEST_RUN_SYNC_STATE
 }: RunConsoleProps) => {
   if (!run) {
     return null;
@@ -100,6 +162,9 @@ export const RunConsole = ({
   const [actionError, setActionError] = useState<string | null>(
     defaultActionError
   );
+  const [latestRunSyncState, setLatestRunSyncState] = useState<PlatformRunLiveSyncState>(
+    defaultLatestRunSyncState
+  );
   const inspectorClient = useMemo(
     () => createControlPlaneClient({ baseUrl: controlPlaneBaseUrl }),
     [controlPlaneBaseUrl]
@@ -112,6 +177,10 @@ export const RunConsole = ({
   const loadingTimelineByRunId = useStore(
     inspectorStore,
     (state) => state.loadingTimelineByRunId
+  );
+  const timelineSyncStateByRunId = useStore(
+    inspectorStore,
+    (state) => state.timelineSyncStateByRunId
   );
   const inspectorError = useStore(inspectorStore, (state) => state.error);
   const currentTimeline = useMemo(
@@ -134,10 +203,49 @@ export const RunConsole = ({
     selectedRunId === run.id ? currentTimeline : timelinesByRunId[selectedRunId] ?? null;
   const loadingTimeline =
     selectedRunId !== run.id && Boolean(loadingTimelineByRunId[selectedRunId]);
+  const selectedTimelineSyncState =
+    selectedRunId === run.id
+      ? {
+          active: latestRunSyncState.active,
+          status: latestRunSyncState.status,
+          error: latestRunSyncState.error,
+          retryCount: latestRunSyncState.retryCount
+        }
+      : timelineSyncStateByRunId[selectedRunId] ?? DEFAULT_TIMELINE_SYNC_STATE;
+  const latestRunSyncLabel = buildLiveRefreshLabel(latestRunSyncState, "Live refresh");
 
   useEffect(() => {
     setSelectedRunId(run.id);
   }, [run.id]);
+
+  useEffect(() => {
+    setLatestRunSyncState(defaultLatestRunSyncState);
+  }, [defaultLatestRunSyncState, run.id]);
+
+  useEffect(() => {
+    if (isTerminalRunStatus(run.status)) {
+      setLatestRunSyncState(DEFAULT_LATEST_RUN_SYNC_STATE);
+      return;
+    }
+
+    const controller = createPlatformRunLiveSyncController({
+      runId: run.id,
+      client: inspectorClient,
+      recordPlatformRunSnapshot,
+      pollIntervalMs: 1_000,
+      retryDelayMs: 2_000
+    });
+    const unsubscribe = controller.subscribe((nextState) => {
+      setLatestRunSyncState(nextState);
+    });
+
+    void controller.start();
+
+    return () => {
+      unsubscribe();
+      controller.stop();
+    };
+  }, [inspectorClient, run.id, run.status]);
 
   const refreshLatestRun = async (): Promise<void> => {
     const [snapshot, latestDelegationSessions] = await Promise.all([
@@ -158,7 +266,11 @@ export const RunConsole = ({
       return;
     }
 
-    await inspectorStore.getState().loadTimeline(refreshRunId);
+    if (refreshRunId === run.id) {
+      return;
+    }
+
+    await inspectorStore.getState().refreshTimeline(refreshRunId);
   };
 
   const runOperatorAction = async (input: {
@@ -194,19 +306,23 @@ export const RunConsole = ({
       return;
     }
 
-    if (timelinesByRunId[selectedRunId] || loadingTimelineByRunId[selectedRunId]) {
-      return;
-    }
+    const controller = createAdminRunLiveSyncController({
+      runId: selectedRunId,
+      refreshTimeline: (refreshRunId) =>
+        inspectorStore.getState().refreshTimeline(refreshRunId),
+      onStateChange: (syncState) => {
+        inspectorStore.getState().setTimelineSyncState(selectedRunId, syncState);
+      },
+      pollIntervalMs: 1_000,
+      retryDelayMs: 2_000
+    });
 
-    void inspectorStore.getState().loadTimeline(selectedRunId);
-  }, [
-    inspectorOpen,
-    inspectorStore,
-    loadingTimelineByRunId,
-    run.id,
-    selectedRunId,
-    timelinesByRunId
-  ]);
+    void controller.start();
+
+    return () => {
+      controller.stop();
+    };
+  }, [inspectorOpen, inspectorStore, run.id, selectedRunId]);
 
   const cancellingRun = pendingAction?.kind === "run" && pendingAction.targetId === run.id;
   const approvingCheckpointId =
@@ -223,6 +339,9 @@ export const RunConsole = ({
           {run.profileId} · {run.status}
         </p>
         <p>事件数：{events.length}</p>
+        {latestRunSyncLabel ? (
+          <p className={latestRunSyncLabel.className}>{latestRunSyncLabel.message}</p>
+        ) : null}
         <div className="run-console-actions">
           {!isTerminalRunStatus(run.status) ? (
             <button
@@ -309,6 +428,7 @@ export const RunConsole = ({
             runs={inspectorRuns}
             selectedRunId={selectedRunId}
             selectedTimeline={selectedTimeline}
+            selectedTimelineSyncState={selectedTimelineSyncState}
             loadingRuns={false}
             loadingTimeline={loadingTimeline}
             onReleaseDelegationSession={(session) => {

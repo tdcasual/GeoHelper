@@ -9,6 +9,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import type { PlatformRunLiveSyncState } from "../state/platform-run-live-sync";
 import { RunConsole } from "./RunConsole";
 
 const run: Run = {
@@ -147,6 +148,12 @@ const delegationSessions: DelegationSessionRecord[] = [
 
 describe("RunConsole", () => {
   it("shows an inspector entrypoint and renders the current run inspector detail when opened", () => {
+    const retryingSyncState: PlatformRunLiveSyncState = {
+      active: true,
+      status: "retrying",
+      error: "后台刷新失败，准备重试",
+      retryCount: 1
+    };
     const pendingMarkup = renderToStaticMarkup(
       createElement(RunConsole, {
         run,
@@ -155,7 +162,8 @@ describe("RunConsole", () => {
         artifacts,
         childRuns,
         delegationSessions,
-        defaultInspectorOpen: true
+        defaultInspectorOpen: true,
+        defaultLatestRunSyncState: retryingSyncState
       })
     );
     const busyMarkup = renderToStaticMarkup(
@@ -218,6 +226,8 @@ describe("RunConsole", () => {
     );
 
     expect(pendingMarkup).toContain("Inspect run");
+    expect(pendingMarkup).toContain("Live refresh retrying");
+    expect(pendingMarkup).toContain("后台刷新失败，准备重试");
     expect(pendingMarkup).toContain("Admin Run Inspector");
     expect(pendingMarkup).toContain("Confirm geometry draft");
     expect(pendingMarkup).toContain("platform_geometry_standard");
