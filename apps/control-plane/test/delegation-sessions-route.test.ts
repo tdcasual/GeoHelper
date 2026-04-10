@@ -668,6 +668,187 @@ describe("control-plane delegation session routes", () => {
     }
   });
 
+  it("allows operators to force-release pending delegation claims", async () => {
+    const store = createMemoryAgentStore();
+    const bundleDir = createDelegationBundleDir({
+      delegations: [
+        {
+          name: "teacher_review",
+          mode: "acp-agent",
+          agentRef: "openclaw.geometry-reviewer",
+          awaitCompletion: true
+        }
+      ]
+    });
+    let currentTime = "2026-04-08T00:00:00.000Z";
+
+    try {
+      const app = buildServer({
+        store,
+        platformRuntime: createDelegationPlatformRuntime(bundleDir),
+        now: () => currentTime
+      });
+
+      await startDelegationRun(app);
+
+      await app.inject({
+        method: "POST",
+        url: "/api/v3/delegation-sessions/claim",
+        payload: {
+          executorId: "executor_geometry_reviewer",
+          agentRef: "openclaw.geometry-reviewer",
+          ttlSeconds: 300
+        }
+      });
+
+      currentTime = "2026-04-08T00:05:00.000Z";
+      const forceReleaseRes = await app.inject({
+        method: "POST",
+        url: "/admin/delegation-sessions/delegation_session_run_1_node_delegate/release"
+      });
+
+      expect(forceReleaseRes.statusCode).toBe(200);
+      expect(JSON.parse(forceReleaseRes.payload)).toEqual({
+        session: expect.objectContaining({
+          id: "delegation_session_run_1_node_delegate",
+          claimedBy: null,
+          claimedAt: null,
+          claimExpiresAt: null
+        })
+      });
+    } finally {
+      rmSync(bundleDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
+
+  it("returns 409 when operators release a pending but unclaimed delegation session", async () => {
+    const store = createMemoryAgentStore();
+    const bundleDir = createDelegationBundleDir({
+      delegations: [
+        {
+          name: "teacher_review",
+          mode: "acp-agent",
+          agentRef: "openclaw.geometry-reviewer",
+          awaitCompletion: true
+        }
+      ]
+    });
+
+    try {
+      const app = buildServer({
+        store,
+        platformRuntime: createDelegationPlatformRuntime(bundleDir),
+        now: () => "2026-04-08T00:00:00.000Z"
+      });
+
+      await startDelegationRun(app);
+
+      const forceReleaseRes = await app.inject({
+        method: "POST",
+        url: "/admin/delegation-sessions/delegation_session_run_1_node_delegate/release"
+      });
+
+      expect(forceReleaseRes.statusCode).toBe(409);
+      expect(JSON.parse(forceReleaseRes.payload)).toEqual({
+        error: "delegation_session_not_claimed"
+      });
+    } finally {
+      rmSync(bundleDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
+
+  it("returns 404 when operators release a missing delegation session", async () => {
+    const store = createMemoryAgentStore();
+    const bundleDir = createDelegationBundleDir({
+      delegations: [
+        {
+          name: "teacher_review",
+          mode: "acp-agent",
+          agentRef: "openclaw.geometry-reviewer",
+          awaitCompletion: true
+        }
+      ]
+    });
+
+    try {
+      const app = buildServer({
+        store,
+        platformRuntime: createDelegationPlatformRuntime(bundleDir),
+        now: () => "2026-04-08T00:00:00.000Z"
+      });
+
+      await startDelegationRun(app);
+
+      const forceReleaseRes = await app.inject({
+        method: "POST",
+        url: "/admin/delegation-sessions/nonexistent-session/release"
+      });
+
+      expect(forceReleaseRes.statusCode).toBe(404);
+      expect(JSON.parse(forceReleaseRes.payload)).toEqual({
+        error: "delegation_session_not_found"
+      });
+    } finally {
+      rmSync(bundleDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
+
+  it("returns 409 when operators release a non-pending delegation session", async () => {
+    const store = createMemoryAgentStore();
+    const bundleDir = createDelegationBundleDir({
+      delegations: [
+        {
+          name: "teacher_review",
+          mode: "acp-agent",
+          agentRef: "openclaw.geometry-reviewer",
+          awaitCompletion: true
+        }
+      ]
+    });
+
+    try {
+      const app = buildServer({
+        store,
+        platformRuntime: createDelegationPlatformRuntime(bundleDir),
+        now: () => "2026-04-08T00:00:00.000Z"
+      });
+
+      await startDelegationRun(app);
+
+      const session = await store.delegationSessions.getSession("delegation_session_run_1_node_delegate");
+
+      await store.delegationSessions.upsertSession({
+        ...session,
+        status: "completed",
+        updatedAt: "2026-04-08T00:01:00.000Z"
+      });
+
+      const forceReleaseRes = await app.inject({
+        method: "POST",
+        url: "/admin/delegation-sessions/delegation_session_run_1_node_delegate/release"
+      });
+
+      expect(forceReleaseRes.statusCode).toBe(409);
+      expect(JSON.parse(forceReleaseRes.payload)).toEqual({
+        error: "delegation_session_not_pending"
+      });
+    } finally {
+      rmSync(bundleDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
+
   it("rejects delegation result submission from a non-owner while a claim is active", async () => {
     const store = createMemoryAgentStore();
     const bundleDir = createDelegationBundleDir({

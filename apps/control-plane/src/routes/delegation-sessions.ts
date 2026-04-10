@@ -256,6 +256,48 @@ export const registerDelegationSessionsRoutes = (
     };
   });
 
+  app.post("/admin/delegation-sessions/:sessionId/release", async (request, reply) => {
+    const params = z
+      .object({
+        sessionId: z.string().min(1)
+      })
+      .parse(request.params);
+    const session = await services.store.delegationSessions.getSession(params.sessionId);
+
+    if (!session) {
+      return reply.code(404).send({
+        error: "delegation_session_not_found"
+      });
+    }
+
+    if (session.status !== "pending") {
+      return reply.code(409).send({
+        error: "delegation_session_not_pending"
+      });
+    }
+
+    if (!session.claimedBy) {
+      return reply.code(409).send({
+        error: "delegation_session_not_claimed"
+      });
+    }
+
+    const now = services.now();
+    const updatedSession = {
+      ...session,
+      claimedBy: undefined,
+      claimedAt: undefined,
+      claimExpiresAt: undefined,
+      updatedAt: now
+    };
+
+    await services.store.delegationSessions.upsertSession(updatedSession);
+
+    return {
+      session: await hydrateSession(services, updatedSession)
+    };
+  });
+
   app.post("/api/v3/delegation-sessions/:sessionId/result", async (request, reply) => {
     const params = z
       .object({
