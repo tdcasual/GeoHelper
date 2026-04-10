@@ -328,6 +328,28 @@
   color: var(--studio-accent-strong);
 }
 
+.run-console-sync-status,
+.admin-run-sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(183, 157, 121, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 252, 247, 0.92);
+  color: var(--studio-accent-strong);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.run-console-sync-status-error,
+.admin-run-sync-status-error {
+  border-color: rgba(180, 35, 24, 0.24);
+  background: rgba(255, 244, 240, 0.92);
+  color: var(--studio-danger);
+}
+
 .run-console-feedback-error {
   color: var(--studio-danger);
 }

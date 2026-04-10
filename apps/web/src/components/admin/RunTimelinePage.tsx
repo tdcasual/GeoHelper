@@ -8,6 +8,7 @@ import type {
 import type { DelegationSessionRecord } from "@geohelper/agent-store";
 
 import type { AdminRunTimelineSummary } from "../../runtime/types";
+import type { AdminRunTimelineSyncState } from "../../state/admin-run-store";
 import { presentDelegationSession } from "../delegation-session-presenter";
 
 interface RunTimelinePageProps {
@@ -19,6 +20,7 @@ interface RunTimelinePageProps {
   artifacts: Artifact[];
   summary: AdminRunTimelineSummary;
   memoryEntries: MemoryEntry[];
+  syncState?: AdminRunTimelineSyncState | null;
   onSelectRun?: (runId: string) => void;
   onReleaseDelegationSession?: (session: DelegationSessionRecord) => void;
   releasingSessionId?: string | null;
@@ -32,6 +34,44 @@ const renderMemoryValue = (value: unknown): string => {
   return JSON.stringify(value);
 };
 
+const buildTimelineSyncLabel = (
+  syncState: AdminRunTimelineSyncState | null | undefined
+): { className: string; message: string } | null => {
+  if (!syncState) {
+    return null;
+  }
+
+  if (syncState.status === "error") {
+    return {
+      className: "admin-run-sync-status admin-run-sync-status-error",
+      message: `Timeline refresh error: ${syncState.error ?? "Unknown refresh failure"}`
+    };
+  }
+
+  if (syncState.status === "retrying") {
+    return {
+      className: "admin-run-sync-status",
+      message: `Timeline refresh retrying: ${syncState.error ?? "Retry scheduled"}`
+    };
+  }
+
+  if (syncState.status === "syncing") {
+    return {
+      className: "admin-run-sync-status",
+      message: "Timeline refreshing..."
+    };
+  }
+
+  if (syncState.active) {
+    return {
+      className: "admin-run-sync-status",
+      message: "Timeline refresh active"
+    };
+  }
+
+  return null;
+};
+
 export const RunTimelinePage = ({
   run,
   events,
@@ -41,10 +81,12 @@ export const RunTimelinePage = ({
   artifacts,
   summary,
   memoryEntries,
+  syncState = null,
   onSelectRun,
   onReleaseDelegationSession,
   releasingSessionId = null
 }: RunTimelinePageProps) => {
+  const syncLabel = buildTimelineSyncLabel(syncState);
   const summaryItems = [
     ["event count", String(summary.eventCount)],
     ["checkpoint count", String(summary.checkpointCount)],
@@ -63,6 +105,7 @@ export const RunTimelinePage = ({
         <p>
           {run.profileId} · {run.status}
         </p>
+        {syncLabel ? <p className={syncLabel.className}>{syncLabel.message}</p> : null}
       </header>
 
       <section>

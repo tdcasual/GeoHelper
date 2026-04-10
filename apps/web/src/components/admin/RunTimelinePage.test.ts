@@ -10,6 +10,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import type { AdminRunTimelineSyncState } from "../../state/admin-run-store";
 import { RunTimelinePage } from "./RunTimelinePage";
 
 const run: Run = {
@@ -157,6 +158,12 @@ const summary = {
 
 describe("RunTimelinePage", () => {
   it("renders operator summary cards, artifacts, claim metadata, memory writes, and child run navigation", () => {
+    const syncState: AdminRunTimelineSyncState = {
+      active: false,
+      status: "error",
+      error: "timeline refresh failed",
+      retryCount: 2
+    };
     const markup = renderToStaticMarkup(
       createElement(RunTimelinePage, {
         run,
@@ -167,6 +174,7 @@ describe("RunTimelinePage", () => {
         delegationSessions,
         artifacts,
         summary,
+        syncState,
         onReleaseDelegationSession: () => undefined,
         onSelectRun: () => undefined
       })
@@ -176,6 +184,8 @@ describe("RunTimelinePage", () => {
     expect(markup).toContain("platform_geometry_standard");
     expect(markup).toContain("event count");
     expect(markup).toContain("artifact count");
+    expect(markup).toContain("Timeline refresh error");
+    expect(markup).toContain("timeline refresh failed");
     expect(markup).toContain("node.started");
     expect(markup).toContain("Confirm geometry draft");
     expect(markup).toContain("请确认是否继续执行。");
