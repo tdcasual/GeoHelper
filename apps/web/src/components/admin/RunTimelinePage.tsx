@@ -20,6 +20,8 @@ interface RunTimelinePageProps {
   summary: AdminRunTimelineSummary;
   memoryEntries: MemoryEntry[];
   onSelectRun?: (runId: string) => void;
+  onReleaseDelegationSession?: (session: DelegationSessionRecord) => void;
+  releasingSessionId?: string | null;
 }
 
 const renderMemoryValue = (value: unknown): string => {
@@ -39,7 +41,9 @@ export const RunTimelinePage = ({
   artifacts,
   summary,
   memoryEntries,
-  onSelectRun
+  onSelectRun,
+  onReleaseDelegationSession,
+  releasingSessionId = null
 }: RunTimelinePageProps) => {
   const summaryItems = [
     ["event count", String(summary.eventCount)],
@@ -144,6 +148,20 @@ export const RunTimelinePage = ({
                 <span>{session.status}</span>
                 {session.claimedBy ? <span>{session.claimedBy}</span> : null}
                 {session.claimExpiresAt ? <span>{session.claimExpiresAt}</span> : null}
+                {onReleaseDelegationSession &&
+                session.status === "pending" &&
+                session.claimedBy ? (
+                  <button
+                    type="button"
+                    className="run-console-inline-action"
+                    onClick={() => onReleaseDelegationSession(session)}
+                    disabled={releasingSessionId === session.id}
+                  >
+                    {releasingSessionId === session.id
+                      ? "Releasing claim..."
+                      : "Force release claim"}
+                  </button>
+                ) : null}
               </li>
             );
           })}

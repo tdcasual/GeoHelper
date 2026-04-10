@@ -167,6 +167,7 @@ describe("RunTimelinePage", () => {
         delegationSessions,
         artifacts,
         summary,
+        onReleaseDelegationSession: () => undefined,
         onSelectRun: () => undefined
       })
     );
@@ -187,6 +188,7 @@ describe("RunTimelinePage", () => {
     expect(markup).toContain("ACP Agent");
     expect(markup).toContain("executor_geometry_reviewer");
     expect(markup).toContain("2026-04-08T00:06:00.000Z");
+    expect(markup).toContain("Force release claim");
     expect(markup).toContain("host_review");
     expect(markup).toContain("host.geometry-review");
     expect(markup).toContain("Host Service");

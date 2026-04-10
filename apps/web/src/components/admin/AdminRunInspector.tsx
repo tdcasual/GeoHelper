@@ -1,4 +1,5 @@
 import type { Run } from "@geohelper/agent-protocol";
+import type { DelegationSessionRecord } from "@geohelper/agent-store";
 
 import type { AdminRunTimeline } from "../../runtime/types";
 import { RunTimelinePage } from "./RunTimelinePage";
@@ -9,6 +10,8 @@ interface AdminRunInspectorProps {
   selectedTimeline: AdminRunTimeline | null | undefined;
   loadingRuns: boolean;
   loadingTimeline: boolean;
+  onReleaseDelegationSession?: (session: DelegationSessionRecord) => void;
+  releasingSessionId?: string | null;
   onSelectRun: (runId: string) => void;
 }
 
@@ -18,6 +21,8 @@ export const AdminRunInspector = ({
   selectedTimeline,
   loadingRuns,
   loadingTimeline,
+  onReleaseDelegationSession,
+  releasingSessionId,
   onSelectRun
 }: AdminRunInspectorProps) => (
   <section className="admin-run-inspector" data-testid="admin-run-inspector">
@@ -63,6 +68,8 @@ export const AdminRunInspector = ({
             artifacts={selectedTimeline.artifacts}
             summary={selectedTimeline.summary}
             memoryEntries={selectedTimeline.memoryEntries}
+            onReleaseDelegationSession={onReleaseDelegationSession}
+            releasingSessionId={releasingSessionId}
             onSelectRun={onSelectRun}
           />
         ) : (

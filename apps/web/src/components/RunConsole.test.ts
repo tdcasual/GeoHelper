@@ -124,6 +124,9 @@ const delegationSessions: DelegationSessionRecord[] = [
     delegationName: "teacher_review",
     agentRef: "openclaw.geometry-reviewer",
     status: "pending",
+    claimedBy: "executor_geometry_reviewer",
+    claimedAt: "2026-04-08T00:01:00.000Z",
+    claimExpiresAt: "2026-04-08T00:06:00.000Z",
     outputArtifactIds: [],
     createdAt: "2026-04-08T00:00:00.000Z",
     updatedAt: "2026-04-08T00:00:00.000Z"
@@ -152,6 +155,34 @@ describe("RunConsole", () => {
         artifacts,
         childRuns,
         delegationSessions,
+        defaultInspectorOpen: true
+      })
+    );
+    const busyMarkup = renderToStaticMarkup(
+      createElement(RunConsole, {
+        run,
+        events,
+        checkpoints: [pendingCheckpoint],
+        artifacts,
+        childRuns,
+        delegationSessions,
+        defaultPendingAction: {
+          kind: "checkpoint",
+          targetId: pendingCheckpoint.id
+        },
+        defaultActionNotice: "正在批准 checkpoint...",
+        defaultInspectorOpen: true
+      })
+    );
+    const errorMarkup = renderToStaticMarkup(
+      createElement(RunConsole, {
+        run,
+        events,
+        checkpoints: [pendingCheckpoint],
+        artifacts,
+        childRuns,
+        delegationSessions,
+        defaultActionError: "刷新最新 run 失败",
         defaultInspectorOpen: true
       })
     );
@@ -192,9 +223,16 @@ describe("RunConsole", () => {
     expect(pendingMarkup).toContain("platform_geometry_standard");
     expect(pendingMarkup).toContain("event count");
     expect(pendingMarkup).toContain("artifact count");
+    expect(pendingMarkup).toContain("Approve checkpoint");
+    expect(pendingMarkup).toContain("Cancel run");
+    expect(pendingMarkup).toContain("Force release claim");
+    expect(busyMarkup).toContain("Approving...");
+    expect(busyMarkup).toContain("正在批准 checkpoint...");
+    expect(errorMarkup).toContain("刷新最新 run 失败");
     expect(resolvedMarkup).toContain("暂无待处理 checkpoint");
     expect(resolvedMarkup).toContain("修正版草案");
     expect(resolvedMarkup).toContain("scene_1");
+    expect(resolvedMarkup).not.toContain("Cancel run");
     expect(pendingMarkup).toContain("Delegation Sessions");
     expect(pendingMarkup).toContain("teacher_review");
     expect(pendingMarkup).toContain("openclaw.geometry-reviewer");

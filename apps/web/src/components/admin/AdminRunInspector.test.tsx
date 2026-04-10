@@ -125,6 +125,7 @@ describe("AdminRunInspector", () => {
         },
         loadingRuns: false,
         loadingTimeline: false,
+        onReleaseDelegationSession: vi.fn(),
         onSelectRun: vi.fn()
       })
     );
@@ -135,6 +136,7 @@ describe("AdminRunInspector", () => {
     expect(markup).toContain("artifact_response_1");
     expect(markup).toContain("teacher_preference");
     expect(markup).toContain("executor_geometry_reviewer");
+    expect(markup).toContain("Force release claim");
     expect(markup).toContain("data-run-id=\"run_2\"");
   });
 });

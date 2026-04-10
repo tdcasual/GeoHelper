@@ -295,6 +295,43 @@
   color: var(--studio-accent-strong);
 }
 
+.run-console-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.run-console-inline-action {
+  border: 1px solid rgba(183, 157, 121, 0.3);
+  border-radius: 999px;
+  min-height: 34px;
+  padding: 0 14px;
+  background: rgba(255, 252, 247, 0.94);
+  color: var(--studio-accent-strong);
+}
+
+.run-console-inline-action-danger {
+  border-color: rgba(180, 35, 24, 0.24);
+  background: rgba(255, 244, 240, 0.96);
+  color: var(--studio-danger);
+}
+
+.run-console-inline-action[disabled],
+.run-console-inspector-toggle[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.run-console-feedback {
+  margin: 10px 0 0;
+  color: var(--studio-accent-strong);
+}
+
+.run-console-feedback-error {
+  color: var(--studio-danger);
+}
+
 .admin-run-inspector-layout {
   display: grid;
   grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
