@@ -1,19 +1,28 @@
 import type {
   Artifact,
   Checkpoint,
-  PlatformRunProfile
+  PlatformRunProfile,
+  Run
 } from "@geohelper/agent-protocol";
 import type { DelegationSessionRecord, RunSnapshot } from "@geohelper/agent-store";
 
 import type { PlatformThread } from "../state/thread-store";
 import { buildRunStreamUrl, parseRunStreamPayload } from "./control-plane-stream";
 import { RuntimeApiError } from "./runtime-service";
-import type { PortableBundleCatalogEntry } from "./types";
+import type {
+  AdminRunTimeline,
+  PortableBundleCatalogEntry
+} from "./types";
 
 export interface ControlPlaneClient {
   createThread: (input: { title: string }) => Promise<PlatformThread>;
   getThread: (threadId: string) => Promise<PlatformThread>;
   getArtifact: (artifactId: string) => Promise<Artifact>;
+  listAdminRuns: (options?: {
+    status?: Run["status"];
+    parentRunId?: string;
+  }) => Promise<Run[]>;
+  getAdminRunTimeline: (runId: string) => Promise<AdminRunTimeline>;
   listRunProfiles: () => Promise<PlatformRunProfile[]>;
   listBundles: () => Promise<PortableBundleCatalogEntry[]>;
   startRun: (input: {
@@ -177,6 +186,24 @@ export const createControlPlaneClient = ({
         `${resolvedBaseUrl}/api/v3/artifacts/${encodeURIComponent(artifactId)}`
       );
       return payload.artifact;
+    },
+    listAdminRuns: async (options = {}) => {
+      const payload = await requestJson<{
+        runs: Run[];
+      }>(
+        fetchImpl,
+        `${resolvedBaseUrl}/admin/runs${buildQueryString({
+          status: options.status,
+          parentRunId: options.parentRunId
+        })}`
+      );
+      return payload.runs;
+    },
+    getAdminRunTimeline: async (runId) => {
+      return requestJson<AdminRunTimeline>(
+        fetchImpl,
+        `${resolvedBaseUrl}/admin/runs/${encodeURIComponent(runId)}/timeline`
+      );
     },
     listRunProfiles: async () => {
       const payload = await requestJson<{

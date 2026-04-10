@@ -1,4 +1,11 @@
-import type { PlatformRunProfile } from "@geohelper/agent-protocol";
+import type {
+  Artifact,
+  Checkpoint,
+  MemoryEntry,
+  PlatformRunProfile,
+  Run,
+  RunEvent
+} from "@geohelper/agent-protocol";
 import type { DelegationSessionRecord, RunSnapshot } from "@geohelper/agent-store";
 import type { RuntimeAttachment } from "@geohelper/protocol";
 
@@ -73,6 +80,28 @@ export interface PortableBundleCatalogEntry {
   promptAssetPaths: string[];
   openClawCompatibility: OpenClawCompatibilityPreview;
   audit?: PortableBundleAuditPreview;
+}
+
+export interface AdminRunTimelineSummary {
+  eventCount: number;
+  checkpointCount: number;
+  pendingCheckpointCount: number;
+  delegationSessionCount: number;
+  pendingDelegationCount: number;
+  artifactCount: number;
+  memoryWriteCount: number;
+  childRunCount: number;
+}
+
+export interface AdminRunTimeline {
+  run: Run;
+  events: RunEvent[];
+  childRuns: Run[];
+  checkpoints: Checkpoint[];
+  delegationSessions: DelegationSessionRecord[];
+  artifacts: Artifact[];
+  summary: AdminRunTimelineSummary;
+  memoryEntries: MemoryEntry[];
 }
 
 export const runtimeCapabilitiesByTarget: Record<
