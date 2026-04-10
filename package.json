@@ -40,6 +40,7 @@
     "dependency-cruiser": "^17.3.9",
     "eslint": "^10.0.3",
     "eslint-plugin-simple-import-sort": "^12.1.1",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4",
     "yaml-eslint-parser": "^2.0.0"

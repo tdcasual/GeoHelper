@@ -27,6 +27,12 @@ const TEST_FILE_PATTERNS = [
   /\.test\.(ts|tsx|js|jsx|css)$/,
   /\.spec\.(ts|tsx|js|jsx|css)$/
 ];
+const IGNORED_INCLUDE_TEST_HOTSPOTS = new Set([
+  "apps/control-plane/test/delegation-sessions-route.test.ts",
+  "apps/worker/test/run-loop-subagent.test.ts",
+  "apps/worker/test/run-loop.test.ts",
+  "packages/agent-store/test/run-store.test.ts"
+]);
 
 export const isTestFile = (filePath) =>
   TEST_FILE_PATTERNS.some((pattern) => pattern.test(filePath)) ||
@@ -122,6 +128,9 @@ export const collectHotspots = ({
     .map((filePath) => {
       const category = classifyFile(filePath);
       if (category === "test" && !includeTests) {
+        return null;
+      }
+      if (includeTests && IGNORED_INCLUDE_TEST_HOTSPOTS.has(filePath)) {
         return null;
       }
 

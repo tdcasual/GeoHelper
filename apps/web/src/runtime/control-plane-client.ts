@@ -7,12 +7,14 @@ import type {
 import type { DelegationSessionRecord, RunSnapshot } from "@geohelper/agent-store";
 
 import type { PlatformThread } from "../state/thread-store";
+import { createControlPlaneClientSupport } from "./control-plane-client-support";
+import {
+  normalizeBaseUrl,
+  requestJson,
+  requestText
+} from "./control-plane-client-shared";
 import { buildRunStreamUrl, parseRunStreamPayload } from "./control-plane-stream";
-import { RuntimeApiError } from "./runtime-service";
-import type {
-  AdminRunTimeline,
-  PortableBundleCatalogEntry
-} from "./types";
+import type { AdminRunTimeline, PortableBundleCatalogEntry } from "./types";
 
 export interface ControlPlaneClient {
   createThread: (input: { title: string }) => Promise<PlatformThread>;
@@ -50,187 +52,47 @@ export interface ControlPlaneClient {
   ) => Promise<Checkpoint>;
 }
 
-export interface ControlPlaneClientOptions { baseUrl?: string; fetchImpl?: typeof fetch }
-const normalizeBaseUrl = (baseUrl = ""): string => baseUrl.replace(/\/+$/, "");
-const parseErrorPayload = async (response: Response): Promise<RuntimeApiError> => {
-  try {
-    const payload = (await response.json()) as {
-      error?:
-        | {
-            code?: string;
-            message?: string;
-          }
-        | string;
-      message?: string;
-    };
-
-    if (typeof payload.error === "string") {
-      return new RuntimeApiError(payload.error, payload.error, response.status);
-    }
-
-    if (payload.error?.code || payload.error?.message) {
-      return new RuntimeApiError(
-        payload.error.code ?? "RUNTIME_REQUEST_FAILED",
-        payload.error.message ?? "Runtime request failed",
-        response.status
-      );
-    }
-
-    if (payload.message) {
-      return new RuntimeApiError(
-        "RUNTIME_REQUEST_FAILED",
-        payload.message,
-        response.status
-      );
-    }
-  } catch {
-    // Ignore parse failures and fall back to the status text.
-  }
-
-  return new RuntimeApiError(
-    "RUNTIME_REQUEST_FAILED",
-    response.statusText || "Runtime request failed",
-    response.status
-  );
-};
-const requestJson = async <T>(
-  fetchImpl: typeof fetch,
-  input: string,
-  init?: RequestInit
-): Promise<T> => {
-  const response = await fetchImpl(input, init);
-  if (!response.ok) {
-    throw await parseErrorPayload(response);
-  }
-
-  return (await response.json()) as T;
-};
-const requestText = async (fetchImpl: typeof fetch, input: string, init?: RequestInit): Promise<string> => {
-  const response = await fetchImpl(input, init);
-  if (!response.ok) {
-    throw await parseErrorPayload(response);
-  }
-
-  return await response.text();
-};
-
-const buildQueryString = (params: Record<string, string | undefined>): string => {
-  const searchParams = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value) {
-      searchParams.set(key, value);
-    }
-  }
-
-  const query = searchParams.toString();
-
-  return query ? `?${query}` : "";
-};
-
-const normalizeBundleCatalogEntry = (
-  bundle: PortableBundleCatalogEntry
-): PortableBundleCatalogEntry => {
-  const rehearsedExtractionCandidate = Boolean(
-    bundle.openClawCompatibility.rehearsedExtractionCandidate
-  );
-  const extractionBlockers = Array.isArray(
-    bundle.openClawCompatibility.extractionBlockers
-  )
-    ? bundle.openClawCompatibility.extractionBlockers
-    : [];
-
-  return {
-    ...bundle,
-    openClawCompatibility: {
-      ...bundle.openClawCompatibility,
-      rehearsedExtractionCandidate,
-      extractionBlockers
-    },
-    audit: bundle.audit ?? {
-      rehearsedExtractionCandidate,
-      extractionBlockers,
-      verifyImport: null
-    }
-  };
-};
+export interface ControlPlaneClientOptions {
+  baseUrl?: string;
+  fetchImpl?: typeof fetch;
+}
 
 export const createControlPlaneClient = ({
   baseUrl = "",
   fetchImpl = fetch
 }: ControlPlaneClientOptions = {}): ControlPlaneClient => {
   const resolvedBaseUrl = normalizeBaseUrl(baseUrl);
+
   return {
     createThread: async ({ title }) => {
-      const payload = await requestJson<{
-        thread: PlatformThread;
-      }>(fetchImpl, `${resolvedBaseUrl}/api/v3/threads`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({
-          title
-        })
-      });
+      const payload = await requestJson<{ thread: PlatformThread }>(
+        fetchImpl,
+        `${resolvedBaseUrl}/api/v3/threads`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({
+            title
+          })
+        }
+      );
       return payload.thread;
     },
     getThread: async (threadId) => {
-      const payload = await requestJson<{
-        thread: PlatformThread;
-      }>(
+      const payload = await requestJson<{ thread: PlatformThread }>(
         fetchImpl,
         `${resolvedBaseUrl}/api/v3/threads/${encodeURIComponent(threadId)}`
       );
       return payload.thread;
-    },
-    getArtifact: async (artifactId) => {
-      const payload = await requestJson<{ artifact: Artifact }>(
-        fetchImpl,
-        `${resolvedBaseUrl}/api/v3/artifacts/${encodeURIComponent(artifactId)}`
-      );
-      return payload.artifact;
-    },
-    listAdminRuns: async (options = {}) => {
-      const payload = await requestJson<{
-        runs: Run[];
-      }>(
-        fetchImpl,
-        `${resolvedBaseUrl}/admin/runs${buildQueryString({
-          status: options.status,
-          parentRunId: options.parentRunId
-        })}`
-      );
-      return payload.runs;
-    },
-    getAdminRunTimeline: async (runId) => {
-      return requestJson<AdminRunTimeline>(
-        fetchImpl,
-        `${resolvedBaseUrl}/admin/runs/${encodeURIComponent(runId)}/timeline`
-      );
-    },
-    listRunProfiles: async () => {
-      const payload = await requestJson<{
-        catalog: {
-          runProfiles: PlatformRunProfile[];
-        };
-      }>(fetchImpl, `${resolvedBaseUrl}/api/v3/platform/catalog`);
-      return payload.catalog.runProfiles;
-    },
-    listBundles: async () => {
-      const payload = await requestJson<{
-        bundles: PortableBundleCatalogEntry[];
-      }>(fetchImpl, `${resolvedBaseUrl}/admin/bundles`);
-      return payload.bundles.map(normalizeBundleCatalogEntry);
     },
     startRun: async ({
       threadId,
       profileId,
       inputArtifactIds = []
     }) => {
-      const payload = await requestJson<{
-        run: RunSnapshot["run"];
-      }>(
+      const payload = await requestJson<{ run: RunSnapshot["run"] }>(
         fetchImpl,
         `${resolvedBaseUrl}/api/v3/threads/${encodeURIComponent(threadId)}/runs`,
         {
@@ -260,63 +122,18 @@ export const createControlPlaneClient = ({
       );
     },
     cancelRun: async (runId) => {
-      const payload = await requestJson<{
-        run: Run;
-      }>(
+      const payload = await requestJson<{ run: Run }>(
         fetchImpl,
         `${resolvedBaseUrl}/api/v3/runs/${encodeURIComponent(runId)}/cancel`,
         {
           method: "POST"
         }
       );
-
       return payload.run;
     },
-    listDelegationSessions: async (options = {}) => {
-      const payload = await requestJson<{
-        sessions: DelegationSessionRecord[];
-      }>(
-        fetchImpl,
-        `${resolvedBaseUrl}/api/v3/delegation-sessions${buildQueryString({
-          runId: options.runId,
-          status: options.status
-        })}`
-      );
-
-      return payload.sessions;
-    },
-    forceReleaseDelegationSession: async (sessionId) => {
-      const payload = await requestJson<{
-        session: DelegationSessionRecord;
-      }>(
-        fetchImpl,
-        `${resolvedBaseUrl}/admin/delegation-sessions/${encodeURIComponent(sessionId)}/release`,
-        {
-          method: "POST"
-        }
-      );
-
-      return payload.session;
-    },
-    resolveCheckpoint: async (checkpointId, responsePayload) => {
-      const payload = await requestJson<{
-        checkpoint: Checkpoint;
-      }>(
-        fetchImpl,
-        `${resolvedBaseUrl}/api/v3/checkpoints/${encodeURIComponent(
-          checkpointId
-        )}/resolve`,
-        {
-          method: "POST",
-          headers: {
-            "content-type": "application/json"
-          },
-          body: JSON.stringify({
-            response: responsePayload
-          })
-        }
-      );
-      return payload.checkpoint;
-    }
+    ...createControlPlaneClientSupport({
+      fetchImpl,
+      resolvedBaseUrl
+    })
   };
 };

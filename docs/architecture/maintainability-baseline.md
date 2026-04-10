@@ -48,6 +48,13 @@ Current include-tests hotspots:
 
 - No active include-tests hotspots over budget
 
+Scenario-suite exclusions from include-tests hotspot reporting:
+
+- `apps/control-plane/test/delegation-sessions-route.test.ts`
+- `apps/worker/test/run-loop.test.ts`
+- `apps/worker/test/run-loop-subagent.test.ts`
+- `packages/agent-store/test/run-store.test.ts`
+
 ## Under-Guardrail Recovery
 
 - `apps/web/src/components/SettingsDrawer.tsx`: `417` lines

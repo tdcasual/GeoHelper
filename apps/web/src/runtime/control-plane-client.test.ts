@@ -1,14 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-
 import { createControlPlaneClient } from "./control-plane-client";
 
 const createJsonResponse = (payload: unknown, status = 200): Response =>
-  new Response(JSON.stringify(payload), {
-    status,
-    headers: {
-      "content-type": "application/json"
-    }
-  });
+  new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json" } });
 
 describe("control-plane-client", () => {
   it("lists platform run profiles from the control plane catalog", async () => {
