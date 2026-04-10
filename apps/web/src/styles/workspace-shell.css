@@ -256,6 +256,83 @@
   padding: 6px 10px 10px;
 }
 
+.workspace-platform-console {
+  min-height: 0;
+}
+
+.workspace-dialog-result-shell .workspace-platform-console,
+.chat-body .workspace-platform-console {
+  padding: 0;
+}
+
+.workspace-dialog-result-shell .workspace-platform-console .run-console,
+.chat-body .workspace-platform-console .run-console {
+  max-height: min(28vh, 280px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.run-console {
+  display: grid;
+  gap: 12px;
+}
+
+.run-console-card {
+  border: 1px solid rgba(183, 157, 121, 0.2);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(255, 251, 244, 0.88);
+  box-shadow: 0 10px 24px rgba(65, 53, 39, 0.06);
+}
+
+.run-console-inspector-toggle {
+  margin-top: 8px;
+  border: 1px solid rgba(183, 157, 121, 0.3);
+  border-radius: 999px;
+  min-height: 34px;
+  padding: 0 14px;
+  background: rgba(255, 252, 247, 0.94);
+  color: var(--studio-accent-strong);
+}
+
+.admin-run-inspector-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.admin-run-inspector button[data-run-id] {
+  border: 1px solid rgba(183, 157, 121, 0.24);
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--studio-ink);
+}
+
+.admin-run-timeline-page dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.admin-run-timeline-page dl div {
+  border: 1px solid rgba(183, 157, 121, 0.18);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.admin-run-timeline-page dt {
+  font-size: 12px;
+  color: #6f6556;
+}
+
+.admin-run-timeline-page dd {
+  margin: 4px 0 0;
+  font-weight: 600;
+  color: var(--studio-ink);
+}
+
 .workspace-shell.short-viewport.compact-viewport.mobile-surface-chat .chat-body {
   padding-top: 4px;
   gap: 6px;

@@ -2,6 +2,7 @@ import type {
   ComponentProps,
   CSSProperties,
   PointerEventHandler,
+  ReactNode,
   RefObject
 } from "react";
 
@@ -64,6 +65,7 @@ interface WorkspaceDesktopLayoutProps {
     typeof StudioResultPanel
   >["activeUncertaintyId"];
   chatMessagesProps: ComponentProps<typeof WorkspaceChatMessages>;
+  platformConsole?: ReactNode;
 }
 
 export const WorkspaceDesktopLayout = ({
@@ -100,7 +102,8 @@ export const WorkspaceDesktopLayout = ({
   onRepairLatestUncertainty,
   onFocusLatestUncertainty,
   activeFocusUncertaintyId,
-  chatMessagesProps
+  chatMessagesProps,
+  platformConsole
 }: WorkspaceDesktopLayoutProps) => (
   <section
     className="workspace-desktop-layout"
@@ -201,6 +204,7 @@ export const WorkspaceDesktopLayout = ({
                 onFocusUncertainty={onFocusLatestUncertainty}
                 activeUncertaintyId={activeFocusUncertaintyId}
               />
+              {platformConsole}
             </div>
             <div className="workspace-dialog-composer">
               <WorkspaceChatComposer {...chatComposerProps} />

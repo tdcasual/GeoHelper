@@ -177,6 +177,87 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
     }
   );
 
+  await page.route("**/admin/runs/run_child_platform_1/timeline", async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*"
+      },
+      body: JSON.stringify({
+        run: {
+          id: "run_child_platform_1",
+          threadId: "thread_platform_1",
+          profileId: "platform_geometry_quick_draft",
+          status: "completed",
+          parentRunId: "run_platform_1",
+          inputArtifactIds: [],
+          outputArtifactIds: ["artifact_child_response_1"],
+          budget: {
+            maxModelCalls: 3,
+            maxToolCalls: 4,
+            maxDurationMs: 60000
+          },
+          createdAt: "2026-04-04T00:00:03.000Z",
+          updatedAt: "2026-04-04T00:00:06.000Z"
+        },
+        events: [
+          {
+            id: "event_child_1",
+            runId: "run_child_platform_1",
+            sequence: 1,
+            type: "node.completed",
+            payload: {
+              nodeId: "node_finish"
+            },
+            createdAt: "2026-04-04T00:00:06.000Z"
+          }
+        ],
+        childRuns: [],
+        checkpoints: [],
+        delegationSessions: [],
+        artifacts: [
+          {
+            id: "artifact_child_response_1",
+            runId: "run_child_platform_1",
+            kind: "response",
+            contentType: "application/json",
+            storage: "inline",
+            metadata: {},
+            inlineData: {
+              text: "Child run response"
+            },
+            createdAt: "2026-04-04T00:00:06.000Z"
+          }
+        ],
+        summary: {
+          eventCount: 1,
+          checkpointCount: 0,
+          pendingCheckpointCount: 0,
+          delegationSessionCount: 0,
+          pendingDelegationCount: 0,
+          artifactCount: 1,
+          memoryWriteCount: 1,
+          childRunCount: 0
+        },
+        memoryEntries: [
+          {
+            id: "memory_child_1",
+            scope: "thread",
+            scopeId: "thread_platform_1",
+            key: "review_state",
+            value: {
+              verdict: "ready"
+            },
+            sourceRunId: "run_child_platform_1",
+            sourceArtifactId: "artifact_child_response_1",
+            createdAt: "2026-04-04T00:00:06.000Z"
+          }
+        ]
+      })
+    });
+  });
+
   await openWorkspace(page);
   await page.getByPlaceholder("例如：过点A和B作垂直平分线").fill("画一个圆");
   await page.getByRole("button", { name: "发送" }).click();
@@ -197,6 +278,15 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
     "platform_geometry_quick_draft"
   );
   await expect(page.getByTestId("run-console")).toContainText("checkpoint.waiting");
+  await page.getByRole("button", { name: "Inspect run" }).click();
+  await expect(page.getByTestId("admin-run-inspector")).toBeVisible();
+  await expect(page.getByTestId("admin-run-inspector")).toContainText("event count");
+  await expect(page.getByTestId("admin-run-inspector")).toContainText("artifact count");
+  await page.locator('[data-run-id="run_child_platform_1"]').first().click();
+  await expect(page.getByTestId("admin-run-inspector")).toContainText(
+    "artifact_child_response_1"
+  );
+  await expect(page.getByTestId("admin-run-inspector")).toContainText("review_state");
 
   await expect(page.getByTestId("checkpoint-inbox")).toContainText(
     "Confirm geometry draft"
@@ -207,6 +297,7 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
   await historyToggle.click();
   await expect(page.getByTestId("conversation-sidebar")).toBeVisible();
   await expect(page.getByTestId("run-console")).toBeVisible();
+  await expect(page.getByTestId("admin-run-inspector")).toBeVisible();
 
   const dialogRailBoxAfterToggle = await dialogRail.boundingBox();
   expect(dialogRailBoxBeforeToggle).not.toBeNull();

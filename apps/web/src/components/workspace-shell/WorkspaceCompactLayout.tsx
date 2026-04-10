@@ -1,4 +1,4 @@
-import type { ComponentProps, RefObject } from "react";
+import type { ComponentProps, ReactNode, RefObject } from "react";
 
 import { CanvasPanel } from "../CanvasPanel";
 import { ChatPanel } from "../ChatPanel";
@@ -55,6 +55,7 @@ interface WorkspaceCompactLayoutProps {
   canvasProfile: ComponentProps<typeof CanvasPanel>["profile"];
   canvasVisible: boolean;
   canvasFocusNotice?: ComponentProps<typeof CanvasPanel>["focusNotice"];
+  platformConsole?: ReactNode;
 }
 
 export const WorkspaceCompactLayout = ({
@@ -83,7 +84,8 @@ export const WorkspaceCompactLayout = ({
   canvasMountKey,
   canvasProfile,
   canvasVisible,
-  canvasFocusNotice
+  canvasFocusNotice,
+  platformConsole
 }: WorkspaceCompactLayoutProps) => (
   <>
     <CanvasPanel
@@ -118,6 +120,7 @@ export const WorkspaceCompactLayout = ({
               activeUncertaintyId={activeFocusUncertaintyId}
             />
           ) : null}
+          {platformConsole}
           <WorkspaceChatMessages {...chatMessagesProps} />
           <WorkspaceChatComposer {...chatComposerProps} />
         </div>
