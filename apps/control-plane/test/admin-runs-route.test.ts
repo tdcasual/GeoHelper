@@ -171,6 +171,43 @@ describe("control-plane admin routes", () => {
       createdAt: "2026-04-04T00:00:01.000Z"
     });
 
+    await store.artifacts.writeArtifact({
+      id: "artifact_plan_1",
+      runId: "run_1",
+      kind: "plan",
+      contentType: "application/json",
+      storage: "inline",
+      metadata: {},
+      inlineData: {
+        steps: ["inspect scene", "draft response"]
+      },
+      createdAt: "2026-04-04T00:00:02.000Z"
+    });
+    await store.artifacts.writeArtifact({
+      id: "artifact_response_1",
+      runId: "run_1",
+      kind: "response",
+      contentType: "application/json",
+      storage: "inline",
+      metadata: {},
+      inlineData: {
+        text: "Primary run response"
+      },
+      createdAt: "2026-04-04T00:00:03.000Z"
+    });
+    await store.artifacts.writeArtifact({
+      id: "artifact_child_response_1",
+      runId: "run_child_1",
+      kind: "response",
+      contentType: "application/json",
+      storage: "inline",
+      metadata: {},
+      inlineData: {
+        text: "Child run response"
+      },
+      createdAt: "2026-04-04T00:00:36.000Z"
+    });
+
     const app = buildServer({
       store
     });
@@ -235,7 +272,50 @@ describe("control-plane admin routes", () => {
           agentRef: "openclaw.geometry-reviewer"
         })
       ],
+      artifacts: [
+        expect.objectContaining({
+          id: "artifact_plan_1",
+          runId: "run_1",
+          kind: "plan"
+        }),
+        expect.objectContaining({
+          id: "artifact_response_1",
+          runId: "run_1",
+          kind: "response"
+        }),
+        expect.objectContaining({
+          id: "artifact_child_response_1",
+          runId: "run_child_1",
+          kind: "response"
+        })
+      ],
+      summary: {
+        eventCount: 2,
+        checkpointCount: 1,
+        pendingCheckpointCount: 1,
+        delegationSessionCount: 1,
+        pendingDelegationCount: 1,
+        artifactCount: 3,
+        memoryWriteCount: 0,
+        childRunCount: 1
+      },
       memoryEntries: []
+    });
+  });
+
+  it("returns 404 when an admin timeline run is missing", async () => {
+    const app = buildServer({
+      store: createMemoryAgentStore()
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/admin/runs/run_missing/timeline"
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(JSON.parse(res.payload)).toEqual({
+      error: "run_not_found"
     });
   });
 

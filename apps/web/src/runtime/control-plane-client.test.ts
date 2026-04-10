@@ -162,6 +162,148 @@ describe("control-plane-client", () => {
     ]);
   });
 
+  it("lists admin runs with status filters", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      createJsonResponse({
+        runs: [
+          {
+            id: "run_waiting",
+            threadId: "thread_1",
+            profileId: "platform_geometry_standard",
+            status: "waiting_for_checkpoint",
+            inputArtifactIds: [],
+            outputArtifactIds: [],
+            budget: {
+              maxModelCalls: 6,
+              maxToolCalls: 8,
+              maxDurationMs: 120000
+            },
+            createdAt: "2026-04-10T00:00:00.000Z",
+            updatedAt: "2026-04-10T00:01:00.000Z"
+          }
+        ]
+      })
+    );
+
+    const client = createControlPlaneClient({
+      baseUrl: "https://control-plane.example.com",
+      fetchImpl: fetchMock as typeof fetch
+    });
+
+    const result = await client.listAdminRuns({
+      status: "waiting_for_checkpoint"
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://control-plane.example.com/admin/runs?status=waiting_for_checkpoint",
+      undefined
+    );
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: "run_waiting",
+        status: "waiting_for_checkpoint"
+      })
+    ]);
+  });
+
+  it("fetches one admin run timeline with summary and artifacts", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      createJsonResponse({
+        run: {
+          id: "run_1",
+          threadId: "thread_1",
+          profileId: "platform_geometry_standard",
+          status: "waiting_for_checkpoint",
+          inputArtifactIds: [],
+          outputArtifactIds: ["artifact_response_1"],
+          budget: {
+            maxModelCalls: 6,
+            maxToolCalls: 8,
+            maxDurationMs: 120000
+          },
+          createdAt: "2026-04-10T00:00:00.000Z",
+          updatedAt: "2026-04-10T00:01:00.000Z"
+        },
+        events: [
+          {
+            id: "event_1",
+            runId: "run_1",
+            sequence: 1,
+            type: "node.started",
+            payload: {
+              nodeId: "node_plan_geometry"
+            },
+            createdAt: "2026-04-10T00:00:00.000Z"
+          }
+        ],
+        childRuns: [],
+        checkpoints: [],
+        delegationSessions: [],
+        artifacts: [
+          {
+            id: "artifact_response_1",
+            runId: "run_1",
+            kind: "response",
+            contentType: "application/json",
+            storage: "inline",
+            metadata: {},
+            inlineData: {
+              text: "Primary response"
+            },
+            createdAt: "2026-04-10T00:00:01.000Z"
+          }
+        ],
+        summary: {
+          eventCount: 1,
+          checkpointCount: 0,
+          pendingCheckpointCount: 0,
+          delegationSessionCount: 0,
+          pendingDelegationCount: 0,
+          artifactCount: 1,
+          memoryWriteCount: 0,
+          childRunCount: 0
+        },
+        memoryEntries: []
+      })
+    );
+
+    const client = createControlPlaneClient({
+      baseUrl: "https://control-plane.example.com",
+      fetchImpl: fetchMock as typeof fetch
+    });
+
+    const result = await client.getAdminRunTimeline("run_1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://control-plane.example.com/admin/runs/run_1/timeline",
+      undefined
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        run: expect.objectContaining({
+          id: "run_1",
+          profileId: "platform_geometry_standard"
+        }),
+        artifacts: [
+          expect.objectContaining({
+            id: "artifact_response_1",
+            kind: "response"
+          })
+        ],
+        summary: {
+          eventCount: 1,
+          checkpointCount: 0,
+          pendingCheckpointCount: 0,
+          delegationSessionCount: 0,
+          pendingDelegationCount: 0,
+          artifactCount: 1,
+          memoryWriteCount: 0,
+          childRunCount: 0
+        }
+      })
+    );
+  });
+
   it("lists portable bundle audit records from the control plane admin surface", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
       createJsonResponse({
@@ -188,7 +330,42 @@ describe("control-plane-client", () => {
               acpAgentDelegations: [],
               hostServiceDelegations: [],
               degradedBehaviors: [],
-              notes: []
+              notes: [],
+              rehearsedExtractionCandidate: false,
+              extractionBlockers: ["workspace.scene.read", "workspace.scene.write"]
+            }
+          },
+          {
+            agentId: "geometry_reviewer",
+            bundleId: "geometry_reviewer",
+            rootDir: "/repo/agents/geometry-reviewer",
+            schemaVersion: "2",
+            hostRequirements: [],
+            workspaceBootstrapFiles: ["workspace/AGENTS.md"],
+            promptAssetPaths: ["prompts/planner.md"],
+            openClawCompatibility: {
+              bundleId: "geometry_reviewer",
+              schemaVersion: "2",
+              recommendedImportMode: "portable",
+              requiredOpenClawCapabilities: [],
+              fullyPortableTools: [],
+              hostBoundTools: [],
+              nativeSubagentDelegations: [],
+              acpAgentDelegations: [],
+              hostServiceDelegations: [],
+              degradedBehaviors: [],
+              notes: [],
+              rehearsedExtractionCandidate: true,
+              extractionBlockers: []
+            },
+            audit: {
+              rehearsedExtractionCandidate: true,
+              extractionBlockers: [],
+              verifyImport: {
+                bundleId: "geometry_reviewer",
+                cleanExternalMoveReady: true,
+                extractionBlockers: []
+              }
             }
           }
         ]
@@ -209,9 +386,33 @@ describe("control-plane-client", () => {
     expect(result).toEqual([
       expect.objectContaining({
         agentId: "geometry_solver",
+        audit: {
+          rehearsedExtractionCandidate: false,
+          extractionBlockers: ["workspace.scene.read", "workspace.scene.write"],
+          verifyImport: null
+        },
         openClawCompatibility: expect.objectContaining({
           recommendedImportMode: "portable-with-host-bindings",
-          hostBoundTools: ["scene.apply_command_batch"]
+          hostBoundTools: ["scene.apply_command_batch"],
+          rehearsedExtractionCandidate: false,
+          extractionBlockers: ["workspace.scene.read", "workspace.scene.write"]
+        })
+      }),
+      expect.objectContaining({
+        agentId: "geometry_reviewer",
+        audit: {
+          rehearsedExtractionCandidate: true,
+          extractionBlockers: [],
+          verifyImport: {
+            bundleId: "geometry_reviewer",
+            cleanExternalMoveReady: true,
+            extractionBlockers: []
+          }
+        },
+        openClawCompatibility: expect.objectContaining({
+          recommendedImportMode: "portable",
+          rehearsedExtractionCandidate: true,
+          extractionBlockers: []
         })
       })
     ]);

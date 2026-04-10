@@ -4,6 +4,7 @@ import { useArtifactStore } from "../state/artifact-store";
 import { useCheckpointStore } from "../state/checkpoint-store";
 import { useDelegationSessionStore } from "../state/delegation-session-store";
 import { useRunStore } from "../state/run-store";
+import { getRuntimeControlPlaneBaseUrl } from "../state/runtime-profiles";
 import { useSceneStore } from "../state/scene-store";
 import { useSettingsStore } from "../state/settings-store";
 import { type StudioStartMode } from "../state/studio-start";
@@ -66,6 +67,10 @@ export const WorkspaceShell = ({
   const clearScene = useSceneStore((state) => state.clearScene);
   const settingsOpen = useSettingsStore((state) => state.drawerOpen);
   const setSettingsOpen = useSettingsStore((state) => state.setDrawerOpen);
+  const runtimeProfiles = useSettingsStore((state) => state.runtimeProfiles);
+  const defaultRuntimeProfileId = useSettingsStore(
+    (state) => state.defaultRuntimeProfileId
+  );
   const showAgentSteps = useSettingsStore(
     (state) => state.experimentFlags.showAgentSteps
   );
@@ -84,6 +89,11 @@ export const WorkspaceShell = ({
   const latestPlatformDelegationSessions = useDelegationSessionStore((state) =>
     selectDelegationSessionsForRun(state, latestPlatformRunId)
   );
+  const activeRuntimeProfile =
+    runtimeProfiles.find((item) => item.id === defaultRuntimeProfileId) ??
+    runtimeProfiles[0];
+  const controlPlaneBaseUrl =
+    getRuntimeControlPlaneBaseUrl(activeRuntimeProfile) || undefined;
 
   const chatShellRef = useRef<HTMLDivElement | null>(null);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
@@ -238,6 +248,20 @@ export const WorkspaceShell = ({
     plusMenuButtonRef,
     plusMenuRef
   });
+  const platformConsole =
+    showAgentSteps || latestPlatformRun ? (
+      <section className="workspace-platform-console">
+        <RunConsole
+          run={latestPlatformRun}
+          events={latestPlatformEvents}
+          childRuns={latestPlatformChildRuns}
+          checkpoints={latestPlatformCheckpoints}
+          artifacts={latestPlatformArtifacts}
+          delegationSessions={latestPlatformDelegationSessions}
+          controlPlaneBaseUrl={controlPlaneBaseUrl}
+        />
+      </section>
+    ) : null;
 
   return (
     <main
@@ -311,6 +335,7 @@ export const WorkspaceShell = ({
             onFocusLatestUncertainty={handleFocusUncertainty}
             activeFocusUncertaintyId={activeFocusUncertaintyId}
             chatMessagesProps={chatMessagesProps}
+            platformConsole={platformConsole}
           />
         ) : (
           <WorkspaceCompactLayout
@@ -342,21 +367,10 @@ export const WorkspaceShell = ({
             canvasProfile={canvasProfile}
             canvasVisible={canvasVisible}
             canvasFocusNotice={canvasFocusNotice}
+            platformConsole={platformConsole}
           />
         )}
       </div>
-      {showAgentSteps || latestPlatformRun ? (
-        <section className="workspace-platform-console">
-          <RunConsole
-            run={latestPlatformRun}
-            events={latestPlatformEvents}
-            childRuns={latestPlatformChildRuns}
-            checkpoints={latestPlatformCheckpoints}
-            artifacts={latestPlatformArtifacts}
-            delegationSessions={latestPlatformDelegationSessions}
-          />
-        </section>
-      ) : null}
       <TokenGateDialog
         open={runtimeSession.tokenDialogOpen && runtimeSession.runtimeSupportsOfficial}
         onClose={runtimeSession.closeTokenDialog}

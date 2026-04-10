@@ -1,19 +1,28 @@
 import type {
   Artifact,
   Checkpoint,
-  PlatformRunProfile
+  PlatformRunProfile,
+  Run
 } from "@geohelper/agent-protocol";
 import type { DelegationSessionRecord, RunSnapshot } from "@geohelper/agent-store";
 
 import type { PlatformThread } from "../state/thread-store";
 import { buildRunStreamUrl, parseRunStreamPayload } from "./control-plane-stream";
 import { RuntimeApiError } from "./runtime-service";
-import type { PortableBundleCatalogEntry } from "./types";
+import type {
+  AdminRunTimeline,
+  PortableBundleCatalogEntry
+} from "./types";
 
 export interface ControlPlaneClient {
   createThread: (input: { title: string }) => Promise<PlatformThread>;
   getThread: (threadId: string) => Promise<PlatformThread>;
   getArtifact: (artifactId: string) => Promise<Artifact>;
+  listAdminRuns: (options?: {
+    status?: Run["status"];
+    parentRunId?: string;
+  }) => Promise<Run[]>;
+  getAdminRunTimeline: (runId: string) => Promise<AdminRunTimeline>;
   listRunProfiles: () => Promise<PlatformRunProfile[]>;
   listBundles: () => Promise<PortableBundleCatalogEntry[]>;
   startRun: (input: {
@@ -115,6 +124,33 @@ const buildQueryString = (params: Record<string, string | undefined>): string =>
   return query ? `?${query}` : "";
 };
 
+const normalizeBundleCatalogEntry = (
+  bundle: PortableBundleCatalogEntry
+): PortableBundleCatalogEntry => {
+  const rehearsedExtractionCandidate = Boolean(
+    bundle.openClawCompatibility.rehearsedExtractionCandidate
+  );
+  const extractionBlockers = Array.isArray(
+    bundle.openClawCompatibility.extractionBlockers
+  )
+    ? bundle.openClawCompatibility.extractionBlockers
+    : [];
+
+  return {
+    ...bundle,
+    openClawCompatibility: {
+      ...bundle.openClawCompatibility,
+      rehearsedExtractionCandidate,
+      extractionBlockers
+    },
+    audit: bundle.audit ?? {
+      rehearsedExtractionCandidate,
+      extractionBlockers,
+      verifyImport: null
+    }
+  };
+};
+
 export const createControlPlaneClient = ({
   baseUrl = "",
   fetchImpl = fetch
@@ -151,6 +187,24 @@ export const createControlPlaneClient = ({
       );
       return payload.artifact;
     },
+    listAdminRuns: async (options = {}) => {
+      const payload = await requestJson<{
+        runs: Run[];
+      }>(
+        fetchImpl,
+        `${resolvedBaseUrl}/admin/runs${buildQueryString({
+          status: options.status,
+          parentRunId: options.parentRunId
+        })}`
+      );
+      return payload.runs;
+    },
+    getAdminRunTimeline: async (runId) => {
+      return requestJson<AdminRunTimeline>(
+        fetchImpl,
+        `${resolvedBaseUrl}/admin/runs/${encodeURIComponent(runId)}/timeline`
+      );
+    },
     listRunProfiles: async () => {
       const payload = await requestJson<{
         catalog: {
@@ -163,7 +217,7 @@ export const createControlPlaneClient = ({
       const payload = await requestJson<{
         bundles: PortableBundleCatalogEntry[];
       }>(fetchImpl, `${resolvedBaseUrl}/admin/bundles`);
-      return payload.bundles;
+      return payload.bundles.map(normalizeBundleCatalogEntry);
     },
     startRun: async ({
       threadId,

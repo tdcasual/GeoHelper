@@ -1,6 +1,9 @@
 import type { Dispatch, SetStateAction } from "react";
 
-import type { ChatMode } from "../../runtime/types";
+import type {
+  ChatMode,
+  PortableBundleAuditPreview
+} from "../../runtime/types";
 import type { PlatformBundleCatalogState } from "../../state/platform-bundle-catalog";
 import type { PlatformRunProfileCatalogState } from "../../state/platform-run-profile-catalog";
 import type {
@@ -34,6 +37,34 @@ interface SettingsGeneralSectionProps {
 const buildCatalogSourceLabel = (
   source: PlatformRunProfileCatalogState["source"]
 ): string => (source === "control_plane" ? "Control Plane" : "本地内置");
+
+const resolveBundleAudit = (
+  bundle: PlatformBundleCatalogState["bundles"][number]
+): PortableBundleAuditPreview => ({
+  rehearsedExtractionCandidate:
+    bundle.audit?.rehearsedExtractionCandidate ??
+    bundle.openClawCompatibility.rehearsedExtractionCandidate ??
+    false,
+  extractionBlockers:
+    bundle.audit?.extractionBlockers ??
+    bundle.openClawCompatibility.extractionBlockers ??
+    [],
+  verifyImport: bundle.audit?.verifyImport ?? null
+});
+
+const buildAuditStatus = (audit: PortableBundleAuditPreview): string => {
+  if (audit.verifyImport?.cleanExternalMoveReady) {
+    return "portable-ready";
+  }
+  if (audit.extractionBlockers.length > 0) {
+    return "host-review-needed";
+  }
+  if (audit.rehearsedExtractionCandidate) {
+    return "rehearsed-pending-verify-import";
+  }
+
+  return "rehearsal-needed";
+};
 
 export const SettingsGeneralSection = ({
   currentMode,
@@ -168,6 +199,7 @@ export const SettingsGeneralSection = ({
         {platformBundleCatalog.bundles.length > 0 ? (
           <ul className="settings-bundle-list">
             {platformBundleCatalog.bundles.map((bundle) => {
+              const audit = resolveBundleAudit(bundle);
               const hostRequirements =
                 bundle.hostRequirements.length > 0
                   ? bundle.hostRequirements.join(", ")
@@ -176,6 +208,15 @@ export const SettingsGeneralSection = ({
                 bundle.openClawCompatibility.hostBoundTools.length > 0
                   ? bundle.openClawCompatibility.hostBoundTools.join(", ")
                   : "none";
+              const extractionBlockers =
+                audit.extractionBlockers.length > 0
+                  ? audit.extractionBlockers.join(", ")
+                  : "none";
+              const verifyImportStatus = audit.verifyImport
+                ? audit.verifyImport.cleanExternalMoveReady
+                  ? "passed"
+                  : "failed"
+                : "not captured";
 
               return (
                 <li key={bundle.bundleId} className="settings-bundle-item">
@@ -188,6 +229,10 @@ export const SettingsGeneralSection = ({
                   <p className="settings-hint">{bundle.bundleId}</p>
                   <p className="settings-hint">{`host requirements: ${hostRequirements}`}</p>
                   <p className="settings-hint">{`host-bound tools: ${hostBoundTools}`}</p>
+                  <p className="settings-hint">{`release audit: ${buildAuditStatus(audit)}`}</p>
+                  <p className="settings-hint">{`rehearsal candidate: ${audit.rehearsedExtractionCandidate ? "yes" : "no"}`}</p>
+                  <p className="settings-hint">{`verify import: ${verifyImportStatus}`}</p>
+                  <p className="settings-hint">{`extraction blockers: ${extractionBlockers}`}</p>
                 </li>
               );
             })}

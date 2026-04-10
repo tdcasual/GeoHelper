@@ -46,6 +46,28 @@ export const registerAdminRunsRoutes = (
         runId: params.runId
       })
     ]);
+    const artifactRuns = [snapshot.run, ...childRuns];
+    const artifacts = (
+      await Promise.all(
+        artifactRuns.map((run) => services.store.artifacts.listRunArtifacts(run.id))
+      )
+    )
+      .flat()
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+    const summary = {
+      eventCount: snapshot.events.length,
+      checkpointCount: snapshot.checkpoints.length,
+      pendingCheckpointCount: snapshot.checkpoints.filter(
+        (checkpoint) => checkpoint.status === "pending"
+      ).length,
+      delegationSessionCount: delegationSessions.length,
+      pendingDelegationCount: delegationSessions.filter(
+        (session) => session.status === "pending"
+      ).length,
+      artifactCount: artifacts.length,
+      memoryWriteCount: snapshot.memoryEntries.length,
+      childRunCount: childRuns.length
+    };
 
     return {
       run: snapshot.run,
@@ -53,6 +75,8 @@ export const registerAdminRunsRoutes = (
       childRuns,
       checkpoints: snapshot.checkpoints,
       delegationSessions,
+      artifacts,
+      summary,
       memoryEntries: snapshot.memoryEntries
     };
   });

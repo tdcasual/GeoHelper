@@ -1,4 +1,11 @@
-import type { PlatformRunProfile } from "@geohelper/agent-protocol";
+import type {
+  Artifact,
+  Checkpoint,
+  MemoryEntry,
+  PlatformRunProfile,
+  Run,
+  RunEvent
+} from "@geohelper/agent-protocol";
 import type { DelegationSessionRecord, RunSnapshot } from "@geohelper/agent-store";
 import type { RuntimeAttachment } from "@geohelper/protocol";
 
@@ -47,6 +54,20 @@ export interface OpenClawCompatibilityPreview {
   hostServiceDelegations: RuntimeNamedHostServiceDelegation[];
   degradedBehaviors: string[];
   notes: string[];
+  rehearsedExtractionCandidate?: boolean;
+  extractionBlockers?: string[];
+}
+
+export interface PortableBundleVerifyImportPreview {
+  bundleId: string;
+  cleanExternalMoveReady: boolean;
+  extractionBlockers: string[];
+}
+
+export interface PortableBundleAuditPreview {
+  rehearsedExtractionCandidate: boolean;
+  extractionBlockers: string[];
+  verifyImport: PortableBundleVerifyImportPreview | null;
 }
 
 export interface PortableBundleCatalogEntry {
@@ -58,6 +79,29 @@ export interface PortableBundleCatalogEntry {
   workspaceBootstrapFiles: string[];
   promptAssetPaths: string[];
   openClawCompatibility: OpenClawCompatibilityPreview;
+  audit?: PortableBundleAuditPreview;
+}
+
+export interface AdminRunTimelineSummary {
+  eventCount: number;
+  checkpointCount: number;
+  pendingCheckpointCount: number;
+  delegationSessionCount: number;
+  pendingDelegationCount: number;
+  artifactCount: number;
+  memoryWriteCount: number;
+  childRunCount: number;
+}
+
+export interface AdminRunTimeline {
+  run: Run;
+  events: RunEvent[];
+  childRuns: Run[];
+  checkpoints: Checkpoint[];
+  delegationSessions: DelegationSessionRecord[];
+  artifacts: Artifact[];
+  summary: AdminRunTimelineSummary;
+  memoryEntries: MemoryEntry[];
 }
 
 export const runtimeCapabilitiesByTarget: Record<

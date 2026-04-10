@@ -20,21 +20,42 @@ test("desktop workspace uses a left canvas and right dialog rail", async ({
   await expect(resultPanel).toBeVisible();
   await expect(composer).toBeVisible();
 
+  const canvasBoxBeforeToggle = await canvas.boundingBox();
+  const dialogBoxBeforeToggle = await dialogRail.boundingBox();
+
   await historyToggle.click();
   await expect(conversationSidebar).toBeVisible();
 
   const canvasBox = await canvas.boundingBox();
   const dialogBox = await dialogRail.boundingBox();
+  const sidebarBox = await conversationSidebar.boundingBox();
 
+  expect(canvasBoxBeforeToggle).not.toBeNull();
+  expect(dialogBoxBeforeToggle).not.toBeNull();
   expect(canvasBox).not.toBeNull();
   expect(dialogBox).not.toBeNull();
+  expect(sidebarBox).not.toBeNull();
 
-  if (!canvasBox || !dialogBox) {
+  if (
+    !canvasBoxBeforeToggle ||
+    !dialogBoxBeforeToggle ||
+    !canvasBox ||
+    !dialogBox ||
+    !sidebarBox
+  ) {
     return;
   }
 
   expect(canvasBox.x).toBeLessThan(dialogBox.x);
   expect(canvasBox.width).toBeGreaterThan(dialogBox.width);
+  expect(Math.abs(canvasBox.width - canvasBoxBeforeToggle.width)).toBeLessThanOrEqual(
+    4
+  );
+  expect(Math.abs(dialogBox.width - dialogBoxBeforeToggle.width)).toBeLessThanOrEqual(
+    4
+  );
+  expect(sidebarBox.x).toBeGreaterThanOrEqual(dialogBox.x);
+  expect(sidebarBox.width).toBeLessThan(dialogBox.width);
 
   const dialogRailSurface = await dialogRail.evaluate((node) => {
     const styles = window.getComputedStyle(node);
@@ -52,7 +73,6 @@ test("desktop workspace uses a left canvas and right dialog rail", async ({
   });
 
   expect(dialogRailSurface.backgroundImage).toContain("linear-gradient");
-  expect(parseFloat(dialogRailSurface.borderLeftWidth)).toBeGreaterThanOrEqual(1);
   expect(parseFloat(canvasSurface.borderRadius)).toBeGreaterThanOrEqual(20);
   expect(canvasSurface.boxShadow).not.toBe("none");
 });

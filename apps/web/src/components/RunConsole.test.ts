@@ -143,7 +143,7 @@ const delegationSessions: DelegationSessionRecord[] = [
 ];
 
 describe("RunConsole", () => {
-  it("updates checkpoint UI and shows the latest draft with canvas evidence and child runs", () => {
+  it("shows an inspector entrypoint and renders the current run inspector detail when opened", () => {
     const pendingMarkup = renderToStaticMarkup(
       createElement(RunConsole, {
         run,
@@ -151,7 +151,8 @@ describe("RunConsole", () => {
         checkpoints: [pendingCheckpoint],
         artifacts,
         childRuns,
-        delegationSessions
+        delegationSessions,
+        defaultInspectorOpen: true
       })
     );
     const resolvedMarkup = renderToStaticMarkup(
@@ -180,12 +181,17 @@ describe("RunConsole", () => {
             status: "completed",
             outputArtifactIds: ["artifact_acp_1"]
           }
-        ]
+        ],
+        defaultInspectorOpen: true
       })
     );
 
+    expect(pendingMarkup).toContain("Inspect run");
+    expect(pendingMarkup).toContain("Admin Run Inspector");
     expect(pendingMarkup).toContain("Confirm geometry draft");
     expect(pendingMarkup).toContain("platform_geometry_standard");
+    expect(pendingMarkup).toContain("event count");
+    expect(pendingMarkup).toContain("artifact count");
     expect(resolvedMarkup).toContain("暂无待处理 checkpoint");
     expect(resolvedMarkup).toContain("修正版草案");
     expect(resolvedMarkup).toContain("scene_1");
@@ -200,5 +206,6 @@ describe("RunConsole", () => {
     expect(resolvedMarkup).toContain("Subagents");
     expect(resolvedMarkup).toContain("run_child_1");
     expect(resolvedMarkup).toContain("platform_geometry_quick_draft");
+    expect(resolvedMarkup).toContain("data-run-id=\"run_child_1\"");
   });
 });

@@ -4,9 +4,10 @@ This directory stores dated design and implementation documents.
 
 Current active execution track:
 
-- Portable agent contract cutover + delegation executor bridge: implementation docs dated `2026-04-07` to `2026-04-08`
-- Post-cutover closure + release parity: [`2026-04-09-post-cutover-closure-implementation-plan.md`](./2026-04-09-post-cutover-closure-implementation-plan.md)
-- Release-cutover validation: use the portable-agent cutover docs together with [`../BETA_CHECKLIST.md`](../BETA_CHECKLIST.md)
+- Platform run observability + operator control surface: [`2026-04-09-platform-run-observability-control-surface-implementation-plan.md`](./2026-04-09-platform-run-observability-control-surface-implementation-plan.md)
+- Release-candidate live validation implementation is complete in-repo; shared-staging sign-off remains blocked by missing credentials recorded in [`../BETA_CHECKLIST.md`](../BETA_CHECKLIST.md)
+- Post-cutover closure + release parity baseline is completed on the current branch: [`2026-04-09-post-cutover-closure-implementation-plan.md`](./2026-04-09-post-cutover-closure-implementation-plan.md)
+- Release sign-off gate: use the live-validation plan together with [`../BETA_CHECKLIST.md`](../BETA_CHECKLIST.md)
 
 ## Topic Navigation
 
@@ -23,6 +24,8 @@ Use this section when you know the problem domain first and only then want the r
 - Portable agent contract cutover: [`2026-04-08-portable-agent-contract-cutover-implementation-plan.md`](./2026-04-08-portable-agent-contract-cutover-implementation-plan.md)
 - OpenClaw migration proof + delegation executor bridge: [`2026-04-08-openclaw-migration-proof-and-delegation-executor-bridge-implementation-plan.md`](./2026-04-08-openclaw-migration-proof-and-delegation-executor-bridge-implementation-plan.md)
 - Post-cutover closure: [`2026-04-09-post-cutover-closure-implementation-plan.md`](./2026-04-09-post-cutover-closure-implementation-plan.md)
+- Release-candidate live validation: [`2026-04-09-release-candidate-live-validation-implementation-plan.md`](./2026-04-09-release-candidate-live-validation-implementation-plan.md)
+- Platform run observability + operator control surface: [`2026-04-09-platform-run-observability-control-surface-implementation-plan.md`](./2026-04-09-platform-run-observability-control-surface-implementation-plan.md)
 - M4 release closure: [`2026-03-19-m4-release-closure-implementation-plan.md`](./2026-03-19-m4-release-closure-implementation-plan.md)
 - Current branch closure execution: [`2026-03-31-project-phase-plan.md`](./2026-03-31-project-phase-plan.md)
 
