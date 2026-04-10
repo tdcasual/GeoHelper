@@ -2,9 +2,8 @@ import type { Run } from "@geohelper/agent-protocol";
 
 import type { ControlPlaneClient } from "../runtime/control-plane-client";
 import {
-  recordPlatformRunSnapshot as defaultRecordPlatformRunSnapshot,
-  type PlatformRunRecorder
-} from "./platform-run-recorder";
+  type PlatformRunRecorder,
+  recordPlatformRunSnapshot as defaultRecordPlatformRunSnapshot} from "./platform-run-recorder";
 
 export type PlatformRunLiveSyncStatus = "idle" | "syncing" | "retrying" | "error";
 

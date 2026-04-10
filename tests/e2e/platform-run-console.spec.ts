@@ -6,13 +6,25 @@ const openWorkspace = async (page: import("@playwright/test").Page) => {
   await page.getByRole("button", { name: "开始生成图形", exact: true }).click();
 };
 
-const buildEventStreamBody = (payload: unknown): string =>
-  ["event: run.snapshot", `data: ${JSON.stringify(payload)}`, ""].join("\n");
+const buildEventStreamBody = (input: {
+  snapshot: unknown;
+  incrementalEvents?: unknown[];
+}): string =>
+  [
+    "event: run.snapshot",
+    `data: ${JSON.stringify(input.snapshot)}`,
+    "",
+    ...(input.incrementalEvents ?? []).flatMap((event) => [
+      "event: run.event",
+      `data: ${JSON.stringify(event)}`,
+      ""
+    ])
+  ].join("\n");
 
 test("platform run console renders streamed snapshot artifacts and checkpoints", async ({
   page
 }) => {
-  const rootArtifacts = [
+  const initialRootArtifacts = [
     {
       id: "artifact_draft_1",
       runId: "run_platform_1",
@@ -38,6 +50,20 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
       createdAt: "2026-04-04T00:00:04.500Z"
     }
   ];
+  const liveRefreshArtifact = {
+    id: "artifact_draft_live_refresh",
+    runId: "run_platform_1",
+    kind: "draft",
+    contentType: "application/json",
+    storage: "inline",
+    metadata: {
+      source: "background_refresh"
+    },
+    inlineData: {
+      title: "后台刷新草案"
+    },
+    createdAt: "2026-04-04T00:00:05.500Z"
+  };
   const childArtifacts = [
     {
       id: "artifact_child_response_1",
@@ -70,9 +96,13 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
   let rootRunStatus: "waiting_for_checkpoint" | "running" | "cancelled" =
     "waiting_for_checkpoint";
   let rootRunUpdatedAt = "2026-04-04T00:00:05.000Z";
+  let childRunStatus: "waiting_for_subagent" | "completed" =
+    "waiting_for_subagent";
+  let childRunUpdatedAt = "2026-04-04T00:00:06.000Z";
   let checkpointStatus: "pending" | "resolved" | "cancelled" = "pending";
   let checkpointResolvedAt: string | null = null;
   let rootEventSequence = 2;
+  let rootArtifacts = [...initialRootArtifacts];
   const rootEvents: Array<{
     id: string;
     runId: string;
@@ -101,6 +131,9 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
     }
   ];
   let childClaimReleased = false;
+  let rootLiveRefreshApplied = false;
+  let rootStreamRequestCount = 0;
+  let childTimelineRequestCount = 0;
 
   const buildRootRun = () => ({
     id: "run_platform_1",
@@ -122,7 +155,7 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
     id: "run_child_platform_1",
     threadId: "thread_platform_1",
     profileId: "platform_geometry_quick_draft",
-    status: "waiting_for_subagent" as const,
+    status: childRunStatus,
     parentRunId: "run_platform_1",
     inputArtifactIds: [],
     outputArtifactIds: ["artifact_child_response_1"],
@@ -132,7 +165,7 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
       maxDurationMs: 60000
     },
     createdAt: "2026-04-04T00:00:03.000Z",
-    updatedAt: "2026-04-04T00:00:06.000Z"
+    updatedAt: childRunUpdatedAt
   });
 
   const buildCheckpoint = () => {
@@ -286,13 +319,37 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
   });
 
   await page.route("**/api/v3/runs/run_platform_1/stream*", async (route) => {
+    rootStreamRequestCount += 1;
+
+    if (!rootLiveRefreshApplied && rootStreamRequestCount >= 3) {
+      rootLiveRefreshApplied = true;
+      rootRunUpdatedAt = "2026-04-04T00:00:05.500Z";
+      rootEventSequence += 1;
+      rootEvents.push({
+        id: `event_${rootEventSequence}`,
+        runId: "run_platform_1",
+        sequence: rootEventSequence,
+        type: "draft.updated",
+        payload: {
+          artifactId: liveRefreshArtifact.id
+        },
+        createdAt: "2026-04-04T00:00:05.500Z"
+      });
+      rootArtifacts = [...rootArtifacts, liveRefreshArtifact];
+    }
+
+    const requestUrl = new URL(route.request().url());
+    const afterSequence = Number(requestUrl.searchParams.get("afterSequence") ?? "0");
     await route.fulfill({
       status: 200,
       headers: {
         "content-type": "text/event-stream",
         "access-control-allow-origin": "*"
       },
-      body: buildEventStreamBody(buildRootSnapshot())
+      body: buildEventStreamBody({
+        snapshot: buildRootSnapshot(),
+        incrementalEvents: rootEvents.filter((event) => event.sequence > afterSequence)
+      })
     });
   });
 
@@ -324,6 +381,14 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
   });
 
   await page.route("**/admin/runs/run_child_platform_1/timeline", async (route) => {
+    childTimelineRequestCount += 1;
+
+    if (childTimelineRequestCount >= 2) {
+      childClaimReleased = true;
+      childRunStatus = "completed";
+      childRunUpdatedAt = "2026-04-04T00:07:30.000Z";
+    }
+
     await route.fulfill({
       status: 200,
       headers: {
@@ -445,6 +510,7 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
     "Approve checkpoint"
   );
   await expect(page.getByTestId("run-console")).toContainText("Cancel run");
+  await expect(page.getByTestId("run-console")).toContainText("Live refresh active");
   await expect(page.getByTestId("artifact-viewer")).toContainText("修正版草案");
   await expect(page.getByTestId("artifact-viewer")).toContainText("scene_1");
 
@@ -469,22 +535,31 @@ test("platform run console renders streamed snapshot artifacts and checkpoints",
   await expect(page.getByTestId("admin-run-inspector")).toContainText(
     "Force release claim"
   );
-
-  await page.getByRole("button", { name: "Approve checkpoint" }).click();
-  await expect(page.getByTestId("checkpoint-inbox")).not.toContainText(
-    "Confirm geometry draft"
+  await expect(page.getByTestId("admin-run-inspector")).toContainText(
+    "Timeline refresh active"
   );
 
-  await page.getByRole("button", { name: "Cancel run" }).click();
-  await expect(page.getByTestId("run-console")).toContainText("cancelled");
-
-  await page.getByRole("button", { name: "Force release claim" }).click();
+  await expect(page.getByTestId("artifact-viewer")).toContainText("后台刷新草案");
+  await expect(page.getByTestId("admin-run-inspector")).toContainText("completed");
   await expect(page.getByTestId("admin-run-inspector")).not.toContainText(
     "executor_geometry_reviewer"
   );
   await expect(page.getByTestId("admin-run-inspector")).not.toContainText(
     "2026-04-04T00:10:00.000Z"
   );
+  await expect(page.getByTestId("admin-run-inspector")).not.toContainText(
+    "Force release claim"
+  );
+
+  await page.getByRole("button", { name: "Approve checkpoint" }).click();
+  await expect(page.getByTestId("checkpoint-inbox")).not.toContainText(
+    "Confirm geometry draft"
+  );
+  await expect(page.getByTestId("run-console")).toBeVisible();
+  await expect(page.getByTestId("admin-run-inspector")).toBeVisible();
+
+  await page.getByRole("button", { name: "Cancel run" }).click();
+  await expect(page.getByTestId("run-console")).toContainText("cancelled");
 
   const dialogRailBoxBeforeToggle = await dialogRail.boundingBox();
 
